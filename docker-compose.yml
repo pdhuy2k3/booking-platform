@@ -1,0 +1,48 @@
+
+services:
+  app:
+    depends_on:
+      postgres:
+        condition: service_healthy
+    image: svhd/logto:${TAG-latest}
+    entrypoint: ["sh", "-c", "npm run cli db seed -- --swe && npm start"]
+    ports:
+      - 3001:3001
+      - 3002:3002
+    environment:
+      - TRUST_PROXY_HEADER=1
+      - DB_URL=postgres://postgres:p0stgr3s@postgres:5432/logto
+
+      - ENDPOINT
+      - ADMIN_ENDPOINT
+  postgres:
+    image: postgres:17-alpine
+    user: postgres
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: p0stgr3s
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+#      - ./postgres-init.sql:/docker-entrypoint-initdb.d/init.sql
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    environment:
+      PGADMIN_CONFIG_SERVER_MODE: 'False'
+      PGADMIN_DEFAULT_EMAIL: huypd.dev@gmail.com
+      PGADMIN_DEFAULT_PASSWORD: admin123
+    ports:
+      - "8081:80"
+    volumes:
+      - pgadmin_data:/var/lib/pgadmin
+    depends_on:
+      - postgres
+    restart: unless-stopped
+volumes:
+    postgres_data:
+    pgadmin_data:
+

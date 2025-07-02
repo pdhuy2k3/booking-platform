@@ -1,0 +1,27 @@
+# Test profile configuration
+spring:
+  application:
+    name: discovery-service-test
+  security:
+    oauth2:
+      enabled: false  # Disable OIDC for tests
+
+# Server configuration for tests
+server:
+  port: 0  # Random port for tests
+
+# Eureka configuration for tests
+eureka:
+  client:
+    register-with-eureka: false
+    fetch-registry: false
+  server:
+    enable-self-preservation: false
+  security:
+    enabled: false
+
+# Logging for tests
+logging:
+  level:
+    com.pdh.discovery: DEBUG
+    org.springframework.test: DEBUG
