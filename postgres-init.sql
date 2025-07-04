@@ -1,0 +1,10 @@
+CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+
+CREATE DATABASE flight_db;
+CREATE DATABASE hotel_db;
+CREATE DATABASE booking_db;
+CREATE DATABASE customer_db;
+CREATE DATABASE payment_db;
+CREATE DATABASE transport_db;
+
+

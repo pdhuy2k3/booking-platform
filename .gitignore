@@ -33,3 +33,6 @@ build/
 .vscode/
 .github/**/*.md
 .env
+
+### Node.js ###
+node_modules/

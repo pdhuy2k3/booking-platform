@@ -1,11 +1,11 @@
 package com.pdh.flight.controller;
 
+import com.pdh.flight.model.Flight;
+import com.pdh.flight.repository.FlightRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
-import reactor.core.publisher.Flux;
-import reactor.core.publisher.Mono;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -19,6 +19,8 @@ import java.util.Map;
 @RequiredArgsConstructor
 @Slf4j
 public class FlightController {
+    
+    private final FlightRepository flightRepository;
 
     /**
      * Health check endpoint
@@ -39,42 +41,26 @@ public class FlightController {
 
     /**
      * Tìm kiếm chuyến bay
-     * Demo endpoint cho việc test service discovery
      */
     @GetMapping("/backoffice/flight/search")
-    public ResponseEntity<List<Map<String, Object>>> searchFlights(
+    public ResponseEntity<List<Flight>> searchFlights(
             @RequestParam(required = false) String from,
             @RequestParam(required = false) String to,
-            @RequestParam(required = false) String date) {
-
-        log.info("Searching flights from {} to {} on {}", from, to, date);
-
-        // Mock data for demo
-        Map<String, Object> flight1 = Map.of(
-                "id", "VN123",
-                "airline", "Vietnam Airlines",
-                "from", from != null ? from : "SGN",
-                "to", to != null ? to : "HAN",
-                "departure", "08:00",
-                "arrival", "10:00",
-                "price", 2500000,
-                "currency", "VND"
-        );
-
-        Map<String, Object> flight2 = Map.of(
-                "id", "VJ456",
-                "airline", "VietJet Air",
-                "from", from != null ? from : "SGN",
-                "to", to != null ? to : "HAN",
-                "departure", "14:30",
-                "arrival", "16:30",
-                "price", 1800000,
-                "currency", "VND"
-        );
-
-        List<Map<String, Object>> flights = List.of(flight1, flight2);
-        flights.forEach(flight -> log.info("Found flight: {}", flight));
-
+            @RequestParam(required = false) String keyword) {
+        
+        log.info("Searching flights from {} to {} with keyword: {}", from, to, keyword);
+        
+        List<Flight> flights;
+        
+        if (keyword != null && !keyword.trim().isEmpty()) {
+            flights = flightRepository.searchFlights(keyword);
+        } else if (from != null && to != null) {
+            flights = flightRepository.findByDepartureAirportAndArrivalAirportAndIsActiveTrue(from, to);
+        } else {
+            flights = flightRepository.findAll();
+        }
+        
+        log.info("Found {} flights", flights.size());
         return ResponseEntity.ok(flights);
     }
 
@@ -82,21 +68,58 @@ public class FlightController {
      * Lấy thông tin chi tiết chuyến bay
      */
     @GetMapping("/backoffice/flight/{flightId}")
-    public ResponseEntity<Map<String, Object>> getFlightDetails(@PathVariable String flightId) {
+    public ResponseEntity<Flight> getFlightDetails(@PathVariable Long flightId) {
         log.info("Getting flight details for ID: {}", flightId);
         
-        Map<String, Object> flightDetails = Map.of(
-                "id", flightId,
-                "airline", "Vietnam Airlines",
-                "from", "SGN",
-                "to", "HAN",
-                "departure", "08:00",
-                "arrival", "10:00",
-                "price", 2500000,
-                "currency", "VND",
-                "status", "On Time"
-        );
+        return flightRepository.findById(flightId)
+                .map(flight -> {
+                    log.info("Found flight: {}", flight.getFlightNumber());
+                    return ResponseEntity.ok(flight);
+                })
+                .orElse(ResponseEntity.notFound().build());
+    }
+
+    /**
+     * Lấy chuyến bay theo flight number
+     */
+    @GetMapping("/backoffice/flight/number/{flightNumber}")
+    public ResponseEntity<Flight> getFlightByNumber(@PathVariable String flightNumber) {
+        log.info("Getting flight details for flight number: {}", flightNumber);
         
-        return ResponseEntity.ok(flightDetails);
+        return flightRepository.findByFlightNumber(flightNumber)
+                .map(flight -> {
+                    log.info("Found flight: {} - {}", flight.getFlightNumber(), 
+                            flight.getAirline() != null ? flight.getAirline().getName() : "Unknown Airline");
+                    return ResponseEntity.ok(flight);
+                })
+                .orElse(ResponseEntity.notFound().build());
+    }
+
+    /**
+     * Lấy chuyến bay theo hãng hàng không
+     */
+    @GetMapping("/backoffice/flight/airline/{airlineCode}")
+    public ResponseEntity<List<Flight>> getFlightsByAirline(@PathVariable String airlineCode) {
+        log.info("Getting flights for airline: {}", airlineCode);
+        
+        List<Flight> flights = flightRepository.findByAirlineCodeAndIsActiveTrue(airlineCode);
+        log.info("Found {} flights for airline: {}", flights.size(), airlineCode);
+        
+        return ResponseEntity.ok(flights);
+    }
+
+    /**
+     * Lấy chuyến bay có ghế trống
+     */
+    @GetMapping("/backoffice/flight/available")
+    public ResponseEntity<List<Flight>> getAvailableFlights(
+            @RequestParam(defaultValue = "1") Integer minSeats) {
+        
+        log.info("Getting flights with at least {} available seats", minSeats);
+        
+        List<Flight> flights = flightRepository.findFlightsWithAvailableSeats(minSeats);
+        log.info("Found {} flights with available seats", flights.size());
+        
+        return ResponseEntity.ok(flights);
     }
 }

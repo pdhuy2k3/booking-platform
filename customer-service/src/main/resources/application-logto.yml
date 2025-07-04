@@ -1,0 +1,32 @@
+# Logto Integration Configuration
+# Based on Logto API documentation:
+# - Management API: https://docs.logto.io/end-user-flows/account-settings/by-management-api
+# - Account API: https://docs.logto.io/end-user-flows/account-settings/by-account-api
+# - OpenAPI Users: https://openapi.logto.io/group/endpoint-users
+
+logto:
+  # Main Logto endpoint (port 3001)
+  endpoint: ${LOGTO_ENDPOINT:http://localhost:3001}
+  
+  # App credentials for API access
+  app-id: ${LOGTO_CLIENT_ID:your-app-id}
+  app-secret: ${LOGTO_CLIENT_SECRET:your-app-secret}
+  
+  # Management API endpoint (port 3002) - for admin operations
+  management-api-endpoint: ${LOGTO_MANAGEMENT_API_ENDPOINT:http://localhost:3002}
+  
+  # Management API resource identifier
+  management-api-resource: ${LOGTO_MANAGEMENT_API_RESOURCE:https://default.logto.app/api}
+  
+  # HTTP client timeouts
+  connection-timeout: 5000
+  read-timeout: 10000
+
+# Security configuration for JWT validation
+spring:
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          issuer-uri: https://your-tenant.logto.app/oidc
+          jwk-set-uri: https://your-tenant.logto.app/oidc/jwks

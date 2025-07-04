@@ -1,26 +1,41 @@
-
 services:
-  app:
+  # Logto Authentication Service
+  logto:
+    profiles:
+      - app
+      - auth
     depends_on:
       postgres:
         condition: service_healthy
     image: svhd/logto:${TAG-latest}
     entrypoint: ["sh", "-c", "npm run cli db seed -- --swe && npm start"]
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3001/api/status"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
     ports:
       - 3001:3001
       - 3002:3002
     environment:
       - TRUST_PROXY_HEADER=1
       - DB_URL=postgres://postgres:p0stgr3s@postgres:5432/logto
-
-      - ENDPOINT
-      - ADMIN_ENDPOINT
+      - ENDPOINT=http://logto:3001
+      - ADMIN_ENDPOINT=http://logto:3002
+  
+  # PostgreSQL Database
   postgres:
+    profiles:
+      - app
+      - auth
+      - dev
     image: postgres:17-alpine
     user: postgres
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: p0stgr3s
+      POSTGRES_DB: logto
     healthcheck:
       test: ["CMD-SHELL", "pg_isready"]
       interval: 10s
@@ -28,21 +43,202 @@ services:
       retries: 5
     volumes:
       - postgres_data:/var/lib/postgresql/data
-#      - ./postgres-init.sql:/docker-entrypoint-initdb.d/init.sql
+      - ./postgres-init.sql:/docker-entrypoint-initdb.d/init.sql
+    ports:
+      - "5432:5432"
+  
+  # Discovery Service (Eureka)
+  discovery-service:
+    profiles:
+      - app
+    build:
+      context: ./discovery-service
+      dockerfile: Dockerfile
+    ports:
+      - "8761:8761"
+    environment:
+      - SPRING_PROFILES_ACTIVE=docker
+      - EUREKA_URI=http://discovery-service:8761/eureka
+
+  # API Gateway (Backoffice BFF)
+  backoffice:
+    profiles:
+      - app
+    build:
+      context: ./backoffice-bff
+      dockerfile: Dockerfile
+    ports:
+      - "8080:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      logto:
+        condition: service_healthy
+    environment:
+      - SPRING_PROFILES_ACTIVE=docker
+      - EUREKA_URI=http://discovery-service:8761/eureka
+      - LOGTO_ENDPOINT=http://logto:3001
+      - DB_URL=postgres://postgres:p0stgr3s@postgres:5432/logto
+      - LOGTO_CLIENT_ID
+      - LOGTO_CLIENT_SECRET
+
+  
+  # Flight Service
+  flight-service:
+    profiles:
+      - app
+    build:
+      context: ./flight-service
+      dockerfile: Dockerfile
+    ports:
+      - "8081:8081"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      - SPRING_PROFILES_ACTIVE=docker
+      - EUREKA_URI=http://discovery-service:8761/eureka
+      - DB_URL=jdbc:postgresql://postgres:5432/flight_db
+      - DB_USERNAME=postgres
+      - DB_PASSWORD=p0stgr3s
+      - LOGTO_ENDPOINT=http://logto:3001
+      - LOGTO_CLIENT_ID
+      - LOGTO_CLIENT_SECRET
+
+  
+  # Hotel Service
+  hotel-service:
+    profiles:
+      - app
+    build:
+      context: ./hotel-service
+      dockerfile: Dockerfile
+    ports:
+      - "8082:8082"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      - SPRING_PROFILES_ACTIVE=docker
+      - EUREKA_URI=http://discovery-service:8761/eureka
+      - DB_URL=jdbc:postgresql://postgres:5432/hotel_db
+      - DB_USERNAME=postgres
+      - DB_PASSWORD=p0stgr3s
+      - LOGTO_ENDPOINT=http://logto:3001
+      - LOGTO_CLIENT_ID
+      - LOGTO_CLIENT_SECRET
+  
+  # Booking Service
+  booking-service:
+    profiles:
+      - app
+    build:
+      context: ./booking-service
+      dockerfile: Dockerfile
+    ports:
+      - "8083:8083"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      - SPRING_PROFILES_ACTIVE=docker
+      - EUREKA_URI=http://discovery-service:8761/eureka
+      - DB_URL=jdbc:postgresql://postgres:5432/booking_db
+      - DB_USERNAME=postgres
+      - DB_PASSWORD=p0stgr3s
+      - LOGTO_ENDPOINT=http://logto:3001
+      - LOGTO_CLIENT_ID
+      - LOGTO_CLIENT_SECRET
+  
+  # Customer Service
+  customer-service:
+    profiles:
+      - app
+    build:
+      context: ./customer-service
+      dockerfile: Dockerfile
+    ports:
+      - "8084:8084"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      logto:
+        condition: service_healthy
+    environment:
+      - SPRING_PROFILES_ACTIVE=docker
+      - EUREKA_URI=http://discovery-service:8761/eureka
+      - DB_URL=jdbc:postgresql://postgres:5432/customer_db
+      - DB_USERNAME=postgres
+      - DB_PASSWORD=p0stgr3s
+      - LOGTO_ENDPOINT=http://logto:3001
+      - LOGTO_MANAGEMENT_API_ENDPOINT=http://logto:3002
+      - LOGTO_CLIENT_ID
+      - LOGTO_CLIENT_SECRET
+  
+  # Payment Service
+  payment-service:
+    profiles:
+      - app
+    build:
+      context: ./payment-service
+      dockerfile: Dockerfile
+    ports:
+      - "8085:8085"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      - SPRING_PROFILES_ACTIVE=docker
+      - EUREKA_URI=http://discovery-service:8761/eureka
+      - DB_URL=jdbc:postgresql://postgres:5432/payment_db
+      - DB_USERNAME=postgres
+      - DB_PASSWORD=p0stgr3s
+      - LOGTO_ENDPOINT=http://logto:3001
+      - LOGTO_CLIENT_ID
+      - LOGTO_CLIENT_SECRET
+  
+  # Transport Service
+  transport-service:
+    profiles:
+      - app
+    build:
+      context: ./transport-service
+      dockerfile: Dockerfile
+    ports:
+      - "8086:8086"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      - SPRING_PROFILES_ACTIVE=docker
+      - EUREKA_URI=http://discovery-service:8761/eureka
+      - DB_URL=jdbc:postgresql://postgres:5432/transport_db
+      - DB_USERNAME=postgres
+      - DB_PASSWORD=p0stgr3s
+      - LOGTO_ENDPOINT=http://logto:3001
+      - LOGTO_CLIENT_ID
+      - LOGTO_CLIENT_SECRET
+  
+  # PgAdmin for database management
   pgadmin:
+    profiles:
+      - dev
     image: dpage/pgadmin4:latest
     environment:
       PGADMIN_CONFIG_SERVER_MODE: 'False'
       PGADMIN_DEFAULT_EMAIL: huypd.dev@gmail.com
       PGADMIN_DEFAULT_PASSWORD: admin123
     ports:
-      - "8081:80"
+      - "8090:80"
     volumes:
       - pgadmin_data:/var/lib/pgadmin
     depends_on:
       - postgres
     restart: unless-stopped
+
+networks:
+  default:
+    driver: bridge
 volumes:
     postgres_data:
     pgadmin_data:
-

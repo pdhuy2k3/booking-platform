@@ -10,6 +10,8 @@ import org.springframework.security.oauth2.client.oidc.authentication.OidcIdToke
 import org.springframework.security.oauth2.client.oidc.web.server.logout.OidcClientInitiatedServerLogoutSuccessHandler;
 import org.springframework.security.oauth2.client.registration.ClientRegistration;
 import org.springframework.security.oauth2.client.registration.ReactiveClientRegistrationRepository;
+import org.springframework.security.oauth2.client.web.server.DefaultServerOAuth2AuthorizationRequestResolver;
+import org.springframework.security.oauth2.client.web.server.ServerOAuth2AuthorizationRequestResolver;
 import org.springframework.security.oauth2.core.endpoint.OAuth2AuthorizationRequest;
 import org.springframework.security.oauth2.jose.jws.SignatureAlgorithm;
 import org.springframework.security.oauth2.jwt.JwtDecoderFactory;
@@ -36,7 +38,10 @@ public class WebSecurityConfig {
                     .pathMatchers("/actuator/**","/home","/").permitAll()
                     .anyExchange().authenticated();
         })
-                .oauth2Login(Customizer.withDefaults())
+                .oauth2Login(oauth2 -> oauth2
+                        // Áp dụng customizer để thêm tham số `resource` vào yêu cầu
+                        .authorizationRequestResolver(authorizationRequestResolver())
+                )
                 .httpBasic(ServerHttpSecurity.HttpBasicSpec::disable)
                 .formLogin(ServerHttpSecurity.FormLoginSpec::disable)
                 .csrf(ServerHttpSecurity.CsrfSpec::disable)
@@ -51,16 +56,24 @@ public class WebSecurityConfig {
 
         return oidcLogoutSuccessHandler;
     }
-    private Consumer<OAuth2AuthorizationRequest.Builder> authorizationRequestCustomizer() {
-        return customizer -> customizer.additionalParameters(params -> {
-            // Set the prompt parameter to "consent". User will be auto consent if Logto has
-            // a valid session
-            params.put("prompt", "consent");
+    @Bean
+    public ServerOAuth2AuthorizationRequestResolver authorizationRequestResolver() {
+        // Tạo một resolver mặc định
+        DefaultServerOAuth2AuthorizationRequestResolver resolver = new DefaultServerOAuth2AuthorizationRequestResolver(clientRegistrationRepository);
 
-            // Set the prompt parameter to "login" to force the user to sign in every time
-            // params.put("prompt", "login");
+        // Tạo một consumer để tùy chỉnh request
+        Consumer<OAuth2AuthorizationRequest.Builder> customizer = customAuthorizationRequest();
 
-            params.put("resource", "http://localhost:3001/api/test");
+        // Gói consumer vào resolver
+        resolver.setAuthorizationRequestCustomizer(customizer);
+
+        return resolver;
+    }
+
+    private Consumer<OAuth2AuthorizationRequest.Builder> customAuthorizationRequest() {
+        return customizer -> customizer.parameters(params -> {
+
+            params.put("resource", "http://localhost:8080/api");
         });
     }
 }

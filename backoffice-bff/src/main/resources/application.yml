@@ -1,0 +1,107 @@
+
+server:
+  port: 8080
+spring:
+  profiles:
+    active: local
+  application:
+    name: BACKOFFICE-BFF
+---
+spring:
+  config:
+    activate:
+      on-profile: local
+  security:
+    oauth2:
+      client:
+        registration:
+          logto:
+            client-name: logto
+            client-id: ${LOGTO_CLIENT_ID}
+            client-secret: ${LOGTO_CLIENT_SECRET}
+            redirect-uri: "{baseUrl}/login/oauth2/code/{registrationId}"
+            authorization-grant-type: authorization_code
+            scope: profile, email, openid
+            provider: logto
+        provider:
+          logto:
+            issuer-uri: http://localhost:3001/oidc
+            authorization-uri: http://localhost:3001/auth
+            jwk-set-uri: http://localhost:3001/oidc/jwks
+  cloud:
+    gateway:
+      routes:
+        # FLIGHT SERVICE
+        - id: flight-service
+          uri: lb://FLIGHT-SERVICE
+          predicates:
+            - Path=/api/flight-service/**
+          filters:
+            - TokenRelay=
+            - RewritePath=/api/flight-service/(?<segment>.*), /${segment}
+        # BOOKING SERVICE
+        - id: booking-service
+          uri: lb://BOOKING-SERVICE
+          predicates:
+            - Path=/api/booking-service/**
+          filters:
+            - TokenRelay=
+            - RewritePath=/api/booking-service/(?<segment>.*), /${segment}
+        # HOTEL SERVICE
+        - id: hotel-service
+          uri: lb://HOTEL-SERVICE
+          predicates:
+            - Path=/api/hotel-service/**
+          filters:
+            - TokenRelay=
+            - RewritePath=/api/hotel-service/(?<segment>.*), /${segment}
+
+        - id: eureka-web-start
+          uri: lb://DISCOVERY-SERVICE
+          predicates:
+            - Path=/eureka/web
+          filters:
+            - StripPrefix=2
+        - id: eureka-web-other
+          uri: http://localhost:8761
+          predicates:
+            - Path=/eureka/**
+      default-filters:
+        - SaveSession
+eureka:
+  client:
+    serviceUrl:
+      defaultZone: http://localhost:8761/eureka
+  instance:
+    hostname: localhost
+    prefer-ip-address: false
+
+---
+
+spring:
+  config:
+    activate:
+      on-profile: docker
+  security:
+    oauth2:
+      client:
+        registration:
+          logto:
+            client-name: logto
+            client-id: ${LOGTO_CLIENT_ID}
+            client-secret: ${LOGTO_CLIENT_SECRET}
+            redirect-uri: "{baseUrl}/login/oauth2/code/{registrationId}"
+            authorization-grant-type: authorization_code
+            scope: profile, email, openid
+            provider: logto
+        provider:
+          logto:
+            issuer-uri: ${LOGTO_ENDPOINT}/oidc
+            authorization-uri: ${LOGTO_ENDPOINT}/auth
+            jwk-set-uri: ${LOGTO_ENDPOINT}/oidc/jwks
+eureka:
+  client:
+    serviceUrl:
+      defaultZone: ${EUREKA_URI}
+  instance:
+    prefer-ip-address: true
