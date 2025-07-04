@@ -1,6 +1,7 @@
 package com.pdh.booking.model;
 
 import com.pdh.booking.model.enums.SagaStatus;
+import com.pdh.common.model.AbstractAuditEntity;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Data;
@@ -14,7 +15,7 @@ import java.util.UUID;
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
-public class Saga {
+public class Saga extends AbstractAuditEntity {
     
     @Id
     @Column(name = "saga_id")
@@ -33,11 +34,7 @@ public class Saga {
     @Column(name = "payload", columnDefinition = "JSONB")
     private String payload;
     
-    @Column(name = "created_at", nullable = false)
-    private ZonedDateTime createdAt = ZonedDateTime.now();
     
-    @Column(name = "updated_at", nullable = false)
-    private ZonedDateTime updatedAt = ZonedDateTime.now();
     
     // Reference entity
     @ManyToOne(fetch = FetchType.LAZY)

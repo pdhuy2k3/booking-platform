@@ -16,7 +16,7 @@ import java.time.LocalDate;
 @Entity
 @Table(name = "booking_passengers")
 @Data
-@EqualsAndHashCode(callSuper = true)
+
 @NoArgsConstructor
 @AllArgsConstructor
 public class BookingPassenger extends AbstractAuditEntity {

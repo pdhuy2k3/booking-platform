@@ -17,10 +17,14 @@ CREATE TABLE bookings (
     currency VARCHAR(3) NOT NULL DEFAULT 'VND',
     status booking_status_enum NOT NULL,
     booking_type booking_type_enum NOT NULL,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     cancelled_at TIMESTAMPTZ,
-    cancellation_reason TEXT
+    cancellation_reason TEXT,
+    created_on TIMESTAMPTZ,
+    created_by VARCHAR(255),
+    last_modified_on TIMESTAMPTZ,
+    last_modified_by VARCHAR(255),
+    deleted BOOLEAN NOT NULL DEFAULT FALSE,
+    is_active BOOLEAN NOT NULL DEFAULT TRUE
 );
 
 -- Booking_Items table
@@ -31,7 +35,13 @@ CREATE TABLE booking_items (
     provider_booking_ref VARCHAR(255),
     status VARCHAR(50),
     price DECIMAL(12, 2) NOT NULL,
-    details JSONB
+    details JSONB,
+    created_on TIMESTAMPTZ,
+    created_by VARCHAR(255),
+    last_modified_on TIMESTAMPTZ,
+    last_modified_by VARCHAR(255),
+    deleted BOOLEAN NOT NULL DEFAULT FALSE,
+    is_active BOOLEAN NOT NULL DEFAULT TRUE
 );
 
 -- Sagas table
@@ -41,8 +51,12 @@ CREATE TABLE sagas (
     saga_type VARCHAR(100) NOT NULL,
     status saga_status_enum NOT NULL,
     payload JSONB,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    created_on TIMESTAMPTZ,
+    created_by VARCHAR(255),
+    last_modified_on TIMESTAMPTZ,
+    last_modified_by VARCHAR(255),
+    deleted BOOLEAN NOT NULL DEFAULT FALSE,
+    is_active BOOLEAN NOT NULL DEFAULT TRUE
 );
 
 -- Saga_Steps table

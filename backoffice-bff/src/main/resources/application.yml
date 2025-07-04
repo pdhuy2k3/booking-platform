@@ -1,4 +1,3 @@
-
 server:
   port: 8080
 spring:
@@ -6,6 +5,20 @@ spring:
     active: local
   application:
     name: BACKOFFICE-BFF
+
+# Gateway Service Resources Configuration
+gateway:
+  service-resources:
+    # Cấu hình cho dynamic mapping
+    use-dynamic-mapping: true
+    base-url: https://api.bookingsmart.huypd.me
+    default-resource: https://api.bookingsmart.huypd.me
+    # Static mapping (sử dụng khi use-dynamic-mapping: false)
+    mapping:
+      /api/flight-service: https://api.bookingsmart.huypd.me/api/flight-service
+      /api/booking-service: https://api.bookingsmart.huypd.me/api/booking-service
+      /api/hotel-service: https://api.bookingsmart.huypd.me/api/hotel-service
+      /api/customer-service: https://api.bookingsmart.huypd.me/api/customer-service
 ---
 spring:
   config:

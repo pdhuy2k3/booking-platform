@@ -14,7 +14,7 @@ import java.util.List;
 @Entity
 @Table(name = "rooms")
 @Data
-@EqualsAndHashCode(callSuper = true)
+
 @NoArgsConstructor
 @AllArgsConstructor
 public class Room extends AbstractAuditEntity {

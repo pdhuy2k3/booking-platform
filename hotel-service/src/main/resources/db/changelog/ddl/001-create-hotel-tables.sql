@@ -1,4 +1,4 @@
--- Enable UUID extension
+"""-- Enable UUID extension
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
 -- Create amenity_category_enum type
@@ -36,7 +36,13 @@ CREATE TABLE hotels (
     latitude DECIMAL(9, 6),
     longitude DECIMAL(9, 6),
     checkin_time TIME,
-    checkout_time TIME
+    checkout_time TIME,
+    created_on TIMESTAMPTZ,
+    created_by VARCHAR(255),
+    last_modified_on TIMESTAMPTZ,
+    last_modified_by VARCHAR(255),
+    deleted BOOLEAN NOT NULL DEFAULT FALSE,
+    is_active BOOLEAN NOT NULL DEFAULT TRUE
 );
 
 -- RoomTypes table
@@ -47,7 +53,13 @@ CREATE TABLE room_types (
     description TEXT,
     capacity_adults SMALLINT NOT NULL,
     capacity_children SMALLINT NOT NULL DEFAULT 0,
-    base_price DECIMAL(12, 2) NOT NULL
+    base_price DECIMAL(12, 2) NOT NULL,
+    created_on TIMESTAMPTZ,
+    created_by VARCHAR(255),
+    last_modified_on TIMESTAMPTZ,
+    last_modified_by VARCHAR(255),
+    deleted BOOLEAN NOT NULL DEFAULT FALSE,
+    is_active BOOLEAN NOT NULL DEFAULT TRUE
 );
 
 -- Rooms table
@@ -62,8 +74,6 @@ CREATE TABLE rooms (
     bed_type VARCHAR(255),
     room_size INTEGER,
     is_available BOOLEAN DEFAULT TRUE,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
 -- Amenities table
@@ -91,8 +101,11 @@ CREATE TABLE room_amenities (
     amenity_id INTEGER NOT NULL REFERENCES amenities(amenity_id),
     is_active BOOLEAN DEFAULT TRUE,
     display_order INTEGER,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    created_on TIMESTAMPTZ,
+    created_by VARCHAR(255),
+    last_modified_on TIMESTAMPTZ,
+    last_modified_by VARCHAR(255),
+    deleted BOOLEAN NOT NULL DEFAULT FALSE
 );
 
 -- Room_Images table
@@ -103,8 +116,12 @@ CREATE TABLE room_images (
     caption VARCHAR(255),
     is_primary BOOLEAN DEFAULT FALSE,
     display_order INTEGER,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    created_on TIMESTAMPTZ,
+    created_by VARCHAR(255),
+    last_modified_on TIMESTAMPTZ,
+    last_modified_by VARCHAR(255),
+    deleted BOOLEAN NOT NULL DEFAULT FALSE,
+    is_active BOOLEAN NOT NULL DEFAULT TRUE
 );
 
 -- Room_Availability table
@@ -125,7 +142,12 @@ CREATE TABLE reviews (
     user_id UUID, -- References Users in UserService
     rating SMALLINT NOT NULL CHECK (rating BETWEEN 1 AND 5),
     comment_text TEXT,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    created_on TIMESTAMPTZ,
+    created_by VARCHAR(255),
+    last_modified_on TIMESTAMPTZ,
+    last_modified_by VARCHAR(255),
+    deleted BOOLEAN NOT NULL DEFAULT FALSE,
+    is_active BOOLEAN NOT NULL DEFAULT TRUE
 );
 
 -- Hotel_Photos table
@@ -145,6 +167,10 @@ CREATE TABLE hotel_images (
     caption VARCHAR(255),
     is_primary BOOLEAN DEFAULT FALSE,
     display_order INTEGER,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);
+    created_on TIMESTAMPTZ,
+    created_by VARCHAR(255),
+    last_modified_on TIMESTAMPTZ,
+    last_modified_by VARCHAR(255),
+    deleted BOOLEAN NOT NULL DEFAULT FALSE,
+    is_active BOOLEAN NOT NULL DEFAULT TRUE
+);""

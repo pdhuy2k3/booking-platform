@@ -4,7 +4,7 @@ import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
-
+// Dữ liệu tĩnh của thành phố, không thay đổi thường xuyên. Lấy từ file JSON hoặc API bên ngoài.
 @Entity
 @Table(name = "cities")
 @Data

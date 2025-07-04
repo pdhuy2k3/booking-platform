@@ -1,5 +1,6 @@
 package com.pdh.hotel.model;
 
+import com.pdh.common.model.AbstractAuditEntity;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Data;
@@ -12,7 +13,7 @@ import java.math.BigDecimal;
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
-public class RoomType {
+public class RoomType extends AbstractAuditEntity {
     
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)

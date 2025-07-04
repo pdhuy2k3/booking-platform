@@ -1,5 +1,6 @@
 package com.pdh.hotel.model;
 
+import com.pdh.common.model.AbstractAuditEntity;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Data;
@@ -13,7 +14,7 @@ import java.time.LocalTime;
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
-public class Hotel {
+public class Hotel extends AbstractAuditEntity {
     
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)

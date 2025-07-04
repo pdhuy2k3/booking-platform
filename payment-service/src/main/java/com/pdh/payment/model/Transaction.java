@@ -1,5 +1,6 @@
 package com.pdh.payment.model;
 
+import com.pdh.common.model.AbstractAuditEntity;
 import com.pdh.payment.model.enums.TransactionStatus;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
@@ -15,7 +16,7 @@ import java.util.UUID;
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
-public class Transaction {
+public class Transaction extends AbstractAuditEntity {
     
     @Id
     @Column(name = "transaction_id")
@@ -33,10 +34,7 @@ public class Transaction {
     @Enumerated(EnumType.STRING)
     @Column(name = "status", nullable = false)
     private TransactionStatus status;
-    
-    @Column(name = "payment_method_id", nullable = false)
-    private Long paymentMethodId;
-    
+
     @Column(name = "gateway_transaction_id", length = 255)
     private String gatewayTransactionId;
     

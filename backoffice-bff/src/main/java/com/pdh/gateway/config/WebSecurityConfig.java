@@ -3,34 +3,34 @@ package com.pdh.gateway.config;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.web.reactive.EnableWebFluxSecurity;
 import org.springframework.security.config.web.server.ServerHttpSecurity;
 import org.springframework.security.oauth2.client.oidc.authentication.OidcIdTokenDecoderFactory;
 import org.springframework.security.oauth2.client.oidc.web.server.logout.OidcClientInitiatedServerLogoutSuccessHandler;
 import org.springframework.security.oauth2.client.registration.ClientRegistration;
 import org.springframework.security.oauth2.client.registration.ReactiveClientRegistrationRepository;
-import org.springframework.security.oauth2.client.web.server.DefaultServerOAuth2AuthorizationRequestResolver;
 import org.springframework.security.oauth2.client.web.server.ServerOAuth2AuthorizationRequestResolver;
-import org.springframework.security.oauth2.core.endpoint.OAuth2AuthorizationRequest;
 import org.springframework.security.oauth2.jose.jws.SignatureAlgorithm;
 import org.springframework.security.oauth2.jwt.JwtDecoderFactory;
 import org.springframework.security.web.server.SecurityWebFilterChain;
 import org.springframework.security.web.server.authentication.logout.ServerLogoutSuccessHandler;
-
-import java.util.function.Consumer;
 
 @Configuration
 @EnableWebFluxSecurity
 public class WebSecurityConfig {
     @Autowired
     private ReactiveClientRegistrationRepository clientRegistrationRepository;
+
+    @Autowired
+    private CustomServerOAuth2AuthorizationRequestResolver customAuthorizationRequestResolver;
+
     @Bean
     public JwtDecoderFactory<ClientRegistration> idTokenDecoderFactory() {
         OidcIdTokenDecoderFactory idTokenDecoderFactory = new OidcIdTokenDecoderFactory();
         idTokenDecoderFactory.setJwsAlgorithmResolver(clientRegistration -> SignatureAlgorithm.RS256);
         return idTokenDecoderFactory;
     }
+
     @Bean
     public SecurityWebFilterChain securityFilterChain(ServerHttpSecurity http) throws Exception {
         http.authorizeExchange(authorizationManagerRequestMatcherRegistry -> {
@@ -39,8 +39,8 @@ public class WebSecurityConfig {
                     .anyExchange().authenticated();
         })
                 .oauth2Login(oauth2 -> oauth2
-                        // Áp dụng customizer để thêm tham số `resource` vào yêu cầu
-                        .authorizationRequestResolver(authorizationRequestResolver())
+                        .authorizationRequestResolver(customAuthorizationRequestResolver)
+
                 )
                 .httpBasic(ServerHttpSecurity.HttpBasicSpec::disable)
                 .formLogin(ServerHttpSecurity.FormLoginSpec::disable)
@@ -49,31 +49,12 @@ public class WebSecurityConfig {
                         .logoutSuccessHandler(oidcLogoutSuccessHandler()));
         return http.build();
     }
+
     private ServerLogoutSuccessHandler oidcLogoutSuccessHandler() {
         OidcClientInitiatedServerLogoutSuccessHandler oidcLogoutSuccessHandler =
                 new OidcClientInitiatedServerLogoutSuccessHandler(this.clientRegistrationRepository);
         oidcLogoutSuccessHandler.setPostLogoutRedirectUri("{baseUrl}");
 
         return oidcLogoutSuccessHandler;
-    }
-    @Bean
-    public ServerOAuth2AuthorizationRequestResolver authorizationRequestResolver() {
-        // Tạo một resolver mặc định
-        DefaultServerOAuth2AuthorizationRequestResolver resolver = new DefaultServerOAuth2AuthorizationRequestResolver(clientRegistrationRepository);
-
-        // Tạo một consumer để tùy chỉnh request
-        Consumer<OAuth2AuthorizationRequest.Builder> customizer = customAuthorizationRequest();
-
-        // Gói consumer vào resolver
-        resolver.setAuthorizationRequestCustomizer(customizer);
-
-        return resolver;
-    }
-
-    private Consumer<OAuth2AuthorizationRequest.Builder> customAuthorizationRequest() {
-        return customizer -> customizer.parameters(params -> {
-
-            params.put("resource", "http://localhost:8080/api");
-        });
     }
 }

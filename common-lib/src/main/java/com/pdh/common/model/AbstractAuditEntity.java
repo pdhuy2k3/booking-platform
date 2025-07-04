@@ -28,4 +28,7 @@ public class AbstractAuditEntity {
 
     @LastModifiedBy
     private String lastModifiedBy;
+
+    private boolean deleted;
+    private boolean isActive = true;
 }

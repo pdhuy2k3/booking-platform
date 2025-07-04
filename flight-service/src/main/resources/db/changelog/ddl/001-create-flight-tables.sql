@@ -9,7 +9,13 @@ CREATE TABLE airlines (
     airline_id SERIAL PRIMARY KEY,
     name VARCHAR(100) NOT NULL,
     iata_code VARCHAR(2) NOT NULL UNIQUE,
-    logo_url VARCHAR(255)
+    logo_url VARCHAR(255),
+    created_on TIMESTAMPTZ,
+    created_by VARCHAR(255),
+    last_modified_on TIMESTAMPTZ,
+    last_modified_by VARCHAR(255),
+    deleted BOOLEAN NOT NULL DEFAULT FALSE,
+    is_active BOOLEAN NOT NULL DEFAULT TRUE
 );
 
 -- Airports table
@@ -26,7 +32,13 @@ CREATE TABLE flights (
     flight_id SERIAL PRIMARY KEY,
     flight_number VARCHAR(10) NOT NULL,
     airline_id INTEGER NOT NULL REFERENCES airlines(airline_id),
-    aircraft_type VARCHAR(50)
+    aircraft_type VARCHAR(50),
+    created_on TIMESTAMPTZ,
+    created_by VARCHAR(255),
+    last_modified_on TIMESTAMPTZ,
+    last_modified_by VARCHAR(255),
+    deleted BOOLEAN NOT NULL DEFAULT FALSE,
+    is_active BOOLEAN NOT NULL DEFAULT TRUE
 );
 
 -- Flight_Legs table

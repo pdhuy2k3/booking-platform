@@ -21,9 +21,8 @@
         <module>flight-service</module>
         <module>hotel-service</module>
         <module>booking-service</module>
-        <module>customer-service</module>
-        <module>transport-service</module>
-        <module>payment-service</module>
+<!--        <module>transport-service</module>-->
+<!--        <module>payment-service</module>-->
     </modules>
     <properties>
         <java.version>21</java.version>

@@ -2,6 +2,7 @@ package com.pdh.booking.model;
 
 import com.pdh.booking.model.enums.BookingStatus;
 import com.pdh.booking.model.enums.BookingType;
+import com.pdh.common.model.AbstractAuditEntity;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Data;
@@ -16,7 +17,7 @@ import java.util.UUID;
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
-public class Booking {
+public class Booking extends AbstractAuditEntity {
     
     @Id
     @Column(name = "booking_id")
@@ -42,11 +43,7 @@ public class Booking {
     @Column(name = "booking_type", nullable = false)
     private BookingType bookingType;
     
-    @Column(name = "created_at", nullable = false)
-    private ZonedDateTime createdAt = ZonedDateTime.now();
     
-    @Column(name = "updated_at", nullable = false)
-    private ZonedDateTime updatedAt = ZonedDateTime.now();
     
     @Column(name = "cancelled_at")
     private ZonedDateTime cancelledAt;
@@ -54,8 +51,5 @@ public class Booking {
     @Column(name = "cancellation_reason")
     private String cancellationReason;
     
-    @PreUpdate
-    protected void onUpdate() {
-        updatedAt = ZonedDateTime.now();
-    }
+    
 }

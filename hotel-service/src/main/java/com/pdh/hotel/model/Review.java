@@ -1,5 +1,6 @@
 package com.pdh.hotel.model;
 
+import com.pdh.common.model.AbstractAuditEntity;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Data;
@@ -13,7 +14,7 @@ import java.util.UUID;
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
-public class Review {
+public class Review extends AbstractAuditEntity {
     
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -32,8 +33,7 @@ public class Review {
     @Column(name = "comment_text", columnDefinition = "TEXT")
     private String commentText;
     
-    @Column(name = "created_at", nullable = false)
-    private ZonedDateTime createdAt = ZonedDateTime.now();
+    
     
     // Reference entity
     @ManyToOne(fetch = FetchType.LAZY)

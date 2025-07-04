@@ -14,15 +14,15 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
-      start_period: 30s
+#      start_period: 30s
     ports:
       - 3001:3001
       - 3002:3002
     environment:
       - TRUST_PROXY_HEADER=1
-      - DB_URL=postgres://postgres:p0stgr3s@postgres:5432/logto
-      - ENDPOINT=http://logto:3001
-      - ADMIN_ENDPOINT=http://logto:3002
+      - DB_URL=postgres://postgres:p0stgr3s@postgres:5432/logto_db
+      - ENDPOINT
+      - ADMIN_ENDPOINT
   
   # PostgreSQL Database
   postgres:
@@ -35,7 +35,6 @@ services:
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: p0stgr3s
-      POSTGRES_DB: logto
     healthcheck:
       test: ["CMD-SHELL", "pg_isready"]
       interval: 10s
