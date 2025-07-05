@@ -19,7 +19,7 @@ public class FlightFare {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
-    @Column(name = "fare_id")
+    @Column(name = "id")
     private Long fareId;
 
     @Column(name = "flight_id", nullable = false)

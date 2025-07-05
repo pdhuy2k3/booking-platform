@@ -15,7 +15,7 @@ public class Flight extends AbstractAuditEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
-    @Column(name = "flight_id")
+    @Column(name = "id")
     private Long flightId;
 
     @Column(name = "flight_number", nullable = false, length = 10)

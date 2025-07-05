@@ -1,28 +1,28 @@
 services:
   # Logto Authentication Service
-  logto:
-    profiles:
-      - app
-      - auth
+  identity:
     depends_on:
-      postgres:
-        condition: service_healthy
-    image: svhd/logto:${TAG-latest}
-    entrypoint: ["sh", "-c", "npm run cli db seed -- --swe && npm start"]
-    healthcheck:
-      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3001/api/status"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-#      start_period: 30s
-    ports:
-      - 3001:3001
-      - 3002:3002
+      - postgres
+    profiles:
+      - auth
+    image: quay.io/keycloak/keycloak:26.0.2
+    command: 'start-dev --import-realm'
     environment:
-      - TRUST_PROXY_HEADER=1
-      - DB_URL=postgres://postgres:p0stgr3s@postgres:5432/logto_db
-      - ENDPOINT
-      - ADMIN_ENDPOINT
+      KC_BOOTSTRAP_ADMIN_USERNAME: admin
+      KC_BOOTSTRAP_ADMIN_PASSWORD: admin
+      KC_DB: postgres
+      KC_DB_URL: jdbc:postgresql://postgres:5432/keycloak_db
+      KC_DB_USERNAME: postgres
+      KC_DB_PASSWORD: p0stgr3s
+      
+    ports:
+      - "9090:8080"
+      - "8443:8443"
+    volumes:
+      - ./identity/bookingsmart-keycloak-theme.jar:/opt/keycloak/providers/bookingsmart-keycloak-theme.jar
+      - ./identity/realm-export.json:/opt/keycloak/data/import/realm-export.json
+
+
   
   # PostgreSQL Database
   postgres:
@@ -45,7 +45,7 @@ services:
       - ./postgres-init.sql:/docker-entrypoint-initdb.d/init.sql
     ports:
       - "5432:5432"
-  
+
   # Discovery Service (Eureka)
   discovery-service:
     profiles:
@@ -58,7 +58,8 @@ services:
     environment:
       - SPRING_PROFILES_ACTIVE=docker
       - EUREKA_URI=http://discovery-service:8761/eureka
-
+    networks:
+      - booking-network
   # API Gateway (Backoffice BFF)
   backoffice:
     profiles:
@@ -80,8 +81,9 @@ services:
       - DB_URL=postgres://postgres:p0stgr3s@postgres:5432/logto
       - LOGTO_CLIENT_ID
       - LOGTO_CLIENT_SECRET
+    networks:
+      - booking-network
 
-  
   # Flight Service
   flight-service:
     profiles:
@@ -104,7 +106,8 @@ services:
       - LOGTO_CLIENT_ID
       - LOGTO_CLIENT_SECRET
 
-  
+    networks:
+      - booking-network
   # Hotel Service
   hotel-service:
     profiles:
@@ -126,7 +129,8 @@ services:
       - LOGTO_ENDPOINT=http://logto:3001
       - LOGTO_CLIENT_ID
       - LOGTO_CLIENT_SECRET
-  
+    networks:
+      - booking-network
   # Booking Service
   booking-service:
     profiles:
@@ -148,7 +152,8 @@ services:
       - LOGTO_ENDPOINT=http://logto:3001
       - LOGTO_CLIENT_ID
       - LOGTO_CLIENT_SECRET
-  
+    networks:
+      - booking-network
   # Customer Service
   customer-service:
     profiles:
@@ -173,7 +178,8 @@ services:
       - LOGTO_MANAGEMENT_API_ENDPOINT=http://logto:3002
       - LOGTO_CLIENT_ID
       - LOGTO_CLIENT_SECRET
-  
+    networks:
+      - booking-network
   # Payment Service
   payment-service:
     profiles:
@@ -195,7 +201,8 @@ services:
       - LOGTO_ENDPOINT=http://logto:3001
       - LOGTO_CLIENT_ID
       - LOGTO_CLIENT_SECRET
-  
+    networks:
+      - booking-network
   # Transport Service
   transport-service:
     profiles:
@@ -217,7 +224,8 @@ services:
       - LOGTO_ENDPOINT=http://logto:3001
       - LOGTO_CLIENT_ID
       - LOGTO_CLIENT_SECRET
-  
+    networks:
+      - booking-network
   # PgAdmin for database management
   pgadmin:
     profiles:
@@ -234,10 +242,14 @@ services:
     depends_on:
       - postgres
     restart: unless-stopped
+    networks:
+      - booking-network
+
 
 networks:
-  default:
+  booking-network:
     driver: bridge
+    name: booking-network
 volumes:
     postgres_data:
     pgadmin_data:

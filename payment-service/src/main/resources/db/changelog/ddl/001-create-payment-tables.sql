@@ -1,39 +1,46 @@
--- Enable UUID extension
-CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+-- liquibase formatted sql
 
--- Create payment service enums
-CREATE TYPE transaction_status_enum AS ENUM ('INITIATED', 'PENDING_GATEWAY', 'SUCCESS', 'FAILED', 'REFUNDED', 'REFUND_FAILED');
-CREATE TYPE refund_status_enum AS ENUM ('REQUESTED', 'PROCESSING', 'COMPLETED', 'FAILED');
+-- changeset pdhuy2k3:001-create-payment-enums
+CREATE TYPE transaction_status_enum AS ENUM ('PENDING', 'SUCCESS', 'FAILED');
+CREATE TYPE refund_status_enum AS ENUM ('PENDING', 'SUCCESS', 'FAILED');
 
--- Payment_Methods table
+-- changeset pdhuy2k3:001-create-payment-tables
+-- Bảng Payment Methods: Các phương thức thanh toán được hỗ trợ
 CREATE TABLE payment_methods (
-    payment_method_id SERIAL PRIMARY KEY,
-    provider_name VARCHAR(50) NOT NULL UNIQUE,
-    is_active BOOLEAN NOT NULL DEFAULT TRUE
+                                 id UUID PRIMARY KEY,
+                                 name VARCHAR(255) NOT NULL,
+                                 code VARCHAR(50) UNIQUE,
+                                 provider VARCHAR(255)
 );
 
--- Transactions table
+-- Bảng Transactions: Giao dịch thanh toán
 CREATE TABLE transactions (
-    transaction_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    booking_id UUID NOT NULL UNIQUE, -- References Bookings in BookingService
-    amount DECIMAL(12, 2) NOT NULL,
-    currency VARCHAR(3) NOT NULL DEFAULT 'VND',
-    status transaction_status_enum NOT NULL,
-    payment_method_id INTEGER NOT NULL REFERENCES payment_methods(payment_method_id),
-    gateway_transaction_id VARCHAR(255),
-    gateway_response_payload JSONB,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+                              id UUID PRIMARY KEY,
+                              booking_id UUID NOT NULL,
+                              payment_method_id UUID NOT NULL REFERENCES payment_methods(id),
+                              amount DECIMAL(19, 2) NOT NULL,
+                              currency VARCHAR(10) NOT NULL,
+                              status transaction_status_enum,
+                              provider_transaction_id VARCHAR(255),
+                              created_on TIMESTAMPTZ,
+                              created_by VARCHAR(255),
+                              last_modified_on TIMESTAMPTZ,
+                              last_modified_by VARCHAR(255),
+                              deleted BOOLEAN DEFAULT FALSE,
+                              is_active BOOLEAN DEFAULT TRUE
 );
 
--- Refunds table
+-- Bảng Refunds: Giao dịch hoàn tiền
 CREATE TABLE refunds (
-    refund_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    original_transaction_id UUID NOT NULL REFERENCES transactions(transaction_id),
-    amount DECIMAL(12, 2) NOT NULL,
-    reason TEXT,
-    status refund_status_enum NOT NULL,
-    gateway_refund_id VARCHAR(255),
-    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+                         id UUID PRIMARY KEY,
+                         transaction_id UUID NOT NULL REFERENCES transactions(id),
+                         amount DECIMAL(19, 2) NOT NULL,
+                         reason TEXT,
+                         status refund_status_enum,
+                         created_on TIMESTAMPTZ,
+                         created_by VARCHAR(255),
+                         last_modified_on TIMESTAMPTZ,
+                         last_modified_by VARCHAR(255),
+                         deleted BOOLEAN DEFAULT FALSE,
+                         is_active BOOLEAN DEFAULT TRUE
 );

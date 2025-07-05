@@ -16,6 +16,7 @@ public class AuthenticationController {
         if (principal == null) {
             return ResponseEntity.status(401).build(); // Unauthorized
         }
-        return ResponseEntity.ok(principal.getAttributes());
+        return ResponseEntity.ok(Map.of(
+                                        "authorities", principal.getAuthorities()));
     }
 }

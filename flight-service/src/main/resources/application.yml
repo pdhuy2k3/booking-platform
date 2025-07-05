@@ -1,16 +1,20 @@
 server:
   port: 8081
-
+logging:
+  level:
+    com.pdh.flight: DEBUG
+    org.springframework.security: DEBUG
+    org.springframework.oauth2: DEBUG
+    org.hibernate.SQL: DEBUG
 spring:
   profiles:
     active: local
   application:
-    name: flight-service
+    name: FLIGHT-SERVICE
   threads:
     virtual:
       enabled: true
-logto:
-  audience: https://api.bookingsmart.huypd.me/flight-service
+
 ---
 
 spring:
@@ -33,14 +37,10 @@ spring:
   security:
     oauth2:
       resourceserver:
-        jwt:
-          issuer-uri: http://localhost:3001/oidc
-          jwk-set-uri: http://localhost:3001/oidc/jwks
+       jwt:
+         issuer-uri: http://localhost:9090/realms/BookingSmart
 
-  #        opaquetoken:
-#          introspection-uri: http://localhost:3001/oidc/token/introspection
-#          client-id: ${LOGTO_CLIENT_ID}
-#          client-secret: ${LOGTO_CLIENT_SECRET}
+
   liquibase:
     enabled: true
     default-schema: public
@@ -75,10 +75,9 @@ spring:
   security:
     oauth2:
       resourceserver:
-        opaquetoken:
-          introspection-uri: ${LOGTO_ENDPOINT}/oidc/token/introspection
-          client-id: ${LOGTO_CLIENT_ID}
-          client-secret: ${LOGTO_CLIENT_SECRET}
+        jwt:
+          issuer-uri: ${KEYCLOAK_ENDPOINT}/realms/pdh
+
   liquibase:
     enabled: true
     default-schema: public
@@ -99,8 +98,4 @@ management:
     health:
       show-details: always
 
-logging:
-  level:
-    com.pdh.flight: DEBUG
-    org.springframework.security: DEBUG
-    org.hibernate.SQL: DEBUG
+

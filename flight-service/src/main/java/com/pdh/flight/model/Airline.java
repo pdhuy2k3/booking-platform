@@ -11,11 +11,11 @@ import lombok.NoArgsConstructor;
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
-public class Airline extends AbstractAuditEntity {
+public class Airline {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
-    @Column(name = "airline_id")
+    @Column(name = "id")
     private Long airlineId;
 
     @Column(name = "name", nullable = false, length = 100)
