@@ -1,5 +1,6 @@
 package com.pdh.payment.model;
 
+import com.pdh.common.model.AbstractAuditEntity;
 import com.pdh.payment.model.enums.RefundStatus;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
@@ -15,7 +16,7 @@ import java.util.UUID;
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
-public class Refund {
+public class Refund extends AbstractAuditEntity {
     
     @Id
     @Column(name = "refund_id")

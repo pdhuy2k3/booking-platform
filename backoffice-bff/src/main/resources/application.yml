@@ -6,19 +6,7 @@ spring:
   application:
     name: BACKOFFICE-BFF
 
-# Gateway Service Resources Configuration
-gateway:
-  service-resources:
-    # Cấu hình cho dynamic mapping
-    use-dynamic-mapping: true
-    base-url: https://api.bookingsmart.huypd.me
-    default-resource: https://api.bookingsmart.huypd.me
-    # Static mapping (sử dụng khi use-dynamic-mapping: false)
-    mapping:
-      /api/flight-service: https://api.bookingsmart.huypd.me/api/flight-service
-      /api/booking-service: https://api.bookingsmart.huypd.me/api/booking-service
-      /api/hotel-service: https://api.bookingsmart.huypd.me/api/hotel-service
-      /api/customer-service: https://api.bookingsmart.huypd.me/api/customer-service
+
 ---
 spring:
   config:
@@ -28,19 +16,17 @@ spring:
     oauth2:
       client:
         registration:
-          logto:
-            client-name: logto
-            client-id: ${LOGTO_CLIENT_ID}
-            client-secret: ${LOGTO_CLIENT_SECRET}
-            redirect-uri: "{baseUrl}/login/oauth2/code/{registrationId}"
-            authorization-grant-type: authorization_code
-            scope: profile, email, openid
-            provider: logto
+          api-client:
+            client-name: Backoffice
+            client-id: backoffice
+            client-secret: EMmIjYamm0UufoCIYjQJiNVIKZe1lEZW
+            scope: profile,email,openid,roles
+            provider: keycloak
         provider:
-          logto:
-            issuer-uri: http://localhost:3001/oidc
-            authorization-uri: http://localhost:3001/auth
-            jwk-set-uri: http://localhost:3001/oidc/jwks
+          keycloak:
+            issuer-uri: http://localhost:9090/realms/BookingSmart
+
+
   cloud:
     gateway:
       routes:
@@ -105,12 +91,11 @@ spring:
             client-secret: ${LOGTO_CLIENT_SECRET}
             redirect-uri: "{baseUrl}/login/oauth2/code/{registrationId}"
             authorization-grant-type: authorization_code
-            scope: profile, email, openid
+            scope: profile, email, openid, identities, offline_access, custom_data
             provider: logto
         provider:
           logto:
             issuer-uri: ${LOGTO_ENDPOINT}/oidc
-            authorization-uri: ${LOGTO_ENDPOINT}/auth
             jwk-set-uri: ${LOGTO_ENDPOINT}/oidc/jwks
 eureka:
   client:
