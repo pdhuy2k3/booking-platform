@@ -1,6 +1,5 @@
 package com.pdh.flight.controller;
 
-import com.pdh.flight.model.Flight;
 import com.pdh.flight.repository.FlightRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -8,7 +7,6 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDateTime;
-import java.util.List;
 import java.util.Map;
 
 /**
@@ -33,7 +31,7 @@ public class FlightController {
                 "status", "UP",
                 "service", "flight-service",
                 "timestamp", LocalDateTime.now(),
-                "message", "Flight service is running properly"
+                "messages", "Flight service is running properly"
         );
         
         return ResponseEntity.ok(healthStatus);

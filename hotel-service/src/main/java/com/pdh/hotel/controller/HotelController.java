@@ -33,7 +33,7 @@ public class HotelController {
                 "status", "UP",
                 "service", "hotel-service",
                 "timestamp", LocalDateTime.now(),
-                "message", "Hotel service is running properly"
+                "messages", "Hotel service is running properly"
         );
         
         return ResponseEntity.ok(healthStatus);

@@ -18,9 +18,9 @@ spring:
         registration:
           api-client:
             client-name: Backoffice
-            client-id: backoffice
-            client-secret: EMmIjYamm0UufoCIYjQJiNVIKZe1lEZW
-            scope: profile,email,openid,roles
+            client-id: backoffice-bff
+            client-secret: TVacLC0cQ8tiiEKiTVerTb2YvwQ1TRJF
+            scope: profile, email, openid, roles
             provider: keycloak
         provider:
           keycloak:
@@ -54,6 +54,14 @@ spring:
           filters:
             - TokenRelay=
             - RewritePath=/api/hotel-service/(?<segment>.*), /${segment}
+        # CUSTOMER SERVICE
+        - id: customer-service
+          uri: lb://CUSTOMER-SERVICE
+          predicates:
+            - Path=/api/customer-service/**
+          filters:
+            - TokenRelay=
+            - RewritePath=/api/customer-service/(?<segment>.*), /${segment}
 
         - id: eureka-web-start
           uri: lb://DISCOVERY-SERVICE
@@ -61,10 +69,10 @@ spring:
             - Path=/eureka/web
           filters:
             - StripPrefix=2
-        - id: eureka-web-other
-          uri: http://localhost:8761
+        - id: netxjs
+          uri: http://localhost:3000
           predicates:
-            - Path=/eureka/**
+            - Path=/**
       default-filters:
         - SaveSession
 eureka:
@@ -87,16 +95,13 @@ spring:
         registration:
           logto:
             client-name: logto
-            client-id: ${LOGTO_CLIENT_ID}
-            client-secret: ${LOGTO_CLIENT_SECRET}
-            redirect-uri: "{baseUrl}/login/oauth2/code/{registrationId}"
-            authorization-grant-type: authorization_code
-            scope: profile, email, openid, identities, offline_access, custom_data
+            client-id: backoffice-bff
+            client-secret: ${KEYCLOAK_CLIENT_SECRET_BACKOFFICE_BFF}
+            scope: profile, email, openid, roles
             provider: logto
         provider:
           logto:
-            issuer-uri: ${LOGTO_ENDPOINT}/oidc
-            jwk-set-uri: ${LOGTO_ENDPOINT}/oidc/jwks
+            issuer-uri: ${KEYCLOAK_HOST}/realms/BookingSmart
 eureka:
   client:
     serviceUrl:

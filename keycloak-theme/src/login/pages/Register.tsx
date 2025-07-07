@@ -20,17 +20,6 @@ export default function Register(props: PageProps<Extract<KcContext, { pageId: "
         >
             <div className="bookingsmart-page-bg">
                 <div className="bookingsmart-container">
-                    <div className="bookingsmart-brand-header">
-                        <div className="bookingsmart-logo">
-                            <img src="/BookingSmart.svg" alt="BookingSmart" />
-                        </div>
-                        <div className="bookingsmart-brand-text">
-                            BookingSmart
-                        </div>
-                        <div className="bookingsmart-tagline">
-                            {msg("registerTitle")}
-                        </div>
-                    </div>
 
                 <form
                     id="kc-register-form"

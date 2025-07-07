@@ -55,6 +55,7 @@ import {
 } from "lucide-react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
+import { useAuth } from "@/hooks/use-auth"
 
 interface AdminLayoutProps {
   children: React.ReactNode
@@ -226,48 +227,56 @@ function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
       <SidebarFooter>
         <SidebarMenu>
           <SidebarMenuItem>
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <SidebarMenuButton
-                  size="lg"
-                  className="data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground"
-                >
-                  <Avatar className="h-8 w-8 rounded-lg">
-                    <AvatarImage src="/placeholder.svg?height=32&width=32" alt="Admin" />
-                    <AvatarFallback className="rounded-lg">AD</AvatarFallback>
-                  </Avatar>
-                  <div className="grid flex-1 text-left text-sm leading-tight">
-                    <span className="truncate font-semibold">Admin User</span>
-                    <span className="truncate text-xs">admin@bookingsmart.vn</span>
-                  </div>
-                </SidebarMenuButton>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent
-                className="w-[--radix-dropdown-menu-trigger-width] min-w-56 rounded-lg"
-                side="bottom"
-                align="end"
-                sideOffset={4}
-              >
-                <DropdownMenuItem>
-                  <User className="mr-2 h-4 w-4" />
-                  <span>Hồ sơ</span>
-                </DropdownMenuItem>
-                <DropdownMenuItem>
-                  <Settings className="mr-2 h-4 w-4" />
-                  <span>Cài đặt</span>
-                </DropdownMenuItem>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem>
-                  <LogOut className="mr-2 h-4 w-4" />
-                  <span>Đăng xuất</span>
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
+            <UserDropdown />
           </SidebarMenuItem>
         </SidebarMenu>
       </SidebarFooter>
       <SidebarRail />
     </Sidebar>
+  )
+}
+
+function UserDropdown() {
+  const { user, logout } = useAuth()
+
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <SidebarMenuButton
+          size="lg"
+          className="data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground"
+        >
+          <Avatar className="h-8 w-8 rounded-lg">
+            <AvatarImage src="/placeholder.svg?height=32&width=32" alt={user?.name || "Admin"} />
+            <AvatarFallback className="rounded-lg">{user?.name?.charAt(0).toUpperCase() || "A"}</AvatarFallback>
+          </Avatar>
+          <div className="grid flex-1 text-left text-sm leading-tight">
+            <span className="truncate font-semibold">{user?.name || "Admin User"}</span>
+            <span className="truncate text-xs">{user?.email || "admin@bookingsmart.vn"}</span>
+          </div>
+        </SidebarMenuButton>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent
+        className="w-[--radix-dropdown-menu-trigger-width] min-w-56 rounded-lg"
+        side="bottom"
+        align="end"
+        sideOffset={4}
+      >
+        <DropdownMenuItem>
+          <User className="mr-2 h-4 w-4" />
+          <span>Hồ sơ</span>
+        </DropdownMenuItem>
+        <DropdownMenuItem>
+          <Settings className="mr-2 h-4 w-4" />
+          <span>Cài đặt</span>
+        </DropdownMenuItem>
+        <DropdownMenuSeparator />
+        <DropdownMenuItem onClick={logout}>
+          <LogOut className="mr-2 h-4 w-4" />
+          <span>Đăng xuất</span>
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
   )
 }
 
@@ -316,7 +325,7 @@ export function AdminLayout({ children }: AdminLayoutProps) {
     <SidebarProvider>
       <AppSidebar />
       <SidebarInset>
-        <header className="flex h-16 shrink-0 items-center gap-2 transition-[width,height] ease-linear group-has-[[data-collapsible=icon]]/sidebar-wrapper:h-12">
+        <header className="flex h-16 shrink-0 items-center gap-2 transition-[width,height] ease-linear group-has-[[data-collapsible=icon]]/sidebar-wrapper:h-12 border-b">
           <div className="flex items-center gap-2 px-4">
             <SidebarTrigger className="-ml-1" />
             <Separator orientation="vertical" className="mr-2 h-4" />
@@ -326,10 +335,12 @@ export function AdminLayout({ children }: AdminLayoutProps) {
                   <React.Fragment key={breadcrumb.href}>
                     <BreadcrumbItem className={index === 0 ? "hidden md:block" : ""}>
                       {breadcrumb.isCurrentPage ? (
-                        <BreadcrumbPage>{breadcrumb.title}</BreadcrumbPage>
+                        <BreadcrumbPage className="text-sm">{breadcrumb.title}</BreadcrumbPage>
                       ) : (
                         <BreadcrumbLink asChild>
-                          <Link href={breadcrumb.href}>{breadcrumb.title}</Link>
+                          <Link href={breadcrumb.href} className="text-sm">
+                            {breadcrumb.title}
+                          </Link>
                         </BreadcrumbLink>
                       )}
                     </BreadcrumbItem>
@@ -348,7 +359,9 @@ export function AdminLayout({ children }: AdminLayoutProps) {
             </Button>
           </div>
         </header>
-        <div className="flex flex-1 flex-col gap-4 p-4 pt-0">{children}</div>
+        <div className="flex flex-1 flex-col gap-4 p-4 pt-0 max-w-full overflow-x-hidden">
+          <div className="w-full max-w-none">{children}</div>
+        </div>
       </SidebarInset>
     </SidebarProvider>
   )

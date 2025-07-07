@@ -20,15 +20,6 @@ export default function Error(props: PageProps<Extract<KcContext, { pageId: "err
         >
             <div className="bookingsmart-page-bg">
                 <div className="bookingsmart-container">
-                    <div className="bookingsmart-brand-header">
-                        <div className="bookingsmart-logo">
-                            <img src="/BookingSmart.svg" alt="BookingSmart" />
-                        </div>
-                        <div className="bookingsmart-brand-text">
-                            BookingSmart
-                        </div>
-                    </div>
-
                 <div className="bookingsmart-alert bookingsmart-alert-error">
                     <p className="text-sm">
                         {message?.summary}

@@ -3,6 +3,7 @@ import { getKcClsx } from "keycloakify/login/lib/kcClsx";
 import type { KcContext } from "../KcContext";
 import type { I18n } from "../i18n";
 
+
 export default function Login(props: PageProps<Extract<KcContext, { pageId: "login.ftl" }>, I18n>) {
     const { kcContext, i18n, doUseDefaultCss, Template, classes } = props;
 
@@ -46,18 +47,6 @@ export default function Login(props: PageProps<Extract<KcContext, { pageId: "log
         >
             <div className="bookingsmart-page-bg">
                 <div className="bookingsmart-container">
-                    <div className="bookingsmart-brand-header">
-                        <div className="bookingsmart-logo">
-                            <img src="/BookingSmart.svg" alt="BookingSmart" />
-                        </div>
-                        <div className="bookingsmart-brand-text">
-                            BookingSmart
-                        </div>
-                        <div className="bookingsmart-tagline">
-                            {msg("loginAccountTitle")}
-                        </div>
-                    </div>
-
                 <form
                     id="kc-form-login"
                     onSubmit={() => {
@@ -138,7 +127,7 @@ export default function Login(props: PageProps<Extract<KcContext, { pageId: "log
                                     <span className="text-sm text-foreground">{msg("rememberMe")}</span>
                                 </label>
                             )}
-                            
+
                             {realm.resetPasswordAllowed && (
                                 <a
                                     tabIndex={5}
@@ -177,7 +166,6 @@ export default function Login(props: PageProps<Extract<KcContext, { pageId: "log
                             <span className="bookingsmart-subheader">
                                 {msg("noAccount")}
                                 <a
-                                    tabIndex={6}
                                     href={url.registrationUrl}
                                     className="bookingsmart-link ml-2"
                                 >

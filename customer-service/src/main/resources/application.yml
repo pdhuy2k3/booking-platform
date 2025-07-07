@@ -1,0 +1,57 @@
+server:
+  port: 8084
+
+spring:
+  profiles:
+    active: local
+  application:
+    name: CUSTOMER-SERVICE
+  threads:
+    virtual:
+      enabled: true
+---
+
+spring:
+  config:
+    activate:
+      on-profile: local
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          issuer-uri: http://localhost:9090/realms/BookingSmart
+keycloak:
+  auth-server-url: http://localhost:9090
+  realm: BookingSmart
+  resource: customer-management
+  credentials:
+    secret: NKAr3rnjwm9jlakgKpelukZGFaHYqIWE
+eureka:
+  client:
+    serviceUrl:
+      defaultZone: http://localhost:8761/eureka
+  instance:
+    hostname: localhost
+    prefer-ip-address: false
+---
+spring:
+  config:
+    activate:
+      on-profile: docker
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          issuer-uri: ${KEYCLOAK_HOST}/realms/BookingSmart
+keycloak:
+    auth-server-url: ${KEYCLOAK_HOST}
+    realm: BookingSmart
+    resource: customer-management
+    credentials:
+        secret: ${KEYCLOAK_CLIENT_SECRET_CUSTOMER_MANAGEMENT}
+eureka:
+  client:
+    serviceUrl:
+      defaultZone: ${EUREKA_URI}
+  instance:
+    prefer-ip-address: true

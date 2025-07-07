@@ -2,6 +2,7 @@ import type { PageProps } from "keycloakify/login/pages/PageProps";
 import type { KcContext } from "../KcContext";
 import type { I18n } from "../i18n";
 
+
 export default function LoginResetPassword(props: PageProps<Extract<KcContext, { pageId: "login-reset-password.ftl" }>, I18n>) {
     const { kcContext, i18n, doUseDefaultCss, Template, classes } = props;
 
@@ -20,17 +21,7 @@ export default function LoginResetPassword(props: PageProps<Extract<KcContext, {
         >
             <div className="bookingsmart-page-bg">
                 <div className="bookingsmart-container">
-                    <div className="bookingsmart-brand-header">
-                        <div className="bookingsmart-logo">
-                            <img src="/BookingSmart.svg" alt="BookingSmart" />
-                        </div>
-                        <div className="bookingsmart-brand-text">
-                            BookingSmart
-                        </div>
-                        <div className="bookingsmart-tagline">
-                            {msg("emailForgotTitle")}
-                        </div>
-                    </div>
+
 
                 <form
                     id="kc-reset-password-form"

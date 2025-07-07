@@ -1,6 +1,6 @@
 {
-  "id": "Yas",
-  "realm": "Yas",
+  "id": "BookingSmart",
+  "realm": "BookingSmart",
   "notBefore": 0,
   "defaultSignatureAlgorithm": "RS256",
   "revokeRefreshToken": false,
@@ -50,7 +50,7 @@
         "name": "CUSTOMER",
         "composite": false,
         "clientRole": false,
-        "containerId": "Yas",
+        "containerId": "BookingSmart",
         "attributes": {}
       },
       {
@@ -59,7 +59,7 @@
         "description": "${role_uma_authorization}",
         "composite": false,
         "clientRole": false,
-        "containerId": "Yas",
+        "containerId": "BookingSmart",
         "attributes": {}
       },
       {
@@ -68,12 +68,12 @@
         "description": "${role_offline-access}",
         "composite": false,
         "clientRole": false,
-        "containerId": "Yas",
+        "containerId": "BookingSmart",
         "attributes": {}
       },
       {
         "id": "f2da71cd-654f-4beb-8ec8-fa78d6fc1219",
-        "name": "default-roles-yas",
+        "name": "default-roles-BookingSmart",
         "description": "${role_default-roles}",
         "composite": true,
         "composites": {
@@ -84,7 +84,7 @@
           ]
         },
         "clientRole": false,
-        "containerId": "Yas",
+        "containerId": "BookingSmart",
         "attributes": {}
       },
       {
@@ -92,7 +92,7 @@
         "name": "ADMIN",
         "composite": false,
         "clientRole": false,
-        "containerId": "Yas",
+        "containerId": "BookingSmart",
         "attributes": {}
       },
       {
@@ -100,7 +100,7 @@
         "name": "GUEST",
         "composite": false,
         "clientRole": false,
-        "containerId": "Yas",
+        "containerId": "BookingSmart",
         "attributes": {}
       }
     ],
@@ -362,11 +362,11 @@
   "groups": [],
   "defaultRole": {
     "id": "f2da71cd-654f-4beb-8ec8-fa78d6fc1219",
-    "name": "default-roles-yas",
+    "name": "default-roles-BookingSmart",
     "description": "${role_default-roles}",
     "composite": true,
     "clientRole": false,
-    "containerId": "Yas"
+    "containerId": "BookingSmart"
   },
   "requiredCredentials": [
     "password"
@@ -430,7 +430,7 @@
       ],
       "disableableCredentialTypes": [],
       "requiredActions": [],
-      "realmRoles": ["default-roles-yas", "ADMIN"],
+      "realmRoles": ["default-roles-BookingSmart", "ADMIN"],
       "notBefore": 0,
       "groups": []
     },
@@ -445,7 +445,7 @@
       "disableableCredentialTypes": [],
       "requiredActions": [],
       "realmRoles": [
-        "default-roles-yas"
+        "default-roles-BookingSmart"
       ],
       "clientRoles": {
         "realm-management": [
@@ -471,7 +471,7 @@
       "disableableCredentialTypes": [],
       "requiredActions": [],
       "realmRoles": [
-        "default-roles-yas"
+        "default-roles-BookingSmart"
       ],
       "clientRoles": {
         "storefront-bff": [
@@ -506,13 +506,13 @@
       "clientId": "account",
       "name": "${client_account}",
       "rootUrl": "${authBaseUrl}",
-      "baseUrl": "/realms/Yas/account/",
+      "baseUrl": "/realms/BookingSmart/account/",
       "surrogateAuthRequired": false,
       "enabled": true,
       "alwaysDisplayInConsole": false,
       "clientAuthenticatorType": "client-secret",
       "redirectUris": [
-        "/realms/Yas/account/*"
+        "/realms/BookingSmart/account/*"
       ],
       "webOrigins": [],
       "notBefore": 0,
@@ -549,13 +549,13 @@
       "clientId": "account-console",
       "name": "${client_account-console}",
       "rootUrl": "${authBaseUrl}",
-      "baseUrl": "/realms/Yas/account/",
+      "baseUrl": "/realms/BookingSmart/account/",
       "surrogateAuthRequired": false,
       "enabled": true,
       "alwaysDisplayInConsole": false,
       "clientAuthenticatorType": "client-secret",
       "redirectUris": [
-        "/realms/Yas/account/*"
+        "/realms/BookingSmart/account/*"
       ],
       "webOrigins": [],
       "notBefore": 0,
@@ -921,13 +921,13 @@
       "clientId": "security-admin-console",
       "name": "${client_security-admin-console}",
       "rootUrl": "${authAdminUrl}",
-      "baseUrl": "/admin/Yas/console/",
+      "baseUrl": "/admin/BookingSmart/console/",
       "surrogateAuthRequired": false,
       "enabled": true,
       "alwaysDisplayInConsole": false,
       "clientAuthenticatorType": "client-secret",
       "redirectUris": [
-        "/admin/Yas/console/*"
+        "/admin/BookingSmart/console/*"
       ],
       "webOrigins": [
         "+"
@@ -1131,7 +1131,7 @@
         "http://localhost:8091/*",
         "http://localhost:8083/*",
         "http://localhost:8093/*",
-        "http://api.yas.local/*",
+        "http://api.BookingSmart.local/*",
         "http://localhost:8090/*",
         "http://localhost:8089/*",
         "http://localhost:8088/*",
@@ -1141,7 +1141,7 @@
         "http://localhost:8092/*"
       ],
       "webOrigins": [
-        "http://api.yas.local",
+        "http://api.BookingSmart.local",
         "http://localhost:8088",
         "http://localhost:8089",
         "http://localhost:8084",
@@ -1744,7 +1744,7 @@
     "strictTransportSecurity": "max-age=31536000; includeSubDomains"
   },
   "smtpServer": {},
-  "loginTheme": "yas",
+  "loginTheme": "BookingSmart",
   "eventsEnabled": false,
   "eventsListeners": [
     "jboss-logging"

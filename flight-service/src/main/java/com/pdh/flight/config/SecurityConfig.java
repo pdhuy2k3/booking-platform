@@ -13,7 +13,6 @@ import org.springframework.security.config.web.server.ServerHttpSecurity;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.oauth2.jwt.Jwt;
-import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationConverter;
 import org.springframework.security.oauth2.server.resource.authentication.ReactiveJwtAuthenticationConverter;
 import org.springframework.security.web.server.SecurityWebFilterChain;
 import reactor.core.publisher.Flux;
@@ -27,9 +26,10 @@ public class SecurityConfig {
     SecurityWebFilterChain filterChain(ServerHttpSecurity http) {
         return http
                 .authorizeExchange(exchanges -> exchanges
-                        .pathMatchers("/backoffice/flight/health", "/actuator/health", "/actuator/info").permitAll()
-                        .pathMatchers("/backoffice/flight/**").hasAnyRole("ADMIN")
-                        .anyExchange().authenticated()
+                        .pathMatchers("/actuator/health/**", "/swagger-ui", "/swagger-ui/**",
+                                "/error", "/v3/api-docs/**").permitAll()
+                        .pathMatchers("/backoffice/**").hasRole("ADMIN")
+//                        .pathMatchers("/storefront/**").hasAnyRole("ADMIN", "USER")
                 )
                 .oauth2ResourceServer(oauth2 -> oauth2
                       .jwt(Customizer.withDefaults())

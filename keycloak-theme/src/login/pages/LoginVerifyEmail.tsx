@@ -20,17 +20,7 @@ export default function LoginVerifyEmail(props: PageProps<Extract<KcContext, { p
         >
             <div className="bookingsmart-page-bg">
                 <div className="bookingsmart-container">
-                    <div className="bookingsmart-brand-header">
-                        <div className="bookingsmart-logo">
-                            <img src="/BookingSmart.svg" alt="BookingSmart" />
-                        </div>
-                        <div className="bookingsmart-brand-text">
-                            BookingSmart
-                        </div>
-                        <div className="bookingsmart-tagline">
-                            {msg("emailVerifyTitle")}
-                        </div>
-                    </div>
+
 
                 <div className="bookingsmart-alert bookingsmart-alert-info">
                     <p className="text-sm">
