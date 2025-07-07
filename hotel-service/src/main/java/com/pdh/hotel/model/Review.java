@@ -18,7 +18,7 @@ public class Review extends AbstractAuditEntity {
     
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
-    @Column(name = "review_id")
+    @Column(name = "id")
     private Long reviewId;
     
     @Column(name = "hotel_id", nullable = false)

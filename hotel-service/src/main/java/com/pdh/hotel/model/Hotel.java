@@ -18,7 +18,7 @@ public class Hotel extends AbstractAuditEntity {
     
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
-    @Column(name = "hotel_id")
+    @Column(name = "id")
     private Long hotelId;
     
     @Column(name = "name", nullable = false, length = 255)

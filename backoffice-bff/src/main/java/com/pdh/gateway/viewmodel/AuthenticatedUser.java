@@ -1,4 +1,4 @@
 package com.pdh.gateway.viewmodel;
 
-public record AuthenticatedUser(String username) {
+public record AuthenticatedUser(String id) {
 }

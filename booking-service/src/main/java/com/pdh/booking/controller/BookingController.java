@@ -32,7 +32,7 @@ public class BookingController {
                 "status", "UP",
                 "service", "booking-service",
                 "timestamp", LocalDateTime.now(),
-                "message", "Booking service is running properly"
+                "messages", "Booking service is running properly"
         );
         
         return ResponseEntity.ok(healthStatus);

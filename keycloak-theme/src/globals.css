@@ -92,7 +92,7 @@
 
 @layer components {
   .bookingsmart-container {
-    @apply max-w-md mx-auto p-6 bg-card rounded-lg shadow-lg;
+    @apply max-w-md mx-auto p-6;
   }
 
   .bookingsmart-form {
@@ -165,19 +165,13 @@
   }
 
   .bookingsmart-divider {
-    @apply my-8 relative;
-  }
-
-  .bookingsmart-divider::before {
-    content: '';
-    @apply absolute inset-0 flex items-center;
-  }
-
-  .bookingsmart-divider::after {
-    content: '';
     @apply w-full border-t;
     border-color: hsl(var(--bs-secondary));
   }
+
+
+
+
 
   .bookingsmart-checkbox {
     @apply rounded border-input text-primary focus:ring-2 focus:ring-ring focus:ring-offset-2;

@@ -15,7 +15,7 @@ public class Amenity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
-    @Column(name = "amenity_id")
+    @Column(name = "id")
     private Long amenityId;
 
     @Column(name = "name", nullable = false, unique = true, length = 100)

@@ -1,6 +1,5 @@
 package com.pdh.common.model;
 
-import com.pdh.common.model.listener.CustomAuditingEntityListener;
 import jakarta.persistence.EntityListeners;
 import jakarta.persistence.MappedSuperclass;
 import java.time.ZonedDateTime;

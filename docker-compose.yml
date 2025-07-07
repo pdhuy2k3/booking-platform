@@ -21,9 +21,8 @@ services:
     volumes:
       - ./identity/bookingsmart-keycloak-theme.jar:/opt/keycloak/providers/bookingsmart-keycloak-theme.jar
       - ./identity/realm-export.json:/opt/keycloak/data/import/realm-export.json
-
-
-  
+    networks:
+      - booking-network
   # PostgreSQL Database
   postgres:
     profiles:
@@ -45,6 +44,8 @@ services:
       - ./postgres-init.sql:/docker-entrypoint-initdb.d/init.sql
     ports:
       - "5432:5432"
+    networks:
+      - booking-network
 
   # Discovery Service (Eureka)
   discovery-service:
@@ -109,123 +110,123 @@ services:
     networks:
       - booking-network
   # Hotel Service
-  hotel-service:
-    profiles:
-      - app
-    build:
-      context: ./hotel-service
-      dockerfile: Dockerfile
-    ports:
-      - "8082:8082"
-    depends_on:
-      postgres:
-        condition: service_healthy
-    environment:
-      - SPRING_PROFILES_ACTIVE=docker
-      - EUREKA_URI=http://discovery-service:8761/eureka
-      - DB_URL=jdbc:postgresql://postgres:5432/hotel_db
-      - DB_USERNAME=postgres
-      - DB_PASSWORD=p0stgr3s
-      - LOGTO_ENDPOINT=http://logto:3001
-      - LOGTO_CLIENT_ID
-      - LOGTO_CLIENT_SECRET
-    networks:
-      - booking-network
-  # Booking Service
-  booking-service:
-    profiles:
-      - app
-    build:
-      context: ./booking-service
-      dockerfile: Dockerfile
-    ports:
-      - "8083:8083"
-    depends_on:
-      postgres:
-        condition: service_healthy
-    environment:
-      - SPRING_PROFILES_ACTIVE=docker
-      - EUREKA_URI=http://discovery-service:8761/eureka
-      - DB_URL=jdbc:postgresql://postgres:5432/booking_db
-      - DB_USERNAME=postgres
-      - DB_PASSWORD=p0stgr3s
-      - LOGTO_ENDPOINT=http://logto:3001
-      - LOGTO_CLIENT_ID
-      - LOGTO_CLIENT_SECRET
-    networks:
-      - booking-network
-  # Customer Service
-  customer-service:
-    profiles:
-      - app
-    build:
-      context: ./customer-service
-      dockerfile: Dockerfile
-    ports:
-      - "8084:8084"
-    depends_on:
-      postgres:
-        condition: service_healthy
-      logto:
-        condition: service_healthy
-    environment:
-      - SPRING_PROFILES_ACTIVE=docker
-      - EUREKA_URI=http://discovery-service:8761/eureka
-      - DB_URL=jdbc:postgresql://postgres:5432/customer_db
-      - DB_USERNAME=postgres
-      - DB_PASSWORD=p0stgr3s
-      - LOGTO_ENDPOINT=http://logto:3001
-      - LOGTO_MANAGEMENT_API_ENDPOINT=http://logto:3002
-      - LOGTO_CLIENT_ID
-      - LOGTO_CLIENT_SECRET
-    networks:
-      - booking-network
-  # Payment Service
-  payment-service:
-    profiles:
-      - app
-    build:
-      context: ./payment-service
-      dockerfile: Dockerfile
-    ports:
-      - "8085:8085"
-    depends_on:
-      postgres:
-        condition: service_healthy
-    environment:
-      - SPRING_PROFILES_ACTIVE=docker
-      - EUREKA_URI=http://discovery-service:8761/eureka
-      - DB_URL=jdbc:postgresql://postgres:5432/payment_db
-      - DB_USERNAME=postgres
-      - DB_PASSWORD=p0stgr3s
-      - LOGTO_ENDPOINT=http://logto:3001
-      - LOGTO_CLIENT_ID
-      - LOGTO_CLIENT_SECRET
-    networks:
-      - booking-network
-  # Transport Service
-  transport-service:
-    profiles:
-      - app
-    build:
-      context: ./transport-service
-      dockerfile: Dockerfile
-    ports:
-      - "8086:8086"
-    depends_on:
-      postgres:
-        condition: service_healthy
-    environment:
-      - SPRING_PROFILES_ACTIVE=docker
-      - EUREKA_URI=http://discovery-service:8761/eureka
-      - DB_URL=jdbc:postgresql://postgres:5432/transport_db
-      - DB_USERNAME=postgres
-      - DB_PASSWORD=p0stgr3s
-      - LOGTO_ENDPOINT=http://logto:3001
-      - LOGTO_CLIENT_ID
-      - LOGTO_CLIENT_SECRET
-    networks:
-      - booking-network
+  # hotel-service:
+  #   profiles:
+  #     - app
+  #   build:
+  #     context: ./hotel-service
+  #     dockerfile: Dockerfile
+  #   ports:
+  #     - "8082:8082"
+  #   depends_on:
+  #     postgres:
+  #       condition: service_healthy
+  #   environment:
+  #     - SPRING_PROFILES_ACTIVE=docker
+  #     - EUREKA_URI=http://discovery-service:8761/eureka
+  #     - DB_URL=jdbc:postgresql://postgres:5432/hotel_db
+  #     - DB_USERNAME=postgres
+  #     - DB_PASSWORD=p0stgr3s
+  #     - LOGTO_ENDPOINT=http://logto:3001
+  #     - LOGTO_CLIENT_ID
+  #     - LOGTO_CLIENT_SECRET
+  #   networks:
+  #     - booking-network
+  # # Booking Service
+  # booking-service:
+  #   profiles:
+  #     - app
+  #   build:
+  #     context: ./booking-service
+  #     dockerfile: Dockerfile
+  #   ports:
+  #     - "8083:8083"
+  #   depends_on:
+  #     postgres:
+  #       condition: service_healthy
+  #   environment:
+  #     - SPRING_PROFILES_ACTIVE=docker
+  #     - EUREKA_URI=http://discovery-service:8761/eureka
+  #     - DB_URL=jdbc:postgresql://postgres:5432/booking_db
+  #     - DB_USERNAME=postgres
+  #     - DB_PASSWORD=p0stgr3s
+  #     - LOGTO_ENDPOINT=http://logto:3001
+  #     - LOGTO_CLIENT_ID
+  #     - LOGTO_CLIENT_SECRET
+  #   networks:
+  #     - booking-network
+  # # Customer Service
+  # customer-service:
+  #   profiles:
+  #     - app
+  #   build:
+  #     context: ./customer-service
+  #     dockerfile: Dockerfile
+  #   ports:
+  #     - "8084:8084"
+  #   depends_on:
+  #     postgres:
+  #       condition: service_healthy
+  #     logto:
+  #       condition: service_healthy
+  #   environment:
+  #     - SPRING_PROFILES_ACTIVE=docker
+  #     - EUREKA_URI=http://discovery-service:8761/eureka
+  #     - DB_URL=jdbc:postgresql://postgres:5432/customer_db
+  #     - DB_USERNAME=postgres
+  #     - DB_PASSWORD=p0stgr3s
+  #     - LOGTO_ENDPOINT=http://logto:3001
+  #     - LOGTO_MANAGEMENT_API_ENDPOINT=http://logto:3002
+  #     - LOGTO_CLIENT_ID
+  #     - LOGTO_CLIENT_SECRET
+  #   networks:
+  #     - booking-network
+  # # Payment Service
+  # payment-service:
+  #   profiles:
+  #     - app
+  #   build:
+  #     context: ./payment-service
+  #     dockerfile: Dockerfile
+  #   ports:
+  #     - "8085:8085"
+  #   depends_on:
+  #     postgres:
+  #       condition: service_healthy
+  #   environment:
+  #     - SPRING_PROFILES_ACTIVE=docker
+  #     - EUREKA_URI=http://discovery-service:8761/eureka
+  #     - DB_URL=jdbc:postgresql://postgres:5432/payment_db
+  #     - DB_USERNAME=postgres
+  #     - DB_PASSWORD=p0stgr3s
+  #     - LOGTO_ENDPOINT=http://logto:3001
+  #     - LOGTO_CLIENT_ID
+  #     - LOGTO_CLIENT_SECRET
+  #   networks:
+  #     - booking-network
+  # # Transport Service
+  # transport-service:
+  #   profiles:
+  #     - app
+  #   build:
+  #     context: ./transport-service
+  #     dockerfile: Dockerfile
+  #   ports:
+  #     - "8086:8086"
+  #   depends_on:
+  #     postgres:
+  #       condition: service_healthy
+  #   environment:
+  #     - SPRING_PROFILES_ACTIVE=docker
+  #     - EUREKA_URI=http://discovery-service:8761/eureka
+  #     - DB_URL=jdbc:postgresql://postgres:5432/transport_db
+  #     - DB_USERNAME=postgres
+  #     - DB_PASSWORD=p0stgr3s
+  #     - LOGTO_ENDPOINT=http://logto:3001
+  #     - LOGTO_CLIENT_ID
+  #     - LOGTO_CLIENT_SECRET
+  #   networks:
+  #     - booking-network
   # PgAdmin for database management
   pgadmin:
     profiles:

@@ -8,7 +8,6 @@
         <version>${revision}</version>
         <relativePath>../pom.xml</relativePath>
     </parent>
-    <groupId>com.pdh</groupId>
     <artifactId>payment-service</artifactId>
     <version>${revision}</version>
     <name>payment-service</name>

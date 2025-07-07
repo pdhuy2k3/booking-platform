@@ -35,19 +35,19 @@ export default function AdminReports() {
   return (
     <AdminLayout>
       {/* Header */}
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 mb-6">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">Báo cáo & Phân tích</h1>
-          <p className="text-gray-600 mt-2">Thống kê chi tiết về hoạt động kinh doanh</p>
+          <h1 className="text-2xl lg:text-3xl font-bold text-gray-900">Báo cáo & Phân tích</h1>
+          <p className="text-gray-600 mt-2 text-sm lg:text-base">Thống kê chi tiết về hoạt động kinh doanh</p>
         </div>
-        <Button className="bg-blue-600 hover:bg-blue-700">
+        <Button className="bg-blue-600 hover:bg-blue-700 w-full lg:w-auto">
           <Download className="w-4 h-4 mr-2" />
           Xuất báo cáo
         </Button>
       </div>
 
-      {/* Key Metrics */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-6">
+      {/* Key Metrics - Better responsive */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 lg:gap-6 mb-6">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Doanh thu tháng này</CardTitle>
@@ -105,16 +105,16 @@ export default function AdminReports() {
         </Card>
       </div>
 
-      {/* Charts Row */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+      {/* Charts Row - Stack on smaller screens */}
+      <div className="grid grid-cols-1 xl:grid-cols-2 gap-4 lg:gap-6 mb-6">
         {/* Revenue Chart */}
         <Card>
           <CardHeader>
-            <CardTitle>Doanh thu theo tháng</CardTitle>
-            <CardDescription>Biểu đồ doanh thu và đặt chỗ 6 tháng gần đây</CardDescription>
+            <CardTitle className="text-lg">Doanh thu theo tháng</CardTitle>
+            <CardDescription className="text-sm">Biểu đồ doanh thu và đặt chỗ 6 tháng gần đây</CardDescription>
           </CardHeader>
           <CardContent>
-            <ResponsiveContainer width="100%" height={300}>
+            <ResponsiveContainer width="100%" height={250}>
               <BarChart data={monthlyRevenue}>
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis dataKey="month" />
@@ -134,11 +134,11 @@ export default function AdminReports() {
         {/* Service Distribution */}
         <Card>
           <CardHeader>
-            <CardTitle>Phân bố dịch vụ</CardTitle>
-            <CardDescription>Tỷ lệ đặt chỗ theo từng loại dịch vụ</CardDescription>
+            <CardTitle className="text-lg">Phân bố dịch vụ</CardTitle>
+            <CardDescription className="text-sm">Tỷ lệ đặt chỗ theo từng loại dịch vụ</CardDescription>
           </CardHeader>
           <CardContent>
-            <ResponsiveContainer width="100%" height={300}>
+            <ResponsiveContainer width="100%" height={250}>
               <PieChart>
                 <Pie
                   data={serviceDistribution}
@@ -188,8 +188,8 @@ export default function AdminReports() {
         </CardContent>
       </Card>
 
-      {/* Performance Metrics */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      {/* Performance Metrics - Stack on mobile */}
+      <div className="grid grid-cols-1 xl:grid-cols-2 gap-4 lg:gap-6">
         <Card>
           <CardHeader>
             <CardTitle>Hiệu suất hệ thống</CardTitle>
