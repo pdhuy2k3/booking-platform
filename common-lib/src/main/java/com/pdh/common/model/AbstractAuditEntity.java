@@ -1,6 +1,6 @@
 package com.pdh.common.model;
 
-import com.pdh.common.model.listener.CustomAuditingEntityListener;
+import jakarta.persistence.Column;
 import jakarta.persistence.EntityListeners;
 import jakarta.persistence.MappedSuperclass;
 import java.time.ZonedDateTime;
@@ -18,14 +18,27 @@ import org.springframework.data.annotation.LastModifiedBy;
 public class AbstractAuditEntity {
 
     @CreationTimestamp
-    private ZonedDateTime createdOn;
+    @Column(name = "created_at", nullable = false)
+    private ZonedDateTime createdAt;
 
     @CreatedBy
+    @Column(name = "created_by")
     private String createdBy;
 
     @UpdateTimestamp
-    private ZonedDateTime lastModifiedOn;
+    @Column(name = "updated_at", nullable = false)
+    private ZonedDateTime updatedAt;
 
     @LastModifiedBy
-    private String lastModifiedBy;
+    @Column(name = "updated_by")
+    private String updatedBy;
+
+    @Column(name = "is_deleted", nullable = false)
+    private boolean isDeleted = false;
+
+    @Column(name = "deleted_at")
+    private ZonedDateTime deletedAt;
+
+    @Column(name = "deleted_by")
+    private String deletedBy;
 }

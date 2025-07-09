@@ -14,7 +14,7 @@ import java.util.List;
 @Entity
 @Table(name = "rooms")
 @Data
-@EqualsAndHashCode(callSuper = true)
+
 @NoArgsConstructor
 @AllArgsConstructor
 public class Room extends AbstractAuditEntity {
@@ -27,11 +27,16 @@ public class Room extends AbstractAuditEntity {
     @JoinColumn(name = "hotel_id", nullable = false)
     private Hotel hotel;
     
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "room_type_id")
+    private RoomType roomType;
+    
     @Column(name = "room_number", nullable = false)
     private String roomNumber;
     
+    // Backward compatibility - will be removed after migration
     @Column(name = "room_type", nullable = false)
-    private String roomType;
+    private String roomTypeName;
     
     private String description;
     

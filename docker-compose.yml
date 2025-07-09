@@ -1,41 +1,42 @@
 services:
-  # Logto Authentication Service
-  logto:
-    profiles:
-      - app
-      - auth
+  # Keycloak Authentication Service
+  identity:
     depends_on:
-      postgres:
-        condition: service_healthy
-    image: svhd/logto:${TAG-latest}
-    entrypoint: ["sh", "-c", "npm run cli db seed -- --swe && npm start"]
-    healthcheck:
-      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3001/api/status"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-      start_period: 30s
-    ports:
-      - 3001:3001
-      - 3002:3002
+      - postgres
+    profiles:
+      - auth
+      - app
+    image: quay.io/keycloak/keycloak:26.2.4
+    command: 'start-dev --import-realm'
     environment:
-      - TRUST_PROXY_HEADER=1
-      - DB_URL=postgres://postgres:p0stgr3s@postgres:5432/logto
-      - ENDPOINT=http://logto:3001
-      - ADMIN_ENDPOINT=http://logto:3002
-  
+      KC_BOOTSTRAP_ADMIN_USERNAME: admin
+      KC_BOOTSTRAP_ADMIN_PASSWORD: admin
+      KC_DB: postgres
+      KC_DB_URL: jdbc:postgresql://postgres:5432/keycloak_db
+      KC_DB_USERNAME: postgres
+      KC_DB_PASSWORD: p0stgr3s
+      KC_HEALTH_ENABLED: true
+#      KC_METRICS_ENABLED: true
+      KC_HTTP_PORT: 9090
+    ports:
+      - "9090:9090"
+      - "8443:8443"
+    volumes:
+      - ./identity/bookingsmart-keycloak-theme.jar:/opt/keycloak/providers/bookingsmart-keycloak-theme.jar
+      - ./identity/realm-export.json:/opt/keycloak/data/import/realm-export.json
+    networks:
+      - booking-network
   # PostgreSQL Database
   postgres:
     profiles:
       - app
       - auth
       - dev
-    image: postgres:17-alpine
+    image: debezium/postgres:17-alpine
     user: postgres
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: p0stgr3s
-      POSTGRES_DB: logto
     healthcheck:
       test: ["CMD-SHELL", "pg_isready"]
       interval: 10s
@@ -46,7 +47,81 @@ services:
       - ./postgres-init.sql:/docker-entrypoint-initdb.d/init.sql
     ports:
       - "5432:5432"
-  
+    networks:
+      - booking-network
+    command: postgres -c wal_level=logical
+
+  # Zookeeper
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.3.2
+    profiles:
+      - app
+    networks:
+      - booking-network
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+
+  # Kafka
+  kafka:
+    image: confluentinc/cp-kafka:7.7.1
+    profiles:
+      - app
+    networks:
+      - booking-network
+    depends_on:
+      - zookeeper
+    ports:
+      - "9092:9092"
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:29092,PLAINTEXT_HOST://localhost:9092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+
+  # Debezium Connect
+  connect:
+    image: debezium/connect:2.7.3.Final
+    profiles:
+      - app
+    ports:
+      - "8083:8083"
+    networks:
+      - booking-network
+    depends_on:
+      - kafka
+      - postgres
+    environment:
+      BOOTSTRAP_SERVERS: kafka:29092
+      GROUP_ID: 1
+      CONFIG_STORAGE_TOPIC: connect_configs
+      OFFSET_STORAGE_TOPIC: connect_offsets
+      STATUS_STORAGE_TOPIC: connect_statuses
+      CONNECT_KEY_CONVERTER: org.apache.kafka.connect.json.JsonConverter
+      CONNECT_VALUE_CONVERTER: org.apache.kafka.connect.json.JsonConverter
+      CONNECT_REST_ADVERTISED_HOST_NAME: connect
+    volumes:
+      - ./debezium:/kafka/connect/debezium-connectors
+
+  # Kafka UI
+  kafka-ui:
+    image: provectuslabs/kafka-ui:latest
+    profiles:
+      - app
+    ports:
+      - "8090:8080"
+    depends_on:
+      - kafka
+    networks:
+      - booking-network
+    environment:
+      KAFKA_CLUSTERS_0_NAME: local
+      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:29092
+      KAFKA_CLUSTERS_0_ZOOKEEPER: zookeeper:2181
+
   # Discovery Service (Eureka)
   discovery-service:
     profiles:
@@ -59,6 +134,8 @@ services:
     environment:
       - SPRING_PROFILES_ACTIVE=docker
       - EUREKA_URI=http://discovery-service:8761/eureka
+    networks:
+      - booking-network
 
   # API Gateway (Backoffice BFF)
   backoffice:
@@ -70,19 +147,18 @@ services:
     ports:
       - "8080:8080"
     depends_on:
-      postgres:
-        condition: service_healthy
-      logto:
-        condition: service_healthy
+    - postgres  # Chỉ đợi postgres healthy
+    - identity
+    entrypoint: ["/wait-for-it.sh", "identity:9090", "--timeout=120", "--", "java", "-jar", "/app.jar"]
     environment:
       - SPRING_PROFILES_ACTIVE=docker
       - EUREKA_URI=http://discovery-service:8761/eureka
-      - LOGTO_ENDPOINT=http://logto:3001
-      - DB_URL=postgres://postgres:p0stgr3s@postgres:5432/logto
-      - LOGTO_CLIENT_ID
-      - LOGTO_CLIENT_SECRET
+      - JWT_ISSUER_URI=http://identity:9090/realms/BookingSmart
+      - KEYCLOAK_HOST=http://identity:9090
+      - KEYCLOAK_CLIENT_SECRET_BACKOFFICE_BFF=qhW4NC8pgPLdJDTd57sry5ON1fHK1d8i
+    networks:
+      - booking-network
 
-  
   # Flight Service
   flight-service:
     profiles:
@@ -101,11 +177,11 @@ services:
       - DB_URL=jdbc:postgresql://postgres:5432/flight_db
       - DB_USERNAME=postgres
       - DB_PASSWORD=p0stgr3s
-      - LOGTO_ENDPOINT=http://logto:3001
-      - LOGTO_CLIENT_ID
-      - LOGTO_CLIENT_SECRET
+      - JWT_ISSUER_URI=http://identity:9090/realms/BookingSmar
+      - KAFKA_BOOTSTRAP_SERVERS=kafka:29092
+    networks:
+      - booking-network
 
-  
   # Hotel Service
   hotel-service:
     profiles:
@@ -124,10 +200,11 @@ services:
       - DB_URL=jdbc:postgresql://postgres:5432/hotel_db
       - DB_USERNAME=postgres
       - DB_PASSWORD=p0stgr3s
-      - LOGTO_ENDPOINT=http://logto:3001
-      - LOGTO_CLIENT_ID
-      - LOGTO_CLIENT_SECRET
-  
+      - JWT_ISSUER_URI=http://identity:9090/realms/BookingSmart
+      - KAFKA_BOOTSTRAP_SERVERS=kafka:29092
+    networks:
+      - booking-network
+
   # Booking Service
   booking-service:
     profiles:
@@ -136,7 +213,7 @@ services:
       context: ./booking-service
       dockerfile: Dockerfile
     ports:
-      - "8083:8083"
+      - "8093:8083" # Changed from 8083 to avoid conflict with Kafka Connect
     depends_on:
       postgres:
         condition: service_healthy
@@ -146,35 +223,11 @@ services:
       - DB_URL=jdbc:postgresql://postgres:5432/booking_db
       - DB_USERNAME=postgres
       - DB_PASSWORD=p0stgr3s
-      - LOGTO_ENDPOINT=http://logto:3001
-      - LOGTO_CLIENT_ID
-      - LOGTO_CLIENT_SECRET
-  
-  # Customer Service
-  customer-service:
-    profiles:
-      - app
-    build:
-      context: ./customer-service
-      dockerfile: Dockerfile
-    ports:
-      - "8084:8084"
-    depends_on:
-      postgres:
-        condition: service_healthy
-      logto:
-        condition: service_healthy
-    environment:
-      - SPRING_PROFILES_ACTIVE=docker
-      - EUREKA_URI=http://discovery-service:8761/eureka
-      - DB_URL=jdbc:postgresql://postgres:5432/customer_db
-      - DB_USERNAME=postgres
-      - DB_PASSWORD=p0stgr3s
-      - LOGTO_ENDPOINT=http://logto:3001
-      - LOGTO_MANAGEMENT_API_ENDPOINT=http://logto:3002
-      - LOGTO_CLIENT_ID
-      - LOGTO_CLIENT_SECRET
-  
+      - JWT_ISSUER_URI=http://identity:9090/realms/BookingSmart
+      - KAFKA_BOOTSTRAP_SERVERS=kafka:29092
+    networks:
+      - booking-network
+
   # Payment Service
   payment-service:
     profiles:
@@ -193,52 +246,59 @@ services:
       - DB_URL=jdbc:postgresql://postgres:5432/payment_db
       - DB_USERNAME=postgres
       - DB_PASSWORD=p0stgr3s
-      - LOGTO_ENDPOINT=http://logto:3001
-      - LOGTO_CLIENT_ID
-      - LOGTO_CLIENT_SECRET
-  
-  # Transport Service
-  transport-service:
+      - JWT_ISSUER_URI=http://identity:9090/realms/BookingSmart
+      - KAFKA_BOOTSTRAP_SERVERS=kafka:29092
+    networks:
+      - booking-network
+
+  # Notification Service
+  notification-service:
     profiles:
       - app
     build:
-      context: ./transport-service
+      context: ./notification-service
       dockerfile: Dockerfile
     ports:
-      - "8086:8086"
+      - "8087:8087"
     depends_on:
       postgres:
         condition: service_healthy
     environment:
       - SPRING_PROFILES_ACTIVE=docker
       - EUREKA_URI=http://discovery-service:8761/eureka
-      - DB_URL=jdbc:postgresql://postgres:5432/transport_db
+      - DB_URL=jdbc:postgresql://postgres:5432/notification_db
       - DB_USERNAME=postgres
       - DB_PASSWORD=p0stgr3s
-      - LOGTO_ENDPOINT=http://logto:3001
-      - LOGTO_CLIENT_ID
-      - LOGTO_CLIENT_SECRET
-  
-  # PgAdmin for database management
-  pgadmin:
-    profiles:
-      - dev
-    image: dpage/pgadmin4:latest
-    environment:
-      PGADMIN_CONFIG_SERVER_MODE: 'False'
-      PGADMIN_DEFAULT_EMAIL: huypd.dev@gmail.com
-      PGADMIN_DEFAULT_PASSWORD: admin123
-    ports:
-      - "8090:80"
-    volumes:
-      - pgadmin_data:/var/lib/pgadmin
-    depends_on:
-      - postgres
-    restart: unless-stopped
+      - JWT_ISSUER_URI=http://identity:9090/realms/BookingSmart
+      - KAFKA_BOOTSTRAP_SERVERS=kafka:29092
+    networks:
+      - booking-network
+
+#  # PgAdmin for database management
+#  pgadmin:
+#    profiles:
+#      - dev
+#      - auth
+#    image: dpage/pgadmin4:latest
+#    environment:
+#      PGADMIN_CONFIG_SERVER_MODE: 'False'
+#      PGADMIN_DEFAULT_EMAIL: huypd.dev@gmail.com
+#      PGADMIN_DEFAULT_PASSWORD: admin123
+#    ports:
+#      - "8666:80"
+#    volumes:
+#      - ./pgadmin_data:/var/lib/pgadmin
+#      - ./database_backup:/tmp/database_backup
+#    depends_on:
+#      - postgres
+#    restart: unless-stopped
+#    networks:
+#      - booking-network
+
 
 networks:
-  default:
+  booking-network:
     driver: bridge
+    name: booking-network
 volumes:
     postgres_data:
-    pgadmin_data:

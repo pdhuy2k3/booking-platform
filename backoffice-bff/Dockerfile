@@ -1,6 +1,15 @@
 FROM eclipse-temurin:21-jre-alpine
-RUN apk add --no-cache bash
+
+# Install necessary packages
+RUN apk add --no-cache bash netcat-openbsd
+
+# Copy and fix wait-for-it script
+COPY wait-for-it.sh /wait-for-it.sh
+RUN chmod +x /wait-for-it.sh && \
+    sed -i 's/\r$//' /wait-for-it.sh
+
+# Copy application jar
 COPY target/backoffice*.jar app.jar
-COPY wait-for-it.sh wait-for-it.sh
-RUN chmod +x wait-for-it.sh
+
+# Default entrypoint (can be overridden by docker-compose)
 ENTRYPOINT ["java","-jar","/app.jar"]

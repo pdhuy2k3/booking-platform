@@ -14,10 +14,10 @@ import lombok.NoArgsConstructor;
 @Entity
 @Table(name = "hotel_images")
 @Data
-@EqualsAndHashCode(callSuper = true)
+
 @NoArgsConstructor
 @AllArgsConstructor
-public class HotelImage extends AbstractAuditEntity {
+public class HotelImage  {
     
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)

@@ -1,10 +1,20 @@
-CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
-CREATE DATABASE flight_db;
-CREATE DATABASE hotel_db;
-CREATE DATABASE booking_db;
-CREATE DATABASE customer_db;
-CREATE DATABASE payment_db;
-CREATE DATABASE transport_db;
+CREATE DATABASE keycloak_db WITH OWNER = postgres ENCODING = 'UTF8' LC_COLLATE = 'en_US.utf8' LC_CTYPE = 'en_US.utf8' TABLESPACE = pg_default CONNECTION
+LIMIT = -1;
+CREATE DATABASE flight_db WITH OWNER = postgres ENCODING = 'UTF8' LC_COLLATE = 'en_US.utf8' LC_CTYPE = 'en_US.utf8' TABLESPACE = pg_default CONNECTION
+LIMIT = -1;
+CREATE DATABASE hotel_db WITH OWNER = postgres ENCODING = 'UTF8' LC_COLLATE = 'en_US.utf8' LC_CTYPE = 'en_US.utf8' TABLESPACE = pg_default CONNECTION
+LIMIT = -1;
+CREATE DATABASE booking_db WITH OWNER = postgres ENCODING = 'UTF8' LC_COLLATE = 'en_US.utf8' LC_CTYPE = 'en_US.utf8' TABLESPACE = pg_default CONNECTION
+LIMIT = -1;
+CREATE DATABASE customer_db WITH OWNER = postgres ENCODING = 'UTF8' LC_COLLATE = 'en_US.utf8' LC_CTYPE = 'en_US.utf8' TABLESPACE = pg_default CONNECTION
+LIMIT = -1;
+CREATE DATABASE payment_db WITH OWNER = postgres ENCODING = 'UTF8' LC_COLLATE = 'en_US.utf8' LC_CTYPE = 'en_US.utf8' TABLESPACE = pg_default CONNECTION
+LIMIT = -1;
+CREATE DATABASE transport_db WITH OWNER = postgres ENCODING = 'UTF8' LC_COLLATE = 'en_US.utf8' LC_CTYPE = 'en_US.utf8' TABLESPACE = pg_default CONNECTION
+LIMIT = -1;
+CREATE DATABASE notification_db WITH OWNER = postgres ENCODING = 'UTF8' LC_COLLATE = 'en_US.utf8' LC_CTYPE = 'en_US.utf8' TABLESPACE = pg_default CONNECTION
+LIMIT = -1;
+
 
 

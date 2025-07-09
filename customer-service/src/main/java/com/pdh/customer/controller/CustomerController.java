@@ -1,79 +1,100 @@
 package com.pdh.customer.controller;
 
-import com.pdh.customer.model.Customer;
 import com.pdh.customer.service.CustomerService;
-import com.pdh.customer.service.CustomerService.CompleteCustomerInfo;
-import com.pdh.customer.service.CustomerService.CustomerUpdateRequest;
+import com.pdh.customer.viewmodel.*;
+import com.pdh.common.utils.AuthenticationUtils;
+import jakarta.validation.Valid;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.UUID;
-
-/**
- * REST Controller for customer management
- * Demonstrates integration between Logto authentication and local customer data
- */
 @RestController
-@RequestMapping("/api/customers")
 public class CustomerController {
-    
+
     private final CustomerService customerService;
-    
+
     public CustomerController(CustomerService customerService) {
         this.customerService = customerService;
     }
-    
-    /**
-     * Get complete customer information (Logto + Profile)
-     */
-    @GetMapping("/{customerId}")
-    public ResponseEntity<CompleteCustomerInfo> getCompleteCustomerInfo(@PathVariable UUID customerId) {
-        CompleteCustomerInfo customerInfo = customerService.getCompleteCustomerInfo(customerId);
-        if (customerInfo == null) {
-            return ResponseEntity.notFound().build();
-        }
-        return ResponseEntity.ok(customerInfo);
+
+    // BACKOFFICE ADMIN ENDPOINTS
+    @GetMapping("/backoffice/admin/customers")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<CustomerListVm> getCustomers(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size) {
+        CustomerListVm customers = customerService.getCustomers(page);
+        return ResponseEntity.ok(customers);
     }
-    
-    /**
-     * Get customer by subject ID
-     */
-    @GetMapping("/by-sub/{subId}")
-    public ResponseEntity<Customer> getCustomerBySubId(@PathVariable String subId) {
-        Customer customer = customerService.getCustomerBySubId(subId);
-        if (customer == null) {
-            return ResponseEntity.notFound().build();
-        }
+
+    @GetMapping("/backoffice/admin/customers/{id}")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<CustomerAdminVm> getCustomerById(@PathVariable String id) {
+        CustomerAdminVm customer = customerService.getCustomerById(id);
         return ResponseEntity.ok(customer);
     }
-    
-    /**
-     * Create customer profile (typically called when user first logs in)
-     */
-    @PostMapping("/{customerId}/profile")
-    public ResponseEntity<Customer> createCustomer(@PathVariable UUID customerId, 
-                                                  @RequestParam String subId) {
-        Customer customer = customerService.createCustomer(customerId, subId);
+
+    @GetMapping("/backoffice/admin/customers/search")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<CustomerAdminVm> getCustomerByEmail(@RequestParam String email) {
+        CustomerAdminVm customer = customerService.getCustomerByEmail(email);
         return ResponseEntity.ok(customer);
     }
-    
-    /**
-     * Update customer profile
-     */
-    @PutMapping("/{customerId}")
-    public ResponseEntity<Customer> updateCustomer(@PathVariable UUID customerId,
-                                                  @RequestBody CustomerUpdateRequest request) {
-        Customer customer = customerService.updateCustomer(customerId, request);
+
+    @PostMapping("/backoffice/admin/customers")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<CustomerVm> createCustomer(@Valid @RequestBody CustomerPostVm customerPostVm) {
+        CustomerVm customer = customerService.create(customerPostVm);
+        return ResponseEntity.status(HttpStatus.CREATED).body(customer);
+    }
+
+    @PutMapping("/backoffice/admin/customers/{id}")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<Void> updateCustomer(
+            @PathVariable String id,
+            @Valid @RequestBody CustomerProfileRequestVm customerProfileRequestVm) {
+        customerService.updateCustomer(id, customerProfileRequestVm);
+        return ResponseEntity.noContent().build();
+    }
+
+    @DeleteMapping("/backoffice/admin/customers/{id}")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<Void> deleteCustomer(@PathVariable String id) {
+        customerService.deleteCustomer(id);
+        return ResponseEntity.noContent().build();
+    }
+
+    // BACKOFFICE PARTNER ENDPOINTS
+    @GetMapping("/backoffice/partner/customers")
+    @PreAuthorize("hasRole('PARTNER')")
+    public ResponseEntity<CustomerListVm> getCustomersForPartner(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size) {
+        CustomerListVm customers = customerService.getCustomers(page);
+        return ResponseEntity.ok(customers);
+    }
+
+    // STOREFRONT ENDPOINTS
+    @GetMapping("/storefront/profile")
+    @PreAuthorize("hasRole('CUSTOMER')")
+    public ResponseEntity<CustomerVm> getCustomerProfile() {
+        String userId = AuthenticationUtils.extractUserId();
+        CustomerVm customer = customerService.getCustomerProfile(userId);
         return ResponseEntity.ok(customer);
     }
-    
-    /**
-     * Add loyalty points to customer
-     */
-    @PostMapping("/{customerId}/loyalty-points")
-    public ResponseEntity<Customer> addLoyaltyPoints(@PathVariable UUID customerId,
-                                                    @RequestParam Integer points) {
-        Customer customer = customerService.addLoyaltyPoints(customerId, points);
-        return ResponseEntity.ok(customer);
+
+    @PutMapping("/storefront/profile")
+    @PreAuthorize("hasRole('CUSTOMER')")
+    public ResponseEntity<Void> updateCustomerProfile(@Valid @RequestBody CustomerProfileRequestVm customerProfileRequestVm) {
+        String userId = AuthenticationUtils.extractUserId();
+        customerService.updateCustomer(userId, customerProfileRequestVm);
+        return ResponseEntity.noContent().build();
+    }
+
+    @PostMapping("/storefront/guest")
+    public ResponseEntity<GuestUserVm> createGuestUser() {
+        GuestUserVm guestUser = customerService.createGuestUser();
+        return ResponseEntity.status(HttpStatus.CREATED).body(guestUser);
     }
 }
