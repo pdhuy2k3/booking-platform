@@ -45,10 +45,10 @@ public class WebSecurityConfig {
     public SecurityWebFilterChain securityFilterChain(ServerHttpSecurity http) throws Exception {
         http.authorizeExchange(authorizationManagerRequestMatcherRegistry -> {
             authorizationManagerRequestMatcherRegistry
-                    .pathMatchers("/health", "/actuator/prometheus", "/actuator/health/**").permitAll()
-                    .pathMatchers("/partner/**").hasAnyRole("PARTNER")
-                    .pathMatchers("/admin/**").hasAnyRole("ADMIN")
-                    .anyExchange().authenticated();
+//                    .pathMatchers("/health", "/actuator/prometheus", "/actuator/health/**").permitAll()
+//                    .pathMatchers("/partner/**").hasAnyRole("PARTNER")
+//                    .pathMatchers("/admin/**").hasAnyRole("ADMIN")
+                    .anyExchange().permitAll();
         })
                 .oauth2Login(Customizer.withDefaults())
                 .httpBasic(ServerHttpSecurity.HttpBasicSpec::disable)

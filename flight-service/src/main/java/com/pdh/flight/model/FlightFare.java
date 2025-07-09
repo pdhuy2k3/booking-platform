@@ -1,42 +1,42 @@
 package com.pdh.flight.model;
 
-import com.pdh.flight.model.enums.FareClass;
+import com.pdh.common.model.AbstractAuditEntity;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Data;
+import lombok.EqualsAndHashCode;
 import lombok.NoArgsConstructor;
 
 import java.math.BigDecimal;
+import java.util.UUID;
 
 @Entity
-@Table(name = "flight_fares", uniqueConstraints = {
-    @UniqueConstraint(columnNames = {"flight_id", "fare_class"})
-})
+@Table(name = "flight_fares")
 @Data
+@EqualsAndHashCode(callSuper = false)
 @NoArgsConstructor
 @AllArgsConstructor
-public class FlightFare {
+public class FlightFare extends AbstractAuditEntity {
 
     @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    @Column(name = "id")
-    private Long fareId;
+    @GeneratedValue(strategy = GenerationType.AUTO)
+    @Column(name = "fare_id")
+    private UUID fareId;
 
-    @Column(name = "flight_id", nullable = false)
-    private Long flightId;
+    @Column(name = "schedule_id", nullable = false)
+    private UUID scheduleId;
 
-    @Enumerated(EnumType.STRING)
-    @Column(name = "fare_class", nullable = false)
-    private FareClass fareClass;
+    @Column(name = "fare_class", nullable = false, length = 50)
+    private String fareClass;
 
     @Column(name = "price", nullable = false, precision = 10, scale = 2)
     private BigDecimal price;
 
-    @Column(name = "conditions", columnDefinition = "TEXT")
-    private String conditions;
-    
+    @Column(name = "available_seats", nullable = false)
+    private Integer availableSeats;
+
     // Reference entity
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "flight_id", insertable = false, updatable = false)
-    private Flight flight;
+    @JoinColumn(name = "schedule_id", insertable = false, updatable = false)
+    private FlightSchedule flightSchedule;
 }

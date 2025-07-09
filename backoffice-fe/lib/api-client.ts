@@ -1,4 +1,5 @@
 import axios, { type AxiosInstance, type AxiosRequestConfig, type AxiosResponse } from "axios"
+import {AuthClient} from "@/lib/auth-client";
 
 class ApiClient {
   private client: AxiosInstance
@@ -34,7 +35,7 @@ class ApiClient {
       (error) => {
         if (error.response?.status === 401) {
           // Redirect to BFF login endpoint
-          window.location.href = "/api/auth/login"
+          window.location.href = AuthClient.loginUrl()
         }
         if (error.response?.status === 403) {
           // Access denied - redirect to unauthorized page

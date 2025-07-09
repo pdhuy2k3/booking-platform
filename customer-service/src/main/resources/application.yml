@@ -42,9 +42,9 @@ spring:
     oauth2:
       resourceserver:
         jwt:
-          issuer-uri: ${KEYCLOAK_HOST}/realms/BookingSmart
+          issuer-uri: ${JWT_ISSUER_URI}
 keycloak:
-    auth-server-url: ${KEYCLOAK_HOST}
+    auth-server-url: ${KEYCLOAK_HOST:http://identity:9090}
     realm: BookingSmart
     resource: customer-management
     credentials:

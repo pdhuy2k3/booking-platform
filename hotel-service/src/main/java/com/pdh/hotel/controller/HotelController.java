@@ -1,26 +1,21 @@
 package com.pdh.hotel.controller;
 
-import com.pdh.hotel.model.Hotel;
-import com.pdh.hotel.model.Room;
-import com.pdh.hotel.repository.HotelRepository;
-import com.pdh.hotel.repository.RoomRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
-import java.math.BigDecimal;
 import java.time.LocalDateTime;
-import java.util.List;
 import java.util.Map;
 
+/**
+ * Hotel Controller
+ * Xử lý các API requests liên quan đến khách sạn
+ */
 @RestController
 @RequiredArgsConstructor
 @Slf4j
 public class HotelController {
-    
-    private final HotelRepository hotelRepository;
-    private final RoomRepository roomRepository;
 
     /**
      * Health check endpoint
@@ -30,96 +25,109 @@ public class HotelController {
         log.info("Hotel service health check requested");
         
         Map<String, Object> healthStatus = Map.of(
-                "status", "UP",
-                "service", "hotel-service",
-                "timestamp", LocalDateTime.now(),
-                "messages", "Hotel service is running properly"
+            "status", "UP",
+            "service", "hotel-service",
+            "timestamp", LocalDateTime.now(),
+            "message", "Hotel Service is running properly"
         );
         
         return ResponseEntity.ok(healthStatus);
     }
 
     /**
-     * Tìm kiếm khách sạn
-     */
-    @GetMapping("/backoffice/hotel/search")
-    public ResponseEntity<List<Hotel>> searchHotels(
-            @RequestParam(required = false) String city,
-            @RequestParam(required = false) String keyword,
-            @RequestParam(required = false) Integer minRating) {
-        
-        log.info("Searching hotels with city: {}, keyword: {}, minRating: {}", city, keyword, minRating);
-        
-        List<Hotel> hotels;
-        
-        if (keyword != null && !keyword.trim().isEmpty()) {
-            hotels = hotelRepository.searchHotels(keyword);
-        } else if (city != null && !city.trim().isEmpty()) {
-            hotels = hotelRepository.findByCityIgnoreCaseAndIsActiveTrue(city);
-        } else if (minRating != null) {
-            hotels = hotelRepository.findByMinStarRating(minRating);
-        } else {
-            hotels = hotelRepository.findAll();
-        }
-        
-        log.info("Found {} hotels", hotels.size());
-        return ResponseEntity.ok(hotels);
-    }
-
-    /**
      * Lấy thông tin chi tiết khách sạn
      */
     @GetMapping("/backoffice/hotel/{hotelId}")
-    public ResponseEntity<Hotel> getHotelDetails(@PathVariable Long hotelId) {
+    public ResponseEntity<Long> getHotelDetails(@PathVariable Long hotelId) {
         log.info("Getting hotel details for ID: {}", hotelId);
         
-        return hotelRepository.findById(hotelId)
-                .map(hotel -> {
-                    log.info("Found hotel: {}", hotel.getName());
-                    return ResponseEntity.ok(hotel);
-                })
-                .orElse(ResponseEntity.notFound().build());
+        return ResponseEntity.ok(hotelId);
     }
 
+    // === BOOKING INTEGRATION ENDPOINTS ===
+    
     /**
-     * Lấy danh sách phòng của khách sạn
+     * Reserve hotel for booking (called by Booking Service)
      */
-    @GetMapping("/backoffice/hotel/{hotelId}/rooms")
-    public ResponseEntity<List<Room>> getHotelRooms(
-            @PathVariable Long hotelId,
-            @RequestParam(required = false) Integer guests,
-            @RequestParam(required = false) BigDecimal minPrice,
-            @RequestParam(required = false) BigDecimal maxPrice) {
+    @PostMapping("/hotels/reserve")
+    public ResponseEntity<Map<String, Object>> reserveHotel(@RequestBody Map<String, Object> request) {
+        log.info("Hotel reservation request: {}", request);
         
-        log.info("Getting rooms for hotel ID: {} with guests: {}, price range: {}-{}", 
-                hotelId, guests, minPrice, maxPrice);
+        String bookingId = (String) request.get("bookingId");
+        String sagaId = (String) request.get("sagaId");
+        // String customerId = (String) request.get("customerId"); // For future use
         
-        List<Room> rooms;
+        // Mock implementation - in real scenario, this would:
+        // 1. Check hotel room availability
+        // 2. Create temporary reservation
+        // 3. Return reservation details
         
-        if (guests != null) {
-            rooms = roomRepository.findAvailableRoomsByHotelAndOccupancy(hotelId, guests);
-        } else if (minPrice != null && maxPrice != null) {
-            rooms = roomRepository.findAvailableRoomsByHotelAndPriceRange(hotelId, minPrice, maxPrice);
-        } else {
-            rooms = roomRepository.findByHotelIdAndIsAvailableTrue(hotelId);
-        }
+        Map<String, Object> response = Map.of(
+            "status", "success",
+            "message", "Hotel reservation created",
+            "reservationId", "HTL-" + bookingId,
+            "bookingId", bookingId,
+            "sagaId", sagaId
+        );
         
-        log.info("Found {} available rooms", rooms.size());
-        return ResponseEntity.ok(rooms);
+        log.info("Hotel reservation response: {}", response);
+        return ResponseEntity.ok(response);
     }
-
+    
     /**
-     * Lấy thông tin chi tiết phòng
+     * Cancel hotel reservation (compensation)
      */
-    @GetMapping("/backoffice/hotel/room/{roomId}")
-    public ResponseEntity<Room> getRoomDetails(@PathVariable Long roomId) {
-        log.info("Getting room details for ID: {}", roomId);
+    @PostMapping("/hotels/cancel-reservation")
+    public ResponseEntity<Map<String, Object>> cancelHotelReservation(@RequestBody Map<String, Object> request) {
+        log.info("Hotel cancellation request: {}", request);
         
-        return roomRepository.findById(roomId)
-                .map(room -> {
-                    log.info("Found room: {} in hotel: {}", room.getRoomNumber(), room.getHotel().getName());
-                    return ResponseEntity.ok(room);
-                })
-                .orElse(ResponseEntity.notFound().build());
+        String bookingId = (String) request.get("bookingId");
+        String sagaId = (String) request.get("sagaId");
+        String reason = (String) request.get("reason");
+        
+        // Mock implementation - in real scenario, this would:
+        // 1. Find and cancel the reservation
+        // 2. Free up the rooms
+        // 3. Update reservation status
+        
+        Map<String, Object> response = Map.of(
+            "status", "success",
+            "message", "Hotel reservation cancelled",
+            "bookingId", bookingId,
+            "sagaId", sagaId,
+            "reason", reason
+        );
+        
+        log.info("Hotel cancellation response: {}", response);
+        return ResponseEntity.ok(response);
+    }
+    
+    /**
+     * Confirm hotel reservation (final step)
+     */
+    @PostMapping("/hotels/confirm-reservation")
+    public ResponseEntity<Map<String, Object>> confirmHotelReservation(@RequestBody Map<String, Object> request) {
+        log.info("Hotel confirmation request: {}", request);
+        
+        String bookingId = (String) request.get("bookingId");
+        String sagaId = (String) request.get("sagaId");
+        String confirmationNumber = (String) request.get("confirmationNumber");
+        
+        // Mock implementation - in real scenario, this would:
+        // 1. Convert temporary reservation to confirmed booking
+        // 2. Generate vouchers
+        // 3. Send confirmation to customer
+        
+        Map<String, Object> response = Map.of(
+            "status", "success",
+            "message", "Hotel reservation confirmed",
+            "bookingId", bookingId,
+            "sagaId", sagaId,
+            "confirmationNumber", confirmationNumber,
+            "voucherNumber", "VCH-" + bookingId
+        );
+        
+        log.info("Hotel confirmation response: {}", response);
+        return ResponseEntity.ok(response);
     }
 }
