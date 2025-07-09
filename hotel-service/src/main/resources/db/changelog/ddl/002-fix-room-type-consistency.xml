@@ -1,0 +1,192 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+    xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+    http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.29.xsd">
+
+    <!-- Fix room_type relationship consistency -->
+    <changeSet id="003-fix-room-type-relationship" author="PhamDuyHuy">
+        <comment>Add room_type_id foreign key to rooms table and fix data consistency</comment>
+        
+        <!-- Add new column room_type_id to rooms table -->
+        <addColumn tableName="rooms">
+            <column name="room_type_id" type="BIGINT">
+                <constraints nullable="true"/>
+            </column>
+        </addColumn>
+
+        <!-- Add foreign key constraint -->
+        <addForeignKeyConstraint 
+            baseTableName="rooms" 
+            baseColumnNames="room_type_id"
+            constraintName="fk_rooms_room_type"
+            referencedTableName="room_types"
+            referencedColumnNames="room_type_id"/>
+
+        <!-- Update rooms with proper room_type_id based on pattern -->
+        <sql><![CDATA[
+            -- Update rooms to have proper room_type_id distribution
+            -- We'll distribute rooms across different room types based on hotel and room patterns
+            
+            -- First, let's assign room types based on room position and hotel
+            UPDATE rooms SET room_type_id = CASE
+                -- Hotel 1-5: Mix of Deluxe, Superior, and Suite
+                WHEN hotel_id <= 5 AND MOD(id, 4) = 0 THEN (SELECT room_type_id FROM room_types WHERE name = 'Suite' LIMIT 1)
+                WHEN hotel_id <= 5 AND MOD(id, 4) = 1 THEN (SELECT room_type_id FROM room_types WHERE name = 'Superior Room' LIMIT 1)
+                WHEN hotel_id <= 5 THEN (SELECT room_type_id FROM room_types WHERE name = 'Deluxe Room' LIMIT 1)
+                
+                -- Hotel 6-10: More variety
+                WHEN hotel_id BETWEEN 6 AND 10 AND MOD(id, 3) = 0 THEN (SELECT room_type_id FROM room_types WHERE name = 'Suite' LIMIT 1)
+                WHEN hotel_id BETWEEN 6 AND 10 AND MOD(id, 3) = 1 THEN (SELECT room_type_id FROM room_types WHERE name = 'Deluxe Room' LIMIT 1)
+                WHEN hotel_id BETWEEN 6 AND 10 THEN (SELECT room_type_id FROM room_types WHERE name = 'Superior Room' LIMIT 1)
+                
+                -- Hotel 11-15: Similar distribution
+                WHEN hotel_id BETWEEN 11 AND 15 AND MOD(id, 5) = 0 THEN (SELECT room_type_id FROM room_types WHERE name = 'Suite' LIMIT 1)
+                WHEN hotel_id BETWEEN 11 AND 15 AND MOD(id, 5) IN (1,2) THEN (SELECT room_type_id FROM room_types WHERE name = 'Deluxe Room' LIMIT 1)
+                ELSE (SELECT room_type_id FROM room_types WHERE name = 'Superior Room' LIMIT 1)
+            END;
+
+            -- Make sure all rooms have a room_type_id
+            UPDATE rooms SET room_type_id = (SELECT room_type_id FROM room_types WHERE name = 'Deluxe Room' LIMIT 1)
+            WHERE room_type_id IS NULL;
+        ]]></sql>
+
+        <!-- Make room_type_id NOT NULL after data update -->
+        <addNotNullConstraint tableName="rooms" columnName="room_type_id"/>
+    </changeSet>
+
+    <!-- Update room types data with more variety -->
+    <changeSet id="003-update-room-types-data" author="PhamDuyHuy">
+        <comment>Update room types with more realistic data</comment>
+        <sql><![CDATA[
+            -- Update room_types with more realistic data
+            UPDATE room_types SET 
+                name = 'Standard Room',
+                description = 'Phòng tiêu chuẩn với đầy đủ tiện nghi cơ bản',
+                capacity_adults = 2,
+                base_price = 800000
+            WHERE room_type_id = 1;
+
+            UPDATE room_types SET 
+                name = 'Superior Room', 
+                description = 'Phòng cao cấp với view đẹp và không gian rộng rãi',
+                capacity_adults = 2,
+                base_price = 1200000
+            WHERE room_type_id = 2;
+
+            UPDATE room_types SET 
+                name = 'Deluxe Room',
+                description = 'Phòng deluxe sang trọng với balcony riêng',
+                capacity_adults = 3,
+                base_price = 1800000
+            WHERE room_type_id = 3;
+
+            UPDATE room_types SET 
+                name = 'Executive Room',
+                description = 'Phòng executive với quyền truy cập Executive Lounge',
+                capacity_adults = 2,
+                base_price = 2500000
+            WHERE room_type_id = 4;
+
+            UPDATE room_types SET 
+                name = 'Junior Suite',
+                description = 'Suite nhỏ với khu vực tiếp khách riêng biệt',
+                capacity_adults = 3,
+                base_price = 3200000
+            WHERE room_type_id = 5;
+
+            -- Update remaining room types with diverse names
+            UPDATE room_types SET 
+                name = CASE room_type_id
+                    WHEN 6 THEN 'Family Room'
+                    WHEN 7 THEN 'Business Room'  
+                    WHEN 8 THEN 'Connecting Room'
+                    WHEN 9 THEN 'Studio Suite'
+                    WHEN 10 THEN 'One Bedroom Suite'
+                    WHEN 11 THEN 'Presidential Suite'
+                    WHEN 12 THEN 'Penthouse Suite'
+                    WHEN 13 THEN 'Ocean View Room'
+                    WHEN 14 THEN 'City View Room'
+                    WHEN 15 THEN 'Garden View Room'
+                    WHEN 16 THEN 'Pool View Room'
+                    WHEN 17 THEN 'Balcony Room'
+                    WHEN 18 THEN 'Corner Room'
+                    WHEN 19 THEN 'Accessible Room'
+                    WHEN 20 THEN 'Smoking Room'
+                    WHEN 21 THEN 'Non-Smoking Room'
+                    WHEN 22 THEN 'Honeymoon Suite'
+                    WHEN 23 THEN 'Villa'
+                    WHEN 24 THEN 'Bungalow'
+                    WHEN 25 THEN 'Royal Suite'
+                    ELSE name
+                END,
+                description = CASE room_type_id
+                    WHEN 6 THEN 'Phòng gia đình rộng rãi cho 4-6 người'
+                    WHEN 7 THEN 'Phòng business với bàn làm việc và thiết bị họp'
+                    WHEN 8 THEN 'Phòng liền kề phù hợp cho gia đình lớn'
+                    WHEN 9 THEN 'Studio suite với bếp nhỏ và khu vực sinh hoạt'
+                    WHEN 10 THEN 'Suite 1 phòng ngủ với phòng khách riêng'
+                    WHEN 11 THEN 'Suite tổng thống sang trọng bậc nhất'
+                    WHEN 12 THEN 'Penthouse với tầm nhìn toàn thành phố'
+                    WHEN 13 THEN 'Phòng view biển tuyệt đẹp'
+                    WHEN 14 THEN 'Phòng nhìn ra thành phố sầm uất'
+                    WHEN 15 THEN 'Phòng view vườn yên tĩnh'
+                    WHEN 16 THEN 'Phòng nhìn ra hồ bơi'
+                    WHEN 17 THEN 'Phòng có ban công riêng'
+                    WHEN 18 THEN 'Phòng góc với 2 mặt view'
+                    WHEN 19 THEN 'Phòng thiết kế cho người khuyết tật'
+                    WHEN 20 THEN 'Phòng cho phép hút thuốc'
+                    WHEN 21 THEN 'Phòng không hút thuốc'
+                    WHEN 22 THEN 'Suite tuần trăng mật lãng mạn'
+                    WHEN 23 THEN 'Villa riêng biệt với hồ bơi'
+                    WHEN 24 THEN 'Bungalow gần biển'
+                    WHEN 25 THEN 'Suite hoàng gia đẳng cấp'
+                    ELSE description
+                END,
+                capacity_adults = CASE room_type_id
+                    WHEN 6 THEN 6  -- Family Room
+                    WHEN 8 THEN 8  -- Connecting Room
+                    WHEN 9 THEN 4  -- Studio Suite
+                    WHEN 10 THEN 4 -- One Bedroom Suite
+                    WHEN 11 THEN 6 -- Presidential Suite
+                    WHEN 12 THEN 4 -- Penthouse Suite
+                    WHEN 22 THEN 2 -- Honeymoon Suite
+                    WHEN 23 THEN 8 -- Villa
+                    WHEN 24 THEN 4 -- Bungalow
+                    WHEN 25 THEN 6 -- Royal Suite
+                    ELSE 2
+                END,
+                base_price = CASE room_type_id
+                    WHEN 6 THEN 2800000  -- Family Room
+                    WHEN 7 THEN 2200000  -- Business Room
+                    WHEN 8 THEN 3500000  -- Connecting Room
+                    WHEN 9 THEN 2800000  -- Studio Suite
+                    WHEN 10 THEN 4200000 -- One Bedroom Suite
+                    WHEN 11 THEN 15000000 -- Presidential Suite
+                    WHEN 12 THEN 12000000 -- Penthouse Suite
+                    WHEN 13 THEN 2200000 -- Ocean View Room
+                    WHEN 14 THEN 1800000 -- City View Room
+                    WHEN 15 THEN 1500000 -- Garden View Room
+                    WHEN 16 THEN 1600000 -- Pool View Room
+                    WHEN 17 THEN 1700000 -- Balcony Room
+                    WHEN 18 THEN 2000000 -- Corner Room
+                    WHEN 19 THEN 1200000 -- Accessible Room
+                    WHEN 20 THEN 1000000 -- Smoking Room
+                    WHEN 21 THEN 1200000 -- Non-Smoking Room
+                    WHEN 22 THEN 5000000 -- Honeymoon Suite
+                    WHEN 23 THEN 8000000 -- Villa
+                    WHEN 24 THEN 3500000 -- Bungalow
+                    WHEN 25 THEN 20000000 -- Royal Suite
+                    ELSE base_price
+                END;
+        ]]></sql>
+    </changeSet>
+
+    <!-- Drop old room_type column -->
+    <changeSet id="003-drop-old-room-type-column" author="PhamDuyHuy">
+        <comment>Drop the old room_type VARCHAR column</comment>
+        <dropColumn tableName="rooms" columnName="room_type"/>
+    </changeSet>
+
+</databaseChangeLog>

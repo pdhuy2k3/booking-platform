@@ -1,0 +1,113 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+    xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+    http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.29.xsd">
+
+    <!-- Seed flight legs data - mostly direct flights for Vietnamese routes -->
+    <changeSet id="003-seed-flight-legs-data" author="PhamDuyHuy">
+        <comment>Seed flight legs data for Vietnamese flights</comment>
+        <sql><![CDATA[
+            -- Insert flight legs for all existing flights (direct flights)
+            INSERT INTO flight_legs (
+                id, flight_id, leg_number, departure_airport_id, arrival_airport_id, 
+                departure_time, arrival_time
+            )
+            SELECT 
+                f.flight_id as id,
+                f.flight_id,
+                1 as leg_number,  -- All are direct flights (leg 1)
+                f.departure_airport_id,
+                f.arrival_airport_id,
+                CURRENT_TIMESTAMP as departure_time,  -- Placeholder time
+                CURRENT_TIMESTAMP + (f.base_duration_minutes || ' minutes')::INTERVAL as arrival_time
+            FROM flights f
+            WHERE NOT EXISTS (
+                SELECT 1 FROM flight_legs fl WHERE fl.flight_id = f.flight_id
+            );
+        ]]></sql>
+    </changeSet>
+
+    <!-- Seed flight inventory data -->
+    <changeSet id="003-seed-flight-inventory-data" author="PhamDuyHuy">
+        <comment>Seed flight inventory data for flight legs</comment>
+        <sql><![CDATA[
+            -- Insert inventory for Economy class
+            INSERT INTO flight_inventory (
+                id, flight_leg_id, fare_class, total_seats, reserved_seats
+            )
+            SELECT 
+                (fl.id * 10 + 1) as id,  -- Generate unique ID
+                fl.id as flight_leg_id,
+                'ECONOMY' as fare_class,
+                CASE 
+                    -- Estimate seats based on typical Vietnamese aircraft
+                    WHEN f.flight_number LIKE 'VN%' THEN 140 + FLOOR(RANDOM() * 40)::INTEGER -- Vietnam Airlines A320/A321: 140-180
+                    WHEN f.flight_number LIKE 'VJ%' THEN 170 + FLOOR(RANDOM() * 20)::INTEGER -- VietJet A320/A321: 170-190
+                    WHEN f.flight_number LIKE 'QH%' THEN 160 + FLOOR(RANDOM() * 30)::INTEGER -- Bamboo Airways: 160-190
+                    WHEN f.flight_number LIKE 'BL%' THEN 140 + FLOOR(RANDOM() * 40)::INTEGER -- Pacific Airlines: 140-180
+                    ELSE 150 + FLOOR(RANDOM() * 30)::INTEGER -- Default: 150-180
+                END as total_seats,
+                FLOOR(RANDOM() * 20)::INTEGER as reserved_seats  -- Random reserved seats 0-20
+            FROM flight_legs fl
+            JOIN flights f ON fl.flight_id = f.flight_id
+            WHERE NOT EXISTS (
+                SELECT 1 FROM flight_inventory fi 
+                WHERE fi.flight_leg_id = fl.id AND fi.fare_class = 'ECONOMY'
+            );
+
+            -- Insert inventory for Business class (only for larger aircraft)
+            INSERT INTO flight_inventory (
+                id, flight_leg_id, fare_class, total_seats, reserved_seats
+            )
+            SELECT 
+                (fl.id * 10 + 2) as id,  -- Generate unique ID
+                fl.id as flight_leg_id,
+                'BUSINESS' as fare_class,
+                CASE 
+                    WHEN f.flight_number LIKE 'VN%' THEN 16 + FLOOR(RANDOM() * 16)::INTEGER -- Vietnam Airlines: 16-32
+                    WHEN f.flight_number LIKE 'VJ%' THEN 0 -- VietJet usually no business class
+                    WHEN f.flight_number LIKE 'QH%' THEN 12 + FLOOR(RANDOM() * 16)::INTEGER -- Bamboo Airways: 12-28
+                    WHEN f.flight_number LIKE 'BL%' THEN 12 + FLOOR(RANDOM() * 12)::INTEGER -- Pacific Airlines: 12-24
+                    ELSE 12 + FLOOR(RANDOM() * 12)::INTEGER -- Default: 12-24
+                END as total_seats,
+                FLOOR(RANDOM() * 5)::INTEGER as reserved_seats  -- Random reserved seats 0-5
+            FROM flight_legs fl
+            JOIN flights f ON fl.flight_id = f.flight_id
+            WHERE NOT EXISTS (
+                SELECT 1 FROM flight_inventory fi 
+                WHERE fi.flight_leg_id = fl.id AND fi.fare_class = 'BUSINESS'
+            )
+            -- Only add business class if total_seats > 0 (VietJet doesn't have business)
+            AND CASE 
+                WHEN f.flight_number LIKE 'VJ%' THEN 0
+                ELSE 1
+            END = 1;
+
+            -- Insert inventory for Premium Economy class (only for Vietnam Airlines and Bamboo Airways)
+            INSERT INTO flight_inventory (
+                id, flight_leg_id, fare_class, total_seats, reserved_seats
+            )
+            SELECT 
+                (fl.id * 10 + 3) as id,  -- Generate unique ID
+                fl.id as flight_leg_id,
+                'PREMIUM_ECONOMY' as fare_class,
+                CASE 
+                    WHEN f.flight_number LIKE 'VN%' THEN 24 + FLOOR(RANDOM() * 16)::INTEGER -- Vietnam Airlines: 24-40
+                    WHEN f.flight_number LIKE 'QH%' THEN 20 + FLOOR(RANDOM() * 16)::INTEGER -- Bamboo Airways: 20-36
+                    ELSE 0 -- Others don't have premium economy
+                END as total_seats,
+                FLOOR(RANDOM() * 8)::INTEGER as reserved_seats  -- Random reserved seats 0-8
+            FROM flight_legs fl
+            JOIN flights f ON fl.flight_id = f.flight_id
+            WHERE NOT EXISTS (
+                SELECT 1 FROM flight_inventory fi 
+                WHERE fi.flight_leg_id = fl.id AND fi.fare_class = 'PREMIUM_ECONOMY'
+            )
+            -- Only add premium economy for VN and QH
+            AND (f.flight_number LIKE 'VN%' OR f.flight_number LIKE 'QH%');
+        ]]></sql>
+    </changeSet>
+
+</databaseChangeLog>

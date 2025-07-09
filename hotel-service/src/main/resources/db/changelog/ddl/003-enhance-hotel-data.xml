@@ -1,0 +1,169 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+    xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+    http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.29.xsd">
+
+    <!-- Update existing hotels with more detailed information -->
+    <changeSet id="004-update-hotel-details" author="PhamDuyHuy">
+        <comment>Update existing hotels with more detailed information based on real Vietnamese hotels</comment>
+        <sql><![CDATA[
+            -- Update Hanoi hotels with real information
+            UPDATE hotels SET 
+                description = 'Khách sạn hạng sang nằm tại trung tâm Hà Nội, gần Hồ Hoàn Kiếm và Phố Cổ. Cung cấp dịch vụ 5 sao với spa, hồ bơi và nhà hàng cao cấp.',
+                address = '15 Ngo Quyen Street, Hoan Kiem District, Hanoi'
+            WHERE hotel_id = 1;
+
+            UPDATE hotels SET 
+                description = 'Khách sạn boutique sang trọng với kiến trúc Pháp cổ điển, nằm ngay trung tâm Phố Cổ Hà Nội. Phòng ốc thiết kế tinh tế với đầy đủ tiện nghi hiện đại.',
+                address = '30 Hang Bac Street, Hoan Kiem District, Hanoi'
+            WHERE hotel_id = 2;
+
+            UPDATE hotels SET 
+                description = 'Khách sạn đẳng cấp quốc tế với view nhìn ra Hồ Tây tuyệt đẹp. Cung cấp dịch vụ spa thư giãn, hồ bơi ngoài trời và nhiều nhà hàng đa dạng.',
+                address = '8A Thai Van Lung Street, Ba Dinh District, Hanoi'
+            WHERE hotel_id = 3;
+
+            -- Update Ho Chi Minh City hotels  
+            UPDATE hotels SET 
+                description = 'Khách sạn 5 sao đẳng cấp quốc tế tại trung tâm Sài Gòn, gần chợ Bến Thành và Nhà Thờ Đức Bà. Nổi tiếng với dịch vụ tuyệt vời và ẩm thực cao cấp.',
+                address = '88 Dong Khoi Street, District 1, Ho Chi Minh City'
+            WHERE hotel_id = 4;
+
+            UPDATE hotels SET 
+                description = 'Khách sạn sang trọng với thiết kế hiện đại, tọa lạc tại tòa nhà cao nhất Việt Nam - Landmark 81. Cung cấp trải nghiệm nghỉ dưỡng đẳng cấp thế giới.',
+                address = 'Landmark 81, 720A Dien Bien Phu Street, Binh Thanh District, Ho Chi Minh City'
+            WHERE hotel_id = 5;
+
+            UPDATE hotels SET 
+                description = 'Khách sạn boutique cao cấp với phong cách thiết kế độc đáo, nằm tại quận 1 sầm uất. Kết hợp hoàn hảo giữa nét truyền thống và hiện đại.',
+                address = '132 Ham Nghi Street, District 1, Ho Chi Minh City'
+            WHERE hotel_id = 6;
+
+            -- Update Da Nang hotels
+            UPDATE hotels SET 
+                description = 'Resort biển sang trọng với bãi biển riêng tư, spa thế giới và sân golf 18 lỗ. Thiết kế theo phong cách Á Đông kết hợp với tiện nghi hiện đại.',
+                address = '1 Bai Bac Road, Hoa Hai Ward, Ngu Hanh Son District, Da Nang'
+            WHERE hotel_id = 7;
+
+            UPDATE hotels SET 
+                description = 'Khách sạn cao cấp với view nhìn ra sông Hàn và biển Đà Nẵng. Cung cấp dịch vụ nghỉ dưỡng đẳng cấp với hồ bơi vô cực và spa thư giãn.',
+                address = '218 Vo Nguyen Giap Street, Khue My Ward, Ngu Hanh Son District, Da Nang'
+            WHERE hotel_id = 8;
+
+            -- Continue updating other hotels with realistic Vietnamese hotel information
+            UPDATE hotels SET 
+                description = CASE hotel_id
+                    WHEN 9 THEN 'Khách sạn cao cấp tại Nha Trang với bãi biển riêng và khu spa đẳng cấp. Thiết kế theo phong cách resort nghỉ dưỡng nhiệt đới.'
+                    WHEN 10 THEN 'Resort sang trọng tại Phú Quốc với villa riêng biệt và dịch vụ butler cá nhân. Nằm trên bãi biển đẹp nhất đảo ngọc.'
+                    WHEN 11 THEN 'Khách sạn boutique tại Hội An với kiến trúc cổ kính, nằm gần phố cổ và các di tích lịch sử.'
+                    WHEN 12 THEN 'Khách sạn hiện đại tại Vũng Tàu với view biển tuyệt đẹp và các tiện ích giải trí đa dạng.'
+                    WHEN 13 THEN 'Resort cao cấp tại Đà Lạt với không khí trong lành và thiết kế theo phong cách châu Âu.'
+                    WHEN 14 THEN 'Khách sạn sang trọng tại Huế gần Đại Nội, kết hợp kiến trúc truyền thống và hiện đại.'
+                    WHEN 15 THEN 'Resort biển đẳng cấp tại Quy Nhon với spa thư giãn và sân golf mini.'
+                    ELSE description
+                END,
+                address = CASE hotel_id
+                    WHEN 9 THEN '26 Tran Phu Street, Loc Tho Ward, Nha Trang City'
+                    WHEN 10 THEN '1 Bai Truong Beach, Duong To Commune, Phu Quoc Island'
+                    WHEN 11 THEN '26 Phan Boi Chau Street, Minh An Ward, Hoi An'
+                    WHEN 12 THEN '15 Thuy Van Street, Thang Tam Ward, Vung Tau'
+                    WHEN 13 THEN '12 Tran Phu Street, Ward 3, Da Lat City'
+                    WHEN 14 THEN '5 Le Loi Street, Vinh Ninh Ward, Hue City'
+                    WHEN 15 THEN '1 Ghenh Rang Street, Quy Nhon City'
+                    ELSE address
+                END
+            WHERE hotel_id BETWEEN 9 AND 15;
+        ]]></sql>
+    </changeSet>
+
+    <!-- Seed room amenities data -->
+    <changeSet id="004-seed-room-amenities" author="PhamDuyHuy">
+        <comment>Seed room amenities relationships</comment>
+        <sql><![CDATA[
+            -- Add basic amenities to all rooms (simple approach)
+            INSERT INTO room_amenities (room_id, amenity_id, is_active, display_order, created_at, created_by, updated_at, updated_by, is_deleted)
+            SELECT 
+                r.id as room_id,
+                a.amenity_id,
+                true as is_active,
+                a.amenity_id as display_order,
+                NOW() as created_at,
+                'data_seeder' as created_by,
+                NOW() as updated_at,
+                'data_seeder' as updated_by,
+                false as is_deleted
+            FROM rooms r
+            CROSS JOIN amenities a
+            WHERE 
+                -- All rooms get basic amenities (first 5)
+                a.amenity_id <= 5
+                OR
+                -- Some rooms get additional amenities based on room_id pattern
+                (a.amenity_id BETWEEN 6 AND 10 AND MOD(r.id, 3) = 0)
+                OR
+                (a.amenity_id BETWEEN 11 AND 15 AND MOD(r.id, 4) = 0)
+                OR
+                (a.amenity_id BETWEEN 16 AND 20 AND MOD(r.id, 5) = 0);
+        ]]></sql>
+    </changeSet>
+
+    <!-- Seed room availability data -->
+    <changeSet id="004-seed-room-availability" author="PhamDuyHuy">
+        <comment>Seed room availability data for the next 6 months</comment>
+        <sql><![CDATA[
+            -- Generate room availability for the next 180 days (6 months)
+            INSERT INTO room_availability (
+                room_type_id, date, total_inventory, total_reserved,
+                created_at, created_by, updated_at, updated_by, is_deleted
+            )
+            SELECT 
+                rt.room_type_id,
+                dates.date_val as date,
+                -- Total inventory: count rooms by room_type_id
+                COALESCE((SELECT COUNT(*) FROM rooms r WHERE r.room_type_id = rt.room_type_id), 1) as total_inventory,
+                -- Random reserved rooms (0 to 80% of inventory)
+                FLOOR(RANDOM() * COALESCE((SELECT COUNT(*) FROM rooms r WHERE r.room_type_id = rt.room_type_id), 1) * 0.8)::INTEGER as total_reserved,
+                NOW() as created_at,
+                'data_seeder' as created_by,
+                NOW() as updated_at,
+                'data_seeder' as updated_by,
+                false as is_deleted
+            FROM room_types rt
+            CROSS JOIN (
+                SELECT CURRENT_DATE + INTERVAL '1 day' * generate_series(0, 179) as date_val
+            ) dates
+            WHERE NOT EXISTS (
+                SELECT 1 FROM room_availability ra 
+                WHERE ra.room_type_id = rt.room_type_id 
+                AND ra.date = dates.date_val
+            );
+        ]]></sql>
+    </changeSet>
+
+    <!-- Add more detailed hotel amenities and services -->
+    <changeSet id="004-add-hotel-services" author="PhamDuyHuy">
+        <comment>Add more amenities for hotels</comment>
+        <sql><![CDATA[
+            -- Insert additional amenities if they don't exist
+            INSERT INTO amenities (amenity_id, name, icon_url, is_active, display_order, created_at, created_by, updated_at, updated_by, is_deleted)
+            SELECT * FROM (VALUES
+                (21, 'Hồ bơi ngoài trời', '/icons/outdoor-pool.svg', true, 21, NOW(), 'data_seeder', NOW(), 'data_seeder', false),
+                (22, 'Spa & Massage', '/icons/spa.svg', true, 22, NOW(), 'data_seeder', NOW(), 'data_seeder', false),
+                (23, 'Phòng gym', '/icons/gym.svg', true, 23, NOW(), 'data_seeder', NOW(), 'data_seeder', false),
+                (24, 'Nhà hàng', '/icons/restaurant.svg', true, 24, NOW(), 'data_seeder', NOW(), 'data_seeder', false),
+                (25, 'Bar/Lounge', '/icons/bar.svg', true, 25, NOW(), 'data_seeder', NOW(), 'data_seeder', false),
+                (26, 'Dịch vụ đưa đón sân bay', '/icons/airport-shuttle.svg', true, 26, NOW(), 'data_seeder', NOW(), 'data_seeder', false),
+                (27, 'Bãi biển riêng', '/icons/private-beach.svg', true, 27, NOW(), 'data_seeder', NOW(), 'data_seeder', false),
+                (28, 'Sân golf', '/icons/golf.svg', true, 28, NOW(), 'data_seeder', NOW(), 'data_seeder', false),
+                (29, 'Dịch vụ giặt ủi', '/icons/laundry.svg', true, 29, NOW(), 'data_seeder', NOW(), 'data_seeder', false),
+                (30, 'Trông trẻ', '/icons/babysitting.svg', true, 30, NOW(), 'data_seeder', NOW(), 'data_seeder', false)
+            ) AS new_amenities(amenity_id, name, icon_url, is_active, display_order, created_at, created_by, updated_at, updated_by, is_deleted)
+            WHERE NOT EXISTS (
+                SELECT 1 FROM amenities a WHERE a.amenity_id = new_amenities.amenity_id
+            );
+        ]]></sql>
+    </changeSet>
+
+</databaseChangeLog>

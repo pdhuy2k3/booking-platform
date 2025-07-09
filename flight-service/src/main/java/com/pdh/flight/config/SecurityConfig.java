@@ -27,8 +27,8 @@ public class SecurityConfig {
         return http
                 .authorizeExchange(exchanges -> exchanges
                         .pathMatchers("/actuator/health/**", "/swagger-ui", "/swagger-ui/**",
-                                "/error", "/v3/api-docs/**").permitAll()
-                        .pathMatchers("/backoffice/**").hasRole("ADMIN")
+                                "/error", "/v3/api-docs/**", "/api/v1/flight-data-generator/**").permitAll()
+                                .anyExchange().permitAll()
 //                        .pathMatchers("/storefront/**").hasAnyRole("ADMIN", "USER")
                 )
                 .oauth2ResourceServer(oauth2 -> oauth2

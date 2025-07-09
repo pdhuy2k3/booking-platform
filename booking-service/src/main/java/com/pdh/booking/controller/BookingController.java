@@ -1,157 +1,102 @@
 package com.pdh.booking.controller;
 
 import com.pdh.booking.model.Booking;
-import com.pdh.booking.model.enums.BookingStatus;
-import com.pdh.booking.repository.BookingRepository;
+import com.pdh.booking.service.BookingSagaService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
-import java.time.LocalDateTime;
-import java.time.ZonedDateTime;
-import java.util.List;
-import java.util.Map;
-import java.util.UUID;
-
 @RestController
+@RequestMapping("/bookings") // Remove /api/v1 prefix as it's handled by gateway
 @RequiredArgsConstructor
 @Slf4j
 public class BookingController {
-    
-    private final BookingRepository bookingRepository;
+
+    private final BookingSagaService bookingSagaService;
 
     /**
-     * Health check endpoint
+     * Create a new booking and start saga
      */
-    @GetMapping("/backoffice/booking/health")
-    public ResponseEntity<Map<String, Object>> health() {
-        log.info("Booking service health check requested");
-        
-        Map<String, Object> healthStatus = Map.of(
-                "status", "UP",
-                "service", "booking-service",
-                "timestamp", LocalDateTime.now(),
-                "messages", "Booking service is running properly"
-        );
-        
-        return ResponseEntity.ok(healthStatus);
+    @PostMapping
+    public ResponseEntity<BookingResponse> createBooking(@RequestBody CreateBookingRequest request) {
+        try {
+            log.info("Creating booking with type: {}", request.getBookingType());
+
+            // Create booking entity
+            Booking booking = new Booking();
+            booking.setBookingReference(generateBookingReference());
+            booking.setUserId(request.getUserId());
+            booking.setTotalAmount(request.getTotalAmount());
+            booking.setCurrency(request.getCurrency());
+            booking.setBookingType(request.getBookingType());
+
+            // Start saga
+            Booking createdBooking = bookingSagaService.startBookingSaga(booking);
+
+            BookingResponse response = BookingResponse.builder()
+                    .bookingId(createdBooking.getBookingId())
+                    .bookingReference(createdBooking.getBookingReference())
+                    .sagaId(createdBooking.getSagaId())
+                    .status(createdBooking.getStatus())
+                    .sagaState(createdBooking.getSagaState())
+                    .build();
+
+            return ResponseEntity.ok(response);
+
+        } catch (Exception e) {
+            log.error("Error creating booking", e);
+            return ResponseEntity.internalServerError().build();
+        }
     }
 
     /**
-     * Tạo booking mới
+     * Get booking by saga ID
      */
-    @PostMapping("/backoffice/booking")
-    public ResponseEntity<Booking> createBooking(@RequestBody Booking booking) {
-        log.info("Creating new booking for user: {}", booking.getUserId());
-        
-        // Generate booking reference
-        String bookingRef = "BK" + System.currentTimeMillis();
-        booking.setBookingReference(bookingRef);
-        booking.setStatus(BookingStatus.PENDING);
-        
-        Booking savedBooking = bookingRepository.save(booking);
-        log.info("Created booking with reference: {}", savedBooking.getBookingReference());
-        
-        return ResponseEntity.ok(savedBooking);
-    }
-
-    /**
-     * Lấy danh sách booking của user
-     */
-    @GetMapping("/backoffice/booking/user/{userId}")
-    public ResponseEntity<List<Booking>> getUserBookings(@PathVariable String userId) {
-        log.info("Getting bookings for user: {}", userId);
-        
-        UUID userUuid = UUID.fromString(userId);
-        List<Booking> bookings = bookingRepository.findByUserIdOrderByCreatedAtDesc(userUuid);
-        log.info("Found {} bookings for user: {}", bookings.size(), userId);
-        
-        return ResponseEntity.ok(bookings);
-    }
-
-    /**
-     * Lấy thông tin chi tiết booking
-     */
-    @GetMapping("/backoffice/booking/{bookingReference}")
-    public ResponseEntity<Booking> getBookingDetails(@PathVariable String bookingReference) {
-        log.info("Getting booking details for reference: {}", bookingReference);
-        
-        return bookingRepository.findByBookingReference(bookingReference)
+    @GetMapping("/saga/{sagaId}")
+    public ResponseEntity<BookingResponse> getBookingBySagaId(@PathVariable String sagaId) {
+        return bookingSagaService.findBySagaId(sagaId)
                 .map(booking -> {
-                    log.info("Found booking: {} with status: {}", booking.getBookingReference(), booking.getStatus());
-                    return ResponseEntity.ok(booking);
+                    BookingResponse response = BookingResponse.builder()
+                            .bookingId(booking.getBookingId())
+                            .bookingReference(booking.getBookingReference())
+                            .sagaId(booking.getSagaId())
+                            .status(booking.getStatus())
+                            .sagaState(booking.getSagaState())
+                            .confirmationNumber(booking.getConfirmationNumber())
+                            .build();
+                    return ResponseEntity.ok(response);
                 })
                 .orElse(ResponseEntity.notFound().build());
     }
 
-    /**
-     * Cập nhật trạng thái booking
-     */
-    @PutMapping("/backoffice/booking/{bookingReference}/status")
-    public ResponseEntity<Booking> updateBookingStatus(
-            @PathVariable String bookingReference,
-            @RequestParam BookingStatus status) {
-        
-        log.info("Updating booking {} status to: {}", bookingReference, status);
-        
-        return bookingRepository.findByBookingReference(bookingReference)
-                .map(booking -> {
-                    booking.setStatus(status);
-                    if (status == BookingStatus.CANCELLED) {
-                        booking.setCancelledAt(ZonedDateTime.now());
-                    }
-                    Booking updatedBooking = bookingRepository.save(booking);
-                    log.info("Updated booking status successfully");
-                    return ResponseEntity.ok(updatedBooking);
-                })
-                .orElse(ResponseEntity.notFound().build());
+    private String generateBookingReference() {
+        return "BK" + System.currentTimeMillis();
     }
 
-    /**
-     * Hủy booking
-     */
-    @PutMapping("/backoffice/booking/{bookingReference}/cancel")
-    public ResponseEntity<Booking> cancelBooking(
-            @PathVariable String bookingReference,
-            @RequestParam(required = false) String reason) {
-        
-        log.info("Cancelling booking: {} with reason: {}", bookingReference, reason);
-        
-        return bookingRepository.findByBookingReference(bookingReference)
-                .map(booking -> {
-                    booking.setStatus(BookingStatus.CANCELLED);
-                    booking.setCancelledAt(ZonedDateTime.now());
-                    booking.setCancellationReason(reason);
-                    
-                    Booking cancelledBooking = bookingRepository.save(booking);
-                    log.info("Cancelled booking successfully");
-                    return ResponseEntity.ok(cancelledBooking);
-                })
-                .orElse(ResponseEntity.notFound().build());
+    // DTOs
+    @lombok.Data
+    @lombok.NoArgsConstructor
+    @lombok.AllArgsConstructor
+    public static class CreateBookingRequest {
+        private java.util.UUID userId;
+        private com.pdh.booking.model.enums.BookingType bookingType;
+        private java.math.BigDecimal totalAmount;
+        private String currency = "VND";
     }
 
-    /**
-     * Lấy thống kê booking
-     */
-    @GetMapping("/backoffice/booking/stats")
-    public ResponseEntity<Map<String, Object>> getBookingStats() {
-        log.info("Getting booking statistics");
-        
-        long totalBookings = bookingRepository.count();
-        long pendingBookings = bookingRepository.countByStatus(BookingStatus.PENDING);
-        long confirmedBookings = bookingRepository.countByStatus(BookingStatus.CONFIRMED);
-        long cancelledBookings = bookingRepository.countByStatus(BookingStatus.CANCELLED);
-        
-        Map<String, Object> stats = Map.of(
-                "totalBookings", totalBookings,
-                "pendingBookings", pendingBookings,
-                "confirmedBookings", confirmedBookings,
-                "cancelledBookings", cancelledBookings,
-                "timestamp", LocalDateTime.now()
-        );
-        
-        log.info("Retrieved booking statistics: {}", stats);
-        return ResponseEntity.ok(stats);
+    @lombok.Data
+    @lombok.Builder
+    @lombok.NoArgsConstructor
+    @lombok.AllArgsConstructor
+    public static class BookingResponse {
+        private java.util.UUID bookingId;
+        private String bookingReference;
+        private String sagaId;
+        private com.pdh.booking.model.enums.BookingStatus status;
+        private com.pdh.common.saga.SagaState sagaState;
+        private String confirmationNumber;
     }
+
+    // ... existing code ...
 }
