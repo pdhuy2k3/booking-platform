@@ -20,10 +20,10 @@ public class SecurityConfig {
         return http
                 .authorizeExchange(exchanges -> exchanges
                         .pathMatchers("/backoffice/booking/health", "/actuator/health", "/actuator/info").permitAll()
-                        .anyExchange().authenticated()
+                        .anyExchange().permitAll()
                 )
                 .oauth2ResourceServer(oauth2 -> oauth2
-                        .opaqueToken(Customizer.withDefaults())
+                        .jwt(Customizer.withDefaults())
                 )
                 .httpBasic(ServerHttpSecurity.HttpBasicSpec::disable)
                 .csrf(ServerHttpSecurity.CsrfSpec::disable)

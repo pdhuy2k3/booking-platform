@@ -1,11 +1,16 @@
 server:
   port: 8081
-
+logging:
+  level:
+    com.pdh.flight: DEBUG
+    org.springframework.security: DEBUG
+    org.springframework.oauth2: DEBUG
+    org.hibernate.SQL: DEBUG
 spring:
   profiles:
     active: local
   application:
-    name: flight-service
+    name: FLIGHT-SERVICE
   threads:
     virtual:
       enabled: true
@@ -32,14 +37,19 @@ spring:
   security:
     oauth2:
       resourceserver:
-        opaquetoken:
-          introspection-uri: http://localhost:3001/oidc/token/introspection
-          client-id: ${LOGTO_CLIENT_ID}
-          client-secret: ${LOGTO_CLIENT_SECRET}
+       jwt:
+         issuer-uri: http://localhost:9090/realms/BookingSmart
+
   liquibase:
     enabled: true
     default-schema: public
     change-log: classpath:db/changelog/db.changelog-master.yaml
+  
+  # Kafka Configuration - Minimal, inherit từ BaseKafkaConfig
+  kafka:
+    bootstrap-servers: localhost:9092
+    consumer:
+      group-id: flight-service
 eureka:
   client:
     serviceUrl:
@@ -70,14 +80,19 @@ spring:
   security:
     oauth2:
       resourceserver:
-        opaquetoken:
-          introspection-uri: ${LOGTO_ENDPOINT}/oidc/token/introspection
-          client-id: ${LOGTO_CLIENT_ID}
-          client-secret: ${LOGTO_CLIENT_SECRET}
+        jwt:
+          issuer-uri: ${JWT_ISSUER_URI}
+
   liquibase:
     enabled: true
     default-schema: public
     change-log: classpath:db/changelog/db.changelog-master.yaml
+  
+  # Kafka Configuration - Minimal, inherit từ BaseKafkaConfig
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+    consumer:
+      group-id: flight-service
 eureka:
   client:
     serviceUrl:
@@ -94,8 +109,4 @@ management:
     health:
       show-details: always
 
-logging:
-  level:
-    com.pdh.flight: DEBUG
-    org.springframework.security: DEBUG
-    org.hibernate.SQL: DEBUG
+

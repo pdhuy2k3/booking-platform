@@ -1,54 +1,67 @@
 package com.pdh.gateway.config;
 
+import java.util.Collection;
+import java.util.HashSet;
+import java.util.Map;
+import java.util.Set;
+import java.util.stream.Collectors;
+import java.net.URI;
+
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.server.reactive.ServerHttpResponse;
 import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.web.reactive.EnableWebFluxSecurity;
 import org.springframework.security.config.web.server.ServerHttpSecurity;
+import org.springframework.security.core.GrantedAuthority;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
+import org.springframework.security.core.authority.mapping.GrantedAuthoritiesMapper;
 import org.springframework.security.oauth2.client.oidc.authentication.OidcIdTokenDecoderFactory;
 import org.springframework.security.oauth2.client.oidc.web.server.logout.OidcClientInitiatedServerLogoutSuccessHandler;
 import org.springframework.security.oauth2.client.registration.ClientRegistration;
 import org.springframework.security.oauth2.client.registration.ReactiveClientRegistrationRepository;
-import org.springframework.security.oauth2.client.web.server.DefaultServerOAuth2AuthorizationRequestResolver;
-import org.springframework.security.oauth2.client.web.server.ServerOAuth2AuthorizationRequestResolver;
-import org.springframework.security.oauth2.core.endpoint.OAuth2AuthorizationRequest;
+import org.springframework.security.oauth2.core.oidc.user.OidcUserAuthority;
+import org.springframework.security.oauth2.core.user.OAuth2UserAuthority;
 import org.springframework.security.oauth2.jose.jws.SignatureAlgorithm;
 import org.springframework.security.oauth2.jwt.JwtDecoderFactory;
 import org.springframework.security.web.server.SecurityWebFilterChain;
 import org.springframework.security.web.server.authentication.logout.ServerLogoutSuccessHandler;
-
-import java.util.function.Consumer;
+import org.springframework.security.web.server.authorization.ServerAccessDeniedHandler;
+import org.springframework.web.server.ServerWebExchange;
+import reactor.core.publisher.Mono;
 
 @Configuration
 @EnableWebFluxSecurity
 public class WebSecurityConfig {
     @Autowired
     private ReactiveClientRegistrationRepository clientRegistrationRepository;
-    @Bean
-    public JwtDecoderFactory<ClientRegistration> idTokenDecoderFactory() {
-        OidcIdTokenDecoderFactory idTokenDecoderFactory = new OidcIdTokenDecoderFactory();
-        idTokenDecoderFactory.setJwsAlgorithmResolver(clientRegistration -> SignatureAlgorithm.RS256);
-        return idTokenDecoderFactory;
-    }
+
+    private static final String REALM_ACCESS_CLAIM = "realm_access";
+    private static final String ROLES_CLAIM = "roles";
+
     @Bean
     public SecurityWebFilterChain securityFilterChain(ServerHttpSecurity http) throws Exception {
         http.authorizeExchange(authorizationManagerRequestMatcherRegistry -> {
             authorizationManagerRequestMatcherRegistry
-                    .pathMatchers("/actuator/**","/home","/").permitAll()
-                    .anyExchange().authenticated();
+//                    .pathMatchers("/health", "/actuator/prometheus", "/actuator/health/**").permitAll()
+//                    .pathMatchers("/partner/**").hasAnyRole("PARTNER")
+//                    .pathMatchers("/admin/**").hasAnyRole("ADMIN")
+                    .anyExchange().permitAll();
         })
-                .oauth2Login(oauth2 -> oauth2
-                        // Áp dụng customizer để thêm tham số `resource` vào yêu cầu
-                        .authorizationRequestResolver(authorizationRequestResolver())
-                )
+                .oauth2Login(Customizer.withDefaults())
                 .httpBasic(ServerHttpSecurity.HttpBasicSpec::disable)
                 .formLogin(ServerHttpSecurity.FormLoginSpec::disable)
                 .csrf(ServerHttpSecurity.CsrfSpec::disable)
+
                 .logout(logout -> logout
                         .logoutSuccessHandler(oidcLogoutSuccessHandler()));
         return http.build();
     }
+
+
+
     private ServerLogoutSuccessHandler oidcLogoutSuccessHandler() {
         OidcClientInitiatedServerLogoutSuccessHandler oidcLogoutSuccessHandler =
                 new OidcClientInitiatedServerLogoutSuccessHandler(this.clientRegistrationRepository);
@@ -56,24 +69,39 @@ public class WebSecurityConfig {
 
         return oidcLogoutSuccessHandler;
     }
+    
     @Bean
-    public ServerOAuth2AuthorizationRequestResolver authorizationRequestResolver() {
-        // Tạo một resolver mặc định
-        DefaultServerOAuth2AuthorizationRequestResolver resolver = new DefaultServerOAuth2AuthorizationRequestResolver(clientRegistrationRepository);
+    public GrantedAuthoritiesMapper userAuthoritiesMapperForKeycloak() {
+        return authorities -> {
+            Set<GrantedAuthority> mappedAuthorities = new HashSet<>();
+            var authority = authorities.iterator().next();
+            boolean isOidc = authority instanceof OidcUserAuthority;
 
-        // Tạo một consumer để tùy chỉnh request
-        Consumer<OAuth2AuthorizationRequest.Builder> customizer = customAuthorizationRequest();
+            if (isOidc) {
+                var oidcUserAuthority = (OidcUserAuthority) authority;
+                var userInfo = oidcUserAuthority.getUserInfo();
+                if (userInfo.hasClaim(REALM_ACCESS_CLAIM)) {
+                    var realmAccess = userInfo.getClaimAsMap(REALM_ACCESS_CLAIM);
+                    var roles = (Collection<String>) realmAccess.get(ROLES_CLAIM);
+                    mappedAuthorities.addAll(generateAuthoritiesFromClaim(roles));
+                }
+            } else {
+                var oauth2UserAuthority = (OAuth2UserAuthority) authority;
+                Map<String, Object> userAttributes = oauth2UserAuthority.getAttributes();
+                if (userAttributes.containsKey(REALM_ACCESS_CLAIM)) {
+                    var realmAccess = (Map<String, Object>) userAttributes.get(REALM_ACCESS_CLAIM);
+                    var roles = (Collection<String>) realmAccess.get(ROLES_CLAIM);
+                    mappedAuthorities.addAll(generateAuthoritiesFromClaim(roles));
+                }
+            }
 
-        // Gói consumer vào resolver
-        resolver.setAuthorizationRequestCustomizer(customizer);
-
-        return resolver;
+            return mappedAuthorities;
+        };
     }
 
-    private Consumer<OAuth2AuthorizationRequest.Builder> customAuthorizationRequest() {
-        return customizer -> customizer.parameters(params -> {
-
-            params.put("resource", "http://localhost:8080/api");
-        });
+    Collection<GrantedAuthority> generateAuthoritiesFromClaim(Collection<String> roles) {
+        return roles.stream()
+            .map(role -> new SimpleGrantedAuthority("ROLE_" + role))
+            .collect(Collectors.toList());
     }
 }

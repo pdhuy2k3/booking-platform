@@ -1,6 +1,7 @@
 package com.pdh.booking.model;
 
 import com.pdh.booking.model.enums.ServiceType;
+import com.pdh.common.model.AbstractAuditEntity;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Data;
@@ -14,7 +15,7 @@ import java.util.UUID;
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
-public class BookingItem {
+public class BookingItem extends AbstractAuditEntity {
     
     @Id
     @Column(name = "item_id")

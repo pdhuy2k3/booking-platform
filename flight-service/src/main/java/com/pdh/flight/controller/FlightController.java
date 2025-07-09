@@ -1,6 +1,5 @@
 package com.pdh.flight.controller;
 
-import com.pdh.flight.model.Flight;
 import com.pdh.flight.repository.FlightRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -8,7 +7,6 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDateTime;
-import java.util.List;
 import java.util.Map;
 
 /**
@@ -33,93 +31,110 @@ public class FlightController {
                 "status", "UP",
                 "service", "flight-service",
                 "timestamp", LocalDateTime.now(),
-                "message", "Flight service is running properly"
+                "messages", "Flight service is running properly"
         );
         
         return ResponseEntity.ok(healthStatus);
     }
 
-    /**
-     * Tìm kiếm chuyến bay
-     */
-    @GetMapping("/backoffice/flight/search")
-    public ResponseEntity<List<Flight>> searchFlights(
-            @RequestParam(required = false) String from,
-            @RequestParam(required = false) String to,
-            @RequestParam(required = false) String keyword) {
-        
-        log.info("Searching flights from {} to {} with keyword: {}", from, to, keyword);
-        
-        List<Flight> flights;
-        
-        if (keyword != null && !keyword.trim().isEmpty()) {
-            flights = flightRepository.searchFlights(keyword);
-        } else if (from != null && to != null) {
-            flights = flightRepository.findByDepartureAirportAndArrivalAirportAndIsActiveTrue(from, to);
-        } else {
-            flights = flightRepository.findAll();
-        }
-        
-        log.info("Found {} flights", flights.size());
-        return ResponseEntity.ok(flights);
-    }
+
 
     /**
      * Lấy thông tin chi tiết chuyến bay
      */
     @GetMapping("/backoffice/flight/{flightId}")
-    public ResponseEntity<Flight> getFlightDetails(@PathVariable Long flightId) {
+    public ResponseEntity<Long> getFlightDetails(@PathVariable Long flightId) {
         log.info("Getting flight details for ID: {}", flightId);
         
-        return flightRepository.findById(flightId)
-                .map(flight -> {
-                    log.info("Found flight: {}", flight.getFlightNumber());
-                    return ResponseEntity.ok(flight);
-                })
-                .orElse(ResponseEntity.notFound().build());
+        return ResponseEntity.ok(flightId);
     }
 
+    // === BOOKING INTEGRATION ENDPOINTS ===
+    
     /**
-     * Lấy chuyến bay theo flight number
+     * Reserve flight for booking (called by Booking Service)
      */
-    @GetMapping("/backoffice/flight/number/{flightNumber}")
-    public ResponseEntity<Flight> getFlightByNumber(@PathVariable String flightNumber) {
-        log.info("Getting flight details for flight number: {}", flightNumber);
+    @PostMapping("/flights/reserve")
+    public ResponseEntity<Map<String, Object>> reserveFlight(@RequestBody Map<String, Object> request) {
+        log.info("Flight reservation request: {}", request);
         
-        return flightRepository.findByFlightNumber(flightNumber)
-                .map(flight -> {
-                    log.info("Found flight: {} - {}", flight.getFlightNumber(), 
-                            flight.getAirline() != null ? flight.getAirline().getName() : "Unknown Airline");
-                    return ResponseEntity.ok(flight);
-                })
-                .orElse(ResponseEntity.notFound().build());
+        String bookingId = (String) request.get("bookingId");
+        String sagaId = (String) request.get("sagaId");
+        // String customerId = (String) request.get("customerId"); // For future use
+        
+        // Mock implementation - in real scenario, this would:
+        // 1. Check flight availability
+        // 2. Create temporary reservation
+        // 3. Return reservation details
+        
+        Map<String, Object> response = Map.of(
+            "status", "success",
+            "message", "Flight reservation created",
+            "reservationId", "FLT-" + bookingId,
+            "bookingId", bookingId,
+            "sagaId", sagaId
+        );
+        
+        log.info("Flight reservation response: {}", response);
+        return ResponseEntity.ok(response);
+    }
+    
+    /**
+     * Cancel flight reservation (compensation)
+     */
+    @PostMapping("/flights/cancel-reservation")
+    public ResponseEntity<Map<String, Object>> cancelFlightReservation(@RequestBody Map<String, Object> request) {
+        log.info("Flight cancellation request: {}", request);
+        
+        String bookingId = (String) request.get("bookingId");
+        String sagaId = (String) request.get("sagaId");
+        String reason = (String) request.get("reason");
+        
+        // Mock implementation - in real scenario, this would:
+        // 1. Find and cancel the reservation
+        // 2. Free up the seats
+        // 3. Update reservation status
+        
+        Map<String, Object> response = Map.of(
+            "status", "success",
+            "message", "Flight reservation cancelled",
+            "bookingId", bookingId,
+            "sagaId", sagaId,
+            "reason", reason
+        );
+        
+        log.info("Flight cancellation response: {}", response);
+        return ResponseEntity.ok(response);
+    }
+    
+    /**
+     * Confirm flight reservation (final step)
+     */
+    @PostMapping("/flights/confirm-reservation")
+    public ResponseEntity<Map<String, Object>> confirmFlightReservation(@RequestBody Map<String, Object> request) {
+        log.info("Flight confirmation request: {}", request);
+        
+        String bookingId = (String) request.get("bookingId");
+        String sagaId = (String) request.get("sagaId");
+        String confirmationNumber = (String) request.get("confirmationNumber");
+        
+        // Mock implementation - in real scenario, this would:
+        // 1. Convert temporary reservation to confirmed booking
+        // 2. Generate tickets
+        // 3. Send confirmation to customer
+        
+        Map<String, Object> response = Map.of(
+            "status", "success",
+            "message", "Flight reservation confirmed",
+            "bookingId", bookingId,
+            "sagaId", sagaId,
+            "confirmationNumber", confirmationNumber,
+            "ticketNumber", "TKT-" + bookingId
+        );
+        
+        log.info("Flight confirmation response: {}", response);
+        return ResponseEntity.ok(response);
     }
 
-    /**
-     * Lấy chuyến bay theo hãng hàng không
-     */
-    @GetMapping("/backoffice/flight/airline/{airlineCode}")
-    public ResponseEntity<List<Flight>> getFlightsByAirline(@PathVariable String airlineCode) {
-        log.info("Getting flights for airline: {}", airlineCode);
-        
-        List<Flight> flights = flightRepository.findByAirlineCodeAndIsActiveTrue(airlineCode);
-        log.info("Found {} flights for airline: {}", flights.size(), airlineCode);
-        
-        return ResponseEntity.ok(flights);
-    }
 
-    /**
-     * Lấy chuyến bay có ghế trống
-     */
-    @GetMapping("/backoffice/flight/available")
-    public ResponseEntity<List<Flight>> getAvailableFlights(
-            @RequestParam(defaultValue = "1") Integer minSeats) {
-        
-        log.info("Getting flights with at least {} available seats", minSeats);
-        
-        List<Flight> flights = flightRepository.findFlightsWithAvailableSeats(minSeats);
-        log.info("Found {} flights with available seats", flights.size());
-        
-        return ResponseEntity.ok(flights);
-    }
 }

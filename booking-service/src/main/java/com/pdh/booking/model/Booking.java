@@ -2,9 +2,12 @@ package com.pdh.booking.model;
 
 import com.pdh.booking.model.enums.BookingStatus;
 import com.pdh.booking.model.enums.BookingType;
+import com.pdh.common.model.AbstractAuditEntity;
+import com.pdh.common.saga.SagaState;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Data;
+import lombok.EqualsAndHashCode;
 import lombok.NoArgsConstructor;
 
 import java.math.BigDecimal;
@@ -14,9 +17,10 @@ import java.util.UUID;
 @Entity
 @Table(name = "bookings")
 @Data
+@EqualsAndHashCode(callSuper = false)
 @NoArgsConstructor
 @AllArgsConstructor
-public class Booking {
+public class Booking extends AbstractAuditEntity {
     
     @Id
     @Column(name = "booking_id")
@@ -42,11 +46,16 @@ public class Booking {
     @Column(name = "booking_type", nullable = false)
     private BookingType bookingType;
     
-    @Column(name = "created_at", nullable = false)
-    private ZonedDateTime createdAt = ZonedDateTime.now();
+    // Saga Pattern Fields
+    @Enumerated(EnumType.STRING)
+    @Column(name = "saga_state", nullable = false)
+    private SagaState sagaState = SagaState.BOOKING_INITIATED;
     
-    @Column(name = "updated_at", nullable = false)
-    private ZonedDateTime updatedAt = ZonedDateTime.now();
+    @Column(name = "saga_id", nullable = false)
+    private String sagaId = UUID.randomUUID().toString();
+    
+    @Column(name = "confirmation_number", length = 50)
+    private String confirmationNumber;
     
     @Column(name = "cancelled_at")
     private ZonedDateTime cancelledAt;
@@ -54,8 +63,6 @@ public class Booking {
     @Column(name = "cancellation_reason")
     private String cancellationReason;
     
-    @PreUpdate
-    protected void onUpdate() {
-        updatedAt = ZonedDateTime.now();
-    }
+    @Column(name = "compensation_reason", columnDefinition = "TEXT")
+    private String compensationReason;
 }

@@ -18,7 +18,7 @@ public class FlightLeg {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
-    @Column(name = "leg_id")
+    @Column(name = "id")
     private Long legId;
 
     @Column(name = "flight_id", nullable = false)

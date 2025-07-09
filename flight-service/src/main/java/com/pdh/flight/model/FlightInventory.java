@@ -17,7 +17,7 @@ public class FlightInventory {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
-    @Column(name = "inventory_id")
+    @Column(name = "id")
     private Long inventoryId;
 
     @Column(name = "flight_leg_id", nullable = false)
