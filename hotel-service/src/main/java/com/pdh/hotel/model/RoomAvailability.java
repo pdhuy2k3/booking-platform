@@ -1,19 +1,22 @@
 package com.pdh.hotel.model;
 
+import com.pdh.common.model.AbstractAuditEntity;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Data;
+import lombok.EqualsAndHashCode;
 import lombok.NoArgsConstructor;
 
-import java.math.BigDecimal;
 import java.time.LocalDate;
 
 @Entity
-@Table(name = "room_availability")
+@Table(name = "room_availability", 
+       uniqueConstraints = @UniqueConstraint(columnNames = {"room_type_id", "date"}))
 @Data
+@EqualsAndHashCode(callSuper = false)
 @NoArgsConstructor
 @AllArgsConstructor
-public class RoomAvailability {
+public class RoomAvailability extends AbstractAuditEntity {
     
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -27,13 +30,10 @@ public class RoomAvailability {
     private LocalDate date;
     
     @Column(name = "total_inventory", nullable = false)
-    private Short totalInventory;
+    private Integer totalInventory;
     
     @Column(name = "total_reserved", nullable = false)
-    private Short totalReserved = 0;
-    
-    @Column(name = "price_override", precision = 12, scale = 2)
-    private BigDecimal priceOverride;
+    private Integer totalReserved = 0;
     
     // Reference entity
     @ManyToOne(fetch = FetchType.LAZY)

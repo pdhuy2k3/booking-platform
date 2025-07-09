@@ -14,15 +14,14 @@ import lombok.NoArgsConstructor;
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
+@IdClass(HotelAmenityId.class)
 public class HotelAmenity {
     
     @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Long id;
-    
     @Column(name = "hotel_id", nullable = false)
     private Long hotelId;
     
+    @Id
     @Column(name = "amenity_id", nullable = false)
     private Long amenityId;
     

@@ -1,32 +1,27 @@
 package com.pdh.hotel.model;
 
-import com.pdh.hotel.model.enums.AmenityCategory;
+import com.pdh.common.model.AbstractAuditEntity;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Data;
+import lombok.EqualsAndHashCode;
 import lombok.NoArgsConstructor;
 
 @Entity
 @Table(name = "amenities")
 @Data
+@EqualsAndHashCode(callSuper = false)
 @NoArgsConstructor
 @AllArgsConstructor
-public class Amenity {
+public class Amenity extends AbstractAuditEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
-    @Column(name = "id")
+    @Column(name = "amenity_id")
     private Long amenityId;
 
     @Column(name = "name", nullable = false, unique = true, length = 100)
     private String name;
-
-    @Column(name = "description", columnDefinition = "TEXT")
-    private String description;
-
-    @Column(name = "category")
-    @Enumerated(EnumType.STRING)
-    private AmenityCategory category;
 
     @Column(name = "icon_url")
     private String iconUrl;
@@ -37,19 +32,5 @@ public class Amenity {
     @Column(name = "display_order")
     private Integer displayOrder;
 
-    public enum AmenityCategory {
-        INTERNET_CONNECTIVITY,      // WiFi, Internet
-        ENTERTAINMENT,              // TV, Netflix, Cable
-        COMFORT,                   // Air Conditioning, Heating
-        BATHROOM,                  // Hair Dryer, Toiletries
-        FOOD_BEVERAGE,            // Mini Bar, Coffee Maker
-        BUSINESS,                 // Desk, Phone, Fax
-        SAFETY_SECURITY,          // Safe, Security System
-        ACCESSIBILITY,            // Wheelchair Access, Elevator
-        PARKING,                  // Free Parking, Valet
-        RECREATION,               // Pool, Gym, Spa
-        SERVICES,                 // Room Service, Concierge
-        KITCHEN,                  // Kitchen, Microwave, Refrigerator
-        OTHER
-    }
+
 }

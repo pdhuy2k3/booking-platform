@@ -20,8 +20,8 @@ public class CustomAuditingEntityListener extends AuditingEntityListener {
         if (entity.getCreatedBy() == null) {
             super.touchForCreate(target);
         } else {
-            if (entity.getLastModifiedBy() == null) {
-                entity.setLastModifiedBy(entity.getCreatedBy());
+            if (entity.getCreatedBy() == null) {
+                entity.setCreatedBy(entity.getCreatedBy());
             }
         }
     }
@@ -30,7 +30,7 @@ public class CustomAuditingEntityListener extends AuditingEntityListener {
     @PreUpdate
     public void touchForUpdate(Object target) {
         AbstractAuditEntity entity = (AbstractAuditEntity) target;
-        if (entity.getLastModifiedBy() == null) {
+        if (entity.getUpdatedBy() == null) {
             super.touchForUpdate(target);
         }
     }
