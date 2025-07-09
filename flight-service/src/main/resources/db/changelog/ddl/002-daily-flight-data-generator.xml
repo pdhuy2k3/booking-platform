@@ -1,0 +1,251 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+    xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+    http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.29.xsd">
+
+    <!-- Create function to generate daily flight schedules and fares for demo purposes -->
+    <changeSet id="002-daily-flight-data-generator-1" author="PhamDuyHuy">
+        <comment>Create function to generate daily flight schedules and fares for demo purposes</comment>
+        <sql>DROP FUNCTION IF EXISTS generate_daily_flight_data(DATE);</sql>
+        <createProcedure><![CDATA[
+            CREATE OR REPLACE FUNCTION generate_daily_flight_data(target_date DATE DEFAULT CURRENT_DATE + INTERVAL '1 day')
+            RETURNS INTEGER AS $$
+            DECLARE
+                flight_record RECORD;
+                schedule_count INTEGER := 0;
+                random_hour INTEGER;
+                random_minute INTEGER;
+                departure_datetime TIMESTAMP;
+                arrival_datetime TIMESTAMP;
+                new_schedule_id UUID;
+                aircraft_types TEXT[] := ARRAY['Airbus A320', 'Airbus A321', 'Boeing 787', 'ATR 72', 'Boeing 737'];
+                selected_aircraft TEXT;
+                base_economy_price DECIMAL;
+                base_business_price DECIMAL;
+                price_variation DECIMAL;
+                flights_per_route INTEGER;
+            BEGIN
+                -- Delete existing schedules for the target date to avoid duplicates
+                DELETE FROM flight_fares ff 
+                WHERE ff.schedule_id IN (
+                    SELECT fs.schedule_id 
+                    FROM flight_schedules fs 
+                    WHERE DATE(fs.departure_time) = target_date
+                );
+                
+                DELETE FROM flight_schedules 
+                WHERE DATE(departure_time) = target_date;
+                
+                -- Generate schedules for each flight route
+                FOR flight_record IN 
+                    SELECT f.flight_id, f.flight_number, f.airline_id, f.base_duration_minutes,
+                           dep.name as dep_airport, arr.name as arr_airport
+                    FROM flights f
+                    JOIN airports dep ON f.departure_airport_id = dep.airport_id
+                    JOIN airports arr ON f.arrival_airport_id = arr.airport_id
+                    ORDER BY f.flight_id
+                LOOP
+                    -- Generate 2-4 random flights per route per day
+                    flights_per_route := 2 + FLOOR(RANDOM() * 3)::INTEGER;
+                    
+                    FOR i IN 1..flights_per_route LOOP
+                        -- Random departure time between 6:00 and 22:00
+                        random_hour := 6 + FLOOR(RANDOM() * 16)::INTEGER;
+                        random_minute := FLOOR(RANDOM() * 12)::INTEGER * 5; -- 5-minute intervals
+                        
+                        departure_datetime := target_date + (random_hour || ' hours')::INTERVAL + (random_minute || ' minutes')::INTERVAL;
+                        arrival_datetime := departure_datetime + (flight_record.base_duration_minutes || ' minutes')::INTERVAL;
+                        
+                        -- Generate UUID for schedule
+                        new_schedule_id := gen_random_uuid();
+                        
+                        -- Select random aircraft type
+                        selected_aircraft := aircraft_types[1 + FLOOR(RANDOM() * array_length(aircraft_types, 1))::INTEGER];
+                        
+                        -- Insert flight schedule
+                        INSERT INTO flight_schedules (
+                            schedule_id, flight_id, departure_time, arrival_time, 
+                            aircraft_type, status, created_at, created_by, updated_at, updated_by, is_deleted
+                        ) VALUES (
+                            new_schedule_id,
+                            flight_record.flight_id,
+                            departure_datetime,
+                            arrival_datetime,
+                            selected_aircraft,
+                            'SCHEDULED',
+                            NOW(), 'daily_generator', NOW(), 'daily_generator', false
+                        );
+                        
+                        -- Calculate base prices based on airline
+                        CASE flight_record.airline_id
+                            WHEN 1 THEN -- Vietnam Airlines (premium pricing)
+                                base_economy_price := 2000000 + (RANDOM() * 1000000);
+                                base_business_price := 4000000 + (RANDOM() * 1500000);
+                            WHEN 2 THEN -- VietJet (budget pricing)
+                                base_economy_price := 1200000 + (RANDOM() * 800000);
+                                base_business_price := 2800000 + (RANDOM() * 1200000);
+                            WHEN 3 THEN -- Bamboo Airways (mid-range pricing)
+                                base_economy_price := 1600000 + (RANDOM() * 900000);
+                                base_business_price := 3500000 + (RANDOM() * 1300000);
+                            WHEN 4 THEN -- Pacific Airlines
+                                base_economy_price := 1400000 + (RANDOM() * 600000);
+                                base_business_price := 3000000 + (RANDOM() * 1000000);
+                            ELSE
+                                base_economy_price := 1500000 + (RANDOM() * 700000);
+                                base_business_price := 3200000 + (RANDOM() * 1000000);
+                        END CASE;
+                        
+                        -- Add price variation based on time of day (peak hours cost more)
+                        price_variation := CASE 
+                            WHEN random_hour BETWEEN 7 AND 9 OR random_hour BETWEEN 17 AND 19 THEN 1.2 -- Peak hours
+                            WHEN random_hour BETWEEN 12 AND 14 THEN 1.1 -- Lunch time
+                            WHEN random_hour BETWEEN 22 AND 23 OR random_hour BETWEEN 5 AND 6 THEN 0.9 -- Off-peak
+                            ELSE 1.0 -- Regular hours
+                        END;
+                        
+                        -- Generate Economy fare
+                        INSERT INTO flight_fares (
+                            fare_id, schedule_id, fare_class, price, available_seats,
+                            created_at, created_by, updated_at, updated_by, is_deleted
+                        ) VALUES (
+                            gen_random_uuid(),
+                            new_schedule_id,
+                            'ECONOMY',
+                            ROUND(base_economy_price * price_variation),
+                            CASE 
+                                WHEN selected_aircraft LIKE '%ATR%' THEN 50 + FLOOR(RANDOM() * 20)::INTEGER -- ATR: 50-70 seats
+                                WHEN selected_aircraft LIKE '%A320%' THEN 140 + FLOOR(RANDOM() * 40)::INTEGER -- A320: 140-180 seats
+                                WHEN selected_aircraft LIKE '%A321%' THEN 160 + FLOOR(RANDOM() * 40)::INTEGER -- A321: 160-200 seats
+                                WHEN selected_aircraft LIKE '%787%' THEN 200 + FLOOR(RANDOM() * 50)::INTEGER -- 787: 200-250 seats
+                                ELSE 120 + FLOOR(RANDOM() * 60)::INTEGER -- Default: 120-180 seats
+                            END,
+                            NOW(), 'daily_generator', NOW(), 'daily_generator', false
+                        );
+                        
+                        -- Generate Business fare (only for larger aircraft, not ATR)
+                        IF selected_aircraft NOT LIKE '%ATR%' THEN
+                            INSERT INTO flight_fares (
+                                fare_id, schedule_id, fare_class, price, available_seats,
+                                created_at, created_by, updated_at, updated_by, is_deleted
+                            ) VALUES (
+                                gen_random_uuid(),
+                                new_schedule_id,
+                                'BUSINESS',
+                                ROUND(base_business_price * price_variation),
+                                CASE 
+                                    WHEN selected_aircraft LIKE '%A320%' THEN 12 + FLOOR(RANDOM() * 8)::INTEGER -- A320: 12-20 seats
+                                    WHEN selected_aircraft LIKE '%A321%' THEN 16 + FLOOR(RANDOM() * 12)::INTEGER -- A321: 16-28 seats
+                                    WHEN selected_aircraft LIKE '%787%' THEN 24 + FLOOR(RANDOM() * 16)::INTEGER -- 787: 24-40 seats
+                                    ELSE 15 + FLOOR(RANDOM() * 15)::INTEGER -- Default: 15-30 seats
+                                END,
+                                NOW(), 'daily_generator', NOW(), 'daily_generator', false
+                            );
+                        END IF;
+                        
+                        schedule_count := schedule_count + 1;
+                    END LOOP;
+                END LOOP;
+                
+                RETURN schedule_count;
+            END;
+            $$ LANGUAGE plpgsql;
+        ]]></createProcedure>
+    </changeSet>
+
+    <!-- Create function to generate flight data for multiple days -->
+    <changeSet id="002-daily-flight-data-generator-2" author="PhamDuyHuy">
+        <comment>Create function to generate flight data for multiple days</comment>
+        <sql>DROP FUNCTION IF EXISTS generate_flight_data_range(DATE, DATE);</sql>
+        <createProcedure><![CDATA[
+            CREATE OR REPLACE FUNCTION generate_flight_data_range(start_date DATE, end_date DATE)
+            RETURNS TABLE(date_generated DATE, schedules_created INTEGER) AS $$
+            DECLARE
+                current_target_date DATE := start_date;
+                result_count INTEGER;
+            BEGIN
+                WHILE current_target_date <= end_date LOOP
+                    SELECT generate_daily_flight_data(current_target_date) INTO result_count;
+                    
+                    date_generated := current_target_date;
+                    schedules_created := result_count;
+                    RETURN NEXT;
+                    
+                    current_target_date := current_target_date + INTERVAL '1 day';
+                END LOOP;
+            END;
+            $$ LANGUAGE plpgsql;
+        ]]></createProcedure>
+    </changeSet>
+
+    <!-- Create function to clean up old flight data -->
+    <changeSet id="002-daily-flight-data-generator-3" author="PhamDuyHuy">
+        <comment>Create function to clean up old flight data</comment>
+        <sql>DROP FUNCTION IF EXISTS cleanup_old_flight_data(INTEGER);</sql>
+        <createProcedure><![CDATA[
+            CREATE OR REPLACE FUNCTION cleanup_old_flight_data(days_to_keep INTEGER DEFAULT 30)
+            RETURNS INTEGER AS $$
+            DECLARE
+                cleanup_date DATE;
+                deleted_fares INTEGER;
+                deleted_schedules INTEGER;
+            BEGIN
+                cleanup_date := CURRENT_DATE - INTERVAL '1 day' * days_to_keep;
+                
+                -- Delete old flight fares first (due to foreign key constraint)
+                DELETE FROM flight_fares ff 
+                WHERE ff.schedule_id IN (
+                    SELECT fs.schedule_id 
+                    FROM flight_schedules fs 
+                    WHERE DATE(fs.departure_time) < cleanup_date
+                );
+                
+                GET DIAGNOSTICS deleted_fares = ROW_COUNT;
+                
+                -- Delete old flight schedules
+                DELETE FROM flight_schedules 
+                WHERE DATE(departure_time) < cleanup_date;
+                
+                GET DIAGNOSTICS deleted_schedules = ROW_COUNT;
+                
+                -- Log the cleanup activity
+                RAISE NOTICE 'Cleaned up % fares and % schedules older than %', deleted_fares, deleted_schedules, cleanup_date;
+                
+                RETURN deleted_schedules;
+            END;
+            $$ LANGUAGE plpgsql;
+        ]]></createProcedure>
+    </changeSet>
+
+    <!-- Create function to get flight statistics -->
+    <changeSet id="002-daily-flight-data-generator-4" author="PhamDuyHuy">
+        <comment>Create function to get flight statistics</comment>
+        <sql>DROP FUNCTION IF EXISTS get_flight_statistics(DATE);</sql>
+        <createProcedure><![CDATA[
+            CREATE OR REPLACE FUNCTION get_flight_statistics(target_date DATE DEFAULT CURRENT_DATE)
+            RETURNS TABLE(
+                total_schedules INTEGER,
+                total_routes INTEGER,
+                avg_price_economy DECIMAL,
+                avg_price_business DECIMAL,
+                total_available_seats INTEGER
+            ) AS $$
+            BEGIN
+                RETURN QUERY
+                SELECT 
+                    COUNT(DISTINCT fs.schedule_id)::INTEGER as total_schedules,
+                    COUNT(DISTINCT f.flight_id)::INTEGER as total_routes,
+                    ROUND(AVG(CASE WHEN ff.fare_class = 'ECONOMY' THEN ff.price END), 0) as avg_price_economy,
+                    ROUND(AVG(CASE WHEN ff.fare_class = 'BUSINESS' THEN ff.price END), 0) as avg_price_business,
+                    SUM(ff.available_seats)::INTEGER as total_available_seats
+                FROM flight_schedules fs
+                JOIN flights f ON fs.flight_id = f.flight_id
+                JOIN flight_fares ff ON fs.schedule_id = ff.schedule_id
+                WHERE DATE(fs.departure_time) = target_date;
+            END;
+            $$ LANGUAGE plpgsql;
+        ]]></createProcedure>
+    </changeSet>
+
+</databaseChangeLog>

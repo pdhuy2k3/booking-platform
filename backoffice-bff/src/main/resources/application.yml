@@ -1,3 +1,4 @@
+
 server:
   port: 8080
 spring:
@@ -17,15 +18,17 @@ spring:
       client:
         registration:
           api-client:
-            client-name: Backoffice
             client-id: backoffice-bff
-            client-secret: TVacLC0cQ8tiiEKiTVerTb2YvwQ1TRJF
+            client-secret: qhW4NC8pgPLdJDTd57sry5ON1fHK1d8i
             scope: profile, email, openid, roles
             provider: keycloak
         provider:
           keycloak:
             issuer-uri: http://localhost:9090/realms/BookingSmart
-
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+    consumer:
+      group-id: backoffice-bff-group
 
   cloud:
     gateway:
@@ -93,15 +96,67 @@ spring:
     oauth2:
       client:
         registration:
-          logto:
-            client-name: logto
+          api-client:
+            client-name: Backoffice
             client-id: backoffice-bff
-            client-secret: ${KEYCLOAK_CLIENT_SECRET_BACKOFFICE_BFF}
+            client-secret: qhW4NC8pgPLdJDTd57sry5ON1fHK1d8i
             scope: profile, email, openid, roles
-            provider: logto
+            provider: keycloak
         provider:
-          logto:
-            issuer-uri: ${KEYCLOAK_HOST}/realms/BookingSmart
+          keycloak:
+            issuer-uri: ${JWT_ISSUER_URI}
+  cloud:
+    gateway:
+      routes:
+        # FLIGHT SERVICE
+        - id: flight-service
+          uri: lb://FLIGHT-SERVICE
+          predicates:
+            - Path=/api/flight-service/**
+          filters:
+            - TokenRelay=
+            - RewritePath=/api/flight-service/(?<segment>.*), /${segment}
+        # BOOKING SERVICE
+        - id: booking-service
+          uri: lb://BOOKING-SERVICE
+          predicates:
+            - Path=/api/booking-service/**
+          filters:
+            - TokenRelay=
+            - RewritePath=/api/booking-service/(?<segment>.*), /${segment}
+        # HOTEL SERVICE
+        - id: hotel-service
+          uri: lb://HOTEL-SERVICE
+          predicates:
+            - Path=/api/hotel-service/**
+          filters:
+            - TokenRelay=
+            - RewritePath=/api/hotel-service/(?<segment>.*), /${segment}
+        # CUSTOMER SERVICE
+        - id: customer-service
+          uri: lb://CUSTOMER-SERVICE
+          predicates:
+            - Path=/api/customer-service/**
+          filters:
+            - TokenRelay=
+            - RewritePath=/api/customer-service/(?<segment>.*), /${segment}
+
+        - id: eureka-web-start
+          uri: lb://DISCOVERY-SERVICE
+          predicates:
+            - Path=/eureka/web
+          filters:
+            - StripPrefix=2
+        - id: netxjs
+          uri: http://localhost:3000
+          predicates:
+            - Path=/**
+      default-filters:
+        - SaveSession
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+    consumer:
+      group-id: backoffice-bff-group
 eureka:
   client:
     serviceUrl:
