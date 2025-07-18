@@ -3,6 +3,7 @@ package com.pdh.flight.kafka.consumer;
 import com.pdh.common.kafka.cdc.BaseCdcConsumer;
 import com.pdh.common.kafka.cdc.message.BookingCdcMessage;
 import com.pdh.common.kafka.cdc.message.BookingMsgKey;
+import com.pdh.flight.service.FlightService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.kafka.annotation.KafkaListener;
@@ -22,8 +23,10 @@ import static org.springframework.kafka.support.KafkaHeaders.RECEIVED_TOPIC;
 @Slf4j
 public class FlightEventConsumer extends BaseCdcConsumer<BookingMsgKey, BookingCdcMessage> {
 
+    private final FlightService flightService;
+
     @KafkaListener(
-        topics = "booking.flight-events",
+        topics = "booking-db-server.public.booking_outbox_events",
         containerFactory = "flightEventListenerContainerFactory"
     )
     public void processFlightEvent(
@@ -44,39 +47,20 @@ public class FlightEventConsumer extends BaseCdcConsumer<BookingMsgKey, BookingC
     @Override
     protected void handleCreate(BookingMsgKey key, BookingCdcMessage message) {
         log.info("Processing flight booking creation for booking: {}", key.getId());
-        
-        // TODO: Implement flight booking logic
-        // - Reserve flight seats
-        // - Update flight availability
-        // - Publish flight booking events
-        
-        // Example business logic:
-        // flightBookingService.processBooking(message.getAfter());
+        flightService.reserveFlight(key.getId());
     }
 
     @Override
     protected void handleUpdate(BookingMsgKey key, BookingCdcMessage message) {
         log.info("Processing flight booking update for booking: {}", key.getId());
-        
-        // TODO: Implement flight booking update logic
-        // - Update flight reservations
-        // - Adjust flight availability
-        // - Publish flight update events
-        
-        // Example business logic:
-        // flightBookingService.updateBooking(message.getBefore(), message.getAfter());
+        // For this example, we assume an update means a re-reservation.
+        // In a real-world scenario, you would have more specific logic.
+        flightService.reserveFlight(key.getId());
     }
 
     @Override
     protected void handleDelete(BookingMsgKey key, BookingCdcMessage message) {
         log.info("Processing flight booking cancellation for booking: {}", key.getId());
-        
-        // TODO: Implement flight cancellation logic
-        // - Release flight seats
-        // - Update flight availability
-        // - Publish flight cancellation events
-        
-        // Example business logic:
-        // flightBookingService.cancelBooking(message.getBefore());
+        flightService.cancelFlightReservation(key.getId());
     }
 }

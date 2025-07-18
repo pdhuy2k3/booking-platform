@@ -119,7 +119,7 @@ public class CustomerService {
         // Get realm
         RealmResource realmResource = keycloak.realm(keycloakPropsConfig.getRealm());
         String randomGuestName = generateSafeString();
-        String guestUserEmail = randomGuestName + "_guest@yas.com";
+        String guestUserEmail = randomGuestName + "_guest@bookingsmart.huypd.me";
         CredentialRepresentation credential = createPasswordCredentials(GUEST);
 
         // Define user

@@ -1,0 +1,19 @@
+{
+    "name": "payment-outbox-connector",
+    "config": {
+        "connector.class": "io.debezium.connector.postgresql.PostgresConnector",
+        "database.hostname": "postgres",
+        "database.port": "5432",
+        "database.user": "postgres",
+        "database.password": "p0stgr3s",
+        "database.dbname": "payment_db",
+        "database.server.name": "payment-db-server",
+        "table.include.list": "public.payment_outbox_events",
+        "tombstones.on.delete": "false",
+        "transforms": "outbox",
+        "transforms.outbox.type": "io.debezium.transforms.outbox.EventRouter",
+        "transforms.outbox.route.by.field": "aggregate_type",
+        "transforms.outbox.route.topic.replacement": "booking.${routedByValue}.events",
+        "transforms.outbox.table.field.event.key": "aggregate_id"
+    }
+}

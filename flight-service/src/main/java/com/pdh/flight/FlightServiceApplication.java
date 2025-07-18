@@ -7,11 +7,11 @@ import org.springframework.cloud.client.discovery.EnableDiscoveryClient;
 import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
 
 import java.util.TimeZone;
-
-@SpringBootApplication
+@SpringBootApplication(scanBasePackages = { "com.pdh.flight" })
+@EnableJpaRepositories(basePackages = {"com.pdh.flight"})
+@EntityScan(basePackages = {"com.pdh.flight"})
 @EnableDiscoveryClient
-@EnableJpaRepositories(basePackages = {"com.pdh.flight", "com.pdh.common"})
-@EntityScan(basePackages = {"com.pdh.flight", "com.pdh.common"})
+
 public class FlightServiceApplication {
 
     public static void main(String[] args) {

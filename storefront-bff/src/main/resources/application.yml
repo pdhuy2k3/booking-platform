@@ -1,0 +1,158 @@
+server:
+  port: 8086
+
+spring:
+  profiles:
+    active: local
+  application:
+    name: STOREFRONT-BFF
+
+---
+spring:
+  config:
+    activate:
+      on-profile: local
+  security:
+    oauth2:
+      client:
+        registration:
+          storefront-client:
+            client-id: storefront-bff
+            client-secret: ${KEYCLOAK_CLIENT_SECRET_STOREFRONT_BFF:wYUpnvBO9kXw9Aa7M1fU9DakJQ5XNIvx}
+            scope: profile, email, openid, roles
+            provider: keycloak
+        provider:
+          keycloak:
+            issuer-uri: http://localhost:9090/realms/BookingSmart
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+    consumer:
+      group-id: storefront-bff-group
+
+  cloud:
+    gateway:
+      routes:
+        - id: api
+          uri: http://api.bookingsmart.local
+          predicates:
+            - Path=/api/**
+          filters:
+            - RewritePath=/api/(?<segment>.*), /$\{segment}
+            - TokenRelay=
+
+        # Frontend fallback route - redirect to storefront domain
+        - id: frontend-fallback
+          uri: http://storefront:3000
+          predicates:
+            - Path=/**
+          filters:
+            - RedirectTo=302, http://storefront
+      default-filters:
+        - SaveSession
+
+eureka:
+  client:
+    serviceUrl:
+      defaultZone: http://localhost:8761/eureka
+  instance:
+    hostname: localhost
+    prefer-ip-address: false
+
+---
+
+spring:
+  config:
+    activate:
+      on-profile: docker
+  security:
+    oauth2:
+      client:
+        registration:
+          storefront-client:
+            client-name: Storefront
+            client-id: storefront-bff
+            client-secret: ${KEYCLOAK_CLIENT_SECRET_STOREFRONT_BFF}
+            scope: profile, email, openid, roles
+            provider: keycloak
+        provider:
+          keycloak:
+            issuer-uri: ${JWT_ISSUER_URI}
+  cloud:
+    gateway:
+      routes:
+        - id: flight-service
+          uri: lb://FLIGHT-SERVICE
+          predicates:
+            - Path=/api/flights/**
+          filters:
+            - StripPrefix=1
+            - TokenRelay=
+        - id: hotel-service
+          uri: lb://HOTEL-SERVICE
+          predicates:
+            - Path=/api/hotels/**
+          filters:
+            - StripPrefix=1
+            - TokenRelay=
+        - id: booking-service
+          uri: lb://BOOKING-SERVICE
+          predicates:
+            - Path=/api/bookings/**
+          filters:
+            - StripPrefix=1
+            - TokenRelay=
+        - id: customer-service
+          uri: lb://CUSTOMER-SERVICE
+          predicates:
+            - Path=/api/customers/**
+          filters:
+            - StripPrefix=1
+            - TokenRelay=
+        - id: payment-service
+          uri: lb://PAYMENT-SERVICE
+          predicates:
+            - Path=/api/payments/**
+          filters:
+            - StripPrefix=1
+            - TokenRelay=
+        - id: notification-service
+          uri: lb://NOTIFICATION-SERVICE
+          predicates:
+            - Path=/api/notifications/**
+          filters:
+            - StripPrefix=1
+            - TokenRelay=
+        
+        # Frontend fallback route - redirect to storefront domain
+        - id: frontend-fallback
+          uri: http://storefront-fe:3000
+          predicates:
+            - Path=/**
+
+      default-filters:
+        - SaveSession
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+    consumer:
+      group-id: storefront-bff-group
+
+eureka:
+  client:
+    serviceUrl:
+      defaultZone: ${EUREKA_URI}
+  instance:
+    prefer-ip-address: true
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: "*"
+  endpoint:
+    health:
+      show-details: always
+
+logging:
+  level:
+    "[com.pdh.storefront]": DEBUG
+    "[org.springframework.security]": DEBUG

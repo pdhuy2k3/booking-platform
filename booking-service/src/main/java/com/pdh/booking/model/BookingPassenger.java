@@ -2,10 +2,7 @@ package com.pdh.booking.model;
 
 import com.pdh.common.model.AbstractAuditEntity;
 import jakarta.persistence.*;
-import lombok.AllArgsConstructor;
-import lombok.Data;
-import lombok.EqualsAndHashCode;
-import lombok.NoArgsConstructor;
+import lombok.*;
 
 import java.time.LocalDate;
 
@@ -15,8 +12,9 @@ import java.time.LocalDate;
  */
 @Entity
 @Table(name = "booking_passengers")
-@Data
-
+@Getter
+@Setter
+@Builder
 @NoArgsConstructor
 @AllArgsConstructor
 public class BookingPassenger extends AbstractAuditEntity {

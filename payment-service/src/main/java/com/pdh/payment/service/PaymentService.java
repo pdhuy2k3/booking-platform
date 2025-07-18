@@ -1,347 +1,261 @@
 package com.pdh.payment.service;
 
-import com.pdh.payment.model.*;
+import com.pdh.payment.model.Payment;
+import com.pdh.payment.model.PaymentMethod;
+import com.pdh.payment.model.PaymentTransaction;
 import com.pdh.payment.model.enums.PaymentStatus;
 import com.pdh.payment.model.enums.PaymentTransactionType;
-import com.pdh.payment.repository.*;
-import com.pdh.payment.service.dto.PaymentRequest;
-import com.pdh.payment.service.dto.RefundRequest;
-import com.pdh.payment.service.dto.PaymentProcessingResult;
-import com.pdh.payment.service.strategy.PaymentStrategy;
-import com.pdh.payment.service.strategy.PaymentStrategyFactory;
+import com.pdh.common.outbox.service.OutboxEventService;
+import com.pdh.payment.repository.PaymentRepository;
+import com.pdh.payment.repository.PaymentTransactionRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
-import java.time.ZonedDateTime;
-import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 
 /**
- * Payment Service
- * Main service for payment processing with Saga pattern support
+ * Enhanced Payment Service with Strategy Pattern Integration
+ * Orchestrates payment operations using different payment strategies
  */
 @Service
 @RequiredArgsConstructor
 @Slf4j
-@Transactional
 public class PaymentService {
-    
+
+    private final OutboxEventService eventPublisher;
+    private final PaymentContext paymentContext;
     private final PaymentRepository paymentRepository;
-    private final PaymentTransactionRepository transactionRepository;
-    private final PaymentMethodRepository paymentMethodRepository;
-    private final PaymentSagaLogRepository sagaLogRepository;
-    private final PaymentOutboxEventRepository outboxEventRepository;
-    private final PaymentStrategyFactory strategyFactory;
-    private final PaymentOutboxService outboxService;
-    
+    private final PaymentTransactionRepository paymentTransactionRepository;
+
     /**
-     * Process payment for booking (Saga step)
+     * Process payment using Strategy Pattern
      */
     @Transactional
-    public PaymentProcessingResult processPayment(PaymentRequest request) {
-        log.info("Processing payment for booking: {} with saga: {}", request.getBookingId(), request.getSagaId());
-        
+    public PaymentTransaction processPayment(Payment payment, PaymentMethod paymentMethod,
+                                           Map<String, Object> additionalData) {
+        log.info("Processing payment {} using payment method: {}",
+                payment.getPaymentId(), paymentMethod.getProvider());
+
         try {
-            // Create payment record
-            Payment payment = createPayment(request);
-            payment = paymentRepository.save(payment);
-            
-            // Log saga step
-            PaymentSagaLog sagaLog = PaymentSagaLog.createForwardStep(
-                payment, "PAYMENT_INITIATED", "PaymentInitiated",
-                null, PaymentStatus.PENDING, 
-                createPaymentInitiatedPayload(request));
-            sagaLogRepository.save(sagaLog);
-            
-            // Get payment method
-            PaymentMethod paymentMethod = getPaymentMethod(request.getPaymentMethodId(), request.getUserId());
-            
-            // Get payment strategy
-            PaymentStrategy strategy = strategyFactory.getStrategy(paymentMethod);
-            
-            // Validate payment method
-            PaymentStrategy.ValidationResult validation = strategy.validatePaymentMethod(paymentMethod);
-            if (!validation.isValid()) {
-                return handlePaymentFailure(payment, validation.getErrorMessage(), validation.getErrorCode());
+            // Save payment first
+            Payment savedPayment = paymentRepository.save(payment);
+
+            // Process payment using strategy
+            PaymentTransaction transaction = paymentContext.processPayment(savedPayment, paymentMethod, additionalData);
+
+            // Save transaction
+            PaymentTransaction savedTransaction = paymentTransactionRepository.save(transaction);
+
+            // Publish payment event
+            publishPaymentEvent(savedPayment, savedTransaction, "PaymentInitiated");
+
+            // If payment completed immediately, publish completion event
+            if (savedTransaction.getStatus().isSuccessful()) {
+                publishPaymentEvent(savedPayment, savedTransaction, "PaymentCompleted");
             }
-            
-            // Process payment through strategy
-            PaymentTransaction transaction = strategy.processPayment(payment, paymentMethod, request.getAdditionalData());
-            transaction = transactionRepository.save(transaction);
-            
-            // Update payment status
-            payment.setStatus(transaction.getStatus());
-            if (transaction.isSuccessful()) {
-                payment.markAsConfirmed();
-                payment.setGatewayTransactionId(transaction.getGatewayTransactionId());
-            } else if (transaction.isFailed()) {
-                payment.markAsFailed(transaction.getFailureReason());
-            }
-            payment = paymentRepository.save(payment);
-            
-            // Log saga completion/failure
-            PaymentSagaLog completionLog = transaction.isSuccessful() ?
-                PaymentSagaLog.createForwardStep(payment, "PAYMENT_COMPLETED", "PaymentCompleted",
-                    PaymentStatus.PROCESSING, payment.getStatus(), createPaymentCompletedPayload(payment, transaction)) :
-                PaymentSagaLog.createCompensationStep(payment, "PAYMENT_FAILED", "PaymentFailed",
-                    PaymentStatus.PROCESSING, payment.getStatus(), null, transaction.getFailureReason());
-            sagaLogRepository.save(completionLog);
-            
-            // Publish outbox events
-            publishPaymentEvents(payment, transaction);
-            
-            log.info("Payment processing completed for payment: {} with status: {}", 
-                    payment.getPaymentId(), payment.getStatus());
-            
-            return PaymentProcessingResult.success(payment, transaction);
-            
+
+            log.info("Payment processing completed for payment: {}", payment.getPaymentId());
+            return savedTransaction;
+
         } catch (Exception e) {
-            log.error("Error processing payment for booking: {}", request.getBookingId(), e);
-            return PaymentProcessingResult.failure("Payment processing failed: " + e.getMessage(), "PROCESSING_ERROR");
+            log.error("Payment processing failed for payment: {}", payment.getPaymentId(), e);
+
+            // Create failed transaction record
+            PaymentTransaction failedTransaction = createFailedTransaction(payment, e.getMessage());
+            PaymentTransaction savedFailedTransaction = paymentTransactionRepository.save(failedTransaction);
+
+            // Publish failure event
+            publishPaymentEvent(payment, savedFailedTransaction, "PaymentFailed");
+
+            throw e;
         }
     }
-    
+
     /**
-     * Process refund (Saga compensation)
+     * Process refund using Strategy Pattern
      */
     @Transactional
-    public PaymentProcessingResult processRefund(RefundRequest request) {
-        log.info("Processing refund for payment: {} with saga: {}", request.getPaymentId(), request.getSagaId());
-        
+    public PaymentTransaction processRefund(UUID originalTransactionId, BigDecimal refundAmount, String reason) {
+        log.info("Processing refund for transaction: {} with amount: {}", originalTransactionId, refundAmount);
+
+        Optional<PaymentTransaction> originalTransactionOpt = paymentTransactionRepository.findById(originalTransactionId);
+        if (originalTransactionOpt.isEmpty()) {
+            throw new IllegalArgumentException("Original transaction not found: " + originalTransactionId);
+        }
+
+        PaymentTransaction originalTransaction = originalTransactionOpt.get();
+
         try {
-            // Get original payment
-            Payment payment = paymentRepository.findById(request.getPaymentId())
-                .orElseThrow(() -> new PaymentNotFoundException("Payment not found: " + request.getPaymentId()));
-            
-            // Validate refund
-            if (!payment.canBeRefunded()) {
-                return PaymentProcessingResult.failure("Payment cannot be refunded", "REFUND_NOT_ALLOWED");
+            // Process refund using strategy
+            PaymentTransaction refundTransaction = paymentContext.processRefund(originalTransaction, refundAmount, reason);
+
+            // Save refund transaction
+            PaymentTransaction savedRefundTransaction = paymentTransactionRepository.save(refundTransaction);
+
+            // Publish refund event
+            publishRefundEvent(originalTransaction.getPayment(), savedRefundTransaction, "RefundInitiated");
+
+            // If refund completed immediately, publish completion event
+            if (savedRefundTransaction.getStatus() == PaymentStatus.REFUND_COMPLETED) {
+                publishRefundEvent(originalTransaction.getPayment(), savedRefundTransaction, "RefundCompleted");
             }
-            
-            BigDecimal refundAmount = request.getAmount() != null ? request.getAmount() : payment.getAmount();
-            if (refundAmount.compareTo(payment.getRemainingRefundableAmount()) > 0) {
-                return PaymentProcessingResult.failure("Refund amount exceeds refundable amount", "INVALID_REFUND_AMOUNT");
-            }
-            
-            // Get original payment transaction
-            List<PaymentTransaction> originalTransactions = transactionRepository
-                .findByPayment_PaymentIdAndTransactionType(payment.getPaymentId(), PaymentTransactionType.PAYMENT);
-            
-            if (originalTransactions.isEmpty()) {
-                return PaymentProcessingResult.failure("No original transaction found for refund", "NO_ORIGINAL_TRANSACTION");
-            }
-            
-            PaymentTransaction originalTransaction = originalTransactions.get(0);
-            
-            // Get payment method and strategy
-            PaymentMethod paymentMethod = getPaymentMethod(payment.getPaymentMethodId(), payment.getUserId());
-            PaymentStrategy strategy = strategyFactory.getStrategy(paymentMethod);
-            
-            if (!strategy.supportsRefunds()) {
-                return PaymentProcessingResult.failure("Payment method does not support refunds", "REFUNDS_NOT_SUPPORTED");
-            }
-            
-            // Process refund
-            PaymentTransaction refundTransaction = strategy.processRefund(originalTransaction, refundAmount, request.getReason());
-            refundTransaction.setSagaId(request.getSagaId());
-            refundTransaction = transactionRepository.save(refundTransaction);
-            
-            // Update payment
-            if (refundTransaction.isSuccessful()) {
-                BigDecimal currentRefunded = payment.getRefundedAmount() != null ? payment.getRefundedAmount() : BigDecimal.ZERO;
-                payment.setRefundedAmount(currentRefunded.add(refundAmount));
-                
-                if (payment.isFullyRefunded()) {
-                    payment.setStatus(PaymentStatus.REFUND_COMPLETED);
-                } else {
-                    payment.setStatus(PaymentStatus.REFUND_COMPLETED); // Partial refund
-                }
-            } else {
-                payment.setStatus(PaymentStatus.REFUND_FAILED);
-            }
-            payment = paymentRepository.save(payment);
-            
-            // Log saga step
-            PaymentSagaLog sagaLog = refundTransaction.isSuccessful() ?
-                PaymentSagaLog.createCompensationStep(payment, "REFUND_COMPLETED", "RefundCompleted",
-                    PaymentStatus.CONFIRMED, payment.getStatus(), createRefundCompletedPayload(payment, refundTransaction), null) :
-                PaymentSagaLog.createCompensationStep(payment, "REFUND_FAILED", "RefundFailed",
-                    PaymentStatus.CONFIRMED, payment.getStatus(), null, refundTransaction.getFailureReason());
-            sagaLogRepository.save(sagaLog);
-            
-            // Publish outbox events
-            publishRefundEvents(payment, refundTransaction);
-            
-            log.info("Refund processing completed for payment: {} with status: {}", 
-                    payment.getPaymentId(), refundTransaction.getStatus());
-            
-            return PaymentProcessingResult.success(payment, refundTransaction);
-            
+
+            log.info("Refund processing completed for transaction: {}", originalTransactionId);
+            return savedRefundTransaction;
+
         } catch (Exception e) {
-            log.error("Error processing refund for payment: {}", request.getPaymentId(), e);
-            return PaymentProcessingResult.failure("Refund processing failed: " + e.getMessage(), "REFUND_ERROR");
+            log.error("Refund processing failed for transaction: {}", originalTransactionId, e);
+            throw e;
         }
     }
-    
+
     /**
-     * Get payment by ID
+     * Verify payment status using Strategy Pattern
      */
-    @Transactional(readOnly = true)
-    public Optional<Payment> getPayment(UUID paymentId) {
-        return paymentRepository.findById(paymentId);
+    @Transactional
+    public PaymentTransaction verifyPaymentStatus(UUID transactionId) {
+        log.debug("Verifying payment status for transaction: {}", transactionId);
+
+        Optional<PaymentTransaction> transactionOpt = paymentTransactionRepository.findById(transactionId);
+        if (transactionOpt.isEmpty()) {
+            throw new IllegalArgumentException("Transaction not found: " + transactionId);
+        }
+
+        PaymentTransaction transaction = transactionOpt.get();
+        PaymentTransaction updatedTransaction = paymentContext.verifyPaymentStatus(transaction);
+
+        // Save updated transaction
+        PaymentTransaction savedTransaction = paymentTransactionRepository.save(updatedTransaction);
+
+        // Publish status update event if status changed
+        if (!transaction.getStatus().equals(savedTransaction.getStatus())) {
+            if (savedTransaction.getStatus().isSuccessful()) {
+                publishPaymentEvent(savedTransaction.getPayment(), savedTransaction, "PaymentCompleted");
+            } else if (savedTransaction.getStatus() == PaymentStatus.FAILED) {
+                publishPaymentEvent(savedTransaction.getPayment(), savedTransaction, "PaymentFailed");
+            }
+        }
+
+        return savedTransaction;
     }
-    
+
     /**
-     * Get payment by reference
+     * Cancel payment using Strategy Pattern
      */
-    @Transactional(readOnly = true)
-    public Optional<Payment> getPaymentByReference(String paymentReference) {
-        return paymentRepository.findByPaymentReference(paymentReference);
+    @Transactional
+    public PaymentTransaction cancelPayment(UUID transactionId, String reason) {
+        log.info("Cancelling payment for transaction: {} with reason: {}", transactionId, reason);
+
+        Optional<PaymentTransaction> transactionOpt = paymentTransactionRepository.findById(transactionId);
+        if (transactionOpt.isEmpty()) {
+            throw new IllegalArgumentException("Transaction not found: " + transactionId);
+        }
+
+        PaymentTransaction transaction = transactionOpt.get();
+        PaymentTransaction cancelledTransaction = paymentContext.cancelPayment(transaction, reason);
+
+        // Save cancelled transaction
+        PaymentTransaction savedTransaction = paymentTransactionRepository.save(cancelledTransaction);
+
+        // Publish cancellation event
+        publishPaymentEvent(savedTransaction.getPayment(), savedTransaction, "PaymentCancelled");
+
+        return savedTransaction;
     }
-    
+
     /**
-     * Get payments by booking ID
+     * Get processing fee for payment method
      */
-    @Transactional(readOnly = true)
-    public List<Payment> getPaymentsByBooking(UUID bookingId) {
-        return paymentRepository.findByBookingIdOrderByCreatedAtDesc(bookingId);
+    public BigDecimal getProcessingFee(BigDecimal amount, PaymentMethod paymentMethod) {
+        return paymentContext.getProcessingFee(amount, paymentMethod);
     }
-    
+
     /**
-     * Get payment by saga ID
+     * Legacy method for backward compatibility - process payment by booking ID
      */
-    @Transactional(readOnly = true)
-    public Optional<Payment> getPaymentBySagaId(String sagaId) {
-        return paymentRepository.findBySagaId(sagaId);
+    @Transactional
+    public void processPayment(UUID bookingId) {
+        log.info("Processing payment for booking: {} (legacy method)", bookingId);
+        // This is kept for backward compatibility with existing saga orchestration
+        eventPublisher.publishEvent("PaymentProcessed", "Booking", bookingId.toString(), Map.of("bookingId", bookingId));
     }
-    
-    // Private helper methods
-    
-    private Payment createPayment(PaymentRequest request) {
-        Payment payment = new Payment();
-        payment.setPaymentReference(Payment.generatePaymentReference());
-        payment.setBookingId(request.getBookingId());
-        payment.setUserId(request.getUserId());
-        payment.setCustomerId(request.getCustomerId());
-        payment.setSagaId(request.getSagaId());
-        payment.setSagaStep("PAYMENT_PROCESSING");
-        payment.setAmount(request.getAmount());
-        payment.setCurrency(request.getCurrency());
-        payment.setDescription(request.getDescription());
-        payment.setStatus(PaymentStatus.PENDING);
-        payment.setPaymentMethodId(request.getPaymentMethodId());
-        payment.setIpAddress(request.getIpAddress());
-        payment.setUserAgent(request.getUserAgent());
-        payment.setMetadata(request.getMetadata());
-        
-        // Set expiration (30 minutes from now)
-        payment.setExpiredAt(ZonedDateTime.now().plusMinutes(30));
-        
-        return payment;
+
+    /**
+     * Legacy method for backward compatibility - refund payment by booking ID
+     */
+    @Transactional
+    public void refundPayment(UUID bookingId) {
+        log.info("Refunding payment for booking: {} (legacy method)", bookingId);
+        // This is kept for backward compatibility with existing saga orchestration
+        eventPublisher.publishEvent("PaymentRefunded", "Booking", bookingId.toString(), Map.of("bookingId", bookingId));
     }
-    
-    private PaymentMethod getPaymentMethod(UUID paymentMethodId, UUID userId) {
-        return paymentMethodRepository.findById(paymentMethodId)
-            .filter(pm -> pm.getUserId().equals(userId) && pm.getIsActive())
-            .orElseThrow(() -> new PaymentMethodNotFoundException("Payment method not found or not active: " + paymentMethodId));
+
+    // Helper methods
+
+    private void publishPaymentEvent(Payment payment, PaymentTransaction transaction, String eventType) {
+        Map<String, Object> eventData = Map.of(
+            "paymentId", payment.getPaymentId(),
+            "bookingId", payment.getBookingId(),
+            "userId", payment.getUserId(),
+            "transactionId", transaction.getTransactionId(),
+            "amount", transaction.getAmount(),
+            "currency", transaction.getCurrency(),
+            "status", transaction.getStatus(),
+            "provider", transaction.getProvider(),
+            "sagaId", payment.getSagaId() != null ? payment.getSagaId() : ""
+        );
+
+        eventPublisher.publishEvent(
+            eventType,
+            "Payment",
+            payment.getPaymentId().toString(),
+            eventData
+        );
     }
-    
-    private PaymentProcessingResult handlePaymentFailure(Payment payment, String errorMessage, String errorCode) {
-        payment.markAsFailed(errorMessage);
-        payment = paymentRepository.save(payment);
-        
-        PaymentSagaLog failureLog = PaymentSagaLog.createCompensationStep(
-            payment, "PAYMENT_VALIDATION_FAILED", "PaymentValidationFailed",
-            PaymentStatus.PENDING, PaymentStatus.FAILED, null, errorMessage);
-        sagaLogRepository.save(failureLog);
-        
-        return PaymentProcessingResult.failure(errorMessage, errorCode);
+
+    private void publishRefundEvent(Payment payment, PaymentTransaction refundTransaction, String eventType) {
+        Map<String, Object> eventData = Map.of(
+            "paymentId", payment.getPaymentId(),
+            "bookingId", payment.getBookingId(),
+            "userId", payment.getUserId(),
+            "refundTransactionId", refundTransaction.getTransactionId(),
+            "refundAmount", refundTransaction.getAmount(),
+            "currency", refundTransaction.getCurrency(),
+            "status", refundTransaction.getStatus(),
+            "provider", refundTransaction.getProvider(),
+            "originalTransactionId", refundTransaction.getOriginalTransactionId() != null ?
+                refundTransaction.getOriginalTransactionId() : "",
+            "sagaId", payment.getSagaId() != null ? payment.getSagaId() : ""
+        );
+
+        eventPublisher.publishEvent(
+            eventType,
+            "Payment",
+            payment.getPaymentId().toString(),
+            eventData
+        );
     }
-    
-    private void publishPaymentEvents(Payment payment, PaymentTransaction transaction) {
-        try {
-            String eventType = transaction.isSuccessful() ? 
-                PaymentOutboxEvent.EventTypes.PAYMENT_COMPLETED :
-                PaymentOutboxEvent.EventTypes.PAYMENT_FAILED;
-            
-            String payload = createPaymentEventPayload(payment, transaction);
-            
-            PaymentOutboxEvent event = PaymentOutboxEvent.createPaymentEvent(
-                eventType, payment.getPaymentId(), payment.getSagaId(),
-                payment.getBookingId(), payment.getUserId(), payload);
-            
-            outboxEventRepository.save(event);
-            outboxService.processEvent(event);
-            
-        } catch (Exception e) {
-            log.error("Failed to publish payment events for payment: {}", payment.getPaymentId(), e);
-        }
-    }
-    
-    private void publishRefundEvents(Payment payment, PaymentTransaction refundTransaction) {
-        try {
-            String eventType = refundTransaction.isSuccessful() ?
-                (payment.isFullyRefunded() ? 
-                    PaymentOutboxEvent.EventTypes.PAYMENT_REFUNDED :
-                    PaymentOutboxEvent.EventTypes.PAYMENT_PARTIALLY_REFUNDED) :
-                "payment.refund.failed";
-            
-            String payload = createRefundEventPayload(payment, refundTransaction);
-            
-            PaymentOutboxEvent event = PaymentOutboxEvent.createPaymentEvent(
-                eventType, payment.getPaymentId(), payment.getSagaId(),
-                payment.getBookingId(), payment.getUserId(), payload);
-            
-            outboxEventRepository.save(event);
-            outboxService.processEvent(event);
-            
-        } catch (Exception e) {
-            log.error("Failed to publish refund events for payment: {}", payment.getPaymentId(), e);
-        }
-    }
-    
-    // JSON payload creation methods (simplified - in real implementation use proper JSON library)
-    private String createPaymentInitiatedPayload(PaymentRequest request) {
-        return String.format("{\"bookingId\":\"%s\",\"amount\":%s,\"currency\":\"%s\"}", 
-            request.getBookingId(), request.getAmount(), request.getCurrency());
-    }
-    
-    private String createPaymentCompletedPayload(Payment payment, PaymentTransaction transaction) {
-        return String.format("{\"paymentId\":\"%s\",\"transactionId\":\"%s\",\"amount\":%s,\"status\":\"%s\"}", 
-            payment.getPaymentId(), transaction.getTransactionId(), payment.getAmount(), payment.getStatus());
-    }
-    
-    private String createRefundCompletedPayload(Payment payment, PaymentTransaction refundTransaction) {
-        return String.format("{\"paymentId\":\"%s\",\"refundTransactionId\":\"%s\",\"refundAmount\":%s}", 
-            payment.getPaymentId(), refundTransaction.getTransactionId(), refundTransaction.getAmount());
-    }
-    
-    private String createPaymentEventPayload(Payment payment, PaymentTransaction transaction) {
-        return String.format("{\"payment\":{\"id\":\"%s\",\"amount\":%s,\"status\":\"%s\"},\"transaction\":{\"id\":\"%s\",\"type\":\"%s\"}}", 
-            payment.getPaymentId(), payment.getAmount(), payment.getStatus(),
-            transaction.getTransactionId(), transaction.getTransactionType());
-    }
-    
-    private String createRefundEventPayload(Payment payment, PaymentTransaction refundTransaction) {
-        return String.format("{\"payment\":{\"id\":\"%s\",\"refundedAmount\":%s},\"refund\":{\"id\":\"%s\",\"amount\":%s}}", 
-            payment.getPaymentId(), payment.getRefundedAmount(),
-            refundTransaction.getTransactionId(), refundTransaction.getAmount());
-    }
-    
-    // Custom exceptions
-    public static class PaymentNotFoundException extends RuntimeException {
-        public PaymentNotFoundException(String message) {
-            super(message);
-        }
-    }
-    
-    public static class PaymentMethodNotFoundException extends RuntimeException {
-        public PaymentMethodNotFoundException(String message) {
-            super(message);
-        }
+
+    private PaymentTransaction createFailedTransaction(Payment payment, String errorMessage) {
+        PaymentTransaction failedTransaction = new PaymentTransaction();
+        failedTransaction.setPayment(payment);
+        failedTransaction.setTransactionReference(
+            PaymentTransaction.generateTransactionReference(PaymentTransactionType.PAYMENT));
+        failedTransaction.setTransactionType(PaymentTransactionType.PAYMENT);
+        failedTransaction.setStatus(PaymentStatus.FAILED);
+        failedTransaction.setAmount(payment.getAmount());
+        failedTransaction.setCurrency(payment.getCurrency());
+        failedTransaction.setDescription("Failed payment for " + payment.getDescription());
+        failedTransaction.setFailureReason(errorMessage);
+        failedTransaction.setFailureCode("PROCESSING_ERROR");
+        failedTransaction.setSagaId(payment.getSagaId());
+        failedTransaction.setSagaStep("PAYMENT_FAILED");
+
+        return failedTransaction;
     }
 }

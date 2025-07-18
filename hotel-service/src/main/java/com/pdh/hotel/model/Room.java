@@ -34,9 +34,7 @@ public class Room extends AbstractAuditEntity {
     @Column(name = "room_number", nullable = false)
     private String roomNumber;
     
-    // Backward compatibility - will be removed after migration
-    @Column(name = "room_type", nullable = false)
-    private String roomTypeName;
+
     
     private String description;
     

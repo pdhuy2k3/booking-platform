@@ -17,10 +17,7 @@ services:
       KC_DB_PASSWORD: p0stgr3s
       KC_HEALTH_ENABLED: true
 #      KC_METRICS_ENABLED: true
-      KC_HTTP_PORT: 9090
-    ports:
-      - "9090:9090"
-      - "8443:8443"
+      KC_HTTP_PORT: 80
     volumes:
       - ./identity/bookingsmart-keycloak-theme.jar:/opt/keycloak/providers/bookingsmart-keycloak-theme.jar
       - ./identity/realm-export.json:/opt/keycloak/data/import/realm-export.json
@@ -32,6 +29,7 @@ services:
       - app
       - auth
       - dev
+      - aiAgent
     image: debezium/postgres:17-alpine
     user: postgres
     environment:
@@ -112,7 +110,7 @@ services:
     profiles:
       - app
     ports:
-      - "8090:8080"
+      - "8091:8080"
     depends_on:
       - kafka
     networks:
@@ -129,11 +127,10 @@ services:
     build:
       context: ./discovery-service
       dockerfile: Dockerfile
-    ports:
-      - "8761:8761"
     environment:
       - SPRING_PROFILES_ACTIVE=docker
-      - EUREKA_URI=http://discovery-service:8761/eureka
+      - EUREKA_URI=http://discovery-service/eureka
+      - SERVER_PORT
     networks:
       - booking-network
 
@@ -144,18 +141,18 @@ services:
     build:
       context: ./backoffice-bff
       dockerfile: Dockerfile
-    ports:
-      - "8080:8080"
     depends_on:
     - postgres  # Chỉ đợi postgres healthy
     - identity
-    entrypoint: ["/wait-for-it.sh", "identity:9090", "--timeout=120", "--", "java", "-jar", "/app.jar"]
+    entrypoint: ["/wait-for-it.sh", "identity:80", "--timeout=100", "--", "java", "-jar", "/app.jar"]
+
     environment:
       - SPRING_PROFILES_ACTIVE=docker
-      - EUREKA_URI=http://discovery-service:8761/eureka
-      - JWT_ISSUER_URI=http://identity:9090/realms/BookingSmart
-      - KEYCLOAK_HOST=http://identity:9090
-      - KEYCLOAK_CLIENT_SECRET_BACKOFFICE_BFF=qhW4NC8pgPLdJDTd57sry5ON1fHK1d8i
+      - EUREKA_URI
+      - JWT_ISSUER_URI
+      - KEYCLOAK_HOST
+      - KEYCLOAK_CLIENT_SECRET_BACKOFFICE_BFF
+      - SERVER_PORT
     networks:
       - booking-network
 
@@ -166,19 +163,18 @@ services:
     build:
       context: ./flight-service
       dockerfile: Dockerfile
-    ports:
-      - "8081:8081"
     depends_on:
       postgres:
         condition: service_healthy
     environment:
       - SPRING_PROFILES_ACTIVE=docker
-      - EUREKA_URI=http://discovery-service:8761/eureka
+      - EUREKA_URI
       - DB_URL=jdbc:postgresql://postgres:5432/flight_db
       - DB_USERNAME=postgres
       - DB_PASSWORD=p0stgr3s
-      - JWT_ISSUER_URI=http://identity:9090/realms/BookingSmar
-      - KAFKA_BOOTSTRAP_SERVERS=kafka:29092
+      - JWT_ISSUER_URI
+      - KAFKA_BOOTSTRAP_SERVERS
+      - SERVER_PORT
     networks:
       - booking-network
 
@@ -189,19 +185,18 @@ services:
     build:
       context: ./hotel-service
       dockerfile: Dockerfile
-    ports:
-      - "8082:8082"
     depends_on:
       postgres:
         condition: service_healthy
     environment:
       - SPRING_PROFILES_ACTIVE=docker
-      - EUREKA_URI=http://discovery-service:8761/eureka
+      - EUREKA_URI
       - DB_URL=jdbc:postgresql://postgres:5432/hotel_db
       - DB_USERNAME=postgres
       - DB_PASSWORD=p0stgr3s
-      - JWT_ISSUER_URI=http://identity:9090/realms/BookingSmart
-      - KAFKA_BOOTSTRAP_SERVERS=kafka:29092
+      - JWT_ISSUER_URI
+      - KAFKA_BOOTSTRAP_SERVERS
+      - SERVER_PORT
     networks:
       - booking-network
 
@@ -212,19 +207,18 @@ services:
     build:
       context: ./booking-service
       dockerfile: Dockerfile
-    ports:
-      - "8093:8083" # Changed from 8083 to avoid conflict with Kafka Connect
     depends_on:
       postgres:
         condition: service_healthy
     environment:
       - SPRING_PROFILES_ACTIVE=docker
-      - EUREKA_URI=http://discovery-service:8761/eureka
+      - EUREKA_URI
       - DB_URL=jdbc:postgresql://postgres:5432/booking_db
       - DB_USERNAME=postgres
       - DB_PASSWORD=p0stgr3s
-      - JWT_ISSUER_URI=http://identity:9090/realms/BookingSmart
-      - KAFKA_BOOTSTRAP_SERVERS=kafka:29092
+      - JWT_ISSUER_URI
+      - KAFKA_BOOTSTRAP_SERVERS
+      - SERVER_PORT
     networks:
       - booking-network
 
@@ -235,19 +229,18 @@ services:
     build:
       context: ./payment-service
       dockerfile: Dockerfile
-    ports:
-      - "8085:8085"
     depends_on:
       postgres:
         condition: service_healthy
     environment:
       - SPRING_PROFILES_ACTIVE=docker
-      - EUREKA_URI=http://discovery-service:8761/eureka
+      - EUREKA_URI
       - DB_URL=jdbc:postgresql://postgres:5432/payment_db
       - DB_USERNAME=postgres
       - DB_PASSWORD=p0stgr3s
-      - JWT_ISSUER_URI=http://identity:9090/realms/BookingSmart
-      - KAFKA_BOOTSTRAP_SERVERS=kafka:29092
+      - JWT_ISSUER_URI
+      - KAFKA_BOOTSTRAP_SERVERS
+      - SERVER_PORT
     networks:
       - booking-network
 
@@ -258,8 +251,6 @@ services:
     build:
       context: ./notification-service
       dockerfile: Dockerfile
-    ports:
-      - "8087:8087"
     depends_on:
       postgres:
         condition: service_healthy
@@ -267,33 +258,205 @@ services:
       - SPRING_PROFILES_ACTIVE=docker
       - EUREKA_URI=http://discovery-service:8761/eureka
       - DB_URL=jdbc:postgresql://postgres:5432/notification_db
-      - DB_USERNAME=postgres
-      - DB_PASSWORD=p0stgr3s
-      - JWT_ISSUER_URI=http://identity:9090/realms/BookingSmart
-      - KAFKA_BOOTSTRAP_SERVERS=kafka:29092
+      - DB_USERNAME
+      - DB_PASSWORD
+      - JWT_ISSUER_URI
+      - KAFKA_BOOTSTRAP_SERVERS
+      - SERVER_PORT
     networks:
       - booking-network
 
-#  # PgAdmin for database management
-#  pgadmin:
+  # Storefront BFF (API Gateway) - api.bookingsmart.local
+  storefront:
+    profiles:
+      - app
+    build:
+      context: ./storefront-bff
+      dockerfile: Dockerfile
+    depends_on:
+      - postgres
+      - identity
+    entrypoint: ["/wait-for-it.sh", "identity:80", "--timeout=100", "--", "java", "-jar", "/app.jar"]
+    environment:
+      - SPRING_PROFILES_ACTIVE=docker
+      - EUREKA_URI
+      - JWT_ISSUER_URI
+      - KEYCLOAK_HOST
+      - KEYCLOAK_CLIENT_SECRET_STOREFRONT_BFF
+      - SERVER_PORT
+    networks:
+      - booking-network
+
+  # Customer Service
+  customer-service:
+    profiles:
+      - app
+    build:
+      context: ./customer-service
+      dockerfile: Dockerfile
+    depends_on:
+      - identity
+    environment:
+      - SPRING_PROFILES_ACTIVE=docker
+      - EUREKA_URI
+      - JWT_ISSUER_URI
+      - KEYCLOAK_HOST
+      - KEYCLOAK_CLIENT_SECRET_CUSTOMER_MANAGEMENT
+    networks:
+      - booking-network
+
+# Transport Service - Temporarily disabled (not built in Maven)
+#  transport-service:
 #    profiles:
-#      - dev
-#      - auth
-#    image: dpage/pgadmin4:latest
-#    environment:
-#      PGADMIN_CONFIG_SERVER_MODE: 'False'
-#      PGADMIN_DEFAULT_EMAIL: huypd.dev@gmail.com
-#      PGADMIN_DEFAULT_PASSWORD: admin123
+#      - app
+#    build:
+#      context: ./transport-service
+#      dockerfile: Dockerfile
 #    ports:
-#      - "8666:80"
-#    volumes:
-#      - ./pgadmin_data:/var/lib/pgadmin
-#      - ./database_backup:/tmp/database_backup
+#      - "8088:8088"
 #    depends_on:
-#      - postgres
-#    restart: unless-stopped
+#      postgres:
+#        condition: service_healthy
+#    environment:
+#      - SPRING_PROFILES_ACTIVE=docker
+#      - EUREKA_URI=http://discovery-service:8761/eureka
+#      - DB_URL=jdbc:postgresql://postgres:5432/transport_db
+#      - DB_USERNAME=postgres
+#      - DB_PASSWORD=p0stgr3s
 #    networks:
 #      - booking-network
+
+# Media Service - Temporarily disabled (not built in Maven)
+#  media-service:
+#    profiles:
+#      - app
+#    build:
+#      context: ./media-service
+#      dockerfile: Dockerfile
+#    ports:
+#      - "8089:8089"
+#    depends_on:
+#      - discovery-service
+#    environment:
+#      - SPRING_PROFILES_ACTIVE=docker
+#      - EUREKA_URI=http://discovery-service:8761/eureka
+#    networks:
+#      - booking-network
+
+  # Nginx Reverse Proxy - All services accessible on port 80
+  nginx:
+    image: nginx:1.25-alpine
+    profiles:
+      - app
+    ports:
+      - "80:80"
+    volumes:
+      - ./nginx.conf:/etc/nginx/conf.d/default.conf
+    depends_on:
+      - identity
+      - storefront
+      - backoffice
+      - storefront-fe
+      - backoffice-fe
+      - kafka-ui
+    networks:
+      - booking-network
+    restart: unless-stopped
+
+  # Storefront Frontend
+  storefront-fe:
+    profiles:
+      - app
+    build:
+      context: ./storefront-fe
+      dockerfile: Dockerfile
+    environment:
+      - NODE_ENV=production
+      - NEXT_PUBLIC_API_URL=http://api.bookingsmart.local
+      - NEXT_PUBLIC_KEYCLOAK_URL=http://identity/realms/BookingSmart
+    networks:
+      - booking-network
+    restart: unless-stopped
+
+  # Backoffice Frontend
+  backoffice-fe:
+    profiles:
+      - app
+    build:
+      context: ./backoffice-fe
+      dockerfile: Dockerfile
+    environment:
+      - NODE_ENV=production
+      - NEXT_PUBLIC_API_URL=http://api.bookingsmart.local
+      - NEXT_PUBLIC_KEYCLOAK_URL=http://identity/realms/BookingSmart
+    networks:
+      - booking-network
+    restart: unless-stopped
+  #Ollama
+
+  ollama:
+    profiles:
+      - aiAgent
+    image: ollama/ollama:latest
+    container_name: ollama
+    restart: unless-stopped
+    environment:
+      - OLLAMA_KEEP_ALIVE=24h
+      - OLLAMA_HOST=0.0.0.0
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_data:/root/.ollama
+  # N8N Workflow Automation
+  n8n:
+    profiles:
+      - app
+      - aiAgent
+    image: docker.n8n.io/n8nio/n8n
+    ports:
+      - "5678:5678"
+    depends_on:
+      - postgres
+      - ollama
+    environment:
+#      - N8N_HOST=n8n
+#      - N8N_PORT=80
+#      - N8N_PROTOCOL=https
+#      - NODE_ENV=production
+      - WEBHOOK_URL=http://localhost:5678/
+      - GENERIC_TIMEZONE=Asia/Bangkok
+      - NODE_FUNCTION_ALLOW_EXTERNAL=*
+      - DB_TYPE=postgresdb
+      - DB_POSTGRESDB_HOST=postgres
+      - DB_POSTGRESDB_PORT=5432
+      - DB_POSTGRESDB_DATABASE=n8n_db
+      - DB_POSTGRESDB_USER=postgres
+      - DB_POSTGRESDB_PASSWORD=p0stgr3s
+    volumes:
+      - n8n_data:/home/node/.n8n
+    networks:
+      - booking-network
+    restart: unless-stopped
+
+#  # PgAdmin for database management
+  pgadmin:
+    profiles:
+      - dev
+      - auth
+    image: dpage/pgadmin4:latest
+    environment:
+      PGADMIN_CONFIG_SERVER_MODE: 'False'
+      PGADMIN_DEFAULT_EMAIL: huypd.dev@gmail.com
+      PGADMIN_DEFAULT_PASSWORD: admin123
+    ports:
+      - "8666:80"
+    volumes:
+      - pgadmin_data:/var/lib/pgadmin
+    depends_on:
+      - postgres
+    restart: unless-stopped
+    networks:
+      - booking-network
 
 
 networks:
@@ -302,3 +465,7 @@ networks:
     name: booking-network
 volumes:
     postgres_data:
+    n8n_data:
+    ollama_data:
+    pgadmin_data:
+
