@@ -23,8 +23,7 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/actuator/prometheus", "/actuator/health/**",
                                 "/swagger-ui", "/swagger-ui/**", "/error", "/v3/api-docs/**").permitAll()
-                        .requestMatchers("/storefront/customer/**").hasAnyRole("CUSTOMER","ADMIN")
-                        .requestMatchers("/storefront/**").permitAll()
+                        .requestMatchers("/storefront/**").hasAnyRole("CUSTOMER","ADMIN")
                         .requestMatchers("/backoffice/admin/**").hasRole("ADMIN")
                         .requestMatchers("/backoffice/partner/**").hasRole("PARTNER")
                         .anyRequest().authenticated())

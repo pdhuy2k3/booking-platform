@@ -3,6 +3,7 @@ package com.pdh.hotel.kafka.consumer;
 import com.pdh.common.kafka.cdc.BaseCdcConsumer;
 import com.pdh.common.kafka.cdc.message.BookingCdcMessage;
 import com.pdh.common.kafka.cdc.message.BookingMsgKey;
+import com.pdh.hotel.service.HotelService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.kafka.annotation.KafkaListener;
@@ -22,8 +23,10 @@ import static org.springframework.kafka.support.KafkaHeaders.RECEIVED_TOPIC;
 @Slf4j
 public class HotelEventConsumer extends BaseCdcConsumer<BookingMsgKey, BookingCdcMessage> {
 
+    private final HotelService hotelService;
+
     @KafkaListener(
-        topics = "booking.hotel-events",
+        topics = "booking-db-server.public.booking_outbox_events",
         containerFactory = "hotelEventListenerContainerFactory"
     )
     public void processHotelEvent(
@@ -44,39 +47,20 @@ public class HotelEventConsumer extends BaseCdcConsumer<BookingMsgKey, BookingCd
     @Override
     protected void handleCreate(BookingMsgKey key, BookingCdcMessage message) {
         log.info("Processing hotel booking creation for booking: {}", key.getId());
-        
-        // TODO: Implement hotel booking logic
-        // - Reserve hotel rooms
-        // - Update room availability
-        // - Publish hotel booking events
-        
-        // Example business logic:
-        // hotelBookingService.processBooking(message.getAfter());
+        hotelService.reserveHotel(key.getId());
     }
 
     @Override
     protected void handleUpdate(BookingMsgKey key, BookingCdcMessage message) {
         log.info("Processing hotel booking update for booking: {}", key.getId());
-        
-        // TODO: Implement hotel booking update logic
-        // - Update hotel reservations
-        // - Adjust room availability
-        // - Publish hotel update events
-        
-        // Example business logic:
-        // hotelBookingService.updateBooking(message.getBefore(), message.getAfter());
+        // For this example, we assume an update means a re-reservation.
+        // In a real-world scenario, you would have more specific logic.
+        hotelService.reserveHotel(key.getId());
     }
 
     @Override
     protected void handleDelete(BookingMsgKey key, BookingCdcMessage message) {
         log.info("Processing hotel booking cancellation for booking: {}", key.getId());
-        
-        // TODO: Implement hotel cancellation logic
-        // - Release hotel rooms
-        // - Update room availability
-        // - Publish hotel cancellation events
-        
-        // Example business logic:
-        // hotelBookingService.cancelBooking(message.getBefore());
+        hotelService.cancelHotelReservation(key.getId());
     }
 }

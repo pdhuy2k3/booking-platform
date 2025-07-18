@@ -1,5 +1,7 @@
 package com.pdh.common.kafka.cdc.message;
 
+import java.util.UUID;
+
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -13,5 +15,5 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor
 @AllArgsConstructor
 public class BookingMsgKey {
-    private String id;
+    private UUID id;
 }

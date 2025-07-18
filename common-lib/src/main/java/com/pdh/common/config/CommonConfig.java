@@ -13,7 +13,6 @@ import org.springframework.scheduling.annotation.EnableScheduling;
  * Services can import this or override specific beans
  */
 @Configuration
-@EnableScheduling
 public class CommonConfig {
 
     @Bean

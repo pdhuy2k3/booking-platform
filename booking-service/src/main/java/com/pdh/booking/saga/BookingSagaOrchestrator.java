@@ -3,11 +3,14 @@ package com.pdh.booking.saga;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.pdh.common.kafka.cdc.message.FlightOutboxCdcMessage;
+import com.pdh.common.kafka.cdc.message.HotelOutboxCdcMessage;
+import com.pdh.common.kafka.cdc.message.PaymentOutboxCdcMessage;
 import com.pdh.booking.model.Booking;
 import com.pdh.booking.model.BookingSagaInstance;
 import com.pdh.booking.model.enums.BookingType;
 import com.pdh.booking.model.enums.BookingStatus;
-import com.pdh.booking.outbox.OutboxEventPublisher;
+import com.pdh.common.outbox.service.OutboxEventService;
 import com.pdh.booking.repository.BookingRepository;
 import com.pdh.booking.repository.BookingSagaRepository;
 import com.pdh.common.saga.SagaState;
@@ -17,6 +20,7 @@ import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
@@ -39,10 +43,10 @@ import java.util.UUID;
 @RequiredArgsConstructor
 @Slf4j
 public class BookingSagaOrchestrator {
-    
+
     private final BookingSagaRepository sagaRepository;
     private final BookingRepository bookingRepository;
-    private final OutboxEventPublisher eventPublisher;
+    private final OutboxEventService eventPublisher;
     private final ObjectMapper objectMapper;
     
     // Valid state transitions from the state machine
@@ -118,108 +122,132 @@ public class BookingSagaOrchestrator {
     // ============== EVENT LISTENERS ==============
     
     /**
-     * Listen to flight service events
+     * Listen to flight service events from Debezium CDC
      */
-    @KafkaListener(topics = "booking.flight-events", groupId = "booking-saga-group")
+    @KafkaListener(topics = "flight-db-server.public.flight_outbox_events", groupId = "booking-saga-group")
     @Transactional
-    public void handleFlightEvent(String message) {
+    public void handleFlightEvent(FlightOutboxCdcMessage message) {
         try {
-            JsonNode event = objectMapper.readTree(message);
-            String eventType = event.get("eventType").asText();
-            String bookingIdStr = event.get("bookingId").asText();
+            if (message.getAfter() == null) {
+                log.debug("Ignoring flight event with null after payload");
+                return;
+            }
+
+            FlightOutboxCdcMessage.FlightOutboxEvent event = message.getAfter();
+            String eventType = event.getEvent_type();
+
+            // Parse payload to extract booking information
+            JsonNode payload = objectMapper.readTree(event.getPayload());
+            String bookingIdStr = payload.get("bookingId").asText();
             UUID bookingId = UUID.fromString(bookingIdStr);
-            
+
             Optional<BookingSagaInstance> sagaOpt = sagaRepository.findByBookingId(bookingId);
             if (sagaOpt.isEmpty()) {
                 log.warn("No saga found for booking: {}", bookingId);
                 return;
             }
-            
+
             BookingSagaInstance saga = sagaOpt.get();
-            
+
             switch (eventType) {
                 case "FlightReserved":
                     handleFlightReserved(saga);
                     break;
                 case "FlightReservationFailed":
-                    handleFlightReservationFailed(saga, event);
+                    handleFlightReservationFailed(saga, payload);
                     break;
                 default:
                     log.debug("Unhandled flight event: {}", eventType);
             }
-            
+
         } catch (Exception e) {
             log.error("Error processing flight event: {}", message, e);
         }
     }
     
     /**
-     * Listen to hotel service events
+     * Listen to hotel service events from Debezium CDC
      */
-    @KafkaListener(topics = "booking.hotel-events", groupId = "booking-saga-group")
+    @KafkaListener(topics = "hotel-db-server.public.hotel_outbox_events", groupId = "booking-saga-group")
     @Transactional
-    public void handleHotelEvent(String message) {
+    public void handleHotelEvent(HotelOutboxCdcMessage message) {
         try {
-            JsonNode event = objectMapper.readTree(message);
-            String eventType = event.get("eventType").asText();
-            String bookingIdStr = event.get("bookingId").asText();
+            if (message.getAfter() == null) {
+                log.debug("Ignoring hotel event with null after payload");
+                return;
+            }
+
+            HotelOutboxCdcMessage.HotelOutboxEvent event = message.getAfter();
+            String eventType = event.getEvent_type();
+
+            // Parse payload to extract booking information
+            JsonNode payload = objectMapper.readTree(event.getPayload());
+            String bookingIdStr = payload.get("bookingId").asText();
             UUID bookingId = UUID.fromString(bookingIdStr);
-            
+
             Optional<BookingSagaInstance> sagaOpt = sagaRepository.findByBookingId(bookingId);
             if (sagaOpt.isEmpty()) {
                 log.warn("No saga found for booking: {}", bookingId);
                 return;
             }
-            
+
             BookingSagaInstance saga = sagaOpt.get();
-            
+
             switch (eventType) {
                 case "HotelReserved":
                     handleHotelReserved(saga);
                     break;
                 case "HotelReservationFailed":
-                    handleHotelReservationFailed(saga, event);
+                    handleHotelReservationFailed(saga, payload);
                     break;
                 default:
                     log.debug("Unhandled hotel event: {}", eventType);
             }
-            
+
         } catch (Exception e) {
             log.error("Error processing hotel event: {}", message, e);
         }
     }
     
     /**
-     * Listen to payment service events
+     * Listen to payment service events from Debezium CDC
      */
-    @KafkaListener(topics = "booking.payment-events", groupId = "booking-saga-group")
+    @KafkaListener(topics = "payment-db-server.public.payment_outbox_events", groupId = "booking-saga-group")
     @Transactional
-    public void handlePaymentEvent(String message) {
+    public void handlePaymentEvent(PaymentOutboxCdcMessage message) {
         try {
-            JsonNode event = objectMapper.readTree(message);
-            String eventType = event.get("eventType").asText();
-            String bookingIdStr = event.get("bookingId").asText();
+            if (message.getAfter() == null) {
+                log.debug("Ignoring payment event with null after payload");
+                return;
+            }
+
+            PaymentOutboxCdcMessage.PaymentOutboxEvent event = message.getAfter();
+            String eventType = event.getEvent_type();
+
+            // Parse payload to extract booking information
+            JsonNode payload = objectMapper.readTree(event.getPayload());
+            String bookingIdStr = payload.get("bookingId").asText();
             UUID bookingId = UUID.fromString(bookingIdStr);
-            
+
             Optional<BookingSagaInstance> sagaOpt = sagaRepository.findByBookingId(bookingId);
             if (sagaOpt.isEmpty()) {
                 log.warn("No saga found for booking: {}", bookingId);
                 return;
             }
-            
+
             BookingSagaInstance saga = sagaOpt.get();
-            
+
             switch (eventType) {
                 case "PaymentProcessed":
                     handlePaymentProcessed(saga);
                     break;
                 case "PaymentFailed":
-                    handlePaymentFailed(saga, event);
+                    handlePaymentFailed(saga, payload);
                     break;
                 default:
                     log.debug("Unhandled payment event: {}", eventType);
             }
-            
+
         } catch (Exception e) {
             log.error("Error processing payment event: {}", message, e);
         }
@@ -243,10 +271,10 @@ public class BookingSagaOrchestrator {
         }
     }
     
-    private void handleFlightReservationFailed(BookingSagaInstance saga, JsonNode event) {
+    private void handleFlightReservationFailed(BookingSagaInstance saga, JsonNode payload) {
         log.error("Flight reservation failed for saga: {}", saga.getSagaId());
-        
-        String reason = event.has("reason") ? event.get("reason").asText() : "Unknown error";
+
+        String reason = payload.has("errorMessage") ? payload.get("errorMessage").asText() : "Unknown error";
         startCompensation(saga, "Flight reservation failed: " + reason);
     }
     
@@ -260,14 +288,14 @@ public class BookingSagaOrchestrator {
         publishPaymentCommand(saga);
     }
     
-    private void handleHotelReservationFailed(BookingSagaInstance saga, JsonNode event) {
+    private void handleHotelReservationFailed(BookingSagaInstance saga, JsonNode payload) {
         log.error("Hotel reservation failed for saga: {}", saga.getSagaId());
-        
-        String reason = event.has("reason") ? event.get("reason").asText() : "Unknown error";
+
+        String reason = payload.has("errorMessage") ? payload.get("errorMessage").asText() : "Unknown error";
         saga.startCompensation("Hotel reservation failed: " + reason);
         saga.setCurrentState(SagaState.COMPENSATION_FLIGHT_CANCEL);
         sagaRepository.save(saga);
-        
+
         publishFlightCancellationCommand(saga);
     }
     
@@ -285,14 +313,14 @@ public class BookingSagaOrchestrator {
         completeBookingEntity(saga);
     }
     
-    private void handlePaymentFailed(BookingSagaInstance saga, JsonNode event) {
+    private void handlePaymentFailed(BookingSagaInstance saga, JsonNode payload) {
         log.error("Payment failed for saga: {}", saga.getSagaId());
-        
-        String reason = event.has("reason") ? event.get("reason").asText() : "Unknown error";
+
+        String reason = payload.has("errorMessage") ? payload.get("errorMessage").asText() : "Unknown error";
         saga.startCompensation("Payment failed: " + reason);
         saga.setCurrentState(SagaState.COMPENSATION_HOTEL_CANCEL);
         sagaRepository.save(saga);
-        
+
         publishHotelCancellationCommand(saga);
     }
     
@@ -429,12 +457,38 @@ public class BookingSagaOrchestrator {
     
     private String createCommandPayload(BookingSagaInstance saga, String action) {
         try {
-            return objectMapper.writeValueAsString(Map.of(
-                "sagaId", saga.getSagaId(),
-                "bookingId", saga.getBookingId(),
-                "action", action,
-                "timestamp", System.currentTimeMillis()
-            ));
+            Map<String, Object> payload = new HashMap<>();
+            payload.put("sagaId", saga.getSagaId());
+            payload.put("bookingId", saga.getBookingId());
+            payload.put("action", action);
+            payload.put("timestamp", System.currentTimeMillis());
+
+            // Include detailed product information from booking
+            Optional<Booking> bookingOpt = bookingRepository.findById(saga.getBookingId());
+            if (bookingOpt.isPresent()) {
+                Booking booking = bookingOpt.get();
+                payload.put("customerId", booking.getUserId());
+                payload.put("bookingType", booking.getBookingType());
+                payload.put("totalAmount", booking.getTotalAmount());
+
+                // Include product details JSON for enhanced processing
+                if (booking.getProductDetailsJson() != null && !booking.getProductDetailsJson().isEmpty()) {
+                    try {
+                        JsonNode productDetails = objectMapper.readTree(booking.getProductDetailsJson());
+
+                        // Add specific details based on action
+                        if (action.equals("RESERVE_FLIGHT")) {
+                            payload.put("flightDetails", productDetails);
+                        } else if (action.equals("RESERVE_HOTEL")) {
+                            payload.put("hotelDetails", productDetails);
+                        }
+                    } catch (Exception e) {
+                        log.warn("Failed to parse product details for saga: {}", saga.getSagaId(), e);
+                    }
+                }
+            }
+
+            return objectMapper.writeValueAsString(payload);
         } catch (JsonProcessingException e) {
             log.error("Error creating command payload", e);
             return "{}";

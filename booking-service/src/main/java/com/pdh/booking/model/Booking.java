@@ -9,6 +9,8 @@ import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 import lombok.NoArgsConstructor;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
 import java.math.BigDecimal;
 import java.time.ZonedDateTime;
@@ -65,4 +67,15 @@ public class Booking extends AbstractAuditEntity {
     
     @Column(name = "compensation_reason", columnDefinition = "TEXT")
     private String compensationReason;
+
+    // Product Details (stored as JSONB - flexible payload based on BookingType)
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "product_details", columnDefinition = "JSONB")
+    private String productDetailsJson;
+
+    @Column(name = "notes", columnDefinition = "TEXT")
+    private String notes;
+
+    @Column(name = "booking_source", length = 50)
+    private String bookingSource;
 }

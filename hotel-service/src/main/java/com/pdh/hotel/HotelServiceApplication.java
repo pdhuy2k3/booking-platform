@@ -9,10 +9,11 @@ import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
 
 import java.util.TimeZone;
 
-@SpringBootApplication
+@SpringBootApplication(scanBasePackages = { "com.pdh.hotel" })
 @EnableDiscoveryClient
-@EnableJpaRepositories(basePackages = {"com.pdh.hotel", "com.pdh.common"})
-@EntityScan(basePackages = {"com.pdh.hotel", "com.pdh.common"})
+@EnableJpaRepositories(basePackages = {"com.pdh.hotel"})
+@EntityScan(basePackages = {"com.pdh.hotel"})
+
 @Slf4j
 public class HotelServiceApplication {
 

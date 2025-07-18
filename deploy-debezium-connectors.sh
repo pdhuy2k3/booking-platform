@@ -61,6 +61,7 @@ main() {
     deploy_connector "$DEBEZIUM_DIR/flight-db-connector.json"
     deploy_connector "$DEBEZIUM_DIR/hotel-db-connector.json"
     deploy_connector "$DEBEZIUM_DIR/payment-db-connector.json"
+    deploy_connector "$DEBEZIUM_DIR/notification-db-connector.json"
     
     echo "========================================"
     echo "🎉 All connectors deployed successfully!"

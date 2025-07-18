@@ -1,6 +1,8 @@
 package com.pdh.flight.repository;
 
 import com.pdh.flight.model.Airport;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.stereotype.Repository;
@@ -20,6 +22,13 @@ public interface AirportRepository extends JpaRepository<Airport, Long> {
      * @return Optional containing the airport if found
      */
     Optional<Airport> findByIataCodeIgnoreCase(String iataCode);
+
+    /**
+     * Find airport by IATA code (exact match)
+     * @param iataCode the IATA code
+     * @return Optional containing the airport if found
+     */
+    Optional<Airport> findByIataCode(String iataCode);
 
     /**
      * Find all active airports (not deleted)
@@ -55,4 +64,15 @@ public interface AirportRepository extends JpaRepository<Airport, Long> {
      * @return true if exists, false otherwise
      */
     boolean existsByIataCodeIgnoreCase(String iataCode);
+
+    /**
+     * Search airports by name, IATA code, or city (for autocomplete)
+     * @param name search term for name
+     * @param iataCode search term for IATA code
+     * @param city search term for city
+     * @param pageable pagination information
+     * @return Page of matching airports
+     */
+    Page<Airport> findByNameContainingIgnoreCaseOrIataCodeContainingIgnoreCaseOrCityContainingIgnoreCase(
+        String name, String iataCode, String city, Pageable pageable);
 }
