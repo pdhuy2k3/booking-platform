@@ -18,7 +18,9 @@ spring:
 #           time_zone: UTC
 
 server:
-  port: 8087
+  port: 8089
+  servlet:
+    context-path: /media
 
 eureka:
   client:

@@ -91,6 +91,14 @@ public interface PaymentStrategy {
      * @return maximum days for refund, -1 if no limit
      */
     int getMaxRefundWindowDays();
+
+    /**
+     * Check if strategy supports status checking
+     * @return true if status checking is supported
+     */
+    default boolean supportsStatusCheck() {
+        return true;
+    }
     
     /**
      * Validation result class

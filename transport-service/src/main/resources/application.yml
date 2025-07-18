@@ -21,7 +21,9 @@ spring:
     enabled: true
 
 server:
-  port: 8086
+  port: 8088
+  servlet:
+    context-path: /transports
 
 eureka:
   client:

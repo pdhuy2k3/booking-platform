@@ -3,10 +3,12 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { CalendarDays, MapPin, Plane, Hotel, Users, Star, Clock, Shield } from "lucide-react"
+import { CalendarDays, MapPin, Plane, Hotel, Users, Star, Clock, Shield, Database, TestTube, User } from "lucide-react"
 import { ChatBot } from "@/components/chat-bot"
 import { Header } from "@/components/header"
 import { Footer } from "@/components/footer"
+import { AuthStatus } from "@/components/auth-status"
+import Link from "next/link"
 
 export default function HomePage() {
   return (
@@ -72,9 +74,11 @@ export default function HomePage() {
                       </div>
                     </div>
                   </div>
-                  <Button className="w-full bg-blue-600 hover:bg-blue-700" size="lg">
-                    <Plane className="w-4 h-4 mr-2" />
-                    Tìm chuyến bay
+                  <Button className="w-full bg-blue-600 hover:bg-blue-700" size="lg" asChild>
+                    <a href="/booking">
+                      <Plane className="w-4 h-4 mr-2" />
+                      Tìm chuyến bay
+                    </a>
                   </Button>
                 </TabsContent>
 
@@ -109,9 +113,11 @@ export default function HomePage() {
                       </div>
                     </div>
                   </div>
-                  <Button className="w-full bg-blue-600 hover:bg-blue-700" size="lg">
-                    <Hotel className="w-4 h-4 mr-2" />
-                    Tìm khách sạn
+                  <Button className="w-full bg-blue-600 hover:bg-blue-700" size="lg" asChild>
+                    <a href="/booking">
+                      <Hotel className="w-4 h-4 mr-2" />
+                      Tìm khách sạn
+                    </a>
                   </Button>
                 </TabsContent>
               </Tabs>
@@ -207,6 +213,103 @@ export default function HomePage() {
           </div>
         </div>
       </section>
+
+      {/* Development Section - Real Data Integration */}
+      {process.env.NODE_ENV === 'development' && (
+        <section className="py-16 px-4 bg-gray-50">
+          <div className="max-w-7xl mx-auto">
+            <div className="text-center mb-8">
+              <h2 className="text-3xl font-bold text-gray-900 mb-4">Development & Testing</h2>
+              <p className="text-gray-600">
+                Real database integration testing and API examples
+              </p>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              <Card className="hover:shadow-lg transition-shadow">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <User className="h-5 w-5 text-purple-600" />
+                    Authentication Test
+                  </CardTitle>
+                  <CardDescription>
+                    Test authentication flow and user profile integration
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <p className="text-sm text-gray-600 mb-4">
+                    Test the authentication flow with Keycloak and user profile fetching from customer-service.
+                  </p>
+                  <Link href="/test/auth">
+                    <Button className="w-full">
+                      <User className="mr-2 h-4 w-4" />
+                      Test Authentication
+                    </Button>
+                  </Link>
+                </CardContent>
+              </Card>
+
+              <Card className="hover:shadow-lg transition-shadow">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Database className="h-5 w-5 text-blue-600" />
+                    Real Data Integration Test
+                  </CardTitle>
+                  <CardDescription>
+                    Test connection to flight_db and hotel_db PostgreSQL databases
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <p className="text-sm text-gray-600 mb-4">
+                    Verify that the application is successfully connecting to and retrieving data from the real PostgreSQL databases.
+                  </p>
+                  <Link href="/test/real-data">
+                    <Button className="w-full">
+                      <TestTube className="mr-2 h-4 w-4" />
+                      Run Database Tests
+                    </Button>
+                  </Link>
+                </CardContent>
+              </Card>
+
+              <Card className="hover:shadow-lg transition-shadow">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <TestTube className="h-5 w-5 text-green-600" />
+                    API Usage Examples
+                  </CardTitle>
+                  <CardDescription>
+                    Interactive examples of all API endpoints with real data
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <p className="text-sm text-gray-600 mb-4">
+                    Explore and test all available API endpoints including flight search, hotel booking, and payment processing.
+                  </p>
+                  <Link href="/examples/api-usage">
+                    <Button variant="outline" className="w-full">
+                      <Plane className="mr-2 h-4 w-4" />
+                      View API Examples
+                    </Button>
+                  </Link>
+                </CardContent>
+              </Card>
+            </div>
+
+            <div className="mt-8 p-4 bg-green-50 border border-green-200 rounded-lg">
+              <div className="flex items-center gap-2 mb-2">
+                <Database className="h-5 w-5 text-green-600" />
+                <h3 className="font-semibold text-green-800">Real Database Status</h3>
+              </div>
+              <p className="text-green-700 text-sm">
+                ✅ Connected to <strong>flight_db</strong> and <strong>hotel_db</strong> PostgreSQL databases<br/>
+                ✅ Using production API services instead of mock data<br/>
+                ✅ BFF routing configured at <code className="bg-green-100 px-1 rounded">http://storefront</code>
+              </p>
+            </div>
+          </div>
+        </section>
+      )}
 
       <Footer />
       <ChatBot />

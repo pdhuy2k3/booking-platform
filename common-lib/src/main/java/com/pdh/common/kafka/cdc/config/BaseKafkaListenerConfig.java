@@ -11,7 +11,6 @@ import java.util.Map;
 
 /**
  * Base configuration class for setting up Kafka consumers with typed deserialization.
- * Tham khảo từ YAS project
  */
 public abstract class BaseKafkaListenerConfig<K, V> {
 

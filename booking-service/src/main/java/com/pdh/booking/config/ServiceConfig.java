@@ -1,23 +1,21 @@
 package com.pdh.booking.config;
 
-import com.pdh.booking.service.*;
-import com.pdh.booking.service.impl.*;
+// No imports needed - using event-driven architecture
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
 /**
  * Configuration for service implementations
- * Only Payment Service uses mock by default (not integrated with real payment gateway yet)
+ * Payment Service now uses real payment-service integration
  * Flight and Hotel services use real implementations with crawled data
- * 
- * Note: Other services are auto-configured using @Service annotation
+ *
+ * Note: Services are auto-configured using @Service annotation with @Profile
+ * - PaymentServiceImpl: @Profile("!docker") - for development/local
+ * - PaymentServiceMockImpl: @Profile("docker") - for docker deployment
  */
 @Configuration
 public class ServiceConfig {
 
-    // Payment Service - MOCK only (no real payment gateway integration yet)
-    @Bean
-    public PaymentService paymentService() {
-        return new PaymentServiceMockImpl();
-    }
+    // Payment Service configuration is now handled by @Profile annotations
+    // No explicit bean configuration needed
 }
