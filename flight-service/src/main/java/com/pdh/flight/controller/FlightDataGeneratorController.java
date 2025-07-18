@@ -13,7 +13,7 @@ import java.util.Map;
  * Controller for managing flight data generation for demo purposes
  */
 @RestController
-@RequestMapping("/api/v1/flight-data-generator")
+@RequestMapping("/backoffice/flight-data-generator")
 public class FlightDataGeneratorController {
 
     @Autowired

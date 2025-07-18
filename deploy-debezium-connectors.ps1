@@ -126,12 +126,13 @@ function Main {
     
     Write-Host "🔧 Pre-deployment checks..." -ForegroundColor Yellow
     
-    # Check database connections and required tables
+    # Check database connections and required tables (updated for service-specific outbox tables)
     $DatabaseChecks = @(
-        @{ Database = "booking_db"; Table = "outbox_events" },
-        @{ Database = "flight_db"; Table = "outbox_events" },
-        @{ Database = "hotel_db"; Table = "outbox_events" },
-        @{ Database = "payment_db"; Table = "outbox_events" }
+        @{ Database = "booking_db"; Table = "booking_outbox_events" },
+        @{ Database = "flight_db"; Table = "flight_outbox_events" },
+        @{ Database = "hotel_db"; Table = "hotel_outbox_events" },
+        @{ Database = "payment_db"; Table = "payment_outbox_events" },
+        @{ Database = "notification_db"; Table = "notification_outbox_events" }
     )
     
     $AllDatabasesReady = $true
@@ -154,6 +155,7 @@ function Main {
     $Success = $Success -and (Deploy-Connector "$DEBEZIUM_DIR\flight-db-connector.json")
     $Success = $Success -and (Deploy-Connector "$DEBEZIUM_DIR\hotel-db-connector.json")
     $Success = $Success -and (Deploy-Connector "$DEBEZIUM_DIR\payment-db-connector.json")
+    $Success = $Success -and (Deploy-Connector "$DEBEZIUM_DIR\notification-db-connector.json")
     
     if ($Success) {
         Write-Host "========================================"

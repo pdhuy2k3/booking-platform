@@ -1,81 +1,28 @@
 package com.pdh.payment.model;
 
-import com.pdh.common.model.AbstractAuditEntity;
+import com.pdh.common.outbox.ExtendedOutboxEvent;
 import jakarta.persistence.*;
-import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
-import lombok.NoArgsConstructor;
 
 import java.time.ZonedDateTime;
 import java.util.UUID;
 
 /**
  * Payment Outbox Event Entity
+ * Extends the shared ExtendedOutboxEvent with payment-specific functionality
  * Implements Outbox Pattern for reliable event publishing
  */
 @Entity
 @Table(name = "payment_outbox_events")
 @Data
-@EqualsAndHashCode(callSuper = false)
-@NoArgsConstructor
-@AllArgsConstructor
-public class PaymentOutboxEvent extends AbstractAuditEntity {
-    
-    @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Long id;
-    
-    @Column(name = "event_id", nullable = false, unique = true)
-    private String eventId = UUID.randomUUID().toString();
-    
-    @Column(name = "event_type", nullable = false, length = 100)
-    private String eventType;
-    
-    @Column(name = "aggregate_id", nullable = false)
-    private String aggregateId; // Payment ID
-    
-    @Column(name = "aggregate_type", nullable = false, length = 50)
-    private String aggregateType = "Payment";
-    
-    @Column(name = "saga_id")
-    private String sagaId;
-    
-    @Column(name = "booking_id")
-    private UUID bookingId;
-    
-    @Column(name = "user_id")
-    private UUID userId;
-    
-    @Column(name = "payload", columnDefinition = "TEXT", nullable = false)
-    private String payload; // JSON format
-    
-    @Column(name = "headers", columnDefinition = "TEXT")
-    private String headers; // JSON format for additional headers
-    
-    @Column(name = "processed", nullable = false)
-    private Boolean processed = false;
-    
-    @Column(name = "processed_at")
-    private ZonedDateTime processedAt;
-    
-    @Column(name = "retry_count", nullable = false)
-    private Integer retryCount = 0;
-    
-    @Column(name = "max_retries", nullable = false)
-    private Integer maxRetries = 3;
-    
-    @Column(name = "next_retry_at")
-    private ZonedDateTime nextRetryAt;
-    
+@EqualsAndHashCode(callSuper = true)
+public class PaymentOutboxEvent extends ExtendedOutboxEvent {
+    // All basic fields are inherited from ExtendedOutboxEvent
+    // Only payment-specific additional fields are defined here
+
     @Column(name = "last_error", columnDefinition = "TEXT")
     private String lastError;
-    
-    @Column(name = "topic", length = 100)
-    private String topic; // Kafka topic
-    
-    @Column(name = "partition_key", length = 100)
-    private String partitionKey;
     
     @Column(name = "priority", nullable = false)
     private Integer priority = 5; // 1-10, 1 is highest priority
@@ -170,56 +117,62 @@ public class PaymentOutboxEvent extends AbstractAuditEntity {
     }
     
     /**
-     * Mark as processed
+     * Mark as processed (delegates to parent class)
      */
+    @Override
     public void markAsProcessed() {
-        this.processed = true;
-        this.processedAt = ZonedDateTime.now();
+        super.markAsProcessed();
     }
-    
+
     /**
-     * Mark as failed and schedule retry
+     * Mark as failed and schedule retry (uses parent class method and adds lastError)
      */
     public void markAsFailedAndScheduleRetry(String error) {
         this.lastError = error;
-        this.retryCount++;
-        
-        if (this.retryCount <= this.maxRetries) {
-            // Exponential backoff: 1, 2, 4, 8 minutes
-            long delayMinutes = (long) Math.pow(2, this.retryCount - 1);
-            this.nextRetryAt = ZonedDateTime.now().plusMinutes(delayMinutes);
-        }
+        super.markAsFailed(error);
     }
-    
+
     /**
-     * Check if event can be retried
+     * Check if event can be retried (delegates to parent class)
      */
     public boolean canBeRetried() {
-        return !processed && 
-               retryCount < maxRetries && 
-               (nextRetryAt == null || ZonedDateTime.now().isAfter(nextRetryAt)) &&
-               (expiresAt == null || ZonedDateTime.now().isBefore(expiresAt));
+        return super.canRetry() && !hasExpired();
     }
-    
+
     /**
-     * Check if event has expired
+     * Check if event has expired (delegates to parent class)
      */
     public boolean hasExpired() {
-        return expiresAt != null && ZonedDateTime.now().isAfter(expiresAt);
+        return super.isExpired();
     }
     
     /**
-     * Check if event has exceeded max retries
+     * Check if event has exceeded max retries (delegates to parent class)
      */
     public boolean hasExceededMaxRetries() {
-        return retryCount >= maxRetries;
+        return super.hasReachedMaxRetries();
     }
-    
+
     /**
      * Get retry delay in minutes
      */
     public long getRetryDelayMinutes() {
-        if (nextRetryAt == null) return 0;
-        return java.time.Duration.between(ZonedDateTime.now(), nextRetryAt).toMinutes();
+        if (getNextRetryAt() == null) return 0;
+        return java.time.Duration.between(
+            java.time.LocalDateTime.now(),
+            getNextRetryAt()
+        ).toMinutes();
+    }
+
+    /**
+     * Create simple payment event for generic outbox service
+     */
+    public static PaymentOutboxEvent createPaymentEvent(String eventType, String aggregateType, String aggregateId, String payload) {
+        PaymentOutboxEvent event = new PaymentOutboxEvent();
+        event.setEventType(eventType);
+        event.setAggregateType(aggregateType);
+        event.setAggregateId(aggregateId);
+        event.setPayload(payload);
+        return event;
     }
 }

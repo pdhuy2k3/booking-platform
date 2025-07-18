@@ -24,8 +24,7 @@ public class RoomType extends AbstractAuditEntity {
     @Column(name = "room_type_id")
     private Long roomTypeId;
     
-    @Column(name = "hotel_id", nullable = false)
-    private Long hotelId;
+
     
     @Column(name = "name", nullable = false, length = 255)
     private String name;

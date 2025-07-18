@@ -79,11 +79,11 @@ public class PaymentOutboxService {
      */
     @Transactional
     public void processRetryableEvents() {
-        ZonedDateTime now = ZonedDateTime.now();
+        java.time.LocalDateTime now = java.time.LocalDateTime.now();
         List<PaymentOutboxEvent> retryableEvents = outboxEventRepository.findEventsReadyForRetry(now);
-        
+
         log.info("Found {} events ready for retry", retryableEvents.size());
-        
+
         for (PaymentOutboxEvent event : retryableEvents) {
             try {
                 processEvent(event);
@@ -95,29 +95,29 @@ public class PaymentOutboxService {
     }
     
     /**
-     * Clean up old processed events
+     * Clean up old processed events (delegates to shared cleanup service)
      */
     @Transactional
     public void cleanupOldEvents() {
-        ZonedDateTime cutoffDate = ZonedDateTime.now().minusDays(7); // Keep events for 7 days
-        
+        java.time.LocalDateTime cutoffDate = java.time.LocalDateTime.now().minusDays(7);
+
         try {
-            outboxEventRepository.deleteProcessedEventsOlderThan(cutoffDate);
+            outboxEventRepository.deleteByProcessedTrueAndCreatedAtBefore(cutoffDate);
             log.info("Cleaned up processed events older than {}", cutoffDate);
         } catch (Exception e) {
             log.error("Failed to cleanup old events", e);
         }
     }
-    
+
     /**
-     * Clean up expired events
+     * Clean up expired events (delegates to shared cleanup service)
      */
     @Transactional
     public void cleanupExpiredEvents() {
         ZonedDateTime now = ZonedDateTime.now();
-        
+
         try {
-            outboxEventRepository.deleteExpiredEvents(now);
+            outboxEventRepository.deleteExpiredEventsBefore(now);
             log.info("Cleaned up expired events");
         } catch (Exception e) {
             log.error("Failed to cleanup expired events", e);
@@ -125,13 +125,13 @@ public class PaymentOutboxService {
     }
     
     /**
-     * Get processing statistics
+     * Get processing statistics (delegates to shared methods)
      */
     @Transactional(readOnly = true)
     public OutboxStatistics getStatistics() {
-        long unprocessedCount = outboxEventRepository.countByProcessedFalse();
+        long unprocessedCount = outboxEventRepository.countUnprocessedEvents();
         long failedCount = outboxEventRepository.countFailedEvents();
-        
+
         return new OutboxStatistics(unprocessedCount, failedCount);
     }
     

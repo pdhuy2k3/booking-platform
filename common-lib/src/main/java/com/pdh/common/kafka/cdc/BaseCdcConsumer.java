@@ -4,7 +4,7 @@ import com.pdh.common.kafka.cdc.message.Operation;
 import lombok.extern.slf4j.Slf4j;
 
 /**
- * Base CDC Consumer theo mẫu YAS
+ * Base CDC Consumer
  */
 @Slf4j
 public abstract class BaseCdcConsumer<K, V> {

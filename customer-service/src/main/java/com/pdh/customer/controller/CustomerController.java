@@ -20,7 +20,6 @@ public class CustomerController {
 
     // BACKOFFICE ADMIN ENDPOINTS
     @GetMapping("/backoffice/admin/customers")
-    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<CustomerListVm> getCustomers(
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "10") int size) {
@@ -29,28 +28,24 @@ public class CustomerController {
     }
 
     @GetMapping("/backoffice/admin/customers/{id}")
-    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<CustomerAdminVm> getCustomerById(@PathVariable String id) {
         CustomerAdminVm customer = customerService.getCustomerById(id);
         return ResponseEntity.ok(customer);
     }
 
     @GetMapping("/backoffice/admin/customers/search")
-    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<CustomerAdminVm> getCustomerByEmail(@RequestParam String email) {
         CustomerAdminVm customer = customerService.getCustomerByEmail(email);
         return ResponseEntity.ok(customer);
     }
 
     @PostMapping("/backoffice/admin/customers")
-    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<CustomerVm> createCustomer(@Valid @RequestBody CustomerPostVm customerPostVm) {
         CustomerVm customer = customerService.create(customerPostVm);
         return ResponseEntity.status(HttpStatus.CREATED).body(customer);
     }
 
     @PutMapping("/backoffice/admin/customers/{id}")
-    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<Void> updateCustomer(
             @PathVariable String id,
             @Valid @RequestBody CustomerProfileRequestVm customerProfileRequestVm) {
@@ -59,7 +54,6 @@ public class CustomerController {
     }
 
     @DeleteMapping("/backoffice/admin/customers/{id}")
-    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<Void> deleteCustomer(@PathVariable String id) {
         customerService.deleteCustomer(id);
         return ResponseEntity.noContent().build();
@@ -67,7 +61,6 @@ public class CustomerController {
 
     // BACKOFFICE PARTNER ENDPOINTS
     @GetMapping("/backoffice/partner/customers")
-    @PreAuthorize("hasRole('PARTNER')")
     public ResponseEntity<CustomerListVm> getCustomersForPartner(
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "10") int size) {
@@ -77,7 +70,6 @@ public class CustomerController {
 
     // STOREFRONT ENDPOINTS
     @GetMapping("/storefront/profile")
-    @PreAuthorize("hasRole('CUSTOMER')")
     public ResponseEntity<CustomerVm> getCustomerProfile() {
         String userId = AuthenticationUtils.extractUserId();
         CustomerVm customer = customerService.getCustomerProfile(userId);
@@ -85,7 +77,6 @@ public class CustomerController {
     }
 
     @PutMapping("/storefront/profile")
-    @PreAuthorize("hasRole('CUSTOMER')")
     public ResponseEntity<Void> updateCustomerProfile(@Valid @RequestBody CustomerProfileRequestVm customerProfileRequestVm) {
         String userId = AuthenticationUtils.extractUserId();
         customerService.updateCustomer(userId, customerProfileRequestVm);

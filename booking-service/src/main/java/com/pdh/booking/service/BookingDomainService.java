@@ -7,7 +7,7 @@ import com.pdh.common.event.booking.BookingInitiatedEvent;
 import com.pdh.common.event.booking.BookingConfirmedEvent;
 import com.pdh.common.event.booking.BookingCancelledEvent;
 import com.pdh.common.event.booking.BookingFailedEvent;
-import com.pdh.booking.outbox.OutboxEventPublisher;
+import com.pdh.common.outbox.service.OutboxEventService;
 import com.pdh.common.saga.SagaState;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -27,7 +27,7 @@ import java.util.UUID;
 public class BookingDomainService {
 
     private final BookingRepository bookingRepository;
-    private final OutboxEventPublisher outboxEventPublisher;
+    private final OutboxEventService outboxEventPublisher;
 
     /**
      * Create a new booking and publish BookingInitiatedEvent
@@ -55,7 +55,7 @@ public class BookingDomainService {
                 .timestamp(ZonedDateTime.now())
                 .build();
         
-        outboxEventPublisher.publishEvent(event, savedBooking.getBookingId().toString());
+        outboxEventPublisher.publishEvent("BookingInitiated", "Booking", savedBooking.getBookingId().toString(), event);
         
         log.info("Booking created and BookingInitiatedEvent published for booking: {}", savedBooking.getBookingReference());
         return savedBooking;
@@ -167,7 +167,7 @@ public class BookingDomainService {
                 .timestamp(ZonedDateTime.now())
                 .build();
         
-        outboxEventPublisher.publishEvent(event, savedBooking.getBookingId().toString());
+        outboxEventPublisher.publishEvent("BookingConfirmed", "Booking", savedBooking.getBookingId().toString(), event);
         
         log.info("Booking {} confirmed with confirmation number: {}", booking.getBookingReference(), confirmationNumber);
         return Optional.of(savedBooking);
@@ -187,7 +187,7 @@ public class BookingDomainService {
                         .confirmationNumber(booking.getConfirmationNumber())
                         .timestamp(ZonedDateTime.now())
                         .build();
-                outboxEventPublisher.publishEvent(confirmedEvent, booking.getBookingId().toString());
+                outboxEventPublisher.publishEvent("BookingConfirmed", "Booking", booking.getBookingId().toString(), confirmedEvent);
             }
             
             case CANCELLED -> {
@@ -199,7 +199,7 @@ public class BookingDomainService {
                         .cancellationReason(reason != null ? reason : booking.getCancellationReason())
                         .timestamp(ZonedDateTime.now())
                         .build();
-                outboxEventPublisher.publishEvent(cancelledEvent, booking.getBookingId().toString());
+                outboxEventPublisher.publishEvent("BookingCancelled", "Booking", booking.getBookingId().toString(), cancelledEvent);
             }
             
             case FAILED -> {
@@ -211,7 +211,7 @@ public class BookingDomainService {
                         .failureReason(reason != null ? reason : "Booking processing failed")
                         .timestamp(ZonedDateTime.now())
                         .build();
-                outboxEventPublisher.publishEvent(failedEvent, booking.getBookingId().toString());
+                outboxEventPublisher.publishEvent("BookingFailed", "Booking", booking.getBookingId().toString(), failedEvent);
             }
             
             default -> {

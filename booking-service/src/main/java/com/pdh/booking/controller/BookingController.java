@@ -1,46 +1,46 @@
 package com.pdh.booking.controller;
 
+import com.pdh.booking.dto.request.CreateBookingRequestDto;
+import com.pdh.booking.dto.request.StorefrontCreateBookingRequestDto;
+import com.pdh.booking.dto.response.BookingResponseDto;
+import com.pdh.booking.dto.response.StorefrontBookingResponseDto;
+import com.pdh.booking.mapper.BookingDtoMapper;
 import com.pdh.booking.model.Booking;
 import com.pdh.booking.service.BookingSagaService;
+import com.pdh.common.utils.AuthenticationUtils;
+
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import jakarta.validation.Valid;
+
 @RestController
-@RequestMapping("/bookings") // Remove /api/v1 prefix as it's handled by gateway
 @RequiredArgsConstructor
 @Slf4j
 public class BookingController {
 
     private final BookingSagaService bookingSagaService;
+    private final BookingDtoMapper bookingDtoMapper;
 
     /**
-     * Create a new booking and start saga
+     * Create a new booking and start saga (Backoffice/Admin)
      */
-    @PostMapping
-    public ResponseEntity<BookingResponse> createBooking(@RequestBody CreateBookingRequest request) {
+    @PostMapping("/backoffice")
+    public ResponseEntity<BookingResponseDto> createBooking(@Valid @RequestBody CreateBookingRequestDto request) {
         try {
             log.info("Creating booking with type: {}", request.getBookingType());
 
-            // Create booking entity
-            Booking booking = new Booking();
+            // Convert DTO to entity
+            Booking booking = bookingDtoMapper.toEntity(request);
             booking.setBookingReference(generateBookingReference());
-            booking.setUserId(request.getUserId());
-            booking.setTotalAmount(request.getTotalAmount());
-            booking.setCurrency(request.getCurrency());
-            booking.setBookingType(request.getBookingType());
 
             // Start saga
             Booking createdBooking = bookingSagaService.startBookingSaga(booking);
 
-            BookingResponse response = BookingResponse.builder()
-                    .bookingId(createdBooking.getBookingId())
-                    .bookingReference(createdBooking.getBookingReference())
-                    .sagaId(createdBooking.getSagaId())
-                    .status(createdBooking.getStatus())
-                    .sagaState(createdBooking.getSagaState())
-                    .build();
+            // Convert entity to response DTO
+            BookingResponseDto response = bookingDtoMapper.toResponseDto(createdBooking);
 
             return ResponseEntity.ok(response);
 
@@ -51,20 +51,53 @@ public class BookingController {
     }
 
     /**
-     * Get booking by saga ID
+     * Get booking by saga ID (Backoffice/Admin)
      */
     @GetMapping("/saga/{sagaId}")
-    public ResponseEntity<BookingResponse> getBookingBySagaId(@PathVariable String sagaId) {
+    public ResponseEntity<BookingResponseDto> getBookingBySagaId(@PathVariable String sagaId) {
         return bookingSagaService.findBySagaId(sagaId)
                 .map(booking -> {
-                    BookingResponse response = BookingResponse.builder()
-                            .bookingId(booking.getBookingId())
-                            .bookingReference(booking.getBookingReference())
-                            .sagaId(booking.getSagaId())
-                            .status(booking.getStatus())
-                            .sagaState(booking.getSagaState())
-                            .confirmationNumber(booking.getConfirmationNumber())
-                            .build();
+                    BookingResponseDto response = bookingDtoMapper.toResponseDto(booking);
+                    return ResponseEntity.ok(response);
+                })
+                .orElse(ResponseEntity.notFound().build());
+    }
+
+    // === STOREFRONT ENDPOINTS ===
+
+    /**
+     * Create a new booking and start saga (Storefront)
+     */
+    @PostMapping("/storefront")
+    public ResponseEntity<StorefrontBookingResponseDto> createStorefrontBooking(@Valid @RequestBody StorefrontCreateBookingRequestDto request) {
+        try {
+            log.info("Creating storefront booking with type: {}", request.getBookingType());
+            // Convert DTO to entity
+            Booking booking = bookingDtoMapper.toEntity(request);
+            booking.setBookingReference(generateBookingReference());
+
+            // Start saga
+            Booking createdBooking = bookingSagaService.startBookingSaga(booking);
+
+            // Convert entity to response DTO
+            StorefrontBookingResponseDto response = bookingDtoMapper.toStorefrontResponseDto(createdBooking);
+
+            return ResponseEntity.ok(response);
+
+        } catch (Exception e) {
+            log.error("Error creating storefront booking", e);
+            return ResponseEntity.internalServerError().build();
+        }
+    }
+
+    /**
+     * Get booking by saga ID (Storefront)
+     */
+    @GetMapping("/storefront/saga/{sagaId}")
+    public ResponseEntity<StorefrontBookingResponseDto> getStorefrontBookingBySagaId(@PathVariable String sagaId) {
+        return bookingSagaService.findBySagaId(sagaId)
+                .map(booking -> {
+                    StorefrontBookingResponseDto response = bookingDtoMapper.toStorefrontResponseDto(booking);
                     return ResponseEntity.ok(response);
                 })
                 .orElse(ResponseEntity.notFound().build());
@@ -74,29 +107,4 @@ public class BookingController {
         return "BK" + System.currentTimeMillis();
     }
 
-    // DTOs
-    @lombok.Data
-    @lombok.NoArgsConstructor
-    @lombok.AllArgsConstructor
-    public static class CreateBookingRequest {
-        private java.util.UUID userId;
-        private com.pdh.booking.model.enums.BookingType bookingType;
-        private java.math.BigDecimal totalAmount;
-        private String currency = "VND";
-    }
-
-    @lombok.Data
-    @lombok.Builder
-    @lombok.NoArgsConstructor
-    @lombok.AllArgsConstructor
-    public static class BookingResponse {
-        private java.util.UUID bookingId;
-        private String bookingReference;
-        private String sagaId;
-        private com.pdh.booking.model.enums.BookingStatus status;
-        private com.pdh.common.saga.SagaState sagaState;
-        private String confirmationNumber;
-    }
-
-    // ... existing code ...
 }

@@ -33,47 +33,24 @@ spring:
   cloud:
     gateway:
       routes:
-        # FLIGHT SERVICE
-        - id: flight-service
-          uri: lb://FLIGHT-SERVICE
+        - id: api
+          uri: http://api.bookingsmart.local
           predicates:
-            - Path=/api/flight-service/**
+            - Path=/api/**
           filters:
+            - RewritePath=/api/(?<segment>.*), /$\{segment}
             - TokenRelay=
-            - RewritePath=/api/flight-service/(?<segment>.*), /${segment}
-        # BOOKING SERVICE
-        - id: booking-service
-          uri: lb://BOOKING-SERVICE
-          predicates:
-            - Path=/api/booking-service/**
-          filters:
-            - TokenRelay=
-            - RewritePath=/api/booking-service/(?<segment>.*), /${segment}
-        # HOTEL SERVICE
-        - id: hotel-service
-          uri: lb://HOTEL-SERVICE
-          predicates:
-            - Path=/api/hotel-service/**
-          filters:
-            - TokenRelay=
-            - RewritePath=/api/hotel-service/(?<segment>.*), /${segment}
-        # CUSTOMER SERVICE
-        - id: customer-service
-          uri: lb://CUSTOMER-SERVICE
-          predicates:
-            - Path=/api/customer-service/**
-          filters:
-            - TokenRelay=
-            - RewritePath=/api/customer-service/(?<segment>.*), /${segment}
-
+        # Administrative routes
         - id: eureka-web-start
           uri: lb://DISCOVERY-SERVICE
           predicates:
             - Path=/eureka/web
           filters:
             - StripPrefix=2
-        - id: netxjs
-          uri: http://localhost:3000
+        
+        # Default frontend route (lowest priority)
+        - id: frontend-fallback
+          uri: http://localhost:3001
           predicates:
             - Path=/**
       default-filters:
@@ -99,7 +76,7 @@ spring:
           api-client:
             client-name: Backoffice
             client-id: backoffice-bff
-            client-secret: qhW4NC8pgPLdJDTd57sry5ON1fHK1d8i
+            client-secret: ${KEYCLOAK_CLIENT_SECRET_BACKOFFICE_BFF}
             scope: profile, email, openid, roles
             provider: keycloak
         provider:
@@ -108,47 +85,52 @@ spring:
   cloud:
     gateway:
       routes:
-        # FLIGHT SERVICE
         - id: flight-service
           uri: lb://FLIGHT-SERVICE
           predicates:
-            - Path=/api/flight-service/**
+            - Path=/api/flights/**
           filters:
+            - StripPrefix=1
             - TokenRelay=
-            - RewritePath=/api/flight-service/(?<segment>.*), /${segment}
-        # BOOKING SERVICE
-        - id: booking-service
-          uri: lb://BOOKING-SERVICE
-          predicates:
-            - Path=/api/booking-service/**
-          filters:
-            - TokenRelay=
-            - RewritePath=/api/booking-service/(?<segment>.*), /${segment}
-        # HOTEL SERVICE
         - id: hotel-service
           uri: lb://HOTEL-SERVICE
           predicates:
-            - Path=/api/hotel-service/**
+            - Path=/api/hotels/**
           filters:
+            - StripPrefix=1
             - TokenRelay=
-            - RewritePath=/api/hotel-service/(?<segment>.*), /${segment}
-        # CUSTOMER SERVICE
+        - id: booking-service
+          uri: lb://BOOKING-SERVICE
+          predicates:
+            - Path=/api/bookings/**
+          filters:
+            - StripPrefix=1
+            - TokenRelay=
         - id: customer-service
           uri: lb://CUSTOMER-SERVICE
           predicates:
-            - Path=/api/customer-service/**
+            - Path=/api/customers/**
           filters:
+            - StripPrefix=1
             - TokenRelay=
-            - RewritePath=/api/customer-service/(?<segment>.*), /${segment}
-
-        - id: eureka-web-start
-          uri: lb://DISCOVERY-SERVICE
+        - id: payment-service
+          uri: lb://PAYMENT-SERVICE
           predicates:
-            - Path=/eureka/web
+            - Path=/api/payments/**
           filters:
-            - StripPrefix=2
-        - id: netxjs
-          uri: http://localhost:3000
+            - StripPrefix=1
+            - TokenRelay=
+        - id: notification-service
+          uri: lb://NOTIFICATION-SERVICE
+          predicates:
+            - Path=/api/notifications/**
+          filters:
+            - StripPrefix=1
+            - TokenRelay=
+        
+        # Default frontend route (lowest priority)
+        - id: frontend-fallback
+          uri: http://backoffice-fe:3001
           predicates:
             - Path=/**
       default-filters:

@@ -14,12 +14,13 @@ import org.springframework.scheduling.annotation.EnableScheduling;
 
 import java.util.TimeZone;
 
-@SpringBootApplication
+@SpringBootApplication(scanBasePackages = { "com.pdh.booking" })
 @EnableDiscoveryClient
+@EnableJpaRepositories(basePackages = {"com.pdh.booking"})
+@EntityScan(basePackages = {"com.pdh.booking"})
 @EnableConfigurationProperties(ServiceUrlConfig.class)
-@EnableJpaRepositories(basePackages = {"com.pdh.booking.repository", "com.pdh.booking.outbox"})
 @EnableKafka
-//@EntityScan(basePackages = {"com.pdh.booking", "com.pdh.common"})
+
 @Slf4j
 public class BookingServiceApplication {
 
