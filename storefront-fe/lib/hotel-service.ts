@@ -131,6 +131,7 @@ export interface PopularDestination {
 
 export class HotelService {
   // Search hotels with advanced filtering and pagination
+  // Compatible with standardized ApiResponse<T> format - API client handles wrapper automatically
   static async searchHotels(params: HotelSearchParams): Promise<HotelSearchResponse> {
     const queryParams = apiClient.buildQueryParams({
       destination: params.destination,
@@ -159,6 +160,7 @@ export class HotelService {
   }
 
   // Get detailed hotel information
+  // Compatible with standardized ApiResponse<T> format - API client handles wrapper automatically
   static async getHotelDetails(hotelId: string): Promise<HotelDetails> {
     return apiClient.get<HotelDetails>(`/api/hotels/storefront/${hotelId}`)
   }

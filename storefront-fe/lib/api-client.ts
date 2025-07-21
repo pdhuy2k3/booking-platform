@@ -1,11 +1,30 @@
 import axios, { type AxiosInstance, type AxiosRequestConfig, type AxiosResponse } from "axios"
 
+// Standardized API Response interface matching backend ApiResponse<T>
+export interface ApiResponse<T> {
+  success: boolean
+  message: string
+  data: T | null
+  errorCode?: string
+  timestamp: string
+  metadata?: any
+  requestId?: string
+}
+let baseURL: string
+
+if (typeof window !== 'undefined') {
+  // In browser: use current origin (which will be the BFF URL)
+  baseURL = window.location.origin
+} else {
+  // Server-side: use environment variable or fallback
+  baseURL = process.env.NEXT_PUBLIC_BFF_BASE_URL || "https://api-bookingsmart.huypd.dev"
+}
 class ApiClient {
   private client: AxiosInstance
-
+  
   constructor() {
     this.client = axios.create({
-      baseURL: process.env.NEXT_PUBLIC_BFF_BASE_URL || "http://storefront",
+      baseURL: baseURL,
       timeout: 30000,
       headers: {
         "Content-Type": "application/json",
@@ -15,6 +34,22 @@ class ApiClient {
     })
 
     this.setupInterceptors()
+  }
+
+  // Helper method to extract data from standardized API response
+  private extractData<T>(response: ApiResponse<T>): T {
+    if (!response.success) {
+      throw new Error(response.message || 'API request failed')
+    }
+    return response.data as T
+  }
+
+  // Helper method to check if response is in new format
+  private isStandardizedResponse(data: any): data is ApiResponse<any> {
+    return data && typeof data === 'object' &&
+           typeof data.success === 'boolean' &&
+           typeof data.message === 'string' &&
+           'data' in data
   }
 
   private setupInterceptors() {
@@ -53,6 +88,22 @@ class ApiClient {
           console.log(`✅ Real API Response: ${response.status} ${response.config.method?.toUpperCase()} ${response.config.url}`)
           console.log('📥 Real Data:', response.data)
         }
+
+        // Handle standardized API responses
+        if (this.isStandardizedResponse(response.data)) {
+          if (!response.data.success) {
+            // Convert API error to axios error for consistent error handling
+            const error = new Error(response.data.message || 'API request failed')
+            ;(error as any).response = {
+              ...response,
+              data: response.data,
+              status: response.status
+            }
+            ;(error as any).code = response.data.errorCode
+            throw error
+          }
+        }
+
         return response
       },
       (error) => {
@@ -81,28 +132,53 @@ class ApiClient {
   }
 
   async get<T>(url: string, config?: AxiosRequestConfig): Promise<T> {
-    const response: AxiosResponse<T> = await this.client.get(url, config)
-    return response.data
+    const response: AxiosResponse<T | ApiResponse<T>> = await this.client.get(url, config)
+
+    // Handle both old and new response formats for backward compatibility
+    if (this.isStandardizedResponse(response.data)) {
+      return this.extractData(response.data as ApiResponse<T>)
+    }
+    return response.data as T
   }
 
   async post<T>(url: string, data?: any, config?: AxiosRequestConfig): Promise<T> {
-    const response: AxiosResponse<T> = await this.client.post(url, data, config)
-    return response.data
+    const response: AxiosResponse<T | ApiResponse<T>> = await this.client.post(url, data, config)
+
+    // Handle both old and new response formats for backward compatibility
+    if (this.isStandardizedResponse(response.data)) {
+      return this.extractData(response.data as ApiResponse<T>)
+    }
+    return response.data as T
   }
 
   async put<T>(url: string, data?: any, config?: AxiosRequestConfig): Promise<T> {
-    const response: AxiosResponse<T> = await this.client.put(url, data, config)
-    return response.data
+    const response: AxiosResponse<T | ApiResponse<T>> = await this.client.put(url, data, config)
+
+    // Handle both old and new response formats for backward compatibility
+    if (this.isStandardizedResponse(response.data)) {
+      return this.extractData(response.data as ApiResponse<T>)
+    }
+    return response.data as T
   }
 
   async delete<T>(url: string, config?: AxiosRequestConfig): Promise<T> {
-    const response: AxiosResponse<T> = await this.client.delete(url, config)
-    return response.data
+    const response: AxiosResponse<T | ApiResponse<T>> = await this.client.delete(url, config)
+
+    // Handle both old and new response formats for backward compatibility
+    if (this.isStandardizedResponse(response.data)) {
+      return this.extractData(response.data as ApiResponse<T>)
+    }
+    return response.data as T
   }
 
   async patch<T>(url: string, data?: any, config?: AxiosRequestConfig): Promise<T> {
-    const response: AxiosResponse<T> = await this.client.patch(url, data, config)
-    return response.data
+    const response: AxiosResponse<T | ApiResponse<T>> = await this.client.patch(url, data, config)
+
+    // Handle both old and new response formats for backward compatibility
+    if (this.isStandardizedResponse(response.data)) {
+      return this.extractData(response.data as ApiResponse<T>)
+    }
+    return response.data as T
   }
 
   // Utility method for building query parameters

@@ -1,0 +1,3 @@
+org.springframework.boot.autoconfigure.EnableAutoConfiguration=\
+com.pdh.common.config.RedisConfig,\
+com.pdh.common.config.SimpleEventDeduplicationConfig

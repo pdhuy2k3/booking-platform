@@ -198,44 +198,42 @@ export function ConfirmationStep() {
         )}
 
         {/* Payment Details */}
-        {booking?.payment && (
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <CreditCard className="w-5 h-5" />
-                Payment Details
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              <div className="flex justify-between items-center">
-                <span className="text-sm text-gray-600">Payment ID:</span>
-                <span className="font-mono text-sm">{booking.payment.paymentId}</span>
-              </div>
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <CreditCard className="w-5 h-5" />
+              Payment Details
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <div className="flex justify-between items-center">
+              <span className="text-sm text-gray-600">Booking ID:</span>
+              <span className="font-mono text-sm">{booking.bookingId}</span>
+            </div>
 
-              <div className="flex justify-between items-center">
-                <span className="text-sm text-gray-600">Transaction ID:</span>
-                <span className="font-mono text-sm">{booking.payment.transactionId}</span>
-              </div>
+            <div className="flex justify-between items-center">
+              <span className="text-sm text-gray-600">Reference:</span>
+              <span className="font-mono text-sm">{booking.bookingReference}</span>
+            </div>
 
-              <div className="flex justify-between items-center">
-                <span className="text-sm text-gray-600">Status:</span>
-                <Badge className={booking.payment.status === 'COMPLETED' ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'}>
-                  {booking.payment.status}
-                </Badge>
-              </div>
+            <div className="flex justify-between items-center">
+              <span className="text-sm text-gray-600">Status:</span>
+              <Badge className={booking.status === 'CONFIRMED' ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'}>
+                {booking.status}
+              </Badge>
+            </div>
 
-              <div className="flex justify-between items-center">
-                <span className="text-sm text-gray-600">Amount Paid:</span>
-                <span className="font-semibold">{formatPrice(booking.payment.amount, booking.payment.currency)}</span>
-              </div>
+            <div className="flex justify-between items-center">
+              <span className="text-sm text-gray-600">Total Amount:</span>
+              <span className="font-semibold">{formatPrice(booking.totalAmount, booking.currency)}</span>
+            </div>
 
-              <div className="flex justify-between items-center">
-                <span className="text-sm text-gray-600">Payment Date:</span>
-                <span className="text-sm">{new Date(booking.payment.createdAt).toLocaleString()}</span>
-              </div>
-            </CardContent>
-          </Card>
-        )}
+            <div className="flex justify-between items-center">
+              <span className="text-sm text-gray-600">Booking Date:</span>
+              <span className="text-sm">{new Date(booking.createdAt).toLocaleString()}</span>
+            </div>
+          </CardContent>
+        </Card>
       </div>
 
       {/* Passenger Information */}

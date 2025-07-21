@@ -1,7 +1,7 @@
 "use client"
 
 import React, { createContext, useContext, useReducer, ReactNode } from 'react'
-import type { BookingFlowState, BookingStep, BookingType, FlightSearchRequest, HotelSearchRequest, FlightSearchResult, HotelSearchResult, RoomInfo, PassengerInfo } from '@/types/booking'
+import { BookingFlowState, BookingStep, BookingType, FlightSearchRequest, HotelSearchRequest, FlightSearchResult, HotelSearchResult, RoomInfo, PassengerInfo } from '@/types/booking'
 
 // Initial state
 const initialState: BookingFlowState = {
@@ -73,13 +73,13 @@ function bookingReducer(state: BookingFlowState, action: BookingAction): Booking
       return { ...state, totalAmount: action.payload }
     
     case 'NEXT_STEP':
-      const steps: BookingStep[] = ["SEARCH", "SELECT", "DETAILS", "PAYMENT", "CONFIRMATION"]
+      const steps: BookingStep[] = [BookingStep.SEARCH, BookingStep.SELECT, BookingStep.DETAILS, BookingStep.PAYMENT, BookingStep.CONFIRMATION]
       const currentIndex = steps.indexOf(state.step)
       const nextIndex = Math.min(currentIndex + 1, steps.length - 1)
       return { ...state, step: steps[nextIndex] }
     
     case 'PREV_STEP':
-      const prevSteps: BookingStep[] = ["SEARCH", "SELECT", "DETAILS", "PAYMENT", "CONFIRMATION"]
+      const prevSteps: BookingStep[] = [BookingStep.SEARCH, BookingStep.SELECT, BookingStep.DETAILS, BookingStep.PAYMENT, BookingStep.CONFIRMATION]
       const prevCurrentIndex = prevSteps.indexOf(state.step)
       const prevIndex = Math.max(prevCurrentIndex - 1, 0)
       return { ...state, step: prevSteps[prevIndex] }
