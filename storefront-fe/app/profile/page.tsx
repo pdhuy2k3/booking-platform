@@ -1,12 +1,12 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { useAuth } from '@/lib/auth-context'
-import { customerService, CustomerProfile } from '@/lib/customer-service'
-import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import { useAuth } from '@/common/auth/auth-context'
+import { customerService, CustomerProfile } from '@/modules/profile/api'
+import { Button } from "@/common/components/ui/button"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/common/components/ui/card"
+import { Badge } from "@/common/components/ui/badge"
+import { Avatar, AvatarFallback, AvatarImage } from "@/common/components/ui/avatar"
 import { toast } from 'sonner'
 import {
   User,
@@ -22,19 +22,19 @@ import {
   CreditCard,
   Settings
 } from 'lucide-react'
-import { Header } from "@/components/header"
-import { Footer } from "@/components/footer"
-import { ChatBot } from "@/components/chat-bot"
-import ErrorBoundary, { ProfileErrorFallback } from "@/components/ErrorBoundary"
-import { ProfileSkeleton } from "@/components/ui/loading"
+import { Header } from "@/common/components/layout/header"
+import { Footer } from "@/common/components/layout/footer"
+import { ChatBot } from "@/common/components/chat-bot"
+import ErrorBoundary from "@/common/components/error-boundary"
+import { ProfileSkeleton } from "@/common/components/ui/loading"
 
 // Import components (will be created next)
-import { ProfileInfo } from '@/components/profile/ProfileInfo'
-import { TravelDocuments } from '@/components/profile/TravelDocuments'
-import { SavedTravelers } from '@/components/profile/SavedTravelers'
-import { LoyaltyProgram } from '@/components/profile/LoyaltyProgram'
-import { NotificationSettings } from '@/components/profile/NotificationSettings'
-import { AccountSecurity } from '@/components/profile/AccountSecurity'
+import { ProfileInfo } from '@/modules/profile/components/ProfileInfo'
+import { TravelDocuments } from '@/modules/profile/components/TravelDocuments'
+import { SavedTravelers } from '@/modules/profile/components/SavedTravelers'
+import { LoyaltyProgram } from '@/modules/profile/components/LoyaltyProgram'
+import { NotificationSettings } from '@/modules/profile/components/NotificationSettings'
+import { AccountSecurity } from '@/modules/profile/components/AccountSecurity'
 
 export default function ProfilePage() {
   const { user, isAuthenticated } = useAuth()

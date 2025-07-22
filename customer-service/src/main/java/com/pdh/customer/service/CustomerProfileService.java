@@ -27,6 +27,8 @@ import java.util.List;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
+import org.keycloak.admin.client.Keycloak;
+
 @Service
 @RequiredArgsConstructor
 @Slf4j
@@ -37,6 +39,7 @@ public class CustomerProfileService {
     private final CustomerAddressRepository customerAddressRepository;
     private final CustomerLoyaltyRepository customerLoyaltyRepository;
     private final LoyaltyTransactionRepository loyaltyTransactionRepository;
+    private final Keycloak keycloak;
     
     /**
      * Get customer profile using userId from JWT token
@@ -284,6 +287,21 @@ public class CustomerProfileService {
                 .build();
     }
     
+    public void sendVerificationEmail() {
+        String userId = AuthenticationUtils.extractUserId();
+        keycloak.realm("bookingsmart").users().get(userId).sendVerifyEmail();
+    }
+
+    public void sendUpdatePasswordEmail() {
+        String userId = AuthenticationUtils.extractUserId();
+        keycloak.realm("bookingsmart").users().get(userId).executeActionsEmail(List.of("UPDATE_PASSWORD"));
+    }
+
+    public String configureTotp() {
+        String userId = AuthenticationUtils.extractUserId();
+        return keycloak.realm("bookingsmart").users().get(userId).getTotpSecret();
+    }
+
     /**
      * Map CustomerLoyalty to LoyaltyBalanceResponse
      */

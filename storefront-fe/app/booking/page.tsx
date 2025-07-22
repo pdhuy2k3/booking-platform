@@ -1,7 +1,7 @@
 "use client"
 
-import { BookingProvider } from "@/lib/booking-context"
-import { BookingFlow } from "@/components/booking/booking-flow"
+import { BookingProvider } from "@/common/contexts/booking-context"
+import { BookingFlow } from "@/modules/booking/components/booking-flow"
 
 export default function BookingPage() {
   return (

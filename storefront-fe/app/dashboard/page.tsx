@@ -1,11 +1,11 @@
-import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import { Button } from "@/common/components/ui/button"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/common/components/ui/card"
+import { Badge } from "@/common/components/ui/badge"
+import { Avatar, AvatarFallback, AvatarImage } from "@/common/components/ui/avatar"
 import { Plane, Hotel, Calendar, MapPin, Clock, User, Settings, CreditCard, Bell, Download } from "lucide-react"
-import { Header } from "@/components/header"
-import { Footer } from "@/components/footer"
-import { ChatBot } from "@/components/chat-bot"
+import { Header } from "@/common/components/layout/header"
+import { Footer } from "@/common/components/layout/footer"
+import { ChatBot } from "@/common/components/chat-bot"
 
 export default function DashboardPage() {
   const bookings = [

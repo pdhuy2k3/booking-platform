@@ -37,38 +37,8 @@ public class WebhookController {
     private final PaymentTransactionRepository paymentTransactionRepository;
     private final ObjectMapper objectMapper;
 
-    /**
-     * Stripe webhook endpoint
-     */
-    @PostMapping("/stripe/webhook")
-    public ResponseEntity<String> handleStripeWebhook(
-            @RequestBody String payload,
-            @RequestHeader("Stripe-Signature") String sigHeader) {
 
-        log.info("Received Stripe webhook");
 
-        try {
-            // Verify webhook signature
-            Event event = Webhook.constructEvent(payload, sigHeader, stripeConfig.getWebhook().getSecret());
-
-            log.info("Processing Stripe webhook event: {}", event.getType());
-
-            // Handle different event types
-            switch (event.getType()) {
-                case "payment_intent.succeeded" -> handlePaymentIntentSucceeded(event);
-                case "payment_intent.payment_failed" -> handlePaymentIntentFailed(event);
-                case "payment_intent.canceled" -> handlePaymentIntentCanceled(event);
-                case "payment_intent.requires_action" -> handlePaymentIntentRequiresAction(event);
-                default -> log.info("Unhandled Stripe event type: {}", event.getType());
-            }
-
-            return ResponseEntity.ok("Webhook processed successfully");
-
-        } catch (Exception e) {
-            log.error("Error processing Stripe webhook", e);
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("Webhook processing failed");
-        }
-    }
 
     /**
      * VietQR callback endpoint

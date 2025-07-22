@@ -155,6 +155,24 @@ public class CustomerProfileController {
         }
     }
     
+    @PostMapping("/storefront/profile/send-verification-email")
+    public ResponseEntity<ApiResponse<Void>> sendVerificationEmail() {
+        customerProfileService.sendVerificationEmail();
+        return ResponseUtils.accepted("Verification email sent successfully");
+    }
+
+    @PostMapping("/storefront/profile/send-update-password-email")
+    public ResponseEntity<ApiResponse<Void>> sendUpdatePasswordEmail() {
+        customerProfileService.sendUpdatePasswordEmail();
+        return ResponseUtils.accepted("Update password email sent successfully");
+    }
+
+    @PostMapping("/storefront/profile/configure-totp")
+    public ResponseEntity<ApiResponse<String>> configureTotp() {
+        String totpSecret = customerProfileService.configureTotp();
+        return ResponseUtils.ok(totpSecret, "TOTP secret retrieved successfully");
+    }
+
     /**
      * Health check endpoint
      */
