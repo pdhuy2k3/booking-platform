@@ -13,22 +13,16 @@ import org.springframework.context.annotation.Configuration;
 public class StripeConfig {
     
     private Api api = new Api();
-    private Webhook webhook = new Webhook();
     private Settings settings = new Settings();
     
     @Data
     public static class Api {
         private String publishableKey;
         private String secretKey;
-        private String apiVersion = "2023-10-16";
+        private String apiVersion;
     }
     
-    @Data
-    public static class Webhook {
-        private String secret;
-        private String endpointPath ;
-    }
-    
+
     @Data
     public static class Settings {
         private String captureMethod = "automatic";
@@ -43,8 +37,7 @@ public class StripeConfig {
      */
     public boolean isValid() {
         return api.secretKey != null && !api.secretKey.trim().isEmpty() &&
-               api.publishableKey != null && !api.publishableKey.trim().isEmpty() &&
-               webhook.secret != null && !webhook.secret.trim().isEmpty();
+               api.publishableKey != null && !api.publishableKey.trim().isEmpty();
     }
     
     /**
@@ -68,10 +61,5 @@ public class StripeConfig {
         return api.publishableKey;
     }
     
-    /**
-     * Get webhook secret
-     */
-    public String getWebhookSecret() {
-        return webhook.secret;
-    }
+
 }

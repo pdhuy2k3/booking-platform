@@ -78,14 +78,11 @@ payment:
       api:
         publishable-key: ${STRIPE_PUBLISHABLE_KEY:pk_test_default}
         secret-key: ${STRIPE_SECRET_KEY:sk_test_default}
-        api-version: "2023-10-16"
-      webhook:
-        secret: ${STRIPE_WEBHOOK_SECRET:whsec_default}
-        endpoint-path: /api/payments/stripe/webhook
+        api-version: "2025-06-30.basil"
       settings:
         capture-method: automatic
         confirmation-method: automatic
-        currency: usd
+        currency: vnd
         statement-descriptor: "BookingSmart"
         receipt-email: true
 

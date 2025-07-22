@@ -3,12 +3,12 @@
 import { useEffect, useState, Suspense } from "react"
 import { useSearchParams, useRouter } from "next/navigation"
 import { CheckCircle, Download, Share, Calendar, MapPin, Users, CreditCard } from "lucide-react"
-import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
-import { Separator } from "@/components/ui/separator"
-import { bookingService } from "@/lib/booking-service"
-import { PaymentService } from "@/lib/payment-service"
+import { Button } from "@/common/components/ui/button"
+import { Card, CardContent, CardHeader, CardTitle } from "@/common/components/ui/card"
+import { Badge } from "@/common/components/ui/badge"
+import { Separator } from "@/common/components/ui/separator"
+import { bookingService } from "@/modules/booking/api"
+import { PaymentService } from "@/modules/payment/api"
 
 interface BookingConfirmationData {
   bookingId: string
