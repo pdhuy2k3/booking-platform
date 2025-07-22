@@ -82,6 +82,7 @@ export class BookingService {
   }
 
   // Hotel Search and Booking (delegated to HotelService)
+  // Compatible with standardized ApiResponse<T> format - API client handles wrapper automatically
   static async searchHotels(request: HotelSearchRequest): Promise<HotelSearchResult[]> {
     const queryParams = apiClient.buildQueryParams({
       destination: request.destination,

@@ -6,6 +6,7 @@ import org.springframework.stereotype.Repository;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 /**
@@ -34,6 +35,11 @@ public interface FlightOutboxEventRepository extends JpaRepository<FlightOutboxE
      * Find events created after a specific time
      */
     List<FlightOutboxEvent> findByCreatedAtAfterOrderByCreatedAtAsc(LocalDateTime createdAt);
+
+    /**
+     * Find event by event ID (for Listen to Yourself Pattern)
+     */
+    Optional<FlightOutboxEvent> findByEventId(String eventId);
 
     /**
      * Delete events created before a specific time (for cleanup)

@@ -19,7 +19,6 @@ import org.springframework.web.bind.annotation.*;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
-import java.util.Map;
 import java.util.Optional;
 
 /**
@@ -45,15 +44,15 @@ public class WebhookController {
     public ResponseEntity<String> handleStripeWebhook(
             @RequestBody String payload,
             @RequestHeader("Stripe-Signature") String sigHeader) {
-        
+
         log.info("Received Stripe webhook");
-        
+
         try {
             // Verify webhook signature
             Event event = Webhook.constructEvent(payload, sigHeader, stripeConfig.getWebhook().getSecret());
-            
+
             log.info("Processing Stripe webhook event: {}", event.getType());
-            
+
             // Handle different event types
             switch (event.getType()) {
                 case "payment_intent.succeeded" -> handlePaymentIntentSucceeded(event);
@@ -62,9 +61,9 @@ public class WebhookController {
                 case "payment_intent.requires_action" -> handlePaymentIntentRequiresAction(event);
                 default -> log.info("Unhandled Stripe event type: {}", event.getType());
             }
-            
+
             return ResponseEntity.ok("Webhook processed successfully");
-            
+
         } catch (Exception e) {
             log.error("Error processing Stripe webhook", e);
             return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("Webhook processing failed");
@@ -78,32 +77,32 @@ public class WebhookController {
     public ResponseEntity<String> handleVietQRCallback(
             @RequestBody String payload,
             @RequestHeader(value = "X-Signature", required = false) String signature) {
-        
+
         log.info("Received VietQR callback");
-        
+
         try {
             // Verify callback signature if provided
             if (signature != null && !verifyVietQRSignature(payload, signature)) {
                 log.warn("Invalid VietQR callback signature");
                 return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Invalid signature");
             }
-            
+
             // Parse callback data
             JsonNode callbackData = objectMapper.readTree(payload);
-            
+
             String transactionId = callbackData.get("transactionId").asText();
             String status = callbackData.get("status").asText();
             BigDecimal amount = new BigDecimal(callbackData.get("amount").asText());
-            String bankTransactionId = callbackData.has("bankTransactionId") ? 
+            String bankTransactionId = callbackData.has("bankTransactionId") ?
                 callbackData.get("bankTransactionId").asText() : null;
-            
+
             log.info("Processing VietQR callback for transaction: {} with status: {}", transactionId, status);
-            
+
             // Find transaction and update status
             Optional<PaymentTransaction> transactionOpt = paymentTransactionRepository.findByGatewayTransactionId(transactionId);
             if (transactionOpt.isPresent()) {
                 PaymentTransaction transaction = transactionOpt.get();
-                
+
                 // Create confirmation data
                 PaymentConfirmationData confirmationData = PaymentConfirmationData.forVietQR(
                     bankTransactionId != null ? bankTransactionId : transactionId,
@@ -115,17 +114,17 @@ public class WebhookController {
                     callbackData.has("description") ? callbackData.get("description").asText() : "",
                     LocalDateTime.now()
                 );
-                
+
                 // Update transaction status
                 paymentService.verifyPaymentStatus(transaction.getTransactionId());
-                
+
                 log.info("VietQR callback processed successfully for transaction: {}", transactionId);
             } else {
                 log.warn("Transaction not found for VietQR callback: {}", transactionId);
             }
-            
+
             return ResponseEntity.ok("Callback processed successfully");
-            
+
         } catch (Exception e) {
             log.error("Error processing VietQR callback", e);
             return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("Callback processing failed");

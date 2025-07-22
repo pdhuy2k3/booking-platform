@@ -26,7 +26,7 @@ public class StripeConfig {
     @Data
     public static class Webhook {
         private String secret;
-        private String endpointPath = "/api/payments/stripe/webhook";
+        private String endpointPath ;
     }
     
     @Data
@@ -52,5 +52,26 @@ public class StripeConfig {
      */
     public boolean isTestMode() {
         return api.secretKey != null && api.secretKey.startsWith("sk_test_");
+    }
+    
+    /**
+     * Get secret key for Stripe API
+     */
+    public String getSecretKey() {
+        return api.secretKey;
+    }
+    
+    /**
+     * Get publishable key for frontend
+     */
+    public String getPublishableKey() {
+        return api.publishableKey;
+    }
+    
+    /**
+     * Get webhook secret
+     */
+    public String getWebhookSecret() {
+        return webhook.secret;
     }
 }

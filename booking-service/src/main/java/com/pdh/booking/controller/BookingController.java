@@ -7,7 +7,9 @@ import com.pdh.booking.dto.response.StorefrontBookingResponseDto;
 import com.pdh.booking.mapper.BookingDtoMapper;
 import com.pdh.booking.model.Booking;
 import com.pdh.booking.service.BookingSagaService;
-import com.pdh.common.utils.AuthenticationUtils;
+import com.pdh.common.dto.ApiResponse;
+import com.pdh.common.util.ResponseUtils;
+import com.pdh.common.constants.ErrorCodes;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -28,7 +30,7 @@ public class BookingController {
      * Create a new booking and start saga (Backoffice/Admin)
      */
     @PostMapping("/backoffice")
-    public ResponseEntity<BookingResponseDto> createBooking(@Valid @RequestBody CreateBookingRequestDto request) {
+    public ResponseEntity<ApiResponse<BookingResponseDto>> createBooking(@Valid @RequestBody CreateBookingRequestDto request) {
         try {
             log.info("Creating booking with type: {}", request.getBookingType());
 
@@ -42,11 +44,14 @@ public class BookingController {
             // Convert entity to response DTO
             BookingResponseDto response = bookingDtoMapper.toResponseDto(createdBooking);
 
-            return ResponseEntity.ok(response);
+            return ResponseUtils.created(response, "Booking created successfully and saga started");
 
+        } catch (IllegalArgumentException e) {
+            log.error("Invalid booking request", e);
+            return ResponseUtils.badRequest(e.getMessage(), ErrorCodes.INVALID_BOOKING_STATUS);
         } catch (Exception e) {
             log.error("Error creating booking", e);
-            return ResponseEntity.internalServerError().build();
+            return ResponseUtils.internalError("Failed to create booking");
         }
     }
 
@@ -54,24 +59,32 @@ public class BookingController {
      * Get booking by saga ID (Backoffice/Admin)
      */
     @GetMapping("/saga/{sagaId}")
-    public ResponseEntity<BookingResponseDto> getBookingBySagaId(@PathVariable String sagaId) {
-        return bookingSagaService.findBySagaId(sagaId)
-                .map(booking -> {
-                    BookingResponseDto response = bookingDtoMapper.toResponseDto(booking);
-                    return ResponseEntity.ok(response);
-                })
-                .orElse(ResponseEntity.notFound().build());
+    public ResponseEntity<ApiResponse<BookingResponseDto>> getBookingBySagaId(@PathVariable String sagaId) {
+        try {
+            return bookingSagaService.findBySagaId(sagaId)
+                    .map(booking -> {
+                        BookingResponseDto response = bookingDtoMapper.toResponseDto(booking);
+                        return ResponseUtils.ok(response, "Booking retrieved successfully");
+                    })
+                    .orElse(ResponseUtils.notFound("Booking not found with saga ID: " + sagaId));
+        } catch (Exception e) {
+            log.error("Error retrieving booking by saga ID: {}", sagaId, e);
+            return ResponseUtils.internalError("Failed to retrieve booking");
+        }
     }
 
     // === STOREFRONT ENDPOINTS ===
 
     /**
      * Create a new booking and start saga (Storefront)
+     * Frontend calls: POST /api/bookings/storefront
+     * BFF routes to: POST /bookings/storefront
      */
     @PostMapping("/storefront")
-    public ResponseEntity<StorefrontBookingResponseDto> createStorefrontBooking(@Valid @RequestBody StorefrontCreateBookingRequestDto request) {
+    public ResponseEntity<ApiResponse<StorefrontBookingResponseDto>> createStorefrontBooking(@Valid @RequestBody StorefrontCreateBookingRequestDto request) {
         try {
             log.info("Creating storefront booking with type: {}", request.getBookingType());
+
             // Convert DTO to entity
             Booking booking = bookingDtoMapper.toEntity(request);
             booking.setBookingReference(generateBookingReference());
@@ -82,25 +95,35 @@ public class BookingController {
             // Convert entity to response DTO
             StorefrontBookingResponseDto response = bookingDtoMapper.toStorefrontResponseDto(createdBooking);
 
-            return ResponseEntity.ok(response);
+            return ResponseUtils.created(response, "Booking created successfully and processing started");
 
+        } catch (IllegalArgumentException e) {
+            log.error("Invalid storefront booking request", e);
+            return ResponseUtils.badRequest(e.getMessage(), ErrorCodes.INVALID_BOOKING_STATUS);
         } catch (Exception e) {
             log.error("Error creating storefront booking", e);
-            return ResponseEntity.internalServerError().build();
+            return ResponseUtils.internalError("Failed to create booking");
         }
     }
 
     /**
      * Get booking by saga ID (Storefront)
+     * Frontend calls: GET /api/bookings/storefront/saga/{sagaId}
+     * BFF routes to: GET /bookings/storefront/saga/{sagaId}
      */
     @GetMapping("/storefront/saga/{sagaId}")
-    public ResponseEntity<StorefrontBookingResponseDto> getStorefrontBookingBySagaId(@PathVariable String sagaId) {
-        return bookingSagaService.findBySagaId(sagaId)
-                .map(booking -> {
-                    StorefrontBookingResponseDto response = bookingDtoMapper.toStorefrontResponseDto(booking);
-                    return ResponseEntity.ok(response);
-                })
-                .orElse(ResponseEntity.notFound().build());
+    public ResponseEntity<ApiResponse<StorefrontBookingResponseDto>> getStorefrontBookingBySagaId(@PathVariable String sagaId) {
+        try {
+            return bookingSagaService.findBySagaId(sagaId)
+                    .map(booking -> {
+                        StorefrontBookingResponseDto response = bookingDtoMapper.toStorefrontResponseDto(booking);
+                        return ResponseUtils.ok(response, "Booking retrieved successfully");
+                    })
+                    .orElse(ResponseUtils.notFound("Booking not found with saga ID: " + sagaId));
+        } catch (Exception e) {
+            log.error("Error retrieving storefront booking by saga ID: {}", sagaId, e);
+            return ResponseUtils.internalError("Failed to retrieve booking");
+        }
     }
 
     private String generateBookingReference() {

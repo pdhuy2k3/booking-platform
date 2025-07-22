@@ -59,6 +59,16 @@ public class    StorefrontCreateBookingRequestDto {
     private String notes;
 
     /**
+     * Payment method type for the booking
+     */
+    private String paymentMethodType;
+
+    /**
+     * Payment gateway preference
+     */
+    private String paymentGateway;
+
+    /**
      * Booking source (STOREFRONT)
      */
     @Builder.Default

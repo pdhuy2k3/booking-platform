@@ -3,10 +3,12 @@ package com.pdh.hotel.controller;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.pdh.hotel.dto.HotelBookingDetailsDto;
 import com.pdh.hotel.model.Hotel;
-import com.pdh.hotel.model.Room;
 import com.pdh.hotel.repository.HotelRepository;
 import com.pdh.hotel.repository.RoomRepository;
 import com.pdh.hotel.service.HotelService;
+import com.pdh.common.dto.ApiResponse;
+import com.pdh.common.util.ResponseUtils;
+import com.pdh.common.constants.ErrorCodes;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
@@ -16,7 +18,6 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
-import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.HashMap;
@@ -61,10 +62,11 @@ public class HotelController {
 
     /**
      * Search hotels for storefront
-     * GET /hotels/storefront/search?destination=Ho Chi Minh City&checkInDate=2024-02-15&checkOutDate=2024-02-17&guests=2&rooms=1
+     * Frontend calls: GET /api/hotels/storefront/search?destination=Ho Chi Minh City&checkInDate=2024-02-15&checkOutDate=2024-02-17&guests=2&rooms=1
+     * BFF routes to: GET /hotels/storefront/search
      */
     @GetMapping("/storefront/search")
-    public ResponseEntity<Map<String, Object>> searchHotels(
+    public ResponseEntity<ApiResponse<Map<String, Object>>> searchHotels(
             @RequestParam String destination,
             @RequestParam String checkInDate,
             @RequestParam String checkOutDate,
@@ -92,7 +94,7 @@ public class HotelController {
                 .map(hotel -> convertHotelToResponse(hotel, checkIn, checkOut, guests, rooms))
                 .collect(Collectors.toList());
 
-            Map<String, Object> response = Map.of(
+            Map<String, Object> searchResults = Map.of(
                 "hotels", hotels,
                 "totalCount", hotelPage.getTotalElements(),
                 "page", page,
@@ -108,43 +110,39 @@ public class HotelController {
             );
 
             log.info("Found {} hotels for search criteria", hotels.size());
-            return ResponseEntity.ok(response);
+            return ResponseUtils.ok(searchResults, "Hotel search completed successfully");
 
+        } catch (IllegalArgumentException e) {
+            log.error("Invalid hotel search parameters", e);
+            return ResponseUtils.badRequest(e.getMessage(), ErrorCodes.INVALID_DATE_FORMAT);
         } catch (Exception e) {
             log.error("Error searching hotels", e);
-            Map<String, Object> errorResponse = Map.of(
-                "error", "Failed to search hotels",
-                "message", e.getMessage(),
-                "hotels", List.of(),
-                "totalCount", 0,
-                "page", page,
-                "limit", limit,
-                "hasMore", false
-            );
-            return ResponseEntity.ok(errorResponse);
+            return ResponseUtils.internalError("Failed to search hotels");
         }
     }
 
     /**
      * Get hotel details by ID for storefront
+     * Frontend calls: GET /api/hotels/storefront/{hotelId}
+     * BFF routes to: GET /hotels/storefront/{hotelId}
      */
     @GetMapping("/storefront/{hotelId}")
-    public ResponseEntity<Map<String, Object>> getStorefrontHotelDetails(@PathVariable Long hotelId) {
+    public ResponseEntity<ApiResponse<Map<String, Object>>> getStorefrontHotelDetails(@PathVariable Long hotelId) {
         log.info("Hotel details request for ID: {}", hotelId);
 
         try {
             Optional<Hotel> hotelOpt = hotelRepository.findById(hotelId);
             if (hotelOpt.isEmpty()) {
-                return ResponseEntity.notFound().build();
+                return ResponseUtils.notFound("Hotel not found with ID: " + hotelId);
             }
 
             Hotel hotel = hotelOpt.get();
-            Map<String, Object> response = convertHotelToDetailedResponse(hotel);
+            Map<String, Object> hotelDetails = convertHotelToDetailedResponse(hotel);
 
-            return ResponseEntity.ok(response);
+            return ResponseUtils.ok(hotelDetails, "Hotel details retrieved successfully");
         } catch (Exception e) {
-            log.error("Error getting hotel details", e);
-            return ResponseEntity.notFound().build();
+            log.error("Error getting hotel details for ID: {}", hotelId, e);
+            return ResponseUtils.internalError("Failed to retrieve hotel details");
         }
     }
 
@@ -171,7 +169,7 @@ public class HotelController {
         try {
             String bookingId = (String) request.get("bookingId");
             String sagaId = (String) request.get("sagaId");
-            String customerId = (String) request.get("customerId");
+            // String customerId = (String) request.get("customerId"); // Reserved for future use
 
             // Check if detailed hotel information is provided
             Object hotelDetailsObj = request.get("hotelDetails");

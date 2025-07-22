@@ -1,6 +1,9 @@
 package com.pdh.payment.service.strategy.impl;
 
 import com.pdh.payment.config.StripeConfig;
+import com.pdh.payment.dto.CreatePaymentIntentRequest;
+import com.pdh.payment.dto.ConfirmPaymentIntentRequest;
+import com.pdh.payment.dto.PaymentIntentResponse;
 import com.pdh.payment.model.Payment;
 import com.pdh.payment.model.PaymentMethod;
 import com.pdh.payment.model.PaymentTransaction;
@@ -15,15 +18,17 @@ import com.stripe.model.Refund;
 import com.stripe.param.PaymentIntentCreateParams;
 import com.stripe.param.PaymentIntentRetrieveParams;
 import com.stripe.param.RefundCreateParams;
+import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
 import java.time.ZonedDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.UUID;
 
 /**
  * Stripe Payment Strategy Implementation
@@ -40,7 +45,7 @@ public class StripePaymentStrategy implements PaymentStrategy {
     private static final BigDecimal STRIPE_FEE_RATE = new BigDecimal("0.029"); // 2.9%
     private static final BigDecimal STRIPE_FIXED_FEE = new BigDecimal("0.30"); // $0.30
     
-    @jakarta.annotation.PostConstruct
+    @PostConstruct
     public void initializeStripe() {
         if (stripeConfig.isValid()) {
             Stripe.apiKey = stripeConfig.getApi().getSecretKey();
@@ -211,6 +216,131 @@ public class StripePaymentStrategy implements PaymentStrategy {
     @Override
     public int getMaxRefundWindowDays() {
         return 120; // Stripe allows refunds up to 120 days
+    }
+
+    // === PAYMENT INTENT METHODS ===
+
+    /**
+     * Create Stripe Payment Intent for frontend integration
+     */
+    public PaymentIntentResponse createPaymentIntent(CreatePaymentIntentRequest request) {
+        log.info("Creating Stripe Payment Intent for booking: {}", request.getBookingId());
+
+        try {
+            // Convert amount to cents (Stripe uses smallest currency unit)
+            long amountInCents = request.getAmount().multiply(new BigDecimal("100")).longValue();
+
+            PaymentIntentCreateParams.Builder paramsBuilder = PaymentIntentCreateParams.builder()
+                    .setAmount(amountInCents)
+                    .setCurrency(request.getCurrency().toLowerCase())
+                    .setConfirmationMethod(PaymentIntentCreateParams.ConfirmationMethod.MANUAL)
+                    .setCaptureMethod(PaymentIntentCreateParams.CaptureMethod.AUTOMATIC);
+
+            // Add payment method types
+            if (request.getPaymentMethodTypes() != null && request.getPaymentMethodTypes().length > 0) {
+                for (String type : request.getPaymentMethodTypes()) {
+                    paramsBuilder.addPaymentMethodType(type);
+                }
+            } else {
+                paramsBuilder.addPaymentMethodType("card");
+            }
+
+            // Add automatic payment methods if enabled
+            if (request.isAutomaticPaymentMethodsEnabled()) {
+                paramsBuilder.setAutomaticPaymentMethods(
+                    PaymentIntentCreateParams.AutomaticPaymentMethods.builder()
+                        .setEnabled(true)
+                        .build()
+                );
+            }
+
+            // Add metadata
+            Map<String, String> metadata = new HashMap<>();
+            metadata.put("booking_id", request.getBookingId().toString());
+            if (request.getCustomerEmail() != null) {
+                metadata.put("customer_email", request.getCustomerEmail());
+            }
+            if (request.getDescription() != null) {
+                metadata.put("description", request.getDescription());
+            }
+            if (request.getMetadata() != null) {
+                request.getMetadata().forEach((key, value) -> 
+                    metadata.put(key, value.toString()));
+            }
+            paramsBuilder.putAllMetadata(metadata);
+
+            // Add customer email for receipt
+            if (request.getCustomerEmail() != null) {
+                paramsBuilder.setReceiptEmail(request.getCustomerEmail());
+            }
+
+            // Add description
+            if (request.getDescription() != null) {
+                paramsBuilder.setDescription(request.getDescription());
+            }
+
+            PaymentIntent paymentIntent = PaymentIntent.create(paramsBuilder.build());
+
+            return PaymentIntentResponse.builder()
+                    .paymentIntentId(paymentIntent.getId())
+                    .clientSecret(paymentIntent.getClientSecret())
+                    .amount(request.getAmount())
+                    .currency(request.getCurrency())
+                    .status(paymentIntent.getStatus())
+                    .gateway("stripe")
+                    .paymentMethodTypes(request.getPaymentMethodTypes())
+                    .description(request.getDescription())
+                    .metadata(request.getMetadata())
+                    .createdAt(LocalDateTime.now().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME))
+                    .build();
+
+        } catch (StripeException e) {
+            log.error("Failed to create Stripe Payment Intent", e);
+            throw new RuntimeException("Failed to create payment intent: " + e.getMessage(), e);
+        }
+    }
+
+    /**
+     * Confirm Stripe Payment Intent
+     */
+    public PaymentIntentResponse confirmPaymentIntent(ConfirmPaymentIntentRequest request) {
+        log.info("Confirming Stripe Payment Intent: {}", request.getPaymentIntentId());
+
+        try {
+            PaymentIntent paymentIntent = PaymentIntent.retrieve(request.getPaymentIntentId());
+
+            if (request.getPaymentMethodId() != null) {
+                // Confirm with payment method
+                Map<String, Object> params = new HashMap<>();
+                params.put("payment_method", request.getPaymentMethodId());
+                if (request.getReturnUrl() != null) {
+                    params.put("return_url", request.getReturnUrl());
+                }
+                if (request.isUseStripeSdk()) {
+                    params.put("use_stripe_sdk", true);
+                }
+
+                paymentIntent = paymentIntent.confirm(params);
+            } else {
+                // Just confirm the existing payment intent
+                paymentIntent = paymentIntent.confirm();
+            }
+
+            return PaymentIntentResponse.builder()
+                    .paymentIntentId(paymentIntent.getId())
+                    .clientSecret(paymentIntent.getClientSecret())
+                    .amount(new BigDecimal(paymentIntent.getAmount()).divide(new BigDecimal("100")))
+                    .currency(paymentIntent.getCurrency().toUpperCase())
+                    .status(paymentIntent.getStatus())
+                    .gateway("stripe")
+                    .description(paymentIntent.getDescription())
+                    .createdAt(LocalDateTime.now().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME))
+                    .build();
+
+        } catch (StripeException e) {
+            log.error("Failed to confirm Stripe Payment Intent: {}", request.getPaymentIntentId(), e);
+            throw new RuntimeException("Failed to confirm payment intent: " + e.getMessage(), e);
+        }
     }
 
     // Helper methods

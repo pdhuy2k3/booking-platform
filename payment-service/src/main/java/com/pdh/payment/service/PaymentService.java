@@ -14,6 +14,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
@@ -257,5 +258,151 @@ public class PaymentService {
         failedTransaction.setSagaStep("PAYMENT_FAILED");
 
         return failedTransaction;
+    }
+
+    // Listen to Yourself Pattern verification methods
+
+    /**
+     * Verify that a payment was actually processed successfully
+     */
+    @Transactional(readOnly = true)
+    public boolean verifyPaymentProcessed(UUID paymentId) {
+        log.info("Verifying payment processing: paymentId={}", paymentId);
+
+        try {
+            Optional<Payment> paymentOpt = paymentRepository.findById(paymentId);
+            if (paymentOpt.isEmpty()) {
+                log.warn("Payment not found: paymentId={}", paymentId);
+                return false;
+            }
+
+            Payment payment = paymentOpt.get();
+
+            // Check if payment has successful transactions
+            List<PaymentTransaction> transactions = paymentTransactionRepository.findByPayment_PaymentIdOrderByCreatedAtDesc(payment.getPaymentId());
+
+            boolean hasSuccessfulTransaction = transactions.stream()
+                .anyMatch(transaction -> transaction.isSuccessful());
+
+            if (!hasSuccessfulTransaction) {
+                log.warn("No successful transaction found for payment: paymentId={}", paymentId);
+                return false;
+            }
+
+            log.info("Payment processing verified successfully: paymentId={}", paymentId);
+            return true;
+
+        } catch (Exception e) {
+            log.error("Error verifying payment processing: paymentId={}", paymentId, e);
+            return false;
+        }
+    }
+
+    /**
+     * Verify that a payment failure is in correct state
+     */
+    @Transactional(readOnly = true)
+    public boolean verifyPaymentFailure(UUID paymentId) {
+        log.info("Verifying payment failure: paymentId={}", paymentId);
+
+        try {
+            Optional<Payment> paymentOpt = paymentRepository.findById(paymentId);
+            if (paymentOpt.isEmpty()) {
+                log.warn("Payment not found: paymentId={}", paymentId);
+                return false;
+            }
+
+            Payment payment = paymentOpt.get();
+
+            // Check if payment has failed transactions
+            List<PaymentTransaction> transactions = paymentTransactionRepository.findByPayment_PaymentIdOrderByCreatedAtDesc(payment.getPaymentId());
+
+            boolean hasFailedTransaction = transactions.stream()
+                .anyMatch(transaction -> transaction.isFailed());
+
+            if (!hasFailedTransaction) {
+                log.warn("No failed transaction found for payment: paymentId={}", paymentId);
+                return false;
+            }
+
+            log.info("Payment failure verified: paymentId={}", paymentId);
+            return true;
+
+        } catch (Exception e) {
+            log.error("Error verifying payment failure: paymentId={}", paymentId, e);
+            return false;
+        }
+    }
+
+    /**
+     * Verify that a payment refund was processed
+     */
+    @Transactional(readOnly = true)
+    public boolean verifyPaymentRefund(UUID paymentId) {
+        log.info("Verifying payment refund: paymentId={}", paymentId);
+
+        try {
+            Optional<Payment> paymentOpt = paymentRepository.findById(paymentId);
+            if (paymentOpt.isEmpty()) {
+                log.warn("Payment not found: paymentId={}", paymentId);
+                return false;
+            }
+
+            Payment payment = paymentOpt.get();
+
+            // Check if payment has refunded transactions
+            List<PaymentTransaction> transactions = paymentTransactionRepository.findByPayment_PaymentIdOrderByCreatedAtDesc(payment.getPaymentId());
+
+            boolean hasRefundedTransaction = transactions.stream()
+                .anyMatch(transaction -> transaction.getStatus() == PaymentStatus.REFUND_COMPLETED);
+
+            if (!hasRefundedTransaction) {
+                log.warn("No refunded transaction found for payment: paymentId={}", paymentId);
+                return false;
+            }
+
+            log.info("Payment refund verified: paymentId={}", paymentId);
+            return true;
+
+        } catch (Exception e) {
+            log.error("Error verifying payment refund: paymentId={}", paymentId, e);
+            return false;
+        }
+    }
+
+    /**
+     * Verify that a payment cancellation is in correct state
+     */
+    @Transactional(readOnly = true)
+    public boolean verifyPaymentCancellation(UUID paymentId) {
+        log.info("Verifying payment cancellation: paymentId={}", paymentId);
+
+        try {
+            Optional<Payment> paymentOpt = paymentRepository.findById(paymentId);
+            if (paymentOpt.isEmpty()) {
+                log.warn("Payment not found: paymentId={}", paymentId);
+                return false;
+            }
+
+            Payment payment = paymentOpt.get();
+
+            // Check if payment has cancelled transactions
+            List<PaymentTransaction> transactions = paymentTransactionRepository.findByPayment_PaymentIdOrderByCreatedAtDesc(payment.getPaymentId());
+
+            boolean hasCancelledTransaction = transactions.stream()
+                .anyMatch(transaction -> transaction.getStatus() == PaymentStatus.CANCELLED);
+
+            if (!hasCancelledTransaction) {
+                log.warn("No cancelled transaction found for payment: paymentId={}", paymentId);
+                return false;
+            }
+
+            log.info("Payment cancellation verified: paymentId={}", paymentId);
+            return true;
+
+        } catch (Exception e) {
+            log.error("Error verifying payment cancellation: paymentId={}", paymentId, e);
+            return false;
+        }
     }
 }

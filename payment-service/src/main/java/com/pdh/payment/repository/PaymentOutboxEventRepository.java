@@ -10,6 +10,7 @@ import org.springframework.stereotype.Repository;
 import java.time.LocalDateTime;
 import java.time.ZonedDateTime;
 import java.util.List;
+import java.util.Optional;
 
 /**
  * Payment Outbox Event Repository
@@ -90,4 +91,9 @@ public interface PaymentOutboxEventRepository extends JpaRepository<PaymentOutbo
     @Query("DELETE FROM PaymentOutboxEvent e WHERE e.expiresAt IS NOT NULL AND e.expiresAt <= :now")
     @Modifying
     void deleteExpiredEventsBefore(@Param("now") ZonedDateTime now);
+
+    /**
+     * Find event by event ID (for Listen to Yourself Pattern)
+     */
+    Optional<PaymentOutboxEvent> findByEventId(String eventId);
 }

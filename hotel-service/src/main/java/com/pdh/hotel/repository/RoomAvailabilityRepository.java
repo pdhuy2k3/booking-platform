@@ -19,12 +19,21 @@ public interface RoomAvailabilityRepository extends JpaRepository<RoomAvailabili
 
     /**
      * Find room availability by room type ID and date
-     * 
+     *
      * @param roomTypeId The room type ID
      * @param date The date
      * @return Optional RoomAvailability
      */
     Optional<RoomAvailability> findByRoomTypeIdAndDate(Long roomTypeId, LocalDate date);
+
+    /**
+     * Find all availability records for a room type
+     *
+     * @param roomTypeId The room type ID
+     * @return List of RoomAvailability records
+     */
+    List<RoomAvailability> findByRoomTypeId(Long roomTypeId);
+
 
     /**
      * Find all availability records for a room type within a date range

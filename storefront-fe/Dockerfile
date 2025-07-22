@@ -8,13 +8,14 @@ COPY . .
 
 # Use npm for more reliable Docker builds
 RUN npm install --legacy-peer-deps
-RUN npm run build
+RUN npm run build 
 
 FROM node:20-alpine AS runner
 WORKDIR /app
 
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED 1
+ENV NEXT_PUBLIC_BFF_BASE_URL=${NEXT_PUBLIC_BFF_BASE_URL}
 
 RUN addgroup --system --gid 1001 nodejs
 RUN adduser --system --uid 1001 nextjs
