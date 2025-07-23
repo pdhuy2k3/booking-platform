@@ -37,7 +37,6 @@ public class BookingResponseDto {
     /**
      * Current booking status
      */
-    private String bookingReference;
     private String status;
     
     /**
