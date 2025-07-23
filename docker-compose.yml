@@ -7,22 +7,20 @@ services:
       - auth
       - app
     image: quay.io/keycloak/keycloak:26.2.4
-    command: 'start --import-realm --http-enabled=true'
+    command: 'start-dev --import-realm'
     environment:
-      KC_HOSTNAME: https://identity.huypd.dev
+      KC_BOOTSTRAP_ADMIN_USERNAME: admin
+      KC_BOOTSTRAP_ADMIN_PASSWORD: admin
       KC_DB: postgres
       KC_DB_URL: jdbc:postgresql://postgres:5432/keycloak_db
       KC_DB_USERNAME: postgres
       KC_DB_PASSWORD: p0stgr3s
       KC_HEALTH_ENABLED: true
+#      KC_METRICS_ENABLED: true
       KC_HTTP_PORT: 80
-    ports:
-      - "9090:80"
     volumes:
       - ./identity/bookingsmart-keycloak-theme.jar:/opt/keycloak/providers/bookingsmart-keycloak-theme.jar
       - ./identity/realm-export.json:/opt/keycloak/data/import/realm-export.json
-
-
     networks:
       - booking-network
   # PostgreSQL Database
@@ -50,25 +48,6 @@ services:
     networks:
       - booking-network
     command: postgres -c wal_level=logical
-
-  # Redis for Event Deduplication
-  redis:
-    profiles:
-      - app
-      - dev
-    image: redis:7.2-alpine
-    ports:
-      - "6379:6379"
-    networks:
-      - booking-network
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-    volumes:
-      - redis_data:/data
-    command: redis-server --appendonly yes
 
   # Zookeeper
   zookeeper:
@@ -100,8 +79,6 @@ services:
       KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
       KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
-
-  
 
   # Debezium Connect
   connect:
@@ -167,7 +144,8 @@ services:
     depends_on:
     - postgres  # Chỉ đợi postgres healthy
     - identity
-    entrypoint: ["/wait-for-it.sh", "identity:80", "--timeout=120", "--", "java", "-jar", "/app.jar"]
+    entrypoint: ["/wait-for-it.sh", "identity:80", "--timeout=100", "--", "java", "-jar", "/app.jar"]
+
     environment:
       - SPRING_PROFILES_ACTIVE=docker
       - EUREKA_URI
@@ -175,63 +153,9 @@ services:
       - KEYCLOAK_HOST
       - KEYCLOAK_CLIENT_SECRET_BACKOFFICE_BFF
       - SERVER_PORT
-      - API_URL=https://api-bookingsmart.huypd.dev
     networks:
       - booking-network
 
-  storefront:
-    profiles:
-      - app
-    build:
-      context: ./storefront-bff
-      dockerfile: Dockerfile
-    depends_on:
-      - postgres
-      - identity
-    entrypoint: ["/wait-for-it.sh", "identity:80", "--timeout=120", "--", "java", "-jar", "/app.jar"]
-
-    environment:
-      - SPRING_PROFILES_ACTIVE=docker
-      - EUREKA_URI
-      - JWT_ISSUER_URI
-      - KEYCLOAK_HOST
-      - KEYCLOAK_CLIENT_SECRET_STOREFRONT_BFF
-      - SERVER_PORT
-      - API_URL=https://api-bookingsmart.huypd.dev
-    networks:
-      - booking-network
-
-  storefront-fe:
-    profiles:
-      - app
-    build:
-      context: ./storefront-fe
-      dockerfile: Dockerfile
-      args:
-      - NEXT_PUBLIC_BFF_BASE_URL=${API_URL}
-    environment:
-      - NODE_ENV=production
-      - NEXT_PUBLIC_BFF_BASE_URL=${API_URL}
-    networks:
-      - booking-network
-    restart: unless-stopped
-
-  # Backoffice Frontend
-  backoffice-fe:
-    profiles:
-      - app
-    build:
-      context: ./backoffice-fe
-      dockerfile: Dockerfile
-      args:
-      - NEXT_PUBLIC_BFF_BASE_URL=${API_URL}
-    environment:
-      - NODE_ENV=production
-      - NEXT_PUBLIC_API_URL=https://backoffice
-      - NEXT_PUBLIC_KEYCLOAK_URL=https://identity/realms/BookingSmart
-    networks:
-      - booking-network
-    restart: unless-stopped
   # Flight Service
   flight-service:
     profiles:
@@ -341,6 +265,28 @@ services:
       - SERVER_PORT
     networks:
       - booking-network
+
+  # Storefront BFF (API Gateway) - api.bookingsmart.local
+  storefront:
+    profiles:
+      - app
+    build:
+      context: ./storefront-bff
+      dockerfile: Dockerfile
+    depends_on:
+      - postgres
+      - identity
+    entrypoint: ["/wait-for-it.sh", "identity:80", "--timeout=100", "--", "java", "-jar", "/app.jar"]
+    environment:
+      - SPRING_PROFILES_ACTIVE=docker
+      - EUREKA_URI
+      - JWT_ISSUER_URI
+      - KEYCLOAK_HOST
+      - KEYCLOAK_CLIENT_SECRET_STOREFRONT_BFF
+      - SERVER_PORT
+    networks:
+      - booking-network
+
   # Customer Service
   customer-service:
     profiles:
@@ -349,17 +295,13 @@ services:
       context: ./customer-service
       dockerfile: Dockerfile
     depends_on:
-      postgres:
-        condition: service_healthy
+      - identity
     environment:
       - SPRING_PROFILES_ACTIVE=docker
       - EUREKA_URI
       - JWT_ISSUER_URI
       - KEYCLOAK_HOST
       - KEYCLOAK_CLIENT_SECRET_CUSTOMER_MANAGEMENT
-      - DB_URL=jdbc:postgresql://postgres:5432/customer_db
-      - DB_USERNAME=postgres
-      - DB_PASSWORD=p0stgr3s
     networks:
       - booking-network
 
@@ -401,53 +343,70 @@ services:
 #    networks:
 #      - booking-network
 
-  # Nginx Reverse Proxy - API Gateway for Cloudflare Tunnel
+  # Nginx Reverse Proxy - All services accessible on port 80
   nginx:
-   image: nginx:1.25-alpine
-   profiles:
-     - app
-   ports:
-     - "80:80"
-   volumes:
-     - ./nginx.conf:/etc/nginx/conf.d/default.conf
-   depends_on:
-     - identity
-     - storefront
-     - backoffice
-     - customer-service
-     - booking-service
-     - flight-service
-     - hotel-service
-     - payment-service
-     - notification-service
-   networks:
-     booking-network:
-   restart: unless-stopped
-
-  cloudflared:
+    image: nginx:1.25-alpine
     profiles:
       - app
-    image: cloudflare/cloudflared:latest
-    command: tunnel --no-autoupdate run --token ${CLOUDFLARE_TUNNEL_TOKEN}
+    ports:
+      - "80:80"
+    volumes:
+      - ./nginx.conf:/etc/nginx/conf.d/default.conf
+    depends_on:
+      - identity
+      - storefront
+      - backoffice
+      - storefront-fe
+      - backoffice-fe
+      - kafka-ui
     networks:
       - booking-network
+    restart: unless-stopped
 
+  # Storefront Frontend
+  storefront-fe:
+    profiles:
+      - app
+    build:
+      context: ./storefront-fe
+      dockerfile: Dockerfile
+    environment:
+      - NODE_ENV=production
+      - NEXT_PUBLIC_API_URL=http://api.bookingsmart.local
+      - NEXT_PUBLIC_KEYCLOAK_URL=http://identity/realms/BookingSmart
+    networks:
+      - booking-network
+    restart: unless-stopped
+
+  # Backoffice Frontend
+  backoffice-fe:
+    profiles:
+      - app
+    build:
+      context: ./backoffice-fe
+      dockerfile: Dockerfile
+    environment:
+      - NODE_ENV=production
+      - NEXT_PUBLIC_API_URL=http://api.bookingsmart.local
+      - NEXT_PUBLIC_KEYCLOAK_URL=http://identity/realms/BookingSmart
+    networks:
+      - booking-network
+    restart: unless-stopped
   #Ollama
-#  ollama:
-#    profiles:
-#      - aiAgent
-#      - app
-#    image: ollama/ollama:latest
-#    container_name: ollama
-#    restart: unless-stopped
-#    environment:
-#      - OLLAMA_KEEP_ALIVE=24h
-#      - OLLAMA_HOST=0.0.0.0
-#    ports:
-#      - "11434:11434"
-#    volumes:
-#      - ollama_data:/root/.ollama
 
+  ollama:
+    profiles:
+      - aiAgent
+    image: ollama/ollama:latest
+    container_name: ollama
+    restart: unless-stopped
+    environment:
+      - OLLAMA_KEEP_ALIVE=24h
+      - OLLAMA_HOST=0.0.0.0
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_data:/root/.ollama
   # N8N Workflow Automation
   n8n:
     profiles:
@@ -458,6 +417,7 @@ services:
       - "5678:5678"
     depends_on:
       - postgres
+      - ollama
     environment:
 #      - N8N_HOST=n8n
 #      - N8N_PORT=80
@@ -479,24 +439,24 @@ services:
     restart: unless-stopped
 
 #  # PgAdmin for database management
-#  pgadmin:
-#    profiles:
-#      - dev
-#      - auth
-#    image: dpage/pgadmin4:latest
-#    environment:
-#      PGADMIN_CONFIG_SERVER_MODE: 'False'
-#      PGADMIN_DEFAULT_EMAIL: huypd.dev@gmail.com
-#      PGADMIN_DEFAULT_PASSWORD: admin123
-#    ports:
-#      - "8666:80"
-#    volumes:
-#      - pgadmin_data:/var/lib/pgadmin
-#    depends_on:
-#      - postgres
-#    restart: unless-stopped
-#    networks:
-#      - booking-network
+  pgadmin:
+    profiles:
+      - dev
+      - auth
+    image: dpage/pgadmin4:latest
+    environment:
+      PGADMIN_CONFIG_SERVER_MODE: 'False'
+      PGADMIN_DEFAULT_EMAIL: huypd.dev@gmail.com
+      PGADMIN_DEFAULT_PASSWORD: admin123
+    ports:
+      - "8666:80"
+    volumes:
+      - pgadmin_data:/var/lib/pgadmin
+    depends_on:
+      - postgres
+    restart: unless-stopped
+    networks:
+      - booking-network
 
 
 networks:
@@ -505,8 +465,7 @@ networks:
     name: booking-network
 volumes:
     postgres_data:
-    redis_data:
     n8n_data:
-#    ollama_data:
-#    pgadmin_data:
+    ollama_data:
+    pgadmin_data:
 

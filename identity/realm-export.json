@@ -417,8 +417,8 @@
       "id": "6249ae7e-844e-4ed7-9b66-02013a98ba2e",
       "username": "service-account-customer-management",
       "emailVerified": false,
-      "createdTimestamp": 1663154002788,
       "enabled": true,
+      "createdTimestamp": 1663154002788,
       "totp": false,
       "serviceAccountClientId": "customer-management",
       "disableableCredentialTypes": [],
@@ -443,8 +443,8 @@
       "id": "338216c3-c4a7-4d4f-b394-72d7a79c579e",
       "username": "service-account-storefront-bff",
       "emailVerified": false,
-      "createdTimestamp": 1678087360744,
       "enabled": true,
+      "createdTimestamp": 1678087360744,
       "totp": false,
       "serviceAccountClientId": "storefront-bff",
       "disableableCredentialTypes": [],
@@ -626,20 +626,15 @@
     {
       "id": "26490047-2a91-4938-9324-371523ad1e14",
       "clientId": "backoffice-bff",
-      "name": "",
-      "description": "",
-      "rootUrl": "",
-      "adminUrl": "",
-      "baseUrl": "",
       "surrogateAuthRequired": false,
       "enabled": true,
       "alwaysDisplayInConsole": false,
       "clientAuthenticatorType": "client-secret",
       "secret": "**********",
       "redirectUris": [
-        "http://localhost:8080/*",
-        "https://admin-bookingsmart.huypd.dev/*",
-        "http://backoffice/*"
+        "http://backoffice/*",
+        "http://localhost:3000/*",
+        "http://localhost:8087/*"
       ],
       "webOrigins": [],
       "notBefore": 0,
@@ -653,12 +648,10 @@
       "frontchannelLogout": false,
       "protocol": "openid-connect",
       "attributes": {
-        "request.object.signature.alg": "any",
         "saml.multivalued.roles": "false",
         "saml.force.post.binding": "false",
         "post.logout.redirect.uris": "+",
         "oauth2.device.authorization.grant.enabled": "false",
-        "use.jwks.url": "false",
         "backchannel.logout.revoke.offline.tokens": "false",
         "saml.server.signature.keyinfo.ext": "false",
         "use.refresh.tokens": "true",
@@ -668,26 +661,17 @@
         "client_credentials.use_refresh_token": "false",
         "saml.client.signature": "false",
         "require.pushed.authorization.requests": "false",
-        "request.object.encryption.enc": "any",
         "saml.assertion.signature": "false",
         "id.token.as.detached.signature": "false",
-        "client.secret.creation.time": "1752060606",
-        "request.object.encryption.alg": "any",
-        "client.introspection.response.allow.jwt.claim.enabled": "false",
+        "client.secret.creation.time": "1752045071",
         "saml.encrypt": "false",
-        "standard.token.exchange.enabled": "false",
-        "login_theme": "bookingsmart-keycloak-theme",
         "saml.server.signature": "false",
         "exclude.session.state.from.auth.response": "false",
         "saml.artifact.binding": "false",
-        "client.use.lightweight.access.token.enabled": "false",
-        "request.object.required": "not required",
         "saml_force_name_id_format": "false",
-        "access.token.header.type.rfc9068": "false",
         "tls.client.certificate.bound.access.tokens": "false",
         "saml.authnstatement": "false",
         "display.on.consent.screen": "false",
-        "token.response.type.bearer.lower-case": "false",
         "saml.onetimeuse.condition": "false"
       },
       "authenticationFlowBindingOverrides": {},
@@ -803,7 +787,7 @@
         "require.pushed.authorization.requests": "false",
         "saml.assertion.signature": "false",
         "id.token.as.detached.signature": "false",
-        "client.secret.creation.time": "1752432344",
+        "client.secret.creation.time": "1752045094",
         "saml.encrypt": "false",
         "saml.server.signature": "false",
         "exclude.session.state.from.auth.response": "false",
@@ -995,11 +979,6 @@
     {
       "id": "4f64c142-0545-44bb-9446-2a18b9c9effd",
       "clientId": "storefront-bff",
-      "name": "",
-      "description": "",
-      "rootUrl": "",
-      "adminUrl": "",
-      "baseUrl": "",
       "surrogateAuthRequired": false,
       "enabled": true,
       "alwaysDisplayInConsole": false,
@@ -1007,8 +986,7 @@
       "secret": "**********",
       "redirectUris": [
         "http://storefront/*",
-        "https://bookingsmart.huypd.dev/*",
-        "http://localhost:8086/*"
+        "http://localhost:8087/*"
       ],
       "webOrigins": [],
       "notBefore": 0,
@@ -1018,33 +996,31 @@
       "implicitFlowEnabled": false,
       "directAccessGrantsEnabled": true,
       "serviceAccountsEnabled": true,
+      "authorizationServicesEnabled": true,
       "publicClient": false,
       "frontchannelLogout": false,
       "protocol": "openid-connect",
       "attributes": {
+        "id.token.as.detached.signature": "false",
+        "saml.assertion.signature": "false",
         "saml.force.post.binding": "false",
         "saml.multivalued.roles": "false",
+        "saml.encrypt": "false",
         "post.logout.redirect.uris": "+",
         "oauth2.device.authorization.grant.enabled": "false",
         "backchannel.logout.revoke.offline.tokens": "false",
+        "saml.server.signature": "false",
         "saml.server.signature.keyinfo.ext": "false",
         "use.refresh.tokens": "true",
+        "exclude.session.state.from.auth.response": "false",
         "realm_client": "false",
         "oidc.ciba.grant.enabled": "false",
+        "saml.artifact.binding": "false",
         "backchannel.logout.session.required": "true",
         "client_credentials.use_refresh_token": "false",
+        "saml_force_name_id_format": "false",
         "require.pushed.authorization.requests": "false",
         "saml.client.signature": "false",
-        "id.token.as.detached.signature": "false",
-        "saml.assertion.signature": "false",
-        "client.secret.creation.time": "1752431217",
-        "saml.encrypt": "false",
-        "standard.token.exchange.enabled": "false",
-        "login_theme": "bookingsmart-keycloak-theme",
-        "saml.server.signature": "false",
-        "exclude.session.state.from.auth.response": "false",
-        "saml.artifact.binding": "false",
-        "saml_force_name_id_format": "false",
         "tls.client.certificate.bound.access.tokens": "false",
         "saml.authnstatement": "false",
         "display.on.consent.screen": "false",
@@ -1115,7 +1091,6 @@
         }
       ],
       "defaultClientScopes": [
-        "service_account",
         "web-origins",
         "roles",
         "profile",
@@ -1127,7 +1102,15 @@
         "phone",
         "offline_access",
         "microprofile-jwt"
-      ]
+      ],
+      "authorizationSettings": {
+        "allowRemoteResourceManagement": true,
+        "policyEnforcementMode": "ENFORCING",
+        "resources": [],
+        "policies": [],
+        "scopes": [],
+        "decisionStrategy": "UNANIMOUS"
+      }
     },
     {
       "id": "ce61ec4b-d4c5-477b-91c0-ebf1fd189bbd",
@@ -1290,9 +1273,8 @@
           "consentRequired": false,
           "config": {
             "user.session.note": "client_id",
-            "introspection.token.claim": "true",
-            "userinfo.token.claim": "true",
             "id.token.claim": "true",
+            "introspection.token.claim": "true",
             "access.token.claim": "true",
             "claim.name": "client_id",
             "jsonType.label": "String"
@@ -1306,9 +1288,8 @@
           "consentRequired": false,
           "config": {
             "user.session.note": "clientAddress",
-            "introspection.token.claim": "true",
-            "userinfo.token.claim": "true",
             "id.token.claim": "true",
+            "introspection.token.claim": "true",
             "access.token.claim": "true",
             "claim.name": "clientAddress",
             "jsonType.label": "String"
@@ -1322,9 +1303,8 @@
           "consentRequired": false,
           "config": {
             "user.session.note": "clientHost",
-            "introspection.token.claim": "true",
-            "userinfo.token.claim": "true",
             "id.token.claim": "true",
+            "introspection.token.claim": "true",
             "access.token.claim": "true",
             "claim.name": "clientHost",
             "jsonType.label": "String"
@@ -1423,9 +1403,8 @@
           "consentRequired": false,
           "config": {
             "user.session.note": "AUTH_TIME",
-            "introspection.token.claim": "true",
-            "userinfo.token.claim": "true",
             "id.token.claim": "true",
+            "introspection.token.claim": "true",
             "access.token.claim": "true",
             "claim.name": "auth_time",
             "jsonType.label": "long"
@@ -1863,10 +1842,7 @@
     "strictTransportSecurity": "max-age=31536000; includeSubDomains"
   },
   "smtpServer": {},
-  "loginTheme": "bookingsmart-keycloak-theme",
-  "accountTheme": "",
-  "adminTheme": "",
-  "emailTheme": "",
+  "loginTheme": "BookingSmart",
   "eventsEnabled": false,
   "eventsListeners": [
     "jboss-logging"
@@ -1894,14 +1870,14 @@
         "subComponents": {},
         "config": {
           "allowed-protocol-mapper-types": [
-            "saml-user-attribute-mapper",
-            "oidc-sha256-pairwise-sub-mapper",
             "saml-user-property-mapper",
+            "oidc-sha256-pairwise-sub-mapper",
+            "oidc-full-name-mapper",
+            "saml-user-attribute-mapper",
             "oidc-address-mapper",
             "saml-role-list-mapper",
-            "oidc-usermodel-attribute-mapper",
             "oidc-usermodel-property-mapper",
-            "oidc-full-name-mapper"
+            "oidc-usermodel-attribute-mapper"
           ]
         }
       },
@@ -1972,14 +1948,14 @@
         "subComponents": {},
         "config": {
           "allowed-protocol-mapper-types": [
-            "saml-user-attribute-mapper",
-            "oidc-address-mapper",
-            "saml-user-property-mapper",
-            "oidc-full-name-mapper",
+            "oidc-sha256-pairwise-sub-mapper",
             "saml-role-list-mapper",
+            "saml-user-property-mapper",
+            "oidc-address-mapper",
+            "saml-user-attribute-mapper",
+            "oidc-full-name-mapper",
             "oidc-usermodel-property-mapper",
-            "oidc-usermodel-attribute-mapper",
-            "oidc-sha256-pairwise-sub-mapper"
+            "oidc-usermodel-attribute-mapper"
           ]
         }
       }
@@ -2064,7 +2040,6 @@
     ]
   },
   "internationalizationEnabled": false,
-  "supportedLocales": [],
   "authenticationFlows": [
     {
       "id": "3968cac9-c5d7-4aeb-bc30-7a7bd306f2d9",
@@ -2686,20 +2661,19 @@
   "firstBrokerLoginFlow": "first broker login",
   "attributes": {
     "cibaBackchannelTokenDeliveryMode": "poll",
+    "cibaExpiresIn": "120",
     "cibaAuthRequestedUserHint": "login_hint",
+    "oauth2DeviceCodeLifespan": "600",
     "clientOfflineSessionMaxLifespan": "0",
     "oauth2DevicePollingInterval": "5",
     "clientSessionIdleTimeout": "0",
-    "clientOfflineSessionIdleTimeout": "0",
-    "cibaInterval": "5",
-    "realmReusableOtpCode": "false",
-    "cibaExpiresIn": "120",
-    "oauth2DeviceCodeLifespan": "600",
     "parRequestUriLifespan": "60",
     "clientSessionMaxLifespan": "0",
-    "darkMode": "true"
+    "clientOfflineSessionIdleTimeout": "0",
+    "cibaInterval": "5",
+    "realmReusableOtpCode": "false"
   },
-  "keycloakVersion": "26.2.4",
+  "keycloakVersion": "26.3.0",
   "userManagedAccessAllowed": false,
   "organizationsEnabled": false,
   "verifiableCredentialsEnabled": false,

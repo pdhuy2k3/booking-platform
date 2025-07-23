@@ -3,7 +3,6 @@ package com.pdh.common.outbox;
 import com.pdh.common.model.AbstractAuditEntity;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
-import lombok.Builder;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 import lombok.NoArgsConstructor;
@@ -29,7 +28,6 @@ import java.util.UUID;
 @EqualsAndHashCode(callSuper = false)
 @NoArgsConstructor
 @AllArgsConstructor
-@Builder
 public class BaseOutboxEvent extends AbstractAuditEntity {
     
     @Id
@@ -68,16 +66,6 @@ public class BaseOutboxEvent extends AbstractAuditEntity {
     
     @Column(name = "error_message", columnDefinition = "TEXT")
     private String errorMessage;
-
-    // Listen to Yourself Pattern fields
-    @Column(name = "self_processed", nullable = false)
-    private Boolean selfProcessed = false;
-
-    @Column(name = "self_processed_at")
-    private LocalDateTime selfProcessedAt;
-
-    @Column(name = "processing_attempts", nullable = false)
-    private Integer processingAttempts = 0;
     
     /**
      * Mark the event as processed
@@ -127,27 +115,5 @@ public class BaseOutboxEvent extends AbstractAuditEntity {
         this.errorMessage = null;
         this.processed = false;
         this.processedAt = null;
-    }
-
-    /**
-     * Mark event as self-processed (Listen to Yourself Pattern)
-     */
-    public void markAsSelfProcessed() {
-        this.selfProcessed = true;
-        this.selfProcessedAt = LocalDateTime.now();
-    }
-
-    /**
-     * Increment processing attempts (Listen to Yourself Pattern)
-     */
-    public void incrementProcessingAttempts() {
-        this.processingAttempts++;
-    }
-
-    /**
-     * Check if event needs self-processing (Listen to Yourself Pattern)
-     */
-    public boolean needsSelfProcessing() {
-        return !this.selfProcessed && this.processingAttempts < 3;
     }
 }

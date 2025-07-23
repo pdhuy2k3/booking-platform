@@ -1,7 +1,7 @@
 "use client"
 
-import { useBooking } from "@/common/contexts/booking-context"
-import { BookingType,BookingStep } from "@/modules/booking/types"
+import { useBooking } from "@/lib/booking-context"
+import { BookingType } from "@/types/booking"
 import { Plane, Building, Package, Bus, Train } from "lucide-react"
 
 const bookingTypes = [
@@ -23,6 +23,18 @@ const bookingTypes = [
     icon: Package,
     description: "Book flight and hotel together"
   },
+  {
+    type: BookingType.BUS,
+    label: "Bus",
+    icon: Bus,
+    description: "Book bus tickets"
+  },
+  {
+    type: BookingType.TRAIN,
+    label: "Train",
+    icon: Train,
+    description: "Book train tickets"
+  }
 ]
 
 export function BookingTypeSelector() {
@@ -30,7 +42,7 @@ export function BookingTypeSelector() {
 
   const handleTypeChange = (type: BookingType) => {
     setBookingType(type)
-    setStep(BookingStep.SEARCH)
+    setStep("SEARCH")
   }
 
   return (

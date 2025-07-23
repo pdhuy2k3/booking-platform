@@ -35,7 +35,7 @@ public class WebSecurityConfig {
     public SecurityWebFilterChain securityFilterChain(ServerHttpSecurity http) throws Exception {
         http.authorizeExchange(authorizationManagerRequestMatcherRegistry -> {
             authorizationManagerRequestMatcherRegistry
-                    .pathMatchers("/profile/**","/dashboard/**").authenticated()
+                    .pathMatchers("/profiles/**","/dashboards/**").authenticated()
                     .anyExchange().permitAll();
         })
                 .oauth2Login(Customizer.withDefaults())

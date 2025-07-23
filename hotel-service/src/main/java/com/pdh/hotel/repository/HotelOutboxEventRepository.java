@@ -6,7 +6,6 @@ import org.springframework.stereotype.Repository;
 
 import java.time.LocalDateTime;
 import java.util.List;
-import java.util.Optional;
 import java.util.UUID;
 
 /**
@@ -35,11 +34,6 @@ public interface HotelOutboxEventRepository extends JpaRepository<HotelOutboxEve
      * Find events created after a specific time
      */
     List<HotelOutboxEvent> findByCreatedAtAfterOrderByCreatedAtAsc(LocalDateTime createdAt);
-
-    /**
-     * Find event by event ID (for Listen to Yourself Pattern)
-     */
-    Optional<HotelOutboxEvent> findByEventId(String eventId);
 
     /**
      * Delete events created before a specific time (for cleanup)

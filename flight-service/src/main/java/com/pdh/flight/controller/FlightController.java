@@ -4,13 +4,11 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.pdh.flight.dto.FlightBookingDetailsDto;
 import com.pdh.flight.model.Flight;
 import com.pdh.flight.model.Airport;
+import com.pdh.flight.model.Airline;
 import com.pdh.flight.repository.FlightRepository;
 import com.pdh.flight.repository.AirportRepository;
 import com.pdh.flight.repository.AirlineRepository;
 import com.pdh.flight.service.FlightService;
-import com.pdh.common.dto.ApiResponse;
-import com.pdh.common.util.ResponseUtils;
-import com.pdh.common.constants.ErrorCodes;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
@@ -65,11 +63,10 @@ public class FlightController {
 
     /**
      * Search flights for storefront
-     * Frontend calls: GET /api/flights/storefront/search?origin=HAN&destination=SGN&departureDate=2024-02-15&passengers=1&seatClass=ECONOMY
-     * BFF routes to: GET /flights/storefront/search
+     * GET /flights/storefront/search?origin=HAN&destination=SGN&departureDate=2024-02-15&passengers=1&seatClass=ECONOMY
      */
     @GetMapping("/storefront/search")
-    public ResponseEntity<ApiResponse<Map<String, Object>>> searchFlights(
+    public ResponseEntity<Map<String, Object>> searchFlights(
             @RequestParam String origin,
             @RequestParam String destination,
             @RequestParam String departureDate,
@@ -97,7 +94,7 @@ public class FlightController {
                 .map(this::convertFlightToResponse)
                 .collect(Collectors.toList());
 
-            Map<String, Object> searchResults = Map.of(
+            Map<String, Object> response = Map.of(
                 "flights", flights,
                 "totalCount", flightPage.getTotalElements(),
                 "page", page,
@@ -114,14 +111,20 @@ public class FlightController {
             );
 
             log.info("Found {} flights for search criteria", flights.size());
-            return ResponseUtils.ok(searchResults, "Flight search completed successfully");
+            return ResponseEntity.ok(response);
 
-        } catch (IllegalArgumentException e) {
-            log.error("Invalid flight search parameters", e);
-            return ResponseUtils.badRequest(e.getMessage(), ErrorCodes.INVALID_DATE_FORMAT);
         } catch (Exception e) {
             log.error("Error searching flights", e);
-            return ResponseUtils.internalError("Failed to search flights");
+            Map<String, Object> errorResponse = Map.of(
+                "error", "Failed to search flights",
+                "message", e.getMessage(),
+                "flights", List.of(),
+                "totalCount", 0,
+                "page", page,
+                "limit", limit,
+                "hasMore", false
+            );
+            return ResponseEntity.ok(errorResponse);
         }
     }
 
@@ -220,7 +223,7 @@ public class FlightController {
         try {
             String bookingId = (String) request.get("bookingId");
             String sagaId = (String) request.get("sagaId");
-            // String customerId = (String) request.get("customerId"); // Reserved for future use
+            String customerId = (String) request.get("customerId");
 
             // Check if detailed flight information is provided
             Object flightDetailsObj = request.get("flightDetails");

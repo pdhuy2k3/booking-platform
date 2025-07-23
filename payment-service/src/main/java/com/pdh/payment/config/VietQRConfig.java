@@ -19,7 +19,7 @@ public class VietQRConfig {
     
     @Data
     public static class Api {
-        private String baseUrl ;
+        private String baseUrl = "https://api.vietqr.vn";
         private String clientId;
         private String apiKey;
         private int timeoutSeconds = 30;
@@ -35,15 +35,15 @@ public class VietQRConfig {
     
     @Data
     public static class Callback {
-        private String endpointPath;
+        private String endpointPath = "/api/payments/vietqr/callback";
         private String secret;
     }
     
     @Data
     public static class Settings {
         private int qrExpirationMinutes = 30;
-        private String currency ;
-        private String template ;
+        private String currency = "VND";
+        private String template = "compact2";
     }
     
     /**

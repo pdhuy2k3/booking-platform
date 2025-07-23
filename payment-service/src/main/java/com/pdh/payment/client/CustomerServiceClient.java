@@ -4,13 +4,10 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.cloud.client.ServiceInstance;
-import org.springframework.cloud.client.discovery.DiscoveryClient;
-import org.springframework.security.core.context.SecurityContextHolder;
-import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.stereotype.Component;
-import org.springframework.web.client.RestClient;
-import org.springframework.web.client.RestClientResponseException;
+import org.springframework.web.reactive.function.client.WebClient;
+import org.springframework.web.reactive.function.client.WebClientResponseException;
+import reactor.core.publisher.Mono;
 
 import java.time.Duration;
 import java.util.UUID;
@@ -24,9 +21,11 @@ import java.util.UUID;
 @Slf4j
 public class CustomerServiceClient {
 
-    private final RestClient restClient;
+    private final WebClient webClient;
     private final ObjectMapper objectMapper;
-    private final DiscoveryClient discoveryClient;
+
+    @Value("${customer-service.base-url:http://customer-service}")
+    private String customerServiceBaseUrl;
 
     @Value("${customer-service.timeout-seconds:10}")
     private int timeoutSeconds;
@@ -36,15 +35,15 @@ public class CustomerServiceClient {
      */
     public CustomerProfile getCustomerProfile(UUID userId) {
         log.debug("Fetching customer profile for user: {}", userId);
-        final String jwt = ((Jwt) SecurityContextHolder.getContext().getAuthentication().getPrincipal())
-                .getTokenValue();
-        ServiceInstance instance = discoveryClient.getInstances("CUSTOMER-SERVICE").getFirst();
+
         try {
-            String response = restClient.get()
-                    .uri(instance.getUri() + "/customers/profile")
-                    .header("Authorization", "Bearer " + jwt)
+            String response = webClient.get()
+                    .uri(customerServiceBaseUrl + "/api/customers/profile")
+                    .header("X-User-ID", userId.toString()) // Pass user ID in header
                     .retrieve()
-                    .body(String.class);
+                    .bodyToMono(String.class)
+                    .timeout(Duration.ofSeconds(timeoutSeconds))
+                    .block();
 
             if (response != null) {
                 CustomerProfile profile = objectMapper.readValue(response, CustomerProfile.class);
@@ -52,8 +51,8 @@ public class CustomerServiceClient {
                 return profile;
             }
 
-        } catch (RestClientResponseException e) {
-            log.warn("Failed to fetch customer profile for user {}: HTTP {} - {}",
+        } catch (WebClientResponseException e) {
+            log.warn("Failed to fetch customer profile for user {}: HTTP {} - {}", 
                     userId, e.getStatusCode(), e.getResponseBodyAsString());
         } catch (Exception e) {
             log.error("Error fetching customer profile for user: {}", userId, e);

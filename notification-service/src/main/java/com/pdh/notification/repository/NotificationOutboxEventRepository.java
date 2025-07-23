@@ -6,7 +6,6 @@ import org.springframework.stereotype.Repository;
 
 import java.time.LocalDateTime;
 import java.util.List;
-import java.util.Optional;
 import java.util.UUID;
 
 /**
@@ -45,9 +44,4 @@ public interface NotificationOutboxEventRepository extends JpaRepository<Notific
      * Count total events
      */
     long count();
-
-    /**
-     * Find event by event ID (for Listen to Yourself Pattern)
-     */
-    Optional<NotificationOutboxEvent> findByEventId(String eventId);
 }

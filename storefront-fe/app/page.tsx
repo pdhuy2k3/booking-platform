@@ -144,7 +144,7 @@ export default function HomePage() {
               </CardHeader>
               <CardContent>
                 <CardDescription>
-                  Hệ thống bảo mật đa lớp, đảm bảo thông tin cá nhân được bảo vệ tuyệt đối
+                  Hệ thống bảo mật đa lớp với công nghệ Logto, đảm bảo thông tin cá nhân được bảo vệ tuyệt đối
                 </CardDescription>
               </CardContent>
             </Card>

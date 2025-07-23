@@ -1,28 +1,115 @@
-import { apiClient } from "@/common/api/api-client"
-import { CustomerProfile, UpdateProfileRequest, TravelDocument, SavedTraveler, LoyaltyTransaction } from "./types"
+import { apiClient } from "./api-client"
+
+// Customer types
+export interface CustomerProfile {
+  id: string
+  username: string
+  email: string
+  firstName: string
+  lastName: string
+  phone?: string
+  dateOfBirth?: string
+  nationality?: string
+  passportNumber?: string
+  passportExpiry?: string
+  address?: {
+    street: string
+    city: string
+    state: string
+    country: string
+    postalCode: string
+  }
+  preferences: {
+    language: string
+    currency: string
+    notifications: {
+      email: boolean
+      sms: boolean
+      push: boolean
+    }
+    marketing: boolean
+  }
+  loyaltyProgram?: {
+    memberId: string
+    tier: 'BRONZE' | 'SILVER' | 'GOLD' | 'PLATINUM'
+    points: number
+    nextTierPoints: number
+  }
+  createdAt: string
+  updatedAt: string
+  isVerified: boolean
+  isActive: boolean
+}
+
+export interface UpdateProfileRequest {
+  firstName?: string
+  lastName?: string
+  phone?: string
+  dateOfBirth?: string
+  nationality?: string
+  passportNumber?: string
+  passportExpiry?: string
+  address?: {
+    street: string
+    city: string
+    state: string
+    country: string
+    postalCode: string
+  }
+  preferences?: {
+    language?: string
+    currency?: string
+    notifications?: {
+      email?: boolean
+      sms?: boolean
+      push?: boolean
+    }
+    marketing?: boolean
+  }
+}
+
+export interface TravelDocument {
+  id: string
+  type: 'PASSPORT' | 'ID_CARD' | 'DRIVER_LICENSE' | 'VISA'
+  documentNumber: string
+  issuingCountry: string
+  expiryDate: string
+  isVerified: boolean
+  uploadedAt: string
+}
+
+export interface SavedTraveler {
+  id: string
+  firstName: string
+  lastName: string
+  dateOfBirth: string
+  nationality: string
+  passportNumber?: string
+  passportExpiry?: string
+  relationship: 'SELF' | 'SPOUSE' | 'CHILD' | 'PARENT' | 'SIBLING' | 'FRIEND' | 'OTHER'
+  isFrequentTraveler: boolean
+  createdAt: string
+}
+
+export interface LoyaltyTransaction {
+  id: string
+  type: 'EARNED' | 'REDEEMED' | 'EXPIRED' | 'ADJUSTED'
+  points: number
+  description: string
+  bookingReference?: string
+  expiryDate?: string
+  createdAt: string
+}
 
 export class CustomerService {
   // Profile Management
   static async getProfile(): Promise<CustomerProfile> {
-    // Backend extracts userId from JWT token using AuthenticationUtils.extractUserId()
-    return apiClient.get<CustomerProfile>(`/api/customers/storefront/profile`)
+    return apiClient.get<CustomerProfile>(`/customers/storefront/profile`)
   }
 
-  static async updateProfile(profile: UpdateProfileRequest): Promise<CustomerProfile> {
-        return apiClient.put<CustomerProfile>("/api/customers/storefront/profile", profile);
-    }
-
-    static async sendVerificationEmail(): Promise<void> {
-        return apiClient.post("/api/customers/storefront/profile/send-verification-email");
-    }
-
-    static async sendUpdatePasswordEmail(): Promise<void> {
-        return apiClient.post("/api/customers/storefront/profile/send-update-password-email");
-    }
-
-    static async configureTotp(): Promise<string> {
-        return apiClient.post("/api/customers/storefront/profile/configure-totp");
-    }
+  static async updateProfile(updates: UpdateProfileRequest): Promise<CustomerProfile> {
+    return apiClient.patch<CustomerProfile>(`/customers/storefront/profile`, updates)
+  }
 
   static async uploadProfilePhoto(photo: File): Promise<{ photoUrl: string }> {
     const formData = new FormData()
@@ -36,7 +123,6 @@ export class CustomerService {
   }
 
   static async deleteAccount(reason?: string): Promise<void> {
-    // Backend extracts userId from JWT token using AuthenticationUtils.extractUserId()
     return apiClient.delete(`/api/customers/storefront/profile`, {
       data: { reason }
     })
@@ -44,7 +130,6 @@ export class CustomerService {
 
   // Travel Documents
   static async getTravelDocuments(): Promise<TravelDocument[]> {
-    // Backend extracts userId from JWT token using AuthenticationUtils.extractUserId()
     return apiClient.get<TravelDocument[]>(`/api/customers/storefront/documents`)
   }
 
@@ -64,7 +149,6 @@ export class CustomerService {
     formData.append('expiryDate', document.expiryDate)
     formData.append('file', document.file)
 
-    // Backend extracts userId from JWT token using AuthenticationUtils.extractUserId()
     return apiClient.post(`/api/customers/storefront/documents`, formData, {
       headers: {
         'Content-Type': 'multipart/form-data'
@@ -73,18 +157,15 @@ export class CustomerService {
   }
 
   static async deleteTravelDocument(documentId: string): Promise<void> {
-    // Backend extracts userId from JWT token using AuthenticationUtils.extractUserId()
     return apiClient.delete(`/api/customers/storefront/documents/${documentId}`)
   }
 
   // Saved Travelers
   static async getSavedTravelers(): Promise<SavedTraveler[]> {
-    // Backend extracts userId from JWT token using AuthenticationUtils.extractUserId()
     return apiClient.get<SavedTraveler[]>(`/api/customers/storefront/travelers`)
   }
 
   static async addSavedTraveler(traveler: Omit<SavedTraveler, 'id' | 'createdAt'>): Promise<SavedTraveler> {
-    // Backend extracts userId from JWT token using AuthenticationUtils.extractUserId()
     return apiClient.post<SavedTraveler>(`/api/customers/storefront/travelers`, traveler)
   }
 
@@ -92,12 +173,10 @@ export class CustomerService {
     travelerId: string,
     updates: Partial<Omit<SavedTraveler, 'id' | 'createdAt'>>
   ): Promise<SavedTraveler> {
-    // Backend extracts userId from JWT token using AuthenticationUtils.extractUserId()
     return apiClient.patch<SavedTraveler>(`/api/customers/storefront/travelers/${travelerId}`, updates)
   }
 
   static async deleteSavedTraveler(travelerId: string): Promise<void> {
-    // Backend extracts userId from JWT token using AuthenticationUtils.extractUserId()
     return apiClient.delete(`/api/customers/storefront/travelers/${travelerId}`)
   }
 
@@ -114,7 +193,6 @@ export class CustomerService {
       expiryDate: string
     }>
   }> {
-    // Backend extracts userId from JWT token using AuthenticationUtils.extractUserId()
     return apiClient.get(`/api/customers/storefront/loyalty/balance`)
   }
 
@@ -129,7 +207,6 @@ export class CustomerService {
     hasMore: boolean
   }> {
     const queryParams = apiClient.buildQueryParams({ page, limit })
-    // Backend extracts userId from JWT token using AuthenticationUtils.extractUserId()
     return apiClient.get(`/api/customers/storefront/loyalty/history?${queryParams}`)
   }
 
@@ -145,7 +222,6 @@ export class CustomerService {
     currency: string
     expiryDate?: string
   }> {
-    // Backend extracts userId from JWT token using AuthenticationUtils.extractUserId()
     return apiClient.post(`/api/customers/storefront/loyalty/redeem`, redemption)
   }
 
@@ -159,7 +235,6 @@ export class CustomerService {
     promotions: boolean
     newsletter: boolean
   }> {
-    // Backend extracts userId from JWT token using AuthenticationUtils.extractUserId()
     return apiClient.get(`/api/customers/storefront/preferences/notifications`)
   }
 
@@ -174,7 +249,6 @@ export class CustomerService {
       newsletter?: boolean
     }
   ): Promise<void> {
-    // Backend extracts userId from JWT token using AuthenticationUtils.extractUserId()
     return apiClient.patch(`/api/customers/storefront/preferences/notifications`, preferences)
   }
 
@@ -184,7 +258,6 @@ export class CustomerService {
     newPassword: string
     confirmPassword: string
   }): Promise<void> {
-    // Backend extracts userId from JWT token using AuthenticationUtils.extractUserId()
     return apiClient.post(`/api/customers/storefront/change-password`, passwords)
   }
 
@@ -193,7 +266,6 @@ export class CustomerService {
     backupCodes: string[]
     secret: string
   }> {
-    // Backend extracts userId from JWT token using AuthenticationUtils.extractUserId()
     return apiClient.post(`/api/customers/storefront/2fa/enable`)
   }
 
@@ -233,5 +305,65 @@ export class CustomerService {
   }
 }
 
+// Mock service for development
+class MockCustomerService {
+  static async getProfile(): Promise<CustomerProfile> {
+    await new Promise(resolve => setTimeout(resolve, 500))
+    
+    return {
+      id: "user-123",
+      username: "john.doe",
+      email: "john.doe@example.com",
+      firstName: "John",
+      lastName: "Doe",
+      phone: "+84901234567",
+      dateOfBirth: "1990-01-15",
+      nationality: "VN",
+      preferences: {
+        language: "vi",
+        currency: "VND",
+        notifications: {
+          email: true,
+          sms: true,
+          push: true
+        },
+        marketing: false
+      },
+      loyaltyProgram: {
+        memberId: "LP123456",
+        tier: "SILVER",
+        points: 2500,
+        nextTierPoints: 5000
+      },
+      createdAt: "2023-01-01T00:00:00Z",
+      updatedAt: "2024-01-01T00:00:00Z",
+      isVerified: true,
+      isActive: true
+    }
+  }
+
+  static async getSavedTravelers(): Promise<SavedTraveler[]> {
+    await new Promise(resolve => setTimeout(resolve, 400))
+    
+    return [
+      {
+        id: "traveler-1",
+        firstName: "Jane",
+        lastName: "Doe",
+        dateOfBirth: "1992-05-20",
+        nationality: "VN",
+        passportNumber: "A1234567",
+        passportExpiry: "2028-05-20",
+        relationship: "SPOUSE",
+        isFrequentTraveler: true,
+        createdAt: "2023-06-01T00:00:00Z"
+      }
+    ]
+  }
+}
+
 // Use real service now that we have populated databases
-export const customerService = new CustomerService()
+export const customerService = CustomerService
+
+// Keep mock service available for testing if needed
+export { MockCustomerService }

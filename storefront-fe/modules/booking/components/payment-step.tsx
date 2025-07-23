@@ -1,57 +1,111 @@
 "use client"
 
-import { useState, useEffect } from "react"
-import { loadStripe } from "@stripe/stripe-js"
-import { Elements, PaymentElement, useStripe, useElements } from "@stripe/react-stripe-js"
-import { useBooking } from "@/common/contexts/booking-context"
-import { useAuth } from "@/common/auth/auth-context"
-import { BookingService } from "@/modules/booking/api"
-import { PaymentService } from "@/modules/payment/api"
-import { CreateBookingRequest, BookingResponse } from "@/modules/booking/api"
-import { Button } from "@/common/components/ui/button"
-import { Card, CardContent, CardHeader, CardTitle } from "@/common/components/ui/card"
-import { Label } from "@/common/components/ui/label"
-import { Separator } from "@/common/components/ui/separator"
-import { RadioGroup, RadioGroupItem } from "@/common/components/ui/radio-group"
+import { useState } from "react"
+import { useBooking } from "@/lib/booking-context"
+import { bookingService } from "@/lib/booking-service"
+import { PaymentService } from "@/lib/payment-service"
+import { CreateBookingRequest, BookingResponse } from "@/types/booking"
+import { Button } from "@/components/ui/button"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Separator } from "@/components/ui/separator"
 import { CreditCard, Shield, Loader2 } from "lucide-react"
-
-// Load Stripe
-const stripePromise = loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY!)
-
-interface PaymentMethod {
-  id: string
-  name: string
-  description: string
-  icon: React.ReactNode
-  gateway: "STRIPE"
-  type: string
-}
-
-const paymentMethods: PaymentMethod[] = [
-  {
-    id: "credit_card",
-    name: "Credit/Debit Card",
-    description: "Pay securely with your credit or debit card",
-    icon: <CreditCard className="w-6 h-6" />,
-    gateway: "STRIPE",
-    type: "CREDIT_CARD"
-  }
-]
 
 export function PaymentStep() {
   const { state, dispatch, nextStep, prevStep } = useBooking()
-  const { user } = useAuth()
   
-  const [selectedPaymentMethod, setSelectedPaymentMethod] = useState("credit_card")
+  const [paymentMethod, setPaymentMethod] = useState("credit_card")
+  const [cardDetails, setCardDetails] = useState({
+    cardNumber: "",
+    expiryDate: "",
+    cvv: "",
+    cardholderName: ""
+  })
   const [isProcessing, setIsProcessing] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [stripeClientSecret, setStripeClientSecret] = useState<string | null>(null)
-  const [booking, setBooking] = useState<BookingResponse | null>(null)
 
-  // Get selected payment method
-  const currentMethod = paymentMethods.find(m => m.id === selectedPaymentMethod)
+  const handleCardDetailChange = (field: string, value: string) => {
+    setCardDetails(prev => ({ ...prev, [field]: value }))
+  }
 
-  // Format price helper
+  const handlePayment = async () => {
+    setIsProcessing(true)
+    setError(null)
+
+    try {
+      // Step 1: Create booking first (this will start the saga and reserve resources)
+      const bookingRequest: CreateBookingRequest = {
+        userId: "user-123", // TODO: Get from auth context
+        bookingType: state.bookingType,
+        totalAmount: state.totalAmount,
+        currency: state.currency,
+        flightDetails: state.selectedFlight ? {
+          flightId: state.selectedFlight.flightId,
+          departureDate: state.flightSearch?.departureDate || "",
+          returnDate: state.flightSearch?.returnDate,
+          passengers: state.passengers || [],
+          seatClass: state.flightSearch?.seatClass || "ECONOMY"
+        } : undefined,
+        hotelDetails: state.selectedHotel && state.selectedRoom ? {
+          hotelId: state.selectedHotel.hotelId,
+          roomId: state.selectedRoom.roomId,
+          checkInDate: state.hotelSearch?.checkInDate || "",
+          checkOutDate: state.hotelSearch?.checkOutDate || "",
+          guests: state.hotelSearch?.guests || 1,
+          rooms: state.hotelSearch?.rooms || 1
+        } : undefined
+      }
+
+      // Create booking (this will start the saga and reserve resources)
+      const bookingResponse = await bookingService.createBooking(bookingRequest)
+
+      // Step 2: Process payment using the payment service
+      const paymentRequest = {
+        bookingId: bookingResponse.bookingId,
+        amount: state.totalAmount,
+        currency: state.currency,
+        gateway: paymentMethod === "credit_card" ? "STRIPE" : "VIETQR",
+        paymentMethodType: paymentMethod === "credit_card" ? "CREDIT_CARD" : "BANK_TRANSFER",
+        paymentMethodToken: paymentMethod === "credit_card" ? generateCardToken() : undefined,
+        description: `Payment for booking ${bookingResponse.bookingReference}`,
+        returnUrl: `${window.location.origin}/booking/confirmation`,
+        cancelUrl: `${window.location.origin}/booking/payment`,
+        additionalData: {
+          bookingReference: bookingResponse.bookingReference,
+          bookingType: state.bookingType
+        }
+      }
+
+      // Process payment
+      const paymentResponse = await PaymentService.processPayment(paymentRequest)
+
+      // Store both booking and payment response for confirmation step
+      localStorage.setItem('currentBooking', JSON.stringify({
+        ...bookingResponse,
+        payment: paymentResponse
+      }))
+
+      // Move to confirmation step
+      nextStep()
+
+    } catch (err) {
+      setError("Payment failed. Please try again.")
+      console.error("Payment error:", err)
+    } finally {
+      setIsProcessing(false)
+    }
+  }
+
+  // Generate a mock card token (in real implementation, this would use Stripe.js or similar)
+  const generateCardToken = () => {
+    if (paymentMethod === "credit_card" && cardDetails.cardNumber) {
+      return `tok_${cardDetails.cardNumber.slice(-4)}_${Date.now()}`
+    }
+    return undefined
+  }
+
   const formatPrice = (price: number, currency: string) => {
     return new Intl.NumberFormat('vi-VN', {
       style: 'currency',
@@ -59,158 +113,112 @@ export function PaymentStep() {
     }).format(price)
   }
 
-  // Create booking and payment intent when payment method changes
-  useEffect(() => {
-    if (currentMethod) {
-      handleCreateBookingAndPaymentIntent()
-    }
-  }, [selectedPaymentMethod])
-
-  const handleCreateBookingAndPaymentIntent = async () => {
-    setError(null)
-    setIsProcessing(true)
-
-    try {
-      // Step 1: Create booking first (this will start the saga and reserve resources)
-      if (!booking) {
-        const bookingRequest: CreateBookingRequest = {
-          bookingType: state.bookingType,
-          flightId: state.selectedFlight?.id,
-          hotelId: state.selectedHotel?.id,
-          roomId: state.selectedRoom?.id,
-          passengers: state.passengers || [],
-          totalAmount: state.totalAmount,
-          currency: state.currency,
-        }
-
-        const bookingResponse = await BookingService.createBooking(bookingRequest)
-        setBooking(bookingResponse)
-      }
-
-      // Step 2: Create payment intent based on selected method
-      if (currentMethod?.gateway === "STRIPE") {
-        await createStripePaymentIntent()
-      }
-
-    } catch (err) {
-      setError("Failed to initialize payment. Please try again.")
-      console.error("Payment initialization error:", err)
-    } finally {
-      setIsProcessing(false)
-    }
-  }
-
-  const createStripePaymentIntent = async () => {
-    try {
-      const response = await PaymentService.createPaymentIntent({
-        bookingId: booking!.bookingId,
-        amount: state.totalAmount,
-        currency: state.currency,
-        gateway: "STRIPE",
-        description: `Payment for booking ${booking!.bookingReference}`,
-        metadata: {
-          booking_reference: booking!.bookingReference,
-          booking_type: state.bookingType
-        }
-      })
-
-      setStripeClientSecret(response.clientSecret || null)
-    } catch (err) {
-      throw new Error("Failed to create Stripe payment intent")
-    }
-  }
-
-  const handlePaymentMethodChange = (methodId: string) => {
-    setSelectedPaymentMethod(methodId)
-    setStripeClientSecret(null)
-  }
+  const isFormValid = paymentMethod === "credit_card" 
+    ? cardDetails.cardNumber && cardDetails.expiryDate && cardDetails.cvv && cardDetails.cardholderName
+    : true
 
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-2xl font-bold mb-2">Payment</h2>
-        <p className="text-muted-foreground">Choose your payment method and complete your booking</p>
+        <h2 className="text-2xl font-semibold text-gray-900 mb-2">Payment</h2>
+        <p className="text-gray-600">Complete your booking by making payment</p>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Payment Method Selection */}
+        {/* Payment Form */}
         <div className="lg:col-span-2 space-y-6">
+          {/* Payment Method */}
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
-                <Shield className="w-5 h-5" />
-                Select Payment Method
+                <CreditCard className="w-5 h-5" />
+                Payment Method
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <RadioGroup value={selectedPaymentMethod} onValueChange={handlePaymentMethodChange}>
-                <div className="space-y-4">
-                  {paymentMethods.map((method) => (
-                    <div key={method.id} className="flex items-center space-x-2">
-                      <RadioGroupItem value={method.id} id={method.id} />
-                      <Label 
-                        htmlFor={method.id} 
-                        className="flex items-center gap-3 cursor-pointer flex-1 p-3 border rounded-lg hover:bg-gray-50"
-                      >
-                        {method.icon}
-                        <div>
-                          <div className="font-medium">{method.name}</div>
-                          <div className="text-sm text-muted-foreground">{method.description}</div>
-                        </div>
-                      </Label>
-                    </div>
-                  ))}
-                </div>
-              </RadioGroup>
+              <Select value={paymentMethod} onValueChange={setPaymentMethod}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="credit_card">Credit/Debit Card</SelectItem>
+                  <SelectItem value="bank_transfer">Bank Transfer</SelectItem>
+                  <SelectItem value="e_wallet">E-Wallet</SelectItem>
+                </SelectContent>
+              </Select>
             </CardContent>
           </Card>
 
-          {/* Payment Form */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Payment Details</CardTitle>
-            </CardHeader>
-            <CardContent>
-              {error && (
-                <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-red-700">
-                  {error}
-                </div>
-              )}
-
-              {currentMethod?.gateway === "STRIPE" && stripeClientSecret && (
-                <Elements
-                  stripe={stripePromise}
-                  options={{
-                    clientSecret: stripeClientSecret,
-                    appearance: {
-                      theme: 'stripe',
-                      variables: {
-                        colorPrimary: '#0F172A',
-                      },
-                    },
-                  }}
-                >
-                  <StripePaymentForm 
-                    onSuccess={() => nextStep()}
-                    onError={(error) => setError(error)}
-                    isProcessing={isProcessing}
-                    setIsProcessing={setIsProcessing}
+          {/* Card Details */}
+          {paymentMethod === "credit_card" && (
+            <Card>
+              <CardHeader>
+                <CardTitle>Card Details</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="cardholderName">Cardholder Name</Label>
+                  <Input
+                    id="cardholderName"
+                    value={cardDetails.cardholderName}
+                    onChange={(e) => handleCardDetailChange('cardholderName', e.target.value)}
+                    placeholder="Enter cardholder name"
                   />
-                </Elements>
-              )}
-
-              {isProcessing && !stripeClientSecret && (
-                <div className="flex items-center justify-center py-8">
-                  <Loader2 className="w-6 h-6 animate-spin" />
-                  <span className="ml-2">Initializing payment...</span>
                 </div>
-              )}
-            </CardContent>
-          </Card>
+
+                <div className="space-y-2">
+                  <Label htmlFor="cardNumber">Card Number</Label>
+                  <Input
+                    id="cardNumber"
+                    value={cardDetails.cardNumber}
+                    onChange={(e) => handleCardDetailChange('cardNumber', e.target.value)}
+                    placeholder="1234 5678 9012 3456"
+                    maxLength={19}
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="expiryDate">Expiry Date</Label>
+                    <Input
+                      id="expiryDate"
+                      value={cardDetails.expiryDate}
+                      onChange={(e) => handleCardDetailChange('expiryDate', e.target.value)}
+                      placeholder="MM/YY"
+                      maxLength={5}
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="cvv">CVV</Label>
+                    <Input
+                      id="cvv"
+                      value={cardDetails.cvv}
+                      onChange={(e) => handleCardDetailChange('cvv', e.target.value)}
+                      placeholder="123"
+                      maxLength={4}
+                    />
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Security Notice */}
+          <div className="flex items-center gap-2 text-sm text-gray-600 bg-gray-50 p-3 rounded-lg">
+            <Shield className="w-4 h-4" />
+            <span>Your payment information is secure and encrypted</span>
+          </div>
+
+          {error && (
+            <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+              <p className="text-red-600">{error}</p>
+            </div>
+          )}
         </div>
 
         {/* Order Summary */}
-        <div className="space-y-6">
+        <div>
           <Card>
             <CardHeader>
               <CardTitle>Order Summary</CardTitle>
@@ -219,17 +227,17 @@ export function PaymentStep() {
               {/* Flight Details */}
               {state.selectedFlight && (
                 <div>
-                  <h4 className="font-medium text-sm text-gray-900 mb-2">Flight</h4>
-                  <div className="space-y-2 text-sm">
+                  <h4 className="font-medium text-gray-900 mb-2">Flight</h4>
+                  <div className="text-sm space-y-1">
                     <div className="flex justify-between">
                       <span>{state.selectedFlight.airline} {state.selectedFlight.flightNumber}</span>
-                      <span className="font-medium">{formatPrice(state.selectedFlight.price, state.currency)}</span>
                     </div>
-                    <div className="text-gray-600">
-                      {state.selectedFlight.origin} → {state.selectedFlight.destination}
+                    <div className="flex justify-between">
+                      <span>{state.selectedFlight.origin} → {state.selectedFlight.destination}</span>
                     </div>
-                    <div className="text-gray-600">
-                      {state.flightSearch?.departureDate}
+                    <div className="flex justify-between">
+                      <span>Passengers: {state.passengers?.length || 1}</span>
+                      <span>{formatPrice(state.selectedFlight.price * (state.passengers?.length || 1), state.currency)}</span>
                     </div>
                   </div>
                 </div>
@@ -238,107 +246,55 @@ export function PaymentStep() {
               {/* Hotel Details */}
               {state.selectedHotel && state.selectedRoom && (
                 <div>
-                  <h4 className="font-medium text-sm text-gray-900 mb-2">Hotel</h4>
-                  <div className="space-y-2 text-sm">
+                  <h4 className="font-medium text-gray-900 mb-2">Hotel</h4>
+                  <div className="text-sm space-y-1">
                     <div className="flex justify-between">
                       <span>{state.selectedHotel.name}</span>
-                      <span className="font-medium">{formatPrice(state.selectedRoom.pricePerNight, state.currency)}/night</span>
                     </div>
-                    <div className="text-gray-600">
-                      {state.selectedRoom.roomType}
+                    <div className="flex justify-between">
+                      <span>{state.selectedRoom.roomType}</span>
                     </div>
-                    <div className="text-gray-600">
-                      {state.hotelSearch?.checkInDate} - {state.hotelSearch?.checkOutDate}
+                    <div className="flex justify-between">
+                      <span>Rooms: {state.hotelSearch?.rooms || 1}</span>
+                      <span>{formatPrice(state.selectedRoom.pricePerNight, state.currency)}/night</span>
                     </div>
                   </div>
                 </div>
               )}
 
               <Separator />
-              
-              <div className="flex justify-between font-semibold">
+
+              {/* Total */}
+              <div className="flex justify-between font-semibold text-lg">
                 <span>Total</span>
                 <span>{formatPrice(state.totalAmount, state.currency)}</span>
               </div>
             </CardContent>
           </Card>
-
-          {/* Navigation Buttons */}
-          <div className="flex gap-3">
-            <Button 
-              variant="outline" 
-              onClick={prevStep}
-              disabled={isProcessing}
-              className="flex-1"
-            >
-              Back
-            </Button>
-          </div>
         </div>
       </div>
+
+      {/* Navigation */}
+      <div className="flex justify-between pt-6 border-t">
+        <Button variant="outline" onClick={prevStep} disabled={isProcessing}>
+          Back to Details
+        </Button>
+        
+        <Button 
+          onClick={handlePayment}
+          disabled={!isFormValid || isProcessing}
+          className="min-w-[120px]"
+        >
+          {isProcessing ? (
+            <>
+              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+              Processing...
+            </>
+          ) : (
+            `Pay ${formatPrice(state.totalAmount, state.currency)}`
+          )}
+        </Button>
+      </div>
     </div>
-  )
-}
-
-// Stripe Payment Form Component
-interface StripePaymentFormProps {
-  onSuccess: () => void
-  onError: (error: string) => void
-  isProcessing: boolean
-  setIsProcessing: (processing: boolean) => void
-}
-
-function StripePaymentForm({ onSuccess, onError, isProcessing, setIsProcessing }: StripePaymentFormProps) {
-  const stripe = useStripe()
-  const elements = useElements()
-
-  const handleSubmit = async (event: React.FormEvent) => {
-    event.preventDefault()
-
-    if (!stripe || !elements) {
-      return
-    }
-
-    setIsProcessing(true)
-
-    try {
-      const { error } = await stripe.confirmPayment({
-        elements,
-        confirmParams: {
-          return_url: `${window.location.origin}/booking/confirmation`,
-        },
-        redirect: 'if_required'
-      })
-
-      if (error) {
-        onError(error.message || "Payment failed")
-      } else {
-        onSuccess()
-      }
-    } catch (err) {
-      onError("Payment failed. Please try again.")
-    } finally {
-      setIsProcessing(false)
-    }
-  }
-
-  return (
-    <form onSubmit={handleSubmit} className="space-y-4">
-      <PaymentElement />
-      <Button 
-        type="submit" 
-        disabled={!stripe || isProcessing} 
-        className="w-full"
-      >
-        {isProcessing ? (
-          <>
-            <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-            Processing...
-          </>
-        ) : (
-          "Complete Payment"
-        )}
-      </Button>
-    </form>
   )
 }

@@ -1,15 +1,27 @@
-import { useBooking } from "@/common/contexts/booking-context"
-import { BookingResponse } from "@/modules/booking/types"
-import { Button } from "@/common/components/ui/button"
-import { Card, CardContent, CardHeader, CardTitle } from "@/common/components/ui/card"
-import { Badge } from "@/common/components/ui/badge"
+"use client"
+
+import { useState, useEffect } from "react"
+import { useBooking } from "@/lib/booking-context"
+import { BookingResponse } from "@/types/booking"
+import { Button } from "@/components/ui/button"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Badge } from "@/components/ui/badge"
 import { CheckCircle, Download, Mail, Calendar, MapPin, Users, Plane, Building, CreditCard } from "lucide-react"
-import { Label } from "@/common/components/ui/label";
 
 export function ConfirmationStep() {
   const { state, resetBooking } = useBooking()
+  const [booking, setBooking] = useState<BookingResponse | null>(null)
+
+  useEffect(() => {
+    // Get booking from localStorage (set in payment step)
+    const storedBooking = localStorage.getItem('currentBooking')
+    if (storedBooking) {
+      setBooking(JSON.parse(storedBooking))
+    }
+  }, [])
 
   const handleNewBooking = () => {
+    localStorage.removeItem('currentBooking')
     resetBooking()
   }
 
@@ -47,7 +59,7 @@ export function ConfirmationStep() {
     }
   }
 
-  if (!state.bookingResponse) {
+  if (!booking) {
     return (
       <div className="text-center py-12">
         <p className="text-gray-500">Loading booking confirmation...</p>
@@ -77,24 +89,24 @@ export function ConfirmationStep() {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <Label className="text-sm font-medium text-gray-500">Booking Reference</Label>
-              <p className="text-lg font-semibold">{state.bookingResponse.bookingReference}</p>
+              <p className="text-lg font-semibold">{booking.bookingReference}</p>
             </div>
             <div>
               <Label className="text-sm font-medium text-gray-500">Status</Label>
               <div className="flex items-center gap-2">
-                <Badge variant="secondary">{state.bookingResponse.status}</Badge>
-                <Badge className={getSagaStateColor(state.bookingResponse.sagaState)}>
-                  {state.bookingResponse.sagaState.replace(/_/g, ' ')}
+                <Badge variant="secondary">{booking.status}</Badge>
+                <Badge className={getSagaStateColor(booking.sagaState)}>
+                  {booking.sagaState.replace(/_/g, ' ')}
                 </Badge>
               </div>
             </div>
             <div>
               <Label className="text-sm font-medium text-gray-500">Total Amount</Label>
-              <p className="text-lg font-semibold">{formatPrice(state.bookingResponse.totalAmount, state.bookingResponse.currency)}</p>
+              <p className="text-lg font-semibold">{formatPrice(booking.totalAmount, booking.currency)}</p>
             </div>
             <div>
               <Label className="text-sm font-medium text-gray-500">Booking Date</Label>
-              <p>{new Date(state.bookingResponse.createdAt).toLocaleDateString()}</p>
+              <p>{new Date(booking.createdAt).toLocaleDateString()}</p>
             </div>
           </div>
         </CardContent>
@@ -120,14 +132,14 @@ export function ConfirmationStep() {
               <div className="flex items-center gap-4">
                 <div className="text-center">
                   <div className="font-semibold">{state.selectedFlight.departureTime}</div>
-                  <div className="text-sm text-gray-600">{state.flightSearch?.origin}</div>
+                  <div className="text-sm text-gray-600">{state.selectedFlight.origin}</div>
                 </div>
                 <div className="flex-1 text-center">
                   <div className="text-sm text-gray-600">{state.selectedFlight.duration}</div>
                 </div>
                 <div className="text-center">
                   <div className="font-semibold">{state.selectedFlight.arrivalTime}</div>
-                  <div className="text-sm text-gray-600">{state.flightSearch?.destination}</div>
+                  <div className="text-sm text-gray-600">{state.selectedFlight.destination}</div>
                 </div>
               </div>
 
@@ -186,42 +198,44 @@ export function ConfirmationStep() {
         )}
 
         {/* Payment Details */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <CreditCard className="w-5 h-5" />
-              Payment Details
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            <div className="flex justify-between items-center">
-              <span className="text-sm text-gray-600">Booking ID:</span>
-              <span className="font-mono text-sm">{state.bookingResponse.bookingId}</span>
-            </div>
+        {booking?.payment && (
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <CreditCard className="w-5 h-5" />
+                Payment Details
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <div className="flex justify-between items-center">
+                <span className="text-sm text-gray-600">Payment ID:</span>
+                <span className="font-mono text-sm">{booking.payment.paymentId}</span>
+              </div>
 
-            <div className="flex justify-between items-center">
-              <span className="text-sm text-gray-600">Reference:</span>
-              <span className="font-mono text-sm">{state.bookingResponse.bookingReference}</span>
-            </div>
+              <div className="flex justify-between items-center">
+                <span className="text-sm text-gray-600">Transaction ID:</span>
+                <span className="font-mono text-sm">{booking.payment.transactionId}</span>
+              </div>
 
-            <div className="flex justify-between items-center">
-              <span className="text-sm text-gray-600">Status:</span>
-              <Badge className={state.bookingResponse.status === 'CONFIRMED' ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'}>
-                {state.bookingResponse.status}
-              </Badge>
-            </div>
+              <div className="flex justify-between items-center">
+                <span className="text-sm text-gray-600">Status:</span>
+                <Badge className={booking.payment.status === 'COMPLETED' ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'}>
+                  {booking.payment.status}
+                </Badge>
+              </div>
 
-            <div className="flex justify-between items-center">
-              <span className="text-sm text-gray-600">Total Amount:</span>
-              <span className="font-semibold">{formatPrice(state.bookingResponse.totalAmount, state.bookingResponse.currency)}</span>
-            </div>
+              <div className="flex justify-between items-center">
+                <span className="text-sm text-gray-600">Amount Paid:</span>
+                <span className="font-semibold">{formatPrice(booking.payment.amount, booking.payment.currency)}</span>
+              </div>
 
-            <div className="flex justify-between items-center">
-              <span className="text-sm text-gray-600">Booking Date:</span>
-              <span className="text-sm">{new Date(state.bookingResponse.createdAt).toLocaleString()}</span>
-            </div>
-          </CardContent>
-        </Card>
+              <div className="flex justify-between items-center">
+                <span className="text-sm text-gray-600">Payment Date:</span>
+                <span className="text-sm">{new Date(booking.payment.createdAt).toLocaleString()}</span>
+              </div>
+            </CardContent>
+          </Card>
+        )}
       </div>
 
       {/* Passenger Information */}
@@ -285,5 +299,13 @@ export function ConfirmationStep() {
         </CardContent>
       </Card>
     </div>
+  )
+}
+
+function Label({ className, children, ...props }: any) {
+  return (
+    <label className={`block text-sm font-medium text-gray-700 ${className || ''}`} {...props}>
+      {children}
+    </label>
   )
 }

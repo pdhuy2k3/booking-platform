@@ -3,18 +3,13 @@ package com.pdh.customer.controller;
 import com.pdh.customer.service.CustomerService;
 import com.pdh.customer.viewmodel.*;
 import com.pdh.common.utils.AuthenticationUtils;
-import com.pdh.common.dto.ApiResponse;
-import com.pdh.common.util.ResponseUtils;
-import com.pdh.common.constants.ErrorCodes;
 import jakarta.validation.Valid;
-import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
-@Slf4j
 public class CustomerController {
 
     private final CustomerService customerService;
@@ -25,33 +20,17 @@ public class CustomerController {
 
     // BACKOFFICE ADMIN ENDPOINTS
     @GetMapping("/backoffice/admin/customers")
-    public ResponseEntity<ApiResponse<CustomerListVm>> getCustomers(
+    public ResponseEntity<CustomerListVm> getCustomers(
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "10") int size) {
-        try {
-            log.info("Getting customers - page: {}, size: {}", page, size);
-            CustomerListVm customers = customerService.getCustomers(page);
-            return ResponseUtils.ok(customers, "Customers retrieved successfully");
-        } catch (Exception e) {
-            log.error("Error getting customers", e);
-            return ResponseUtils.internalError("Failed to retrieve customers");
-        }
+        CustomerListVm customers = customerService.getCustomers(page);
+        return ResponseEntity.ok(customers);
     }
 
     @GetMapping("/backoffice/admin/customers/{id}")
-    public ResponseEntity<ApiResponse<CustomerAdminVm>> getCustomerById(@PathVariable String id) {
-        try {
-            log.info("Getting customer by ID: {}", id);
-            CustomerAdminVm customer = customerService.getCustomerById(id);
-            if (customer != null) {
-                return ResponseUtils.ok(customer, "Customer retrieved successfully");
-            } else {
-                return ResponseUtils.notFound("Customer not found with ID: " + id);
-            }
-        } catch (Exception e) {
-            log.error("Error getting customer by ID: {}", id, e);
-            return ResponseUtils.internalError("Failed to retrieve customer");
-        }
+    public ResponseEntity<CustomerAdminVm> getCustomerById(@PathVariable String id) {
+        CustomerAdminVm customer = customerService.getCustomerById(id);
+        return ResponseEntity.ok(customer);
     }
 
     @GetMapping("/backoffice/admin/customers/search")

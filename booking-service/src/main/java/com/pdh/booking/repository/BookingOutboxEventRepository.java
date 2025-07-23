@@ -8,7 +8,6 @@ import org.springframework.stereotype.Repository;
 
 import java.time.LocalDateTime;
 import java.util.List;
-import java.util.Optional;
 
 /**
  * Repository for BookingOutboxEvent
@@ -56,9 +55,4 @@ public interface BookingOutboxEventRepository extends JpaRepository<BookingOutbo
      * Delete processed events older than cutoff time
      */
     void deleteByProcessedTrueAndCreatedAtBefore(LocalDateTime cutoffTime);
-
-    /**
-     * Find event by event ID (for Listen to Yourself Pattern)
-     */
-    Optional<BookingOutboxEvent> findByEventId(String eventId);
 }
