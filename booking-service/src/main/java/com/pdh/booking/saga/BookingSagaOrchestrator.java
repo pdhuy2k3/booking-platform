@@ -11,12 +11,17 @@ import com.pdh.booking.model.BookingSagaInstance;
 import com.pdh.booking.model.enums.BookingType;
 import com.pdh.booking.model.enums.BookingStatus;
 import com.pdh.common.outbox.service.OutboxEventService;
+import com.pdh.common.outbox.ExtendedOutboxEvent;
 import com.pdh.booking.repository.BookingRepository;
 import com.pdh.booking.repository.BookingSagaRepository;
 import com.pdh.common.saga.SagaState;
+import com.pdh.common.saga.SagaCommand;
+import com.pdh.common.saga.SagaCommandValidator;
+import com.pdh.booking.service.ProductDetailsService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.kafka.annotation.KafkaListener;
+import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -48,6 +53,11 @@ public class BookingSagaOrchestrator {
     private final BookingRepository bookingRepository;
     private final OutboxEventService eventPublisher;
     private final ObjectMapper objectMapper;
+
+    // NEW: Saga command infrastructure from common-lib
+    private final KafkaTemplate<String, String> sagaCommandKafkaTemplate;
+    private final SagaCommandValidator sagaCommandValidator;
+    private final ProductDetailsService productDetailsService;
     
     // Valid state transitions from the state machine
     private static final Map<SagaState, Set<SagaState>> VALID_TRANSITIONS = Map.ofEntries(
@@ -328,44 +338,92 @@ public class BookingSagaOrchestrator {
     
     private void publishFlightReservationCommand(BookingSagaInstance saga) {
         log.info("Publishing flight reservation command for saga: {}", saga.getSagaId());
-        
+
         saga.setCurrentState(SagaState.FLIGHT_RESERVATION_PENDING);
         sagaRepository.save(saga);
-        
-        eventPublisher.publishEvent(
-            "FlightReservationCommand",
-            "BookingSaga",
-            saga.getSagaId(),
-            createCommandPayload(saga, "RESERVE_FLIGHT")
-        );
+
+        try {
+            // 1. Use existing outbox event publishing for backward compatibility
+            eventPublisher.publishEvent(
+                "FlightReservationCommand",
+                "BookingSaga",
+                saga.getSagaId(),
+                createCommandPayload(saga, "RESERVE_FLIGHT")
+            );
+
+            // 2. NEW: Also send direct saga command for enhanced flow
+            SagaCommand command = createTypedSagaCommand(saga, "RESERVE_FLIGHT");
+            sagaCommandValidator.validateCommand(command);
+
+            String commandPayload = objectMapper.writeValueAsString(command);
+            sagaCommandKafkaTemplate.send("booking-saga-commands", saga.getSagaId(), commandPayload);
+
+            log.debug("Flight reservation command sent via both outbox and direct command for saga: {}", saga.getSagaId());
+
+        } catch (Exception e) {
+            log.error("Failed to send flight reservation command for saga: {}", saga.getSagaId(), e);
+            handleCommandPublishingFailure(saga, "RESERVE_FLIGHT", e);
+        }
     }
     
     private void publishHotelReservationCommand(BookingSagaInstance saga) {
         log.info("Publishing hotel reservation command for saga: {}", saga.getSagaId());
-        
+
         saga.setCurrentState(SagaState.HOTEL_RESERVATION_PENDING);
         sagaRepository.save(saga);
-        
-        eventPublisher.publishEvent(
-            "HotelReservationCommand",
-            "BookingSaga", 
-            saga.getSagaId(),
-            createCommandPayload(saga, "RESERVE_HOTEL")
-        );
+
+        try {
+            // 1. Use existing outbox event publishing for backward compatibility
+            eventPublisher.publishEvent(
+                "HotelReservationCommand",
+                "BookingSaga",
+                saga.getSagaId(),
+                createCommandPayload(saga, "RESERVE_HOTEL")
+            );
+
+            // 2. NEW: Also send direct saga command for enhanced flow
+            SagaCommand command = createTypedSagaCommand(saga, "RESERVE_HOTEL");
+            sagaCommandValidator.validateCommand(command);
+
+            String commandPayload = objectMapper.writeValueAsString(command);
+            sagaCommandKafkaTemplate.send("booking-saga-commands", saga.getSagaId(), commandPayload);
+
+            log.debug("Hotel reservation command sent via both outbox and direct command for saga: {}", saga.getSagaId());
+
+        } catch (Exception e) {
+            log.error("Failed to send hotel reservation command for saga: {}", saga.getSagaId(), e);
+            handleCommandPublishingFailure(saga, "RESERVE_HOTEL", e);
+        }
     }
     
     private void publishPaymentCommand(BookingSagaInstance saga) {
         log.info("Publishing payment command for saga: {}", saga.getSagaId());
-        
+
         saga.setCurrentState(SagaState.PAYMENT_PENDING);
         sagaRepository.save(saga);
-        
-        eventPublisher.publishEvent(
-            "PaymentCommand",
-            "BookingSaga",
-            saga.getSagaId(), 
-            createCommandPayload(saga, "PROCESS_PAYMENT")
-        );
+
+        try {
+            // 1. Use existing outbox event publishing for backward compatibility
+            eventPublisher.publishEvent(
+                "PaymentCommand",
+                "BookingSaga",
+                saga.getSagaId(),
+                createCommandPayload(saga, "PROCESS_PAYMENT")
+            );
+
+            // 2. NEW: Also send direct saga command for enhanced flow
+            SagaCommand command = createTypedSagaCommand(saga, "PROCESS_PAYMENT");
+            sagaCommandValidator.validateCommand(command);
+
+            String commandPayload = objectMapper.writeValueAsString(command);
+            sagaCommandKafkaTemplate.send("payment-saga-commands", saga.getSagaId(), commandPayload);
+
+            log.debug("Payment command sent via both outbox and direct command for saga: {}", saga.getSagaId());
+
+        } catch (Exception e) {
+            log.error("Failed to send payment command for saga: {}", saga.getSagaId(), e);
+            handleCommandPublishingFailure(saga, "PROCESS_PAYMENT", e);
+        }
     }
     
     // ============== COMPENSATION COMMANDS ==============
@@ -533,5 +591,142 @@ public class BookingSagaOrchestrator {
         } catch (Exception e) {
             log.error("Failed to update booking entity for saga: {}", saga.getSagaId(), e);
         }
+    }
+
+    // ============== NEW SAGA COMMAND HELPER METHODS ==============
+
+    /**
+     * Creates a typed SagaCommand with product details
+     */
+    private SagaCommand createTypedSagaCommand(BookingSagaInstance saga, String action) {
+        try {
+            SagaCommand command = SagaCommand.builder()
+                .sagaId(saga.getSagaId())
+                .bookingId(saga.getBookingId())
+                .action(action)
+                .build();
+
+            Optional<Booking> bookingOpt = bookingRepository.findById(saga.getBookingId());
+            if (bookingOpt.isPresent()) {
+                Booking booking = bookingOpt.get();
+                command.setCustomerId(booking.getUserId());
+                command.setBookingType(booking.getBookingType().name());
+                command.setTotalAmount(booking.getTotalAmount());
+
+                // Add product details based on action and booking type
+                addProductDetailsToCommand(command, booking, action);
+            }
+
+            return command;
+        } catch (Exception e) {
+            log.error("Error creating typed saga command for saga: {}", saga.getSagaId(), e);
+            throw new RuntimeException("Failed to create saga command", e);
+        }
+    }
+
+    /**
+     * Adds product details to saga command based on action and booking type
+     */
+    private void addProductDetailsToCommand(SagaCommand command, Booking booking, String action) {
+        if (booking.getProductDetailsJson() == null || booking.getProductDetailsJson().isEmpty()) {
+            return;
+        }
+
+        try {
+            // Use existing ProductDetailsService to get typed details
+            Object productDetails = productDetailsService.convertFromJson(
+                booking.getBookingType(), booking.getProductDetailsJson());
+
+            switch (action) {
+                case "RESERVE_FLIGHT":
+                case "CANCEL_FLIGHT":
+                    addFlightDetailsToCommand(command, booking.getBookingType(), productDetails);
+                    break;
+                case "RESERVE_HOTEL":
+                case "CANCEL_HOTEL":
+                    addHotelDetailsToCommand(command, booking.getBookingType(), productDetails);
+                    break;
+                case "PROCESS_PAYMENT":
+                    addPaymentDetailsToCommand(command, booking.getBookingType(), productDetails);
+                    break;
+            }
+        } catch (Exception e) {
+            log.warn("Failed to add product details to command for booking: {}", booking.getBookingId(), e);
+        }
+    }
+
+    private void addFlightDetailsToCommand(SagaCommand command, BookingType bookingType, Object productDetails) {
+        if (bookingType == BookingType.FLIGHT) {
+            command.setFlightDetails(productDetails);
+        } else if (bookingType == BookingType.COMBO) {
+            // For combo bookings, extract flight details from the combo object
+            try {
+                JsonNode comboNode = objectMapper.valueToTree(productDetails);
+                if (comboNode.has("flightDetails")) {
+                    command.setFlightDetails(objectMapper.treeToValue(comboNode.get("flightDetails"), Object.class));
+                }
+            } catch (Exception e) {
+                log.warn("Failed to extract flight details from combo booking", e);
+            }
+        }
+    }
+
+    private void addHotelDetailsToCommand(SagaCommand command, BookingType bookingType, Object productDetails) {
+        if (bookingType == BookingType.HOTEL) {
+            command.setHotelDetails(productDetails);
+        } else if (bookingType == BookingType.COMBO) {
+            // For combo bookings, extract hotel details from the combo object
+            try {
+                JsonNode comboNode = objectMapper.valueToTree(productDetails);
+                if (comboNode.has("hotelDetails")) {
+                    command.setHotelDetails(objectMapper.treeToValue(comboNode.get("hotelDetails"), Object.class));
+                }
+            } catch (Exception e) {
+                log.warn("Failed to extract hotel details from combo booking", e);
+            }
+        }
+    }
+
+    private void addPaymentDetailsToCommand(SagaCommand command, BookingType bookingType, Object productDetails) {
+        // Create payment details from command information
+        Map<String, Object> paymentDetails = new HashMap<>();
+        paymentDetails.put("bookingId", command.getBookingId());
+        paymentDetails.put("customerId", command.getCustomerId());
+        paymentDetails.put("totalAmount", command.getTotalAmount());
+        paymentDetails.put("currency", "VND");
+
+        // Add booking-type specific description
+        if (bookingType == BookingType.FLIGHT) {
+            paymentDetails.put("description", "Flight booking payment");
+        } else if (bookingType == BookingType.HOTEL) {
+            paymentDetails.put("description", "Hotel booking payment");
+        } else if (bookingType == BookingType.COMBO) {
+            paymentDetails.put("description", "Combo booking payment: Flight + Hotel");
+        }
+
+        command.setPaymentDetails(paymentDetails);
+    }
+
+    /**
+     * Gets user ID from saga instance
+     */
+    private UUID getUserId(BookingSagaInstance saga) {
+        try {
+            Optional<Booking> bookingOpt = bookingRepository.findById(saga.getBookingId());
+            return bookingOpt.map(Booking::getUserId).orElse(null);
+        } catch (Exception e) {
+            log.warn("Failed to get user ID for saga: {}", saga.getSagaId(), e);
+            return null;
+        }
+    }
+
+    /**
+     * Handles command publishing failures
+     */
+    private void handleCommandPublishingFailure(BookingSagaInstance saga, String action, Exception e) {
+        log.error("Command publishing failed for saga: {}, action: {}", saga.getSagaId(), action, e);
+
+        // Use existing compensation logic
+        startCompensation(saga, "Command publishing failed: " + e.getMessage());
     }
 }
