@@ -20,6 +20,7 @@ import com.pdh.common.saga.SagaCommandValidator;
 import com.pdh.common.saga.CompensationHandler;
 import com.pdh.common.saga.CompensationContext;
 import com.pdh.common.saga.CompensationStrategy;
+import com.pdh.booking.service.InventoryLockService;
 import com.pdh.booking.service.ProductDetailsService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -64,6 +65,9 @@ public class BookingSagaOrchestrator {
 
     // Phase 3: Enhanced compensation support
     private final CompensationHandler compensationHandler;
+
+    // Phase 4: Inventory locking support
+    private final InventoryLockService inventoryLockService;
     
     // Valid state transitions from the state machine
     private static final Map<SagaState, Set<SagaState>> VALID_TRANSITIONS = Map.ofEntries(
@@ -498,10 +502,14 @@ public class BookingSagaOrchestrator {
         saga.startCompensation(reason);
         saga.setCurrentState(SagaState.COMPENSATION_BOOKING_CANCEL);
         sagaRepository.save(saga);
-        
+
+        // Phase 4: Release inventory locks during compensation
+        log.info("Releasing inventory locks for saga compensation: {}", saga.getSagaId());
+        inventoryLockService.releaseAllLocksBySaga(saga.getSagaId());
+
         // Update booking entity to cancelled
         cancelBookingEntity(saga);
-        
+
         publishBookingCancellationEvent(saga);
     }
     

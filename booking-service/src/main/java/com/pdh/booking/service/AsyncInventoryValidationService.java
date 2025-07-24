@@ -16,6 +16,7 @@ import com.pdh.common.exceptions.InventoryServiceException;
 import com.pdh.common.outbox.service.OutboxEventService;
 import com.pdh.common.saga.CompensationHandler;
 import com.pdh.common.saga.CompensationStrategy;
+import com.pdh.booking.service.InventoryLockService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.kafka.annotation.KafkaListener;
@@ -45,6 +46,9 @@ public class AsyncInventoryValidationService {
 
     // Phase 3: Enhanced compensation support
     private final CompensationHandler compensationHandler;
+
+    // Phase 4: Inventory locking support
+    private final InventoryLockService inventoryLockService;
 
     /**
      * Listens to own outbox events for validation commands (Listen to Yourself ✅)
@@ -121,40 +125,57 @@ public class AsyncInventoryValidationService {
                 return;
             }
             
-            // Perform validation
-            ValidationResult validation = validateInventoryAsync(bookingType, productDetails);
-            
-            if (validation.isValid()) {
-                // Validation passed - start saga
-                log.info("Inventory validation passed for booking: {}", bookingId);
-                booking.setStatus(BookingStatus.PENDING);
+            // Phase 4: Acquire inventory locks before validation
+            String sagaId = "saga_" + bookingId.toString();
+            InventoryLockService.InventoryLockResult lockResult = inventoryLockService.acquireInventoryLocks(
+                sagaId, bookingType, productDetails);
+
+            if (!lockResult.isSuccess()) {
+                // Lock acquisition failed - mark as validation failed
+                log.warn("Inventory lock acquisition failed for booking: {}, error: {}",
+                    bookingId, lockResult.getErrorMessage());
+                booking.setStatus(BookingStatus.VALIDATION_FAILED);
                 bookingRepository.save(booking);
-                
-                // Start saga asynchronously
-                bookingSagaService.startBookingSaga(booking);
-                
-                // Publish validation success event
-                publishValidationResult(booking, true, "Inventory validation successful");
-                
+
+                publishValidationResult(booking, false, lockResult.getErrorMessage());
             } else {
-                // Validation failed - determine if retry is appropriate
-                CompensationStrategy strategy = compensationHandler.determineStrategy(
-                    "VALIDATE_INVENTORY", validation.getErrorCode(), 0);
+                // Locks acquired successfully - proceed with basic validation
+                ValidationResult validation = validateInventoryAsync(bookingType, productDetails);
 
-                if (strategy == CompensationStrategy.RETRY_THEN_COMPENSATE &&
-                    "INVENTORY_SERVICE_UNAVAILABLE".equals(validation.getErrorCode())) {
-
-                    log.info("Inventory service unavailable, will retry validation for booking: {}", bookingId);
-                    // Keep status as VALIDATION_PENDING and retry later
-                    publishValidationResult(booking, false, "Validation will be retried: " + validation.getErrorMessage());
-                } else {
-                    // Mark booking as failed
-                    log.warn("Inventory validation failed for booking: {}, error: {}", bookingId, validation.getErrorMessage());
-                    booking.setStatus(BookingStatus.VALIDATION_FAILED);
+                if (validation.isValid()) {
+                    // Validation passed - update status and start saga
+                    log.info("Inventory validation and locking successful for booking: {}", bookingId);
+                    booking.setStatus(BookingStatus.PENDING);
                     bookingRepository.save(booking);
 
-                    // Publish validation failure event
-                    publishValidationResult(booking, false, validation.getErrorMessage());
+                    // Start the booking saga (locks will be managed by saga)
+                    bookingSagaService.startBookingSaga(booking);
+
+                    // Publish validation success event
+                    publishValidationResult(booking, true, "Inventory validation and locking successful");
+                } else {
+                    // Validation failed - release locks and mark as failed
+                    log.warn("Inventory validation failed for booking: {}, releasing locks", bookingId);
+                    inventoryLockService.releaseAllLocksBySaga(sagaId);
+
+                    // Determine if retry is appropriate
+                    CompensationStrategy strategy = compensationHandler.determineStrategy(
+                        "VALIDATE_INVENTORY", validation.getErrorCode(), 0);
+
+                    if (strategy == CompensationStrategy.RETRY_THEN_COMPENSATE &&
+                        "INVENTORY_SERVICE_UNAVAILABLE".equals(validation.getErrorCode())) {
+
+                        log.info("Inventory service unavailable, will retry validation for booking: {}", bookingId);
+                        // Keep status as VALIDATION_PENDING and retry later
+                        publishValidationResult(booking, false, "Validation will be retried: " + validation.getErrorMessage());
+                    } else {
+                        // Mark booking as failed
+                        booking.setStatus(BookingStatus.VALIDATION_FAILED);
+                        bookingRepository.save(booking);
+
+                        // Publish validation failure event
+                        publishValidationResult(booking, false, validation.getErrorMessage());
+                    }
                 }
             }
             

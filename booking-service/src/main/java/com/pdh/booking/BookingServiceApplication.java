@@ -20,7 +20,7 @@ import java.util.TimeZone;
 @EntityScan(basePackages = {"com.pdh.booking"})
 @EnableConfigurationProperties(ServiceUrlConfig.class)
 @EnableKafka
-
+@EnableScheduling
 @Slf4j
 public class BookingServiceApplication {
 
