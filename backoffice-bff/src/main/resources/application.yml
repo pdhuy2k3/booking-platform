@@ -68,7 +68,7 @@ eureka:
 spring:
   config:
     activate:
-      on-profile: "docker"
+      on-profile: docker
   security:
     oauth2:
       client:
@@ -84,21 +84,57 @@ spring:
             issuer-uri: ${JWT_ISSUER_URI}
   cloud:
     gateway:
-      default-filters:
-        - SaveSession
       routes:
-        - id: api
-          uri: ${API_URL:https://api-bookingsmart.huypd.dev}
+        - id: flight-service
+          uri: lb://FLIGHT-SERVICE
           predicates:
-            - Path=/api/**
+            - Path=/api/flights/**
           filters:
-            - DedupeResponseHeader=Origin Access-Control-Request-Method Access-Control-Request-Headers
-            - TokenRelay=
             - StripPrefix=1
-        - id: nextjs
+            - TokenRelay=
+        - id: hotel-service
+          uri: lb://HOTEL-SERVICE
+          predicates:
+            - Path=/api/hotels/**
+          filters:
+            - StripPrefix=1
+            - TokenRelay=
+        - id: booking-service
+          uri: lb://BOOKING-SERVICE
+          predicates:
+            - Path=/api/bookings/**
+          filters:
+            - StripPrefix=1
+            - TokenRelay=
+        - id: customer-service
+          uri: lb://CUSTOMER-SERVICE
+          predicates:
+            - Path=/api/customers/**
+          filters:
+            - StripPrefix=1
+            - TokenRelay=
+        - id: payment-service
+          uri: lb://PAYMENT-SERVICE
+          predicates:
+            - Path=/api/payments/**
+          filters:
+            - StripPrefix=1
+            - TokenRelay=
+        - id: notification-service
+          uri: lb://NOTIFICATION-SERVICE
+          predicates:
+            - Path=/api/notifications/**
+          filters:
+            - StripPrefix=1
+            - TokenRelay=
+        
+        # Default frontend route (lowest priority)
+        - id: frontend-fallback
           uri: http://backoffice-fe:3001
           predicates:
             - Path=/**
+      default-filters:
+        - SaveSession
   kafka:
     bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
     consumer:

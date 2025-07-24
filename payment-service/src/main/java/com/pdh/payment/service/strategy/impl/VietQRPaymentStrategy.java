@@ -3,9 +3,6 @@ package com.pdh.payment.service.strategy.impl;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.pdh.payment.config.VietQRConfig;
-import com.pdh.payment.dto.CreatePaymentIntentRequest;
-import com.pdh.payment.dto.ConfirmPaymentIntentRequest;
-import com.pdh.payment.dto.PaymentIntentResponse;
 import com.pdh.payment.model.Payment;
 import com.pdh.payment.model.PaymentMethod;
 import com.pdh.payment.model.PaymentTransaction;
@@ -18,17 +15,15 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
-import org.springframework.web.client.RestClient;
-import org.springframework.web.client.RestClientResponseException;
+import org.springframework.web.reactive.function.client.WebClient;
+import org.springframework.web.reactive.function.client.WebClientResponseException;
+import reactor.core.publisher.Mono;
 
 import java.math.BigDecimal;
 import java.time.Duration;
-import java.time.LocalDateTime;
 import java.time.ZonedDateTime;
-import java.time.format.DateTimeFormatter;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.UUID;
 
 /**
  * VietQR Payment Strategy Implementation
@@ -38,10 +33,10 @@ import java.util.UUID;
 @RequiredArgsConstructor
 @Slf4j
 public class VietQRPaymentStrategy implements PaymentStrategy {
-
+    
     private final VietQRConfig vietQRConfig;
     private final ObjectMapper objectMapper;
-    private final RestClient restClient;
+    private final WebClient webClient;
     
     private static final String STRATEGY_NAME = "VietQR Payment Strategy";
     private static final BigDecimal VIETQR_FEE_RATE = new BigDecimal("0.01"); // 1%
@@ -171,141 +166,6 @@ public class VietQRPaymentStrategy implements PaymentStrategy {
         return 30; // 30 days for manual refund processing
     }
 
-    // === PAYMENT INTENT METHODS ===
-    
-    /**
-     * Create VietQR payment intent
-     */
-    public PaymentIntentResponse createPaymentIntent(CreatePaymentIntentRequest request) {
-        log.info("Creating VietQR payment intent for booking: {} with amount: {}", 
-                request.getBookingId(), request.getAmount());
-        
-        try {
-            // Generate QR code data
-            Map<String, Object> qrData = generateQRCode(
-                request.getAmount(),
-                request.getDescription(),
-                request.getBookingId().toString()
-            );
-            
-            // Create payment intent ID
-            String paymentIntentId = "vietqr_" + UUID.randomUUID().toString().replace("-", "");
-            
-            // Build transfer information
-            String transferInfo = String.format(
-                "Chuyển khoản đến: %s\nSố tài khoản: %s\nSố tiền: %,.0f %s\nNội dung: %s",
-                vietQRConfig.getBank().getAccountName(),
-                vietQRConfig.getBank().getAccountNumber(),
-                request.getAmount().doubleValue(),
-                request.getCurrency(),
-                request.getDescription()
-            );
-            
-            return PaymentIntentResponse.builder()
-                    .paymentIntentId(paymentIntentId)
-                    .clientSecret(null) // VietQR doesn't use client secrets
-                    .amount(request.getAmount())
-                    .currency(request.getCurrency())
-                    .status("requires_payment_method")
-                    .gateway("vietqr")
-                    .qrCodeUrl((String) qrData.get("qrCodeUrl"))
-                    .qrCodeData((String) qrData.get("qrCodeData"))
-                    .transferInfo(transferInfo)
-                    .description(request.getDescription())
-                    .metadata(request.getMetadata())
-                    .createdAt(LocalDateTime.now().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME))
-                    .build();
-                    
-        } catch (Exception e) {
-            log.error("Error creating VietQR payment intent", e);
-            throw new RuntimeException("Failed to create VietQR payment intent", e);
-        }
-    }
-    
-    /**
-     * Confirm VietQR payment intent (manual confirmation)
-     */
-    public PaymentIntentResponse confirmPaymentIntent(ConfirmPaymentIntentRequest request) {
-        log.info("Confirming VietQR payment intent: {}", request.getPaymentIntentId());
-        
-        try {
-            // VietQR payments are confirmed manually by checking bank transfers
-            // This is a simplified implementation - in practice you'd check with bank APIs
-            
-            return PaymentIntentResponse.builder()
-                    .paymentIntentId(request.getPaymentIntentId())
-                    .clientSecret(null)
-                    .amount(null) // Will be set from original payment intent
-                    .currency("VND") // Default currency for VietQR
-                    .status("requires_action") // VietQR needs manual verification
-                    .gateway("vietqr")
-                    .description("VietQR payment pending verification")
-                    .metadata(null) // Will be retrieved from original payment intent
-                    .createdAt(LocalDateTime.now().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME))
-                    .build();
-                    
-        } catch (Exception e) {
-            log.error("Error confirming VietQR payment intent: {}", request.getPaymentIntentId(), e);
-            throw new RuntimeException("Failed to confirm VietQR payment intent", e);
-        }
-    }
-
-    /**
-     * Generate QR code for payment intent
-     */
-    public Map<String, Object> generateQRCode(BigDecimal amount, String description, String bookingId) {
-        log.info("Generating VietQR code for booking: {} with amount: {}", bookingId, amount);
-
-        try {
-            Map<String, Object> qrRequest = new HashMap<>();
-            qrRequest.put("accountNo", vietQRConfig.getBank().getAccountNumber());
-            qrRequest.put("accountName", vietQRConfig.getBank().getAccountName());
-            qrRequest.put("acqId", vietQRConfig.getBank().getBankCode());
-            qrRequest.put("amount", amount.intValue());
-            qrRequest.put("addInfo", description + " " + bookingId.substring(0, 8));
-            qrRequest.put("format", "text");
-            qrRequest.put("template", vietQRConfig.getSettings().getTemplate());
-
-            String response = restClient.post()
-                    .uri(vietQRConfig.getQrGenerateUrl())
-                    .header(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE)
-                    .header("x-client-id", vietQRConfig.getApi().getClientId())
-                    .header("x-api-key", vietQRConfig.getApi().getApiKey())
-                    .body(qrRequest)
-                    .retrieve()
-                    .body(String.class);
-
-            // Parse response to extract QR code data
-            JsonNode responseNode = objectMapper.readTree(response);
-            if (responseNode.has("code") && "00".equals(responseNode.get("code").asText())) {
-                Map<String, Object> result = new HashMap<>();
-                result.put("qrCodeData", responseNode.get("data").get("qrCode").asText());
-                result.put("qrCodeUrl", generateQRImageUrl(responseNode.get("data").get("qrCode").asText()));
-                result.put("bankInfo", Map.of(
-                    "bankCode", vietQRConfig.getBank().getBankCode(),
-                    "bankName", vietQRConfig.getBank().getBankName(),
-                    "accountNumber", vietQRConfig.getBank().getAccountNumber(),
-                    "accountName", vietQRConfig.getBank().getAccountName()
-                ));
-                result.put("expirationMinutes", vietQRConfig.getSettings().getQrExpirationMinutes());
-                return result;
-            } else {
-                throw new RuntimeException("VietQR API error: " + responseNode.get("desc").asText());
-            }
-
-        } catch (Exception e) {
-            log.error("Failed to generate VietQR code", e);
-            throw new RuntimeException("Failed to generate QR code: " + e.getMessage(), e);
-        }
-    }
-
-    private String generateQRImageUrl(String qrData) {
-        // Generate QR code image URL using a QR code service
-        // You can use Google Charts API or any other QR code service
-        return "https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=" + 
-               java.net.URLEncoder.encode(qrData, java.nio.charset.StandardCharsets.UTF_8);
-    }
-
     // Helper methods
 
     private PaymentTransaction createBaseTransaction(Payment payment, PaymentMethod paymentMethod) {
@@ -340,14 +200,16 @@ public class VietQRPaymentStrategy implements PaymentStrategy {
         qrRequest.put("template", vietQRConfig.getSettings().getTemplate());
 
         try {
-            String response = restClient.post()
+            String response = webClient.post()
                     .uri(vietQRConfig.getQrGenerateUrl())
                     .header(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE)
                     .header("x-client-id", vietQRConfig.getApi().getClientId())
                     .header("x-api-key", vietQRConfig.getApi().getApiKey())
-                    .body(qrRequest)
+                    .bodyValue(qrRequest)
                     .retrieve()
-                    .body(String.class);
+                    .bodyToMono(String.class)
+                    .timeout(Duration.ofSeconds(vietQRConfig.getApi().getTimeoutSeconds()))
+                    .block();
 
             // Parse response to extract QR code data
             JsonNode responseNode = objectMapper.readTree(response);
@@ -357,7 +219,7 @@ public class VietQRPaymentStrategy implements PaymentStrategy {
                 throw new RuntimeException("VietQR API error: " + responseNode.get("desc").asText());
             }
 
-        } catch (RestClientResponseException e) {
+        } catch (WebClientResponseException e) {
             log.error("VietQR API call failed: {}", e.getResponseBodyAsString());
             throw new RuntimeException("VietQR API call failed: " + e.getMessage());
         }
@@ -404,16 +266,18 @@ public class VietQRPaymentStrategy implements PaymentStrategy {
         lookupRequest.put("transactionId", transactionId);
 
         try {
-            return restClient.post()
+            return webClient.post()
                     .uri(vietQRConfig.getTransactionLookupUrl())
                     .header(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE)
                     .header("x-client-id", vietQRConfig.getApi().getClientId())
                     .header("x-api-key", vietQRConfig.getApi().getApiKey())
-                    .body(lookupRequest)
+                    .bodyValue(lookupRequest)
                     .retrieve()
-                    .body(String.class);
+                    .bodyToMono(String.class)
+                    .timeout(Duration.ofSeconds(vietQRConfig.getApi().getTimeoutSeconds()))
+                    .block();
 
-        } catch (RestClientResponseException e) {
+        } catch (WebClientResponseException e) {
             log.error("VietQR status check failed: {}", e.getResponseBodyAsString());
             throw new RuntimeException("VietQR status check failed: " + e.getMessage());
         }

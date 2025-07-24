@@ -4,7 +4,6 @@ import com.pdh.common.exceptions.*;
 import com.pdh.customer.common.Constants;
 import com.pdh.customer.config.KeycloakPropsConfig;
 import com.pdh.customer.viewmodel.*;
-
 import jakarta.ws.rs.core.Response;
 import java.security.SecureRandom;
 import java.util.Base64;
@@ -20,7 +19,6 @@ import org.keycloak.representations.idm.RoleRepresentation;
 import org.keycloak.representations.idm.UserRepresentation;
 import org.springframework.stereotype.Service;
 
-import com.pdh.customer.repository.CustomerProfileRepository;
 
 @Service
 public class CustomerService {
@@ -30,12 +28,10 @@ public class CustomerService {
     private static final String GUEST = "GUEST";
     private final Keycloak keycloak;
     private final KeycloakPropsConfig keycloakPropsConfig;
-    private final CustomerProfileRepository customerProfileRepository;
 
-    public CustomerService(Keycloak keycloak, KeycloakPropsConfig keycloakPropsConfig, CustomerProfileRepository customerProfileRepository) {
+    public CustomerService(Keycloak keycloak, KeycloakPropsConfig keycloakPropsConfig) {
         this.keycloak = keycloak;
         this.keycloakPropsConfig = keycloakPropsConfig;
-        this.customerProfileRepository = customerProfileRepository;
     }
 
     public static CredentialRepresentation createPasswordCredentials(String password) {
@@ -184,12 +180,6 @@ public class CustomerService {
         // Assign realm role to user
         RoleRepresentation realmRole = realmResource.roles().get(customerPostVm.role()).toRepresentation();
         userResource.roles().realmLevel().add(Collections.singletonList(realmRole));
-
-        // Create and save the customer profile
-        CustomerProfile customerProfile = new CustomerProfile();
-        customerProfile.setUserId(UUID.fromString(userId));
-        customerProfileRepository.save(customerProfile);
-
         return CustomerVm.fromUserRepresentation(user);
     }
 

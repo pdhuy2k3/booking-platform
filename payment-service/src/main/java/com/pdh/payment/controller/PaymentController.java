@@ -1,16 +1,12 @@
 package com.pdh.payment.controller;
 
-import com.pdh.common.util.ResponseUtils;
 import com.pdh.common.utils.AuthenticationUtils;
-import com.pdh.common.dto.ApiResponse;
-import com.pdh.common.util.ReactiveResponseUtils;
-import com.pdh.common.constants.ErrorCodes;
-import com.pdh.payment.config.StripeConfig;
+import com.pdh.payment.client.CustomerServiceClient;
 import com.pdh.payment.dto.PaymentProcessRequest;
+import com.pdh.payment.dto.PaymentRequest;
+import com.pdh.payment.dto.PaymentResult;
 import com.pdh.payment.dto.RefundRequest;
-import com.pdh.payment.dto.CreatePaymentIntentRequest;
-import com.pdh.payment.dto.ConfirmPaymentIntentRequest;
-import com.pdh.payment.dto.PaymentIntentResponse;
+import com.pdh.payment.dto.RefundResult;
 import com.pdh.payment.model.Payment;
 import com.pdh.payment.model.PaymentMethod;
 import com.pdh.payment.model.PaymentTransaction;
@@ -18,22 +14,27 @@ import com.pdh.payment.model.enums.PaymentGateway;
 import com.pdh.payment.model.enums.PaymentMethodType;
 import com.pdh.payment.model.enums.PaymentProvider;
 import com.pdh.payment.model.enums.PaymentStatus;
+import com.pdh.payment.repository.PaymentMethodRepository;
 import com.pdh.payment.service.PaymentService;
-import com.pdh.payment.service.PaymentIntentService;
 import com.pdh.payment.service.strategy.PaymentStrategy;
 import com.pdh.payment.service.strategy.PaymentStrategyFactory;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
+import reactor.core.publisher.Mono;
+import reactor.core.scheduler.Schedulers;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.*;
-import java.util.Arrays;
+import java.util.UUID;
 
 /**
- * Payment Controller with Spring MVC implementation
+ * Enhanced Payment Controller with Strategy Pattern Support
  * Handles payment operations for Stripe, VietQR, and other gateways
  */
 @RestController
@@ -43,30 +44,31 @@ import java.util.Arrays;
 public class PaymentController {
 
     private final PaymentService paymentService;
-    private final PaymentIntentService paymentIntentService;
+    private final PaymentMethodRepository paymentMethodRepository;
     private final PaymentStrategyFactory strategyFactory;
-    private final StripeConfig stripeConfig;
+    private final CustomerServiceClient customerServiceClient;
 
     /**
      * Health check endpoint with gateway status
      */
     @GetMapping("/health")
-    public ResponseEntity<Map<String, Object>> health() {
+    public Mono<ResponseEntity<Map<String, Object>>> health() {
         log.info("Payment service health check requested");
 
-        try {
+        return Mono.fromCallable(() -> {
             Map<String, Object> healthStatus = new HashMap<>();
             healthStatus.put("status", "UP");
             healthStatus.put("service", "payment-service");
             healthStatus.put("timestamp", LocalDateTime.now());
             healthStatus.put("message", "Payment Service is running properly");
 
-            // Check gateway health status
+            // Add gateway health status
             try {
+                List<PaymentStrategy> strategies = strategyFactory.getAllStrategies();
                 Map<String, Boolean> gatewayHealth = new HashMap<>();
                 List<String> availableGateways = new ArrayList<>();
 
-                for (PaymentStrategy strategy : strategyFactory.getAllStrategies()) {
+                for (PaymentStrategy strategy : strategies) {
                     String gatewayName = strategy.getStrategyName().toLowerCase().replace(" payment strategy", "");
                     gatewayHealth.put(gatewayName, true); // Assume available for now
                     availableGateways.add(gatewayName);
@@ -80,95 +82,29 @@ public class PaymentController {
             }
 
             return ResponseEntity.ok(healthStatus);
-        } catch (Exception e) {
-            log.error("Health check failed", e);
-            Map<String, Object> errorStatus = new HashMap<>();
-            errorStatus.put("status", "DOWN");
-            errorStatus.put("error", e.getMessage());
-            return ResponseEntity.ok(errorStatus);
-        }
+        })
+        .subscribeOn(Schedulers.boundedElastic());
     }
 
-    // === PAYMENT INTENT ENDPOINTS ===
+    // === NEW STRATEGY PATTERN ENDPOINTS ===
 
     /**
-     * Get available payment methods for the user - Reactive
-     * Frontend calls: GET /api/payments/storefront/payment-methods
-     * BFF routes to: GET /payments/storefront/payment-methods
-     */
-    @GetMapping("/storefront/payment-methods")
-    public ResponseEntity<ApiResponse<Map<String, Object>>> getPaymentMethods() {
-        try {
-            // Mock payment methods for now
-            List<Map<String, Object>> paymentMethods = Arrays.asList(
-                Map.of("id", "stripe", "type", "CREDIT_CARD", "displayName", "Credit Card", "provider", "STRIPE", "isDefault", true),
-                Map.of("id", "vietqr", "type", "BANK_TRANSFER", "displayName", "VietQR", "provider", "VIETQR", "isDefault", false)
-            );
-
-            Map<String, Object> result = new HashMap<>();
-            result.put("payment_methods", paymentMethods);
-            result.put("count", paymentMethods.size());
-
-            return ResponseUtils.ok(result, "Payment methods retrieved successfully");
-        } catch (Exception e) {
-            log.error("Error retrieving payment methods", e);
-            return ResponseUtils.internalError("Failed to retrieve payment methods");
-        }
-    }
-
-    /**
-     * Create payment intent (unified endpoint for all gateways) - Reactive
-     * Frontend calls: POST /api/payments/storefront/payment-intent
-     * BFF routes to: POST /payments/storefront/payment-intent
-     */
-    @PostMapping("/storefront/payment-intent")
-    public ResponseEntity<ApiResponse<PaymentIntentResponse>> createPaymentIntent(@Valid @RequestBody CreatePaymentIntentRequest request) {
-        log.info("Creating payment intent for booking: {} with gateway: {}", request.getBookingId(), request.getGateway());
-
-        try {
-            PaymentIntentResponse response = paymentIntentService.createPaymentIntent(request);
-            return ResponseUtils.created(response, "Payment intent created successfully");
-        } catch (IllegalArgumentException e) {
-            log.error("Invalid payment intent request", e);
-            return ResponseUtils.badRequest(e.getMessage(), ErrorCodes.INVALID_PAYMENT_METHOD);
-        } catch (Exception e) {
-            log.error("Failed to create payment intent", e);
-            return ResponseUtils.internalError("Failed to create payment intent");
-        }
-    }
-
-    /**
-     * Confirm payment intent (unified endpoint for all gateways) - Reactive
-     * Frontend calls: POST /api/payments/storefront/payment-intent/confirm
-     * BFF routes to: POST /payments/storefront/payment-intent/confirm
-     */
-    @PostMapping("/storefront/payment-intent/confirm")
-    public ResponseEntity<ApiResponse<PaymentIntentResponse>> confirmPaymentIntent(@Valid @RequestBody ConfirmPaymentIntentRequest request) {
-        log.info("Confirming payment intent: {}", request.getPaymentIntentId());
-
-        try {
-            PaymentIntentResponse response = paymentIntentService.confirmPaymentIntent(request);
-            return ResponseUtils.ok(response, "Payment intent confirmed successfully");
-        } catch (IllegalArgumentException e) {
-            log.error("Invalid payment confirmation request", e);
-            return ResponseUtils.badRequest(e.getMessage(), ErrorCodes.INVALID_PAYMENT_METHOD);
-        } catch (Exception e) {
-            log.error("Failed to confirm payment intent", e);
-            return ResponseUtils.internalError("Failed to confirm payment intent");
-        }
-    }
-
-    // === STRATEGY PATTERN ENDPOINTS ===
-
-    /**
-     * Process payment using Strategy Pattern
+     * Process payment using Strategy Pattern - Reactive implementation
      */
     @PostMapping("/process-payment")
-    public ResponseEntity<Map<String, Object>> processPaymentWithStrategy(@Valid @RequestBody PaymentProcessRequest request) {
+    @PreAuthorize("hasRole('USER')")
+    public Mono<ResponseEntity<Map<String, Object>>> processPaymentWithStrategy(@Valid @RequestBody PaymentProcessRequest request) {
         log.info("Processing payment with strategy for booking: {} using gateway: {}",
                 request.getBookingId(), request.getGateway());
 
-        try {
+        return Mono.fromCallable(() -> {
+            // Get user ID from JWT
+            String userId = AuthenticationUtils.extractUserId();
+
+            // Fetch customer profile from customer service
+            CustomerServiceClient.CustomerProfile customerProfile =
+                customerServiceClient.getCustomerProfile(UUID.fromString(userId));
+
             // Create Payment entity
             Payment payment = createPaymentFromRequest(request);
 
@@ -178,6 +114,14 @@ public class PaymentController {
             // Add customer data to additional data for payment processing
             Map<String, Object> additionalData = new HashMap<>(request.getAdditionalData() != null ?
                 request.getAdditionalData() : new HashMap<>());
+            additionalData.put("customer_email", customerProfile.getEmail());
+            additionalData.put("customer_name", customerProfile.getFullName());
+            additionalData.put("customer_phone", customerProfile.getPhone());
+            additionalData.put("billing_address", customerProfile.getAddress());
+            additionalData.put("billing_city", customerProfile.getCity());
+            additionalData.put("billing_state", customerProfile.getState());
+            additionalData.put("billing_country", customerProfile.getCountry());
+            additionalData.put("billing_postal_code", customerProfile.getPostalCode());
 
             // Process payment using strategy
             PaymentTransaction transaction = paymentService.processPayment(payment, paymentMethod, additionalData);
@@ -187,185 +131,380 @@ public class PaymentController {
 
             log.info("Payment processed successfully: {}", payment.getPaymentId());
             return ResponseEntity.ok(response);
-        } catch (IllegalArgumentException e) {
+        })
+        .subscribeOn(Schedulers.boundedElastic())
+        .onErrorResume(IllegalArgumentException.class, e -> {
             log.error("Invalid payment request: {}", e.getMessage());
-            return ResponseEntity.ok(Map.of(
+            return Mono.just(ResponseEntity.badRequest().body(Map.of(
+                "status", "error",
+                "message", e.getMessage(),
+                "timestamp", LocalDateTime.now()
+            )));
+        })
+        .onErrorResume(Exception.class, e -> {
+            log.error("Payment processing failed", e);
+            return Mono.just(ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(Map.of(
+                "status", "error",
+                "message", "Payment processing failed: " + e.getMessage(),
+                "timestamp", LocalDateTime.now()
+            )));
+        });
+    }
+
+    /**
+     * Process refund using Strategy Pattern
+     */
+    @PostMapping("/refund/{transactionId}")
+    @PreAuthorize("hasRole('USER')")
+    public ResponseEntity<Map<String, Object>> processRefund(
+            @PathVariable UUID transactionId,
+            @RequestBody RefundRequest refundRequest) {
+        log.info("Processing refund for transaction: {} with amount: {}", transactionId, refundRequest.getAmount());
+
+        try {
+            PaymentTransaction refundTransaction = paymentService.processRefund(
+                transactionId, refundRequest.getAmount(), refundRequest.getReason());
+
+            Map<String, Object> response = buildRefundResponse(refundTransaction);
+
+            log.info("Refund processed successfully: {}", refundTransaction.getTransactionId());
+            return ResponseEntity.ok(response);
+
+        } catch (IllegalArgumentException e) {
+            log.error("Invalid refund request: {}", e.getMessage());
+            return ResponseEntity.badRequest().body(Map.of(
                 "status", "error",
                 "message", e.getMessage(),
                 "timestamp", LocalDateTime.now()
             ));
         } catch (Exception e) {
-            log.error("Payment processing failed", e);
-            return ResponseEntity.ok(Map.of(
+            log.error("Refund processing failed", e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(Map.of(
                 "status", "error",
-                "message", "Payment processing failed: " + e.getMessage(),
+                "message", "Refund processing failed: " + e.getMessage(),
                 "timestamp", LocalDateTime.now()
             ));
         }
     }
 
     /**
-     * Process storefront payment
+     * Verify payment status using Strategy Pattern
      */
-    @PostMapping("/storefront/process-payment")
-    public ResponseEntity<Map<String, Object>> processStorefrontPayment(@Valid @RequestBody PaymentProcessRequest request) {
-        log.info("Processing storefront payment for booking: {}", request.getBookingId());
+    @GetMapping("/status/{transactionId}")
+    @PreAuthorize("hasRole('USER')")
+    public ResponseEntity<Map<String, Object>> verifyPaymentStatus(@PathVariable UUID transactionId) {
+        log.info("Verifying payment status for transaction: {}", transactionId);
 
         try {
-            // Set default gateway if not specified
-            if (request.getGateway() == null) {
-                request.setGateway(PaymentGateway.STRIPE);
-            }
+            PaymentTransaction transaction = paymentService.verifyPaymentStatus(transactionId);
 
-            return processPaymentWithStrategy(request);
-        } catch (Exception e) {
-            log.error("Storefront payment processing failed", e);
-            return ResponseEntity.ok(Map.of(
-                "status", "error",
-                "message", "Payment processing failed: " + e.getMessage(),
+            Map<String, Object> response = Map.of(
+                "transactionId", transaction.getTransactionId(),
+                "status", transaction.getStatus(),
+                "amount", transaction.getAmount(),
+                "currency", transaction.getCurrency(),
+                "gateway", transaction.getProvider(),
+                "gatewayStatus", transaction.getGatewayStatus() != null ? transaction.getGatewayStatus() : "",
                 "timestamp", LocalDateTime.now()
-            ));
-        }
-    }
-
-    /**
-     * Cancel storefront payment
-     * Frontend calls: POST /api/payments/storefront/cancel-payment
-     * BFF routes to: POST /payments/storefront/cancel-payment
-     */
-    @PostMapping("/storefront/cancel-payment")
-    public ResponseEntity<ApiResponse<Map<String, Object>>> cancelStorefrontPayment(
-            @RequestParam String paymentId,
-            @RequestParam(required = false) String reason) {
-
-        log.info("Cancelling storefront payment: {} with reason: {}", paymentId, reason);
-
-        try {
-            // Logic to cancel payment
-            Map<String, Object> cancellationResult = new HashMap<>();
-            cancellationResult.put("status", "cancelled");
-            cancellationResult.put("payment_id", paymentId);
-            cancellationResult.put("reason", reason != null ? reason : "User cancelled");
-
-            return ResponseUtils.ok(cancellationResult, "Payment cancelled successfully");
-        } catch (Exception e) {
-            log.error("Payment cancellation failed for payment: {}", paymentId, e);
-            return ResponseUtils.internalError("Payment cancellation failed");
-        }
-    }
-
-    /**
-     * Get Stripe configuration for frontend
-     * Frontend calls: GET /api/payments/storefront/stripe/config
-     * BFF routes to: GET /payments/storefront/stripe/config
-     */
-    @GetMapping("/storefront/stripe/config")
-    public ResponseEntity<ApiResponse<Map<String, Object>>> getStripeConfig() {
-        try {
-            Map<String, Object> config = new HashMap<>();
-            config.put("publishable_key", stripeConfig.getPublishableKey());
-            config.put("currency", "usd"); // or get from config
-            config.put("country", "US"); // or get from config
-
-            return ResponseUtils.ok(config, "Stripe configuration retrieved successfully");
-        } catch (Exception e) {
-            log.error("Error getting Stripe config", e);
-            return ResponseUtils.internalError("Failed to get Stripe configuration");
-        }
-    }
-
-    // === REFUND ENDPOINTS ===
-
-    /**
-     * Process refund
-     * Frontend calls: POST /api/payments/refunds/{transactionId}
-     * BFF routes to: POST /payments/refunds/{transactionId}
-     */
-    @PostMapping("/refunds/{transactionId}")
-    public ResponseEntity<ApiResponse<Map<String, Object>>> processRefund(
-            @PathVariable UUID transactionId,
-            @Valid @RequestBody RefundRequest request) {
-        log.info("Processing refund for transaction: {}", transactionId);
-
-        try {
-            PaymentTransaction refundTransaction = paymentService.processRefund(
-                transactionId,
-                request.getAmount(),
-                request.getReason()
             );
 
-            Map<String, Object> refundResult = new HashMap<>();
-            refundResult.put("refund_transaction_id", refundTransaction.getTransactionId());
-            refundResult.put("refund_amount", refundTransaction.getAmount());
-            refundResult.put("refund_status", refundTransaction.getStatus());
-            refundResult.put("original_transaction_id", transactionId);
+            return ResponseEntity.ok(response);
 
-            return ResponseUtils.ok(refundResult, "Refund processed successfully");
         } catch (IllegalArgumentException e) {
-            log.error("Invalid refund request for transaction: {}", transactionId, e);
-            return ResponseUtils.badRequest(e.getMessage(), ErrorCodes.INVALID_PAYMENT_METHOD);
+            return ResponseEntity.notFound().build();
         } catch (Exception e) {
-            log.error("Refund processing failed for transaction: {}", transactionId, e);
-            return ResponseUtils.internalError("Refund processing failed");
+            log.error("Status verification failed", e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(Map.of(
+                "status", "error",
+                "message", "Status verification failed: " + e.getMessage(),
+                "timestamp", LocalDateTime.now()
+            ));
         }
+    }
+
+    /**
+     * Cancel payment using Strategy Pattern
+     */
+    @PostMapping("/cancel/{transactionId}")
+    @PreAuthorize("hasRole('USER')")
+    public ResponseEntity<Map<String, Object>> cancelPayment(
+            @PathVariable UUID transactionId,
+            @RequestBody Map<String, String> request) {
+        log.info("Cancelling payment for transaction: {}", transactionId);
+
+        try {
+            String reason = request.getOrDefault("reason", "User cancelled");
+            PaymentTransaction cancelledTransaction = paymentService.cancelPayment(transactionId, reason);
+
+            Map<String, Object> response = Map.of(
+                "transactionId", cancelledTransaction.getTransactionId(),
+                "status", cancelledTransaction.getStatus(),
+                "reason", reason,
+                "timestamp", LocalDateTime.now()
+            );
+
+            return ResponseEntity.ok(response);
+
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.notFound().build();
+        } catch (Exception e) {
+            log.error("Payment cancellation failed", e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(Map.of(
+                "status", "error",
+                "message", "Payment cancellation failed: " + e.getMessage(),
+                "timestamp", LocalDateTime.now()
+            ));
+        }
+    }
+
+    // === LEGACY BOOKING INTEGRATION ENDPOINTS ===
+    
+    /**
+     * Process payment for booking (called by Booking Service)
+     */
+    @PostMapping("/process")
+    public ResponseEntity<Map<String, Object>> processPayment(@RequestBody Map<String, Object> request) {
+        log.info("Payment processing request: {}", request);
+        
+        String bookingId = (String) request.get("bookingId");
+        String sagaId = (String) request.get("sagaId");
+        BigDecimal amount = new BigDecimal(request.get("amount").toString());
+        String currency = (String) request.get("currency");
+        String customerId = (String) request.get("customerId");
+        
+        // Mock implementation - in real scenario, this would:
+        // 1. Validate payment details
+        // 2. Call payment gateway (Stripe, PayPal, etc.)
+        // 3. Return payment result
+        
+        // Simulate payment processing (mock success)
+        String paymentId = "PAY-" + UUID.randomUUID().toString().substring(0, 8);
+        
+        Map<String, Object> response = Map.of(
+            "status", "success",
+            "message", "Payment processed successfully",
+            "paymentId", paymentId,
+            "bookingId", bookingId,
+            "sagaId", sagaId,
+            "amount", amount,
+            "currency", currency,
+            "customerId", customerId,
+            "transactionTime", LocalDateTime.now()
+        );
+        
+        log.info("Payment processing response: {}", response);
+        return ResponseEntity.ok(response);
+    }
+    
+    /**
+     * Refund payment (compensation)
+     */
+    @PostMapping("/refund")
+    public ResponseEntity<Map<String, Object>> refundPayment(@RequestBody Map<String, Object> request) {
+        log.info("Payment refund request: {}", request);
+        
+        String bookingId = (String) request.get("bookingId");
+        String sagaId = (String) request.get("sagaId");
+        BigDecimal amount = new BigDecimal(request.get("amount").toString());
+        String currency = (String) request.get("currency");
+        String reason = (String) request.get("reason");
+        
+        // Mock implementation - in real scenario, this would:
+        // 1. Find original payment
+        // 2. Process refund through payment gateway
+        // 3. Update payment status
+        
+        String refundId = "REF-" + UUID.randomUUID().toString().substring(0, 8);
+        
+        Map<String, Object> response = Map.of(
+            "status", "success",
+            "message", "Refund processed successfully",
+            "refundId", refundId,
+            "bookingId", bookingId,
+            "sagaId", sagaId,
+            "amount", amount,
+            "currency", currency,
+            "reason", reason,
+            "refundTime", LocalDateTime.now()
+        );
+        
+        log.info("Payment refund response: {}", response);
+        return ResponseEntity.ok(response);
+    }
+    
+    /**
+     * Verify payment status
+     */
+    @GetMapping("{paymentId}/status")
+    public ResponseEntity<Map<String, Object>> verifyPaymentStatus(@PathVariable String paymentId) {
+        log.info("Payment status verification request for: {}", paymentId);
+        
+        // Mock implementation - in real scenario, this would:
+        // 1. Query payment gateway for status
+        // 2. Return current payment status
+        
+        Map<String, Object> response = Map.of(
+            "paymentId", paymentId,
+            "status", "completed",
+            "message", "Payment completed successfully",
+            "verificationTime", LocalDateTime.now()
+        );
+        
+        log.info("Payment status response: {}", response);
+        return ResponseEntity.ok(response);
     }
 
     // === HELPER METHODS ===
 
     private Payment createPaymentFromRequest(PaymentProcessRequest request) {
+        // Get user ID from JWT token
+        String userId = AuthenticationUtils.extractUserId();
+
         Payment payment = new Payment();
+        payment.setPaymentId(UUID.randomUUID());
+        payment.setPaymentReference("PAY-" + System.currentTimeMillis());
         payment.setBookingId(request.getBookingId());
-        payment.setUserId(UUID.fromString(AuthenticationUtils.extractUserId()));
+        payment.setUserId(UUID.fromString(userId));
+        payment.setSagaId(request.getSagaId());
         payment.setAmount(request.getAmount());
         payment.setCurrency(request.getCurrency());
-        payment.setDescription(request.getDescription());
+        payment.setDescription(request.getDescription() != null ? request.getDescription() :
+                              "Payment for booking " + request.getBookingId());
         payment.setStatus(PaymentStatus.PENDING);
+        payment.setProvider(mapGatewayToProvider(request.getGateway()));
+        payment.setMethodType(request.getPaymentMethodType());
+
         return payment;
     }
 
     private PaymentMethod getOrCreatePaymentMethod(PaymentProcessRequest request) {
-        // For now, create a mock payment method based on the gateway
+        // Get user ID from JWT token
+        String userId = AuthenticationUtils.extractUserId();
+
+        // If payment method ID is provided, try to find existing method
+        if (request.getPaymentMethodId() != null) {
+            Optional<PaymentMethod> existingMethod = paymentMethodRepository.findById(UUID.fromString(request.getPaymentMethodId()));
+            if (existingMethod.isPresent()) {
+                return existingMethod.get();
+            }
+        }
+
+        // Create new payment method
         PaymentMethod paymentMethod = new PaymentMethod();
-        paymentMethod.setMethodType(getPaymentMethodTypeFromGateway(request.getGateway()));
-        paymentMethod.setProvider(getPaymentProviderFromGateway(request.getGateway()));
+        paymentMethod.setMethodId(UUID.randomUUID());
+        paymentMethod.setUserId(UUID.fromString(userId));
+        paymentMethod.setMethodType(request.getPaymentMethodType());
+        paymentMethod.setProvider(mapGatewayToProvider(request.getGateway()));
+        paymentMethod.setDisplayName(request.getGateway().getDisplayName());
+        paymentMethod.setToken(request.getPaymentMethodToken());
         paymentMethod.setIsActive(true);
+        paymentMethod.setIsVerified(false);
         paymentMethod.setIsDefault(false);
-        return paymentMethod;
+        paymentMethod.setCurrency(request.getCurrency());
+
+        // Set gateway-specific data
+        if (request.getGateway() == PaymentGateway.VIETQR) {
+            paymentMethod.setBankName(request.getBankCode());
+            paymentMethod.setBankAccountLastFour(request.getAccountNumber() != null ?
+                request.getAccountNumber().substring(Math.max(0, request.getAccountNumber().length() - 4)) : null);
+        }
+
+        return paymentMethodRepository.save(paymentMethod);
     }
 
-    private PaymentMethodType getPaymentMethodTypeFromGateway(PaymentGateway gateway) {
-        return switch (gateway) {
-            case STRIPE -> PaymentMethodType.CREDIT_CARD;
-            case VIETQR -> PaymentMethodType.BANK_TRANSFER;
-            default -> PaymentMethodType.CREDIT_CARD;
-        };
-    }
-
-    private PaymentProvider getPaymentProviderFromGateway(PaymentGateway gateway) {
+    private PaymentProvider mapGatewayToProvider(PaymentGateway gateway) {
         return switch (gateway) {
             case STRIPE -> PaymentProvider.STRIPE;
             case VIETQR -> PaymentProvider.VIETQR;
-            default -> PaymentProvider.STRIPE;
+            case PAYPAL -> PaymentProvider.PAYPAL;
+            case VNPAY -> PaymentProvider.VNPAY;
+            case MOMO -> PaymentProvider.MOMO;
+            case ZALOPAY -> PaymentProvider.ZALOPAY;
+            case MOCK -> PaymentProvider.MOCK_PROVIDER;
         };
     }
 
     private Map<String, Object> buildPaymentResponse(Payment payment, PaymentTransaction transaction) {
         Map<String, Object> response = new HashMap<>();
-        response.put("status", "success");
-        response.put("payment_id", payment.getPaymentId());
-        response.put("transaction_id", transaction.getTransactionId());
+        response.put("status", transaction.getStatus().isSuccessful() ? "success" :
+                    (transaction.getStatus() == PaymentStatus.PENDING ? "pending" : "failed"));
+        response.put("paymentId", payment.getPaymentId());
+        response.put("transactionId", transaction.getTransactionId());
+        response.put("bookingId", payment.getBookingId());
         response.put("amount", transaction.getAmount());
         response.put("currency", transaction.getCurrency());
-        response.put("payment_status", transaction.getStatus());
         response.put("gateway", transaction.getProvider());
-        response.put("gateway_transaction_id", transaction.getGatewayTransactionId());
-        
-        // Add gateway-specific data if available
-        if (transaction.getGatewayResponse() != null) {
-            response.put("gateway_response", transaction.getGatewayResponse());
-        }
-        
+        response.put("paymentStatus", transaction.getStatus());
         response.put("timestamp", LocalDateTime.now());
+
+        // Add gateway-specific data
+        if (transaction.getGatewayResponse() != null) {
+            try {
+                // Parse gateway response for frontend-specific data
+                if (transaction.getProvider() == PaymentProvider.STRIPE) {
+                    response.put("clientSecret", extractClientSecret(transaction.getGatewayResponse()));
+                } else if (transaction.getProvider() == PaymentProvider.VIETQR) {
+                    response.put("qrCode", extractQRCode(transaction.getGatewayResponse()));
+                }
+            } catch (Exception e) {
+                log.warn("Failed to parse gateway response", e);
+            }
+        }
+
+        if (transaction.getFailureReason() != null) {
+            response.put("errorMessage", transaction.getFailureReason());
+            response.put("errorCode", transaction.getFailureCode());
+        }
+
         return response;
+    }
+
+    private Map<String, Object> buildRefundResponse(PaymentTransaction refundTransaction) {
+        Map<String, Object> response = new HashMap<>();
+        response.put("status", refundTransaction.getStatus() == PaymentStatus.REFUND_COMPLETED ? "success" :
+                    (refundTransaction.getStatus() == PaymentStatus.REFUND_PENDING ? "pending" : "failed"));
+        response.put("refundId", refundTransaction.getTransactionId());
+        response.put("originalTransactionId", refundTransaction.getOriginalTransactionId());
+        response.put("amount", refundTransaction.getAmount());
+        response.put("currency", refundTransaction.getCurrency());
+        response.put("gateway", refundTransaction.getProvider());
+        response.put("refundStatus", refundTransaction.getStatus());
+        response.put("timestamp", LocalDateTime.now());
+
+        if (refundTransaction.getFailureReason() != null) {
+            response.put("errorMessage", refundTransaction.getFailureReason());
+            response.put("errorCode", refundTransaction.getFailureCode());
+        }
+
+        return response;
+    }
+
+    private String extractClientSecret(String gatewayResponse) {
+        try {
+            // Parse Stripe response to extract client secret
+            // This is a simplified implementation
+            if (gatewayResponse.contains("client_secret")) {
+                int start = gatewayResponse.indexOf("client_secret") + 15;
+                int end = gatewayResponse.indexOf("\"", start);
+                return gatewayResponse.substring(start, end);
+            }
+        } catch (Exception e) {
+            log.warn("Failed to extract client secret from gateway response", e);
+        }
+        return null;
+    }
+
+    private String extractQRCode(String gatewayResponse) {
+        try {
+            // Parse VietQR response to extract QR code
+            if (gatewayResponse.contains("qr_code")) {
+                int start = gatewayResponse.indexOf("qr_code") + 10;
+                int end = gatewayResponse.indexOf("\"", start);
+                return gatewayResponse.substring(start, end);
+            }
+        } catch (Exception e) {
+            log.warn("Failed to extract QR code from gateway response", e);
+        }
+        return null;
     }
 }

@@ -5,16 +5,20 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.pdh.common.outbox.BaseOutboxEvent;
 import com.pdh.common.outbox.ExtendedOutboxEvent;
 import com.pdh.common.outbox.SimpleOutboxEvent;
+import com.pdh.common.outbox.repository.BaseOutboxEventRepository;
+import com.pdh.common.outbox.repository.ExtendedOutboxEventRepository;
+import com.pdh.common.outbox.repository.SimpleOutboxEventRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.UUID;
 
 /**
  * Shared Outbox Event Publisher Service
- * Provides factory methods to create different types of outbox events
- * Services should save the events using their own repositories
+ * Provides methods to publish events to different types of outbox tables
+ * This service should be called within the same transaction as the business operation
  */
 @Service
 @RequiredArgsConstructor
@@ -22,30 +26,38 @@ import java.util.UUID;
 public class OutboxEventPublisher {
     
     private final ObjectMapper objectMapper;
+    private final BaseOutboxEventRepository<BaseOutboxEvent> baseOutboxEventRepository;
+    private final ExtendedOutboxEventRepository extendedOutboxEventRepository;
+    private final SimpleOutboxEventRepository simpleOutboxEventRepository;
     
     /**
-     * Create BaseOutboxEvent (standard outbox with retry mechanism)
+     * Publish event using BaseOutboxEvent (standard outbox with retry mechanism)
      */
-    public BaseOutboxEvent createBaseEvent(String eventType, String aggregateType, String aggregateId, Object eventPayload) {
+    @Transactional
+    public void publishEvent(String eventType, String aggregateType, String aggregateId, Object eventPayload) {
         try {
             String payload = objectMapper.writeValueAsString(eventPayload);
-
-            BaseOutboxEvent outboxEvent = BaseOutboxEvent.builder()
-                .eventId(UUID.randomUUID().toString())
-                .eventType(eventType)
-                .aggregateId(aggregateId)
-                .aggregateType(aggregateType)
-                .payload(payload)
-                .processed(false)
-                .retryCount(0)
-                .maxRetries(3)
-                .build();
-
-            log.debug("Created base outbox event: eventType={}, aggregateType={}, aggregateId={}",
+            
+            BaseOutboxEvent outboxEvent = new BaseOutboxEvent(
+                null, // id will be auto-generated
+                UUID.randomUUID().toString(), // eventId
+                eventType,
+                aggregateId,
+                aggregateType,
+                payload,
+                false, // not processed yet
+                null, // processedAt
+                0, // retryCount
+                3, // maxRetries
+                null, // nextRetryAt
+                null  // errorMessage
+            );
+            
+            baseOutboxEventRepository.save(outboxEvent);
+            
+            log.debug("Published event to base outbox: eventType={}, aggregateType={}, aggregateId={}",
                      eventType, aggregateType, aggregateId);
-
-            return outboxEvent;
-
+                     
         } catch (JsonProcessingException e) {
             log.error("Failed to serialize event payload for eventType={}, aggregateType={}, aggregateId={}",
                      eventType, aggregateType, aggregateId, e);
@@ -54,29 +66,34 @@ public class OutboxEventPublisher {
     }
     
     /**
-     * Create BaseOutboxEvent with custom retry settings
+     * Publish event using BaseOutboxEvent with custom retry settings
      */
-    public BaseOutboxEvent createBaseEvent(String eventType, String aggregateType, String aggregateId,
+    @Transactional
+    public void publishEvent(String eventType, String aggregateType, String aggregateId, 
                            Object eventPayload, int maxRetries) {
         try {
             String payload = objectMapper.writeValueAsString(eventPayload);
-
-            BaseOutboxEvent outboxEvent = BaseOutboxEvent.builder()
-                .eventId(UUID.randomUUID().toString())
-                .eventType(eventType)
-                .aggregateId(aggregateId)
-                .aggregateType(aggregateType)
-                .payload(payload)
-                .processed(false)
-                .retryCount(0)
-                .maxRetries(maxRetries)
-                .build();
-
-            log.debug("Created base outbox event with maxRetries={}: eventType={}, aggregateType={}, aggregateId={}",
+            
+            BaseOutboxEvent outboxEvent = new BaseOutboxEvent(
+                null, // id will be auto-generated
+                UUID.randomUUID().toString(), // eventId
+                eventType,
+                aggregateId,
+                aggregateType,
+                payload,
+                false, // not processed yet
+                null, // processedAt
+                0, // retryCount
+                maxRetries,
+                null, // nextRetryAt
+                null  // errorMessage
+            );
+            
+            baseOutboxEventRepository.save(outboxEvent);
+            
+            log.debug("Published event to base outbox with maxRetries={}: eventType={}, aggregateType={}, aggregateId={}",
                      maxRetries, eventType, aggregateType, aggregateId);
-
-            return outboxEvent;
-
+                     
         } catch (JsonProcessingException e) {
             log.error("Failed to serialize event payload for eventType={}, aggregateType={}, aggregateId={}",
                      eventType, aggregateType, aggregateId, e);
@@ -85,9 +102,21 @@ public class OutboxEventPublisher {
     }
     
     /**
-     * Create payment event using ExtendedOutboxEvent
+     * Publish extended outbox event with saga support
      */
-    public ExtendedOutboxEvent createPaymentEvent(String eventType, UUID paymentId, String sagaId, 
+    @Transactional
+    public void publishExtendedEvent(ExtendedOutboxEvent event) {
+        extendedOutboxEventRepository.save(event);
+        
+        log.debug("Published extended outbox event: eventType={}, aggregateType={}, aggregateId={}, sagaId={}",
+                 event.getEventType(), event.getAggregateType(), event.getAggregateId(), event.getSagaId());
+    }
+    
+    /**
+     * Publish payment event using ExtendedOutboxEvent
+     */
+    @Transactional
+    public void publishPaymentEvent(String eventType, UUID paymentId, String sagaId, 
                                   UUID bookingId, UUID userId, Object eventPayload) {
         try {
             String payload = objectMapper.writeValueAsString(eventPayload);
@@ -95,9 +124,7 @@ public class OutboxEventPublisher {
             ExtendedOutboxEvent event = ExtendedOutboxEvent.createPaymentEvent(
                 eventType, paymentId, sagaId, bookingId, userId, payload);
             
-            log.debug("Created payment event: eventType={}, paymentId={}, sagaId={}", eventType, paymentId, sagaId);
-            
-            return event;
+            publishExtendedEvent(event);
             
         } catch (JsonProcessingException e) {
             log.error("Failed to serialize payment event payload for paymentId={}", paymentId, e);
@@ -106,9 +133,10 @@ public class OutboxEventPublisher {
     }
     
     /**
-     * Create saga event using ExtendedOutboxEvent
+     * Publish saga event using ExtendedOutboxEvent
      */
-    public ExtendedOutboxEvent createSagaEvent(String eventType, String sagaId, UUID bookingId, 
+    @Transactional
+    public void publishSagaEvent(String eventType, String sagaId, UUID bookingId, 
                                UUID userId, Object eventPayload) {
         try {
             String payload = objectMapper.writeValueAsString(eventPayload);
@@ -116,9 +144,7 @@ public class OutboxEventPublisher {
             ExtendedOutboxEvent event = ExtendedOutboxEvent.createSagaEvent(
                 eventType, sagaId, bookingId, userId, payload);
             
-            log.debug("Created saga event: eventType={}, sagaId={}", eventType, sagaId);
-            
-            return event;
+            publishExtendedEvent(event);
             
         } catch (JsonProcessingException e) {
             log.error("Failed to serialize saga event payload for sagaId={}", sagaId, e);
@@ -127,18 +153,17 @@ public class OutboxEventPublisher {
     }
     
     /**
-     * Create booking event using ExtendedOutboxEvent
+     * Publish booking event using ExtendedOutboxEvent
      */
-    public ExtendedOutboxEvent createBookingEvent(String eventType, UUID bookingId, UUID userId, Object eventPayload) {
+    @Transactional
+    public void publishBookingEvent(String eventType, UUID bookingId, UUID userId, Object eventPayload) {
         try {
             String payload = objectMapper.writeValueAsString(eventPayload);
             
             ExtendedOutboxEvent event = ExtendedOutboxEvent.createBookingEvent(
                 eventType, bookingId, userId, payload);
             
-            log.debug("Created booking event: eventType={}, bookingId={}", eventType, bookingId);
-            
-            return event;
+            publishExtendedEvent(event);
             
         } catch (JsonProcessingException e) {
             log.error("Failed to serialize booking event payload for bookingId={}", bookingId, e);
@@ -147,18 +172,19 @@ public class OutboxEventPublisher {
     }
     
     /**
-     * Create simple outbox event (lightweight, no retry mechanism)
+     * Publish simple outbox event (lightweight, no retry mechanism)
      */
-    public SimpleOutboxEvent createSimpleEvent(String eventType, String aggregateType, String aggregateId, Object eventPayload) {
+    @Transactional
+    public void publishSimpleEvent(String eventType, String aggregateType, String aggregateId, Object eventPayload) {
         try {
             String payload = objectMapper.writeValueAsString(eventPayload);
             
             SimpleOutboxEvent event = SimpleOutboxEvent.create(eventType, aggregateType, aggregateId, payload);
             
-            log.debug("Created simple outbox event: eventType={}, aggregateType={}, aggregateId={}",
-                     eventType, aggregateType, aggregateId);
+            simpleOutboxEventRepository.save(event);
             
-            return event;
+            log.debug("Published simple outbox event: eventType={}, aggregateType={}, aggregateId={}",
+                     eventType, aggregateType, aggregateId);
                      
         } catch (JsonProcessingException e) {
             log.error("Failed to serialize simple event payload for eventType={}, aggregateType={}, aggregateId={}",
@@ -168,17 +194,18 @@ public class OutboxEventPublisher {
     }
     
     /**
-     * Create flight event using SimpleOutboxEvent
+     * Publish flight event using SimpleOutboxEvent
      */
-    public SimpleOutboxEvent createFlightEvent(String eventType, UUID flightId, Object eventPayload) {
+    @Transactional
+    public void publishFlightEvent(String eventType, UUID flightId, Object eventPayload) {
         try {
             String payload = objectMapper.writeValueAsString(eventPayload);
             
             SimpleOutboxEvent event = SimpleOutboxEvent.createFlightEvent(eventType, flightId, payload);
             
-            log.debug("Created flight event: eventType={}, flightId={}", eventType, flightId);
+            simpleOutboxEventRepository.save(event);
             
-            return event;
+            log.debug("Published flight event: eventType={}, flightId={}", eventType, flightId);
             
         } catch (JsonProcessingException e) {
             log.error("Failed to serialize flight event payload for flightId={}", flightId, e);
@@ -187,17 +214,18 @@ public class OutboxEventPublisher {
     }
     
     /**
-     * Create hotel event using SimpleOutboxEvent
+     * Publish hotel event using SimpleOutboxEvent
      */
-    public SimpleOutboxEvent createHotelEvent(String eventType, UUID hotelId, Object eventPayload) {
+    @Transactional
+    public void publishHotelEvent(String eventType, UUID hotelId, Object eventPayload) {
         try {
             String payload = objectMapper.writeValueAsString(eventPayload);
             
             SimpleOutboxEvent event = SimpleOutboxEvent.createHotelEvent(eventType, hotelId, payload);
             
-            log.debug("Created hotel event: eventType={}, hotelId={}", eventType, hotelId);
+            simpleOutboxEventRepository.save(event);
             
-            return event;
+            log.debug("Published hotel event: eventType={}, hotelId={}", eventType, hotelId);
             
         } catch (JsonProcessingException e) {
             log.error("Failed to serialize hotel event payload for hotelId={}", hotelId, e);
@@ -206,17 +234,18 @@ public class OutboxEventPublisher {
     }
     
     /**
-     * Create notification event using SimpleOutboxEvent
+     * Publish notification event using SimpleOutboxEvent
      */
-    public SimpleOutboxEvent createNotificationEvent(String eventType, UUID notificationId, Object eventPayload) {
+    @Transactional
+    public void publishNotificationEvent(String eventType, UUID notificationId, Object eventPayload) {
         try {
             String payload = objectMapper.writeValueAsString(eventPayload);
             
             SimpleOutboxEvent event = SimpleOutboxEvent.createNotificationEvent(eventType, notificationId, payload);
             
-            log.debug("Created notification event: eventType={}, notificationId={}", eventType, notificationId);
+            simpleOutboxEventRepository.save(event);
             
-            return event;
+            log.debug("Published notification event: eventType={}, notificationId={}", eventType, notificationId);
             
         } catch (JsonProcessingException e) {
             log.error("Failed to serialize notification event payload for notificationId={}", notificationId, e);

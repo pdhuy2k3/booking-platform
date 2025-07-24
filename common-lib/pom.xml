@@ -44,12 +44,6 @@
             <artifactId>spring-kafka</artifactId>
         </dependency>
 
-        <!-- Redis Dependencies for Event Deduplication -->
-        <dependency>
-            <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-starter-data-redis</artifactId>
-        </dependency>
-
         <!-- Jackson for JSON processing -->
         <dependency>
             <groupId>com.fasterxml.jackson.core</groupId>

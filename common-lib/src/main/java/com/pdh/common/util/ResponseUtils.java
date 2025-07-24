@@ -188,7 +188,14 @@ public class ResponseUtils {
     public static <T> ResponseEntity<ApiResponse<T>> paginated(T data, PaginationMetadata pagination) {
         return ok(data, "Data retrieved successfully", pagination);
     }
-    
+
+    public static ResponseEntity<ApiResponse<Void>> accepted(String message) {
+        return ResponseEntity.accepted().body(ApiResponse.success(null, message));
+    }
+    public static ResponseEntity<ApiResponse<Void>> accepted(String message, String errorCode) {
+        return ResponseEntity.accepted().body(ApiResponse.error(message, errorCode));
+    }
+
     /**
      * Pagination metadata helper class
      */

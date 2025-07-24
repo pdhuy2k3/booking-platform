@@ -86,7 +86,7 @@ public class BookingDtoMapper {
                 .bookingId(booking.getBookingId())
                 .bookingReference(booking.getBookingReference())
                 .sagaId(booking.getSagaId())
-                .status(booking.getStatus())
+                .status(booking.getStatus().name())
                 .sagaState(convertSagaState(booking.getSagaState()))
                 .confirmationNumber(booking.getConfirmationNumber())
                 .build();

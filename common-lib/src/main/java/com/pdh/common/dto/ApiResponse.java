@@ -12,7 +12,7 @@ import java.time.LocalDateTime;
 /**
  * Standardized API Response wrapper for all BookingSmart services
  * Provides consistent response format across all REST endpoints
- * 
+ *
  * @param <T> The type of data being returned
  */
 @Data
@@ -21,45 +21,45 @@ import java.time.LocalDateTime;
 @AllArgsConstructor
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public class ApiResponse<T> {
-    
+
     /**
      * Indicates if the operation was successful
      */
     private boolean success;
-    
+
     /**
      * Human-readable message describing the result
      */
     private String message;
-    
+
     /**
      * The actual data payload (null for error responses)
      */
     private T data;
-    
+
     /**
      * Error code for failed operations (null for successful responses)
      */
     private String errorCode;
-    
+
     /**
      * Timestamp when the response was generated
      */
     @JsonFormat(pattern = "yyyy-MM-dd'T'HH:mm:ss.SSS")
     private LocalDateTime timestamp;
-    
+
     /**
      * Additional metadata (optional)
      */
     private Object metadata;
-    
+
     /**
      * Request tracking ID for debugging (optional)
      */
     private String requestId;
-    
+
     // === STATIC FACTORY METHODS ===
-    
+
     /**
      * Create a successful response with data
      */
@@ -71,7 +71,7 @@ public class ApiResponse<T> {
                 .timestamp(LocalDateTime.now())
                 .build();
     }
-    
+
     /**
      * Create a successful response with data and custom message
      */
@@ -83,7 +83,7 @@ public class ApiResponse<T> {
                 .timestamp(LocalDateTime.now())
                 .build();
     }
-    
+
     /**
      * Create a successful response with data, message, and metadata
      */
@@ -96,7 +96,7 @@ public class ApiResponse<T> {
                 .timestamp(LocalDateTime.now())
                 .build();
     }
-    
+
     /**
      * Create an error response with message and error code
      */
@@ -108,7 +108,7 @@ public class ApiResponse<T> {
                 .timestamp(LocalDateTime.now())
                 .build();
     }
-    
+
     /**
      * Create an error response with message only
      */
@@ -120,7 +120,7 @@ public class ApiResponse<T> {
                 .timestamp(LocalDateTime.now())
                 .build();
     }
-    
+
     /**
      * Create a validation error response
      */
@@ -132,7 +132,7 @@ public class ApiResponse<T> {
                 .timestamp(LocalDateTime.now())
                 .build();
     }
-    
+
     /**
      * Create a not found error response
      */
@@ -144,7 +144,7 @@ public class ApiResponse<T> {
                 .timestamp(LocalDateTime.now())
                 .build();
     }
-    
+
     /**
      * Create an unauthorized error response
      */
@@ -156,7 +156,7 @@ public class ApiResponse<T> {
                 .timestamp(LocalDateTime.now())
                 .build();
     }
-    
+
     /**
      * Create a forbidden error response
      */
@@ -168,7 +168,7 @@ public class ApiResponse<T> {
                 .timestamp(LocalDateTime.now())
                 .build();
     }
-    
+
     /**
      * Create an internal server error response
      */
@@ -180,7 +180,7 @@ public class ApiResponse<T> {
                 .timestamp(LocalDateTime.now())
                 .build();
     }
-    
+
     /**
      * Create a service unavailable error response
      */
@@ -192,30 +192,30 @@ public class ApiResponse<T> {
                 .timestamp(LocalDateTime.now())
                 .build();
     }
-    
+
     // === UTILITY METHODS ===
-    
+
     /**
      * Check if this response represents a successful operation
      */
     public boolean isSuccess() {
         return success;
     }
-    
+
     /**
      * Check if this response represents an error
      */
     public boolean isError() {
         return !success;
     }
-    
+
     /**
      * Get data if successful, otherwise return null
      */
     public T getDataOrNull() {
         return success ? data : null;
     }
-    
+
     /**
      * Set request ID for tracking
      */
@@ -223,7 +223,7 @@ public class ApiResponse<T> {
         this.requestId = requestId;
         return this;
     }
-    
+
     /**
      * Set metadata
      */
@@ -231,7 +231,7 @@ public class ApiResponse<T> {
         this.metadata = metadata;
         return this;
     }
-    
+
     /**
      * Create a copy with different data type (for transformations)
      */
