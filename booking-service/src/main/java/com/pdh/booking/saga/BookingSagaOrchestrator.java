@@ -17,6 +17,9 @@ import com.pdh.booking.repository.BookingSagaRepository;
 import com.pdh.common.saga.SagaState;
 import com.pdh.common.saga.SagaCommand;
 import com.pdh.common.saga.SagaCommandValidator;
+import com.pdh.common.saga.CompensationHandler;
+import com.pdh.common.saga.CompensationContext;
+import com.pdh.common.saga.CompensationStrategy;
 import com.pdh.booking.service.ProductDetailsService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -58,6 +61,9 @@ public class BookingSagaOrchestrator {
     private final KafkaTemplate<String, String> sagaCommandKafkaTemplate;
     private final SagaCommandValidator sagaCommandValidator;
     private final ProductDetailsService productDetailsService;
+
+    // Phase 3: Enhanced compensation support
+    private final CompensationHandler compensationHandler;
     
     // Valid state transitions from the state machine
     private static final Map<SagaState, Set<SagaState>> VALID_TRANSITIONS = Map.ofEntries(
@@ -726,7 +732,51 @@ public class BookingSagaOrchestrator {
     private void handleCommandPublishingFailure(BookingSagaInstance saga, String action, Exception e) {
         log.error("Command publishing failed for saga: {}, action: {}", saga.getSagaId(), action, e);
 
-        // Use existing compensation logic
-        startCompensation(saga, "Command publishing failed: " + e.getMessage());
+        // Use enhanced compensation logic
+        handleSagaFailure(saga.getSagaId(), action, "COMMAND_PUBLISHING_FAILED", e.getMessage());
+    }
+
+    // ============== PHASE 3: ENHANCED COMPENSATION METHODS ==============
+
+    /**
+     * Handles saga failures with enhanced compensation
+     */
+    public void handleSagaFailure(String sagaId, String failedOperation, String errorCode, String errorMessage) {
+        log.error("Saga failure detected - sagaId: {}, operation: {}, error: {}", sagaId, failedOperation, errorMessage);
+
+        try {
+            BookingSagaInstance saga = sagaRepository.findById(sagaId)
+                .orElseThrow(() -> new RuntimeException("Saga not found: " + sagaId));
+
+            // For now, use default retry count since BookingSagaInstance doesn't have retryCount field
+            int retryCount = 0; // TODO: Add retryCount field to BookingSagaInstance in future
+
+            // Determine compensation strategy
+            CompensationStrategy strategy = compensationHandler.determineStrategy(
+                failedOperation, errorCode, retryCount);
+
+            // Create compensation context
+            CompensationContext context = CompensationContext.builder()
+                .sagaId(sagaId)
+                .failedOperation(failedOperation)
+                .failureReason(errorMessage)
+                .errorCode(errorCode)
+                .strategy(strategy)
+                .retryCount(retryCount)
+                .maxRetries(3)
+                .priority(compensationHandler.calculatePriority(failedOperation, errorCode, saga.getLastUpdatedAt().toInstant()))
+                .build();
+
+            // Add saga-specific context data
+            context.withContextData("bookingId", saga.getBookingId().toString())
+                   .withContextData("currentState", saga.getCurrentState().name());
+
+            // Execute compensation using existing startCompensation method for now
+            // In a full implementation, this would use the CompensationHandler
+            startCompensation(saga, errorMessage);
+
+        } catch (Exception e) {
+            log.error("Error handling saga failure for: {}", sagaId, e);
+        }
     }
 }

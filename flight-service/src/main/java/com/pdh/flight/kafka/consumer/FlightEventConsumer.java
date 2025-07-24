@@ -7,6 +7,7 @@ import com.pdh.common.kafka.cdc.message.BookingCdcMessage;
 import com.pdh.common.kafka.cdc.message.BookingMsgKey;
 import com.pdh.flight.dto.FlightBookingDetailsDto;
 import com.pdh.flight.service.FlightService;
+import com.pdh.common.saga.CompensationHandler;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.kafka.annotation.KafkaListener;
@@ -31,6 +32,9 @@ public class FlightEventConsumer extends BaseCdcConsumer<BookingMsgKey, BookingC
 
     private final FlightService flightService;
     private final ObjectMapper objectMapper;
+
+    // Phase 3: Enhanced compensation support
+    private final CompensationHandler compensationHandler;
 
     @KafkaListener(
         topics = "booking-db-server.public.booking_outbox_events",
@@ -164,10 +168,20 @@ public class FlightEventConsumer extends BaseCdcConsumer<BookingMsgKey, BookingC
 
             if (isCompensation) {
                 log.info("Processing compensation flight cancellation for booking: {}", bookingId);
-            }
 
-            // Use existing cancellation method
-            flightService.cancelFlightReservation(bookingId);
+                // For compensation, use best effort cancellation
+                try {
+                    flightService.cancelFlightReservation(bookingId);
+                    log.info("Compensation flight cancellation successful for booking: {}", bookingId);
+                } catch (Exception e) {
+                    log.warn("Compensation flight cancellation failed for booking: {}, continuing anyway", bookingId, e);
+                    // Don't re-throw for compensation - best effort
+                    return; // Exit without re-throwing
+                }
+            } else {
+                // Regular cancellation - fail if it doesn't work
+                flightService.cancelFlightReservation(bookingId);
+            }
 
         } catch (Exception e) {
             log.error("Error handling flight cancellation command", e);

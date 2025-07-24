@@ -7,6 +7,7 @@ import com.pdh.common.kafka.cdc.message.BookingCdcMessage;
 import com.pdh.common.kafka.cdc.message.BookingMsgKey;
 import com.pdh.hotel.dto.HotelBookingDetailsDto;
 import com.pdh.hotel.service.HotelService;
+import com.pdh.common.saga.CompensationHandler;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.kafka.annotation.KafkaListener;
@@ -31,6 +32,9 @@ public class HotelEventConsumer extends BaseCdcConsumer<BookingMsgKey, BookingCd
 
     private final HotelService hotelService;
     private final ObjectMapper objectMapper;
+
+    // Phase 3: Enhanced compensation support
+    private final CompensationHandler compensationHandler;
 
     @KafkaListener(
         topics = "booking-db-server.public.booking_outbox_events",
@@ -164,10 +168,20 @@ public class HotelEventConsumer extends BaseCdcConsumer<BookingMsgKey, BookingCd
 
             if (isCompensation) {
                 log.info("Processing compensation hotel cancellation for booking: {}", bookingId);
-            }
 
-            // Use existing cancellation method
-            hotelService.cancelHotelReservation(bookingId);
+                // For compensation, use best effort cancellation
+                try {
+                    hotelService.cancelHotelReservation(bookingId);
+                    log.info("Compensation hotel cancellation successful for booking: {}", bookingId);
+                } catch (Exception e) {
+                    log.warn("Compensation hotel cancellation failed for booking: {}, continuing anyway", bookingId, e);
+                    // Don't re-throw for compensation - best effort
+                    return; // Exit without re-throwing
+                }
+            } else {
+                // Regular cancellation - fail if it doesn't work
+                hotelService.cancelHotelReservation(bookingId);
+            }
 
         } catch (Exception e) {
             log.error("Error handling hotel cancellation command", e);

@@ -52,11 +52,15 @@ public class SagaCommand extends DomainEvent {
     // Command metadata
     @Builder.Default
     private Map<String, String> metadata = new HashMap<>();
-    
+
     @Builder.Default
     private Integer retryCount = 0;
-    
+
     private String correlationId;
+
+    // Enhanced compensation support
+    private CompensationStrategy compensationStrategy;
+    private CompensationContext compensationContext;
     
     // Implement DomainEvent abstract methods
     @Override
@@ -111,5 +115,50 @@ public class SagaCommand extends DomainEvent {
     public void markAsCompensation(String reason) {
         this.addMetadata("isCompensation", "true");
         this.addMetadata("compensationReason", reason);
+    }
+
+    /**
+     * Enhanced compensation support methods
+     */
+    public boolean hasCompensationContext() {
+        return compensationContext != null;
+    }
+
+    public boolean shouldRetry() {
+        return hasCompensationContext() && compensationContext.shouldRetry();
+    }
+
+    public boolean shouldCompensate() {
+        return hasCompensationContext() && compensationContext.shouldCompensate();
+    }
+
+    public boolean isCriticalFailure() {
+        return hasCompensationContext() && compensationContext.isCriticalFailure();
+    }
+
+    /**
+     * Creates a compensation command for this saga command
+     */
+    public SagaCommand createCompensationCommand() {
+        String compensationAction = getCompensationAction(this.action);
+
+        return this.toBuilder()
+            .action(compensationAction)
+            .compensationContext(hasCompensationContext() ?
+                compensationContext.forCompensation() : null)
+            .build();
+    }
+
+    /**
+     * Gets the compensation action for a given action
+     */
+    private String getCompensationAction(String originalAction) {
+        return switch (originalAction) {
+            case "RESERVE_FLIGHT" -> "CANCEL_FLIGHT_RESERVATION";
+            case "RESERVE_HOTEL" -> "CANCEL_HOTEL_RESERVATION";
+            case "PROCESS_PAYMENT" -> "REFUND_PAYMENT";
+            case "CONFIRM_BOOKING" -> "CANCEL_BOOKING";
+            default -> "COMPENSATE_" + originalAction;
+        };
     }
 }

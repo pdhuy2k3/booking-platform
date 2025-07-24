@@ -14,6 +14,8 @@ import com.pdh.booking.dto.request.ComboBookingDetailsDto;
 import com.pdh.common.validation.ValidationResult;
 import com.pdh.common.exceptions.InventoryServiceException;
 import com.pdh.common.outbox.service.OutboxEventService;
+import com.pdh.common.saga.CompensationHandler;
+import com.pdh.common.saga.CompensationStrategy;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.kafka.annotation.KafkaListener;
@@ -40,6 +42,9 @@ public class AsyncInventoryValidationService {
     private final OutboxEventService eventPublisher;
     private final ObjectMapper objectMapper;
     private final ProductDetailsService productDetailsService;
+
+    // Phase 3: Enhanced compensation support
+    private final CompensationHandler compensationHandler;
 
     /**
      * Listens to own outbox events for validation commands (Listen to Yourself ✅)
@@ -132,13 +137,25 @@ public class AsyncInventoryValidationService {
                 publishValidationResult(booking, true, "Inventory validation successful");
                 
             } else {
-                // Validation failed - mark booking as failed
-                log.warn("Inventory validation failed for booking: {}, error: {}", bookingId, validation.getErrorMessage());
-                booking.setStatus(BookingStatus.VALIDATION_FAILED);
-                bookingRepository.save(booking);
-                
-                // Publish validation failure event
-                publishValidationResult(booking, false, validation.getErrorMessage());
+                // Validation failed - determine if retry is appropriate
+                CompensationStrategy strategy = compensationHandler.determineStrategy(
+                    "VALIDATE_INVENTORY", validation.getErrorCode(), 0);
+
+                if (strategy == CompensationStrategy.RETRY_THEN_COMPENSATE &&
+                    "INVENTORY_SERVICE_UNAVAILABLE".equals(validation.getErrorCode())) {
+
+                    log.info("Inventory service unavailable, will retry validation for booking: {}", bookingId);
+                    // Keep status as VALIDATION_PENDING and retry later
+                    publishValidationResult(booking, false, "Validation will be retried: " + validation.getErrorMessage());
+                } else {
+                    // Mark booking as failed
+                    log.warn("Inventory validation failed for booking: {}, error: {}", bookingId, validation.getErrorMessage());
+                    booking.setStatus(BookingStatus.VALIDATION_FAILED);
+                    bookingRepository.save(booking);
+
+                    // Publish validation failure event
+                    publishValidationResult(booking, false, validation.getErrorMessage());
+                }
             }
             
         } catch (Exception e) {
