@@ -10,6 +10,7 @@ const nextConfig = {
     domains: ['images.unsplash.com', 'www.pexels.com'],
     unoptimized: true,
   },
+  output: 'standalone',
 }
 
 export default nextConfig
