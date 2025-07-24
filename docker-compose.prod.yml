@@ -1,0 +1,41 @@
+version: 3.8
+services:
+  discovery-service:
+    image: phamduyhuyuit/bookingsmart-discovery-service:latest
+    build: null
+  booking-service:
+    image: phamduyhuyuit/bookingsmart-booking-service:latest
+    build: null
+  flight-service:
+    image: phamduyhuyuit/bookingsmart-flight-service:latest
+    build: null
+  hotel-service:
+    image: phamduyhuyuit/bookingsmart-hotel-service:latest
+    build: null
+  payment-service:
+    image: phamduyhuyuit/bookingsmart-payment-service:latest
+    build: null
+  customer-service:
+    image: phamduyhuyuit/bookingsmart-customer-service:latest
+    build: null
+  notification-service:
+    image: phamduyhuyuit/bookingsmart-notification-service:latest
+    build: null
+  media-service:
+    image: phamduyhuyuit/bookingsmart-media-service:latest
+    build: null
+  transport-service:
+    image: phamduyhuyuit/bookingsmart-transport-service:latest
+    build: null
+  storefront-bff:
+    image: phamduyhuyuit/bookingsmart-storefront-bff:latest
+    build: null
+  backoffice-bff:
+    image: phamduyhuyuit/bookingsmart-backoffice-bff:latest
+    build: null
+  storefront-fe:
+    image: phamduyhuyuit/bookingsmart-storefront-fe:latest
+    build: null
+  backoffice-fe:
+    image: phamduyhuyuit/bookingsmart-backoffice-fe:latest
+    build: null
