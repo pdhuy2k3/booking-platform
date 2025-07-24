@@ -325,9 +325,9 @@ public class RedisDistributedLockManager implements DistributedLockManager {
     
     @Override
     public int cleanupExpiredLocks() {
-        // Redis automatically handles expiration, so this is mainly for logging
-        log.debug("Redis automatically handles lock expiration - no manual cleanup needed");
-        return 0;
+        // Redis TTL automatically handles lock expiration - no manual cleanup needed
+        log.debug("Redis TTL automatically handles lock expiration");
+        return 0; // Always 0 since Redis handles cleanup automatically
     }
     
     @Override

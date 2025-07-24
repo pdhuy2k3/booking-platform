@@ -97,9 +97,10 @@ public interface DistributedLockManager {
     
     /**
      * Forces release of expired locks
-     * Should be called periodically for cleanup
-     * 
-     * @return Number of expired locks cleaned up
+     * Note: Redis implementation doesn't need this (TTL handles cleanup automatically)
+     * This method is mainly for non-Redis implementations or monitoring purposes
+     *
+     * @return Number of expired locks cleaned up (0 for Redis implementation)
      */
     int cleanupExpiredLocks();
     
@@ -113,9 +114,10 @@ public interface DistributedLockManager {
     int releaseAllLocksByOwner(String owner);
     
     /**
-     * Gets lock statistics for monitoring
-     * 
-     * @return Lock statistics
+     * Gets lock statistics for monitoring and health checks
+     * Useful for admin dashboards, debugging, and operational monitoring
+     *
+     * @return Lock statistics (Redis: active locks only, expired count always 0 due to TTL)
      */
     LockStatistics getLockStatistics();
     
