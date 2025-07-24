@@ -14,7 +14,7 @@ import org.springframework.scheduling.annotation.EnableScheduling;
 
 import java.util.TimeZone;
 
-@SpringBootApplication(scanBasePackages = { "com.pdh.booking" })
+@SpringBootApplication(scanBasePackages = { "com.pdh.booking", "com.pdh.common" })
 @EnableDiscoveryClient
 @EnableJpaRepositories(basePackages = {"com.pdh.booking"})
 @EntityScan(basePackages = {"com.pdh.booking"})

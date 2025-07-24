@@ -1,4 +1,4 @@
-package com.pdh.common.util;
+package com.pdh.common.utils;
 
 import com.pdh.common.dto.ApiResponse;
 import org.springframework.http.HttpStatus;

@@ -89,7 +89,7 @@ public class AsyncInventoryValidationService {
      * Processes the validation command asynchronously
      */
     @Transactional
-    private void processValidationCommand(JsonNode cdcMessage) throws JsonProcessingException {
+    void processValidationCommand(JsonNode cdcMessage) throws JsonProcessingException {
         try {
             JsonNode after = cdcMessage.get("after");
             String payloadStr = after.get("payload").asText();
