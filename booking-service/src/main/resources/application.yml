@@ -67,8 +67,7 @@ eureka:
     prefer-ip-address: false
 
 # Distributed Lock Configuration
-distributed-lock:
-  provider: redis  # Options: redis (recommended), postgresql
+# Using Redis for high-performance distributed locking
 
 ---
 

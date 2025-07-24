@@ -59,26 +59,10 @@ public class DistributedLock {
     private LockStatus status;
     
     /**
-     * Additional metadata for the lock
-     */
-    private String metadata;
-    
-    /**
-     * Service that owns the lock
-     */
-    private String ownerService;
-    
-    /**
      * Quantity being locked (for inventory items)
      */
     @Builder.Default
     private Integer quantity = 1;
-    
-    /**
-     * Lock priority (higher = more important)
-     */
-    @Builder.Default
-    private Integer priority = 5;
     
     /**
      * Checks if the lock is expired
@@ -132,10 +116,9 @@ public class DistributedLock {
             .timeout(timeout)
             .status(LockStatus.PENDING)
             .quantity(quantity)
-            .ownerService("booking-service")
             .build();
     }
-    
+
     /**
      * Creates a lock for hotel inventory
      */
@@ -150,10 +133,9 @@ public class DistributedLock {
             .timeout(timeout)
             .status(LockStatus.PENDING)
             .quantity(quantity)
-            .ownerService("booking-service")
             .build();
     }
-    
+
     /**
      * Creates a lock for room inventory
      */
@@ -168,7 +150,6 @@ public class DistributedLock {
             .timeout(timeout)
             .status(LockStatus.PENDING)
             .quantity(quantity)
-            .ownerService("booking-service")
             .build();
     }
     

@@ -117,8 +117,6 @@ public class RedisDistributedLockManager implements DistributedLockManager {
                 .timeout(timeout)
                 .status(LockStatus.PENDING)
                 .quantity(quantity)
-                .ownerService("booking-service")
-                .priority(5)
                 .build();
             
             // Redis keys
