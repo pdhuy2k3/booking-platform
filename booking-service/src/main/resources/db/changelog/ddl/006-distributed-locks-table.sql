@@ -1,5 +1,8 @@
--- Create distributed_locks table for Phase 4: Inventory Locking
--- This table will be used across all services for distributed locking
+-- liquibase formatted sql
+
+-- changeset pdh:006-create-distributed-locks-table
+-- comment: Create distributed_locks table for Phase 4: Inventory Locking
+-- This table will be used for distributed locking across microservices
 
 CREATE TABLE IF NOT EXISTS distributed_locks (
     lock_id VARCHAR(255) PRIMARY KEY,
@@ -55,3 +58,8 @@ CREATE TRIGGER trigger_distributed_locks_updated_at
     BEFORE UPDATE ON distributed_locks
     FOR EACH ROW
     EXECUTE FUNCTION update_distributed_locks_updated_at();
+
+-- rollback changeset pdh:006-create-distributed-locks-table
+-- DROP TRIGGER IF EXISTS trigger_distributed_locks_updated_at ON distributed_locks;
+-- DROP FUNCTION IF EXISTS update_distributed_locks_updated_at();
+-- DROP TABLE IF EXISTS distributed_locks;

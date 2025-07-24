@@ -7,7 +7,7 @@ import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
 /**
- * Lock Cleanup Service - Phase 4
+ * Lock Cleanup Service
  * Periodically cleans up expired locks to prevent resource leaks
  */
 @Service
