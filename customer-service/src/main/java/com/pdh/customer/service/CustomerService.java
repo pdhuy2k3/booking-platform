@@ -3,15 +3,12 @@ package com.pdh.customer.service;
 import com.pdh.common.exceptions.*;
 import com.pdh.customer.common.Constants;
 import com.pdh.customer.config.KeycloakPropsConfig;
-import com.pdh.customer.model.CustomerProfile;
 import com.pdh.customer.viewmodel.*;
 import jakarta.ws.rs.core.Response;
 import java.security.SecureRandom;
 import java.util.Base64;
 import java.util.Collections;
 import java.util.List;
-import java.util.UUID;
-
 import org.apache.commons.validator.routines.EmailValidator;
 import org.keycloak.admin.client.CreatedResponseUtil;
 import org.keycloak.admin.client.Keycloak;
