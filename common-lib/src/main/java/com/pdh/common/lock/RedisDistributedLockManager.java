@@ -18,14 +18,15 @@ import java.util.stream.Collectors;
 /**
  * Redis-based implementation of DistributedLockManager
  * Uses Redis for high-performance distributed locking across microservices
- * 
+ *
  * Key Benefits:
  * - In-memory performance (microsecond latency)
  * - Native TTL support with automatic expiration
  * - Atomic operations with Lua scripts
  * - Lightweight and efficient
+ *
+ * Note: This class is instantiated via LockManagerConfiguration, not as a @Component
  */
-@Component
 @RequiredArgsConstructor
 @Slf4j
 public class RedisDistributedLockManager implements DistributedLockManager {
