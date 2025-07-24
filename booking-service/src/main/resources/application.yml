@@ -66,9 +66,6 @@ eureka:
     hostname: localhost
     prefer-ip-address: false
 
-# Distributed Lock Configuration
-# Using Redis for high-performance distributed locking
-
 ---
 
 spring:
@@ -101,7 +98,20 @@ spring:
   kafka:
     bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
     consumer:
-      group-id: ${spring.application.name}
+      group-id: booking-service-saga-group
+
+  # Redis Configuration for Event Deduplication
+  data:
+    redis:
+      host: ${REDIS_HOST:redis}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD:}
+      timeout: 2000ms
+      lettuce:
+        pool:
+          max-active: 8
+          max-idle: 8
+          min-idle: 0
 eureka:
   client:
     serviceUrl:
