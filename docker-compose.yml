@@ -150,6 +150,7 @@ services:
     build:
       context: ./discovery-service
       dockerfile: Dockerfile
+    image: phamduyhuyuit/bookingsmart-discovery-service:latest
     environment:
       - SPRING_PROFILES_ACTIVE=docker
       - EUREKA_URI=http://discovery-service/eureka
@@ -164,6 +165,7 @@ services:
     build:
       context: ./backoffice-bff
       dockerfile: Dockerfile
+    image: phamduyhuyuit/bookingsmart-backoffice:latest
     depends_on:
       - postgres  # Chỉ đợi postgres healthy
       - identity
@@ -185,6 +187,7 @@ services:
     build:
       context: ./storefront-bff
       dockerfile: Dockerfile
+    image: phamduyhuyuit/bookingsmart-storefront:latest
     depends_on:
       - postgres
       - identity
@@ -209,6 +212,7 @@ services:
       dockerfile: Dockerfile
       args:
         - NEXT_PUBLIC_BFF_BASE_URL=${API_URL}
+    image: phamduyhuyuit/bookingsmart-storefront-fe:latest
     environment:
       - NODE_ENV=production
       - NEXT_PUBLIC_BFF_BASE_URL=${API_URL}
@@ -225,6 +229,7 @@ services:
       dockerfile: Dockerfile
       args:
         - NEXT_PUBLIC_BFF_BASE_URL=${API_URL}
+    image: phamduyhuyuit/bookingsmart-backoffice-fe:latest
     environment:
       - NODE_ENV=production
       - NEXT_PUBLIC_API_URL=https://backoffice
@@ -239,6 +244,7 @@ services:
     build:
       context: ./flight-service
       dockerfile: Dockerfile
+    image: phamduyhuyuit/bookingsmart-flight-service:latest
     depends_on:
       postgres:
         condition: service_healthy
@@ -261,6 +267,7 @@ services:
     build:
       context: ./hotel-service
       dockerfile: Dockerfile
+    image: phamduyhuyuit/bookingsmart-hotel-service:latest
     depends_on:
       postgres:
         condition: service_healthy
@@ -283,6 +290,7 @@ services:
     build:
       context: ./booking-service
       dockerfile: Dockerfile
+    image: phamduyhuyuit/bookingsmart-booking-service:latest
     depends_on:
       postgres:
         condition: service_healthy
@@ -305,6 +313,7 @@ services:
     build:
       context: ./payment-service
       dockerfile: Dockerfile
+    image: phamduyhuyuit/bookingsmart-payment-service:latest
     depends_on:
       postgres:
         condition: service_healthy
@@ -327,6 +336,7 @@ services:
     build:
       context: ./notification-service
       dockerfile: Dockerfile
+    image: phamduyhuyuit/bookingsmart-notification-service:latest
     depends_on:
       postgres:
         condition: service_healthy
@@ -348,6 +358,7 @@ services:
     build:
       context: ./customer-service
       dockerfile: Dockerfile
+    image: phamduyhuyuit/bookingsmart-customer-service:latest
     depends_on:
       postgres:
         condition: service_healthy
