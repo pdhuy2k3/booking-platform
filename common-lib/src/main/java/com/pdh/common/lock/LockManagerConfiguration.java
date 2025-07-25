@@ -14,7 +14,7 @@ import org.springframework.data.redis.core.RedisTemplate;
 public class LockManagerConfiguration {
 
     /**
-     * Redis-based lock manager (primary implementation)
+     * Redis-based lock manager
      * Provides high-performance distributed locking with automatic expiration
      */
     @Bean
