@@ -8,6 +8,8 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
+import java.util.Map;
+
 /**
  * DTO for booking response from Storefront
  * Uses frontend-compatible data types (String for IDs, double for amounts)
@@ -72,4 +74,21 @@ public class StorefrontBookingResponseDto {
      * Last update timestamp as string (frontend-compatible)
      */
     private String updatedAt;
+
+    // === ERROR HANDLING FIELDS ===
+
+    /**
+     * Error message (only present when request fails)
+     */
+    private String error;
+
+    /**
+     * Error code (only present when request fails)
+     */
+    private String errorCode;
+
+    /**
+     * Validation details (only present when validation is performed)
+     */
+    private Map<String, Object> validationDetails;
 }

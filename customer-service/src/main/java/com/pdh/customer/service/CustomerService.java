@@ -4,7 +4,6 @@ import com.pdh.common.exceptions.*;
 import com.pdh.customer.common.Constants;
 import com.pdh.customer.config.KeycloakPropsConfig;
 import com.pdh.customer.viewmodel.*;
-
 import jakarta.ws.rs.core.Response;
 import java.security.SecureRandom;
 import java.util.Base64;
@@ -19,6 +18,7 @@ import org.keycloak.representations.idm.CredentialRepresentation;
 import org.keycloak.representations.idm.RoleRepresentation;
 import org.keycloak.representations.idm.UserRepresentation;
 import org.springframework.stereotype.Service;
+
 
 @Service
 public class CustomerService {
@@ -180,7 +180,6 @@ public class CustomerService {
         // Assign realm role to user
         RoleRepresentation realmRole = realmResource.roles().get(customerPostVm.role()).toRepresentation();
         userResource.roles().realmLevel().add(Collections.singletonList(realmRole));
-
         return CustomerVm.fromUserRepresentation(user);
     }
 

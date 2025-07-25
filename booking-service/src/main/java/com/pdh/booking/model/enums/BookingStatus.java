@@ -1,8 +1,10 @@
 package com.pdh.booking.model.enums;
 
 public enum BookingStatus {
-    PENDING,
+    VALIDATION_PENDING,  // NEW: Waiting for inventory validation
+    PENDING,             // Validation passed, saga started
     CONFIRMED,
     CANCELLED,
-    FAILED
+    FAILED,
+    VALIDATION_FAILED    // NEW: Inventory validation failed
 }

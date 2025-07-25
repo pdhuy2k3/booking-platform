@@ -37,7 +37,7 @@ public class BookingResponseDto {
     /**
      * Current booking status
      */
-    private BookingStatus status;
+    private String status;
     
     /**
      * Current saga state

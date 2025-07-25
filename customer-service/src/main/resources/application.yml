@@ -27,7 +27,7 @@ keycloak:
   realm: BookingSmart
   resource: customer-management
   credentials:
-    secret: NKAr3rnjwm9jlakgKpelukZGFaHYqIWE
+    secret: ${KEYCLOAK_CLIENT_SECRET_CUSTOMER_MANAGEMENT}
 eureka:
   client:
     serviceUrl:

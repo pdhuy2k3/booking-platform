@@ -21,7 +21,7 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class BookingSagaService {
 
-    private final BookingDomainService bookingDomainService;
+    private final BookingService bookingService;
     private final BookingSagaOrchestrator sagaOrchestrator;
 
     /**
@@ -35,7 +35,7 @@ public class BookingSagaService {
         booking.setUserId(UUID.fromString(AuthenticationUtils.extractUserId()));
 
         // Create booking and publish BookingInitiatedEvent via domain service
-        Booking savedBooking = bookingDomainService.createBooking(booking);
+        Booking savedBooking = bookingService.createBooking(booking);
 
         // Start event-driven saga orchestration
         sagaOrchestrator.startBookingSaga(savedBooking.getBookingId());
@@ -48,6 +48,6 @@ public class BookingSagaService {
      * Find booking by saga ID
      */
     public Optional<Booking> findBySagaId(String sagaId) {
-        return bookingDomainService.findBySagaId(sagaId);
+        return bookingService.findBySagaId(sagaId);
     }
 }
