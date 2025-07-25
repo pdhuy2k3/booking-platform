@@ -68,7 +68,6 @@ public class Booking extends AbstractAuditEntity {
     @Column(name = "compensation_reason", columnDefinition = "TEXT")
     private String compensationReason;
 
-    // Product Details (stored as JSONB - flexible payload based on BookingType)
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "product_details", columnDefinition = "JSONB")
     private String productDetailsJson;

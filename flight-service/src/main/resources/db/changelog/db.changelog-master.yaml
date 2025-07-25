@@ -3,4 +3,6 @@ databaseChangeLog:
       path: db/changelog/ddl/
   - include:
       file: db/changelog/ddl/005-24-07-changelog.sql
+  - include:
+      file: db/changelog/ddl/006-25-07-drop_booking_services_table.sql
 
