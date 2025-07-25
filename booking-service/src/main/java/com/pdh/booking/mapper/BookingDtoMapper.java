@@ -86,7 +86,7 @@ public class BookingDtoMapper {
                 .bookingId(booking.getBookingId())
                 .bookingReference(booking.getBookingReference())
                 .sagaId(booking.getSagaId())
-                .status(booking.getStatus())
+                .status(booking.getStatus().name())
                 .sagaState(convertSagaState(booking.getSagaState()))
                 .confirmationNumber(booking.getConfirmationNumber())
                 .build();
@@ -203,10 +203,12 @@ public class BookingDtoMapper {
         if (status == null) return "Unknown";
         
         return switch (status) {
+            case VALIDATION_PENDING -> "Validating product availability...";
             case PENDING -> "Processing your booking...";
             case CONFIRMED -> "Booking confirmed successfully";
             case CANCELLED -> "Booking has been cancelled";
             case FAILED -> "Booking failed - please try again";
+            case VALIDATION_FAILED -> "Product availability validation failed";
         };
     }
 }

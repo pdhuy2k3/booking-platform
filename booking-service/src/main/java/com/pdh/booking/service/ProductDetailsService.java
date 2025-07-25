@@ -32,29 +32,30 @@ public class ProductDetailsService {
 
         try {
             // Validate and convert based on booking type
-            switch (bookingType) {
-                case FLIGHT:
+            return switch (bookingType) {
+                case FLIGHT -> {
                     if (!(productDetails instanceof FlightBookingDetailsDto)) {
                         throw new IllegalArgumentException("Flight booking requires FlightBookingDetailsDto");
                     }
-                    return objectMapper.writeValueAsString(productDetails);
-                    
-                case HOTEL:
+                    yield objectMapper.writeValueAsString(productDetails);
+                }
+                case HOTEL -> {
                     if (!(productDetails instanceof HotelBookingDetailsDto)) {
                         throw new IllegalArgumentException("Hotel booking requires HotelBookingDetailsDto");
                     }
-                    return objectMapper.writeValueAsString(productDetails);
-                    
-                case COMBO:
+                    yield objectMapper.writeValueAsString(productDetails);
+                }
+                case COMBO -> {
                     if (!(productDetails instanceof ComboBookingDetailsDto)) {
                         throw new IllegalArgumentException("Combo booking requires ComboBookingDetailsDto");
                     }
-                    return objectMapper.writeValueAsString(productDetails);
-                    
-                default:
+                    yield objectMapper.writeValueAsString(productDetails);
+                }
+                default -> {
                     log.warn("Unknown booking type: {}, storing as generic JSON", bookingType);
-                    return objectMapper.writeValueAsString(productDetails);
-            }
+                    yield objectMapper.writeValueAsString(productDetails);
+                }
+            };
         } catch (JsonProcessingException e) {
             log.error("Error converting product details to JSON for booking type: {}", bookingType, e);
             throw new RuntimeException("Failed to serialize product details", e);

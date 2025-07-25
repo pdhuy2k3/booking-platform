@@ -20,7 +20,7 @@ import jakarta.validation.Valid;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-public class    StorefrontCreateBookingRequestDto {
+public class StorefrontCreateBookingRequestDto {
     
  
 

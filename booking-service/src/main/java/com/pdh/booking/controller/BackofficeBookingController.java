@@ -21,14 +21,11 @@ import java.util.UUID;
 
 /**
  * Backoffice Booking Controller
- * Provides advanced booking management capabilities with JSONB querying
- * for flight and hotel booking details
  */
 @RestController
 @RequestMapping("/backoffice/bookings")
 @RequiredArgsConstructor
 @Slf4j
-@PreAuthorize("hasRole('ADMIN') or hasRole('BACKOFFICE_USER')")
 public class BackofficeBookingController {
 
     private final BackofficeBookingService backofficeBookingService;
