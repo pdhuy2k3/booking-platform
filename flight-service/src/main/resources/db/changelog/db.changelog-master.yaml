@@ -4,5 +4,3 @@ databaseChangeLog:
   - include:
       file: db/changelog/ddl/005-24-07-changelog.sql
 
-
-

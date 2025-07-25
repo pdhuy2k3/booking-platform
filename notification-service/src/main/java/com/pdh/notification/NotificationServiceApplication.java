@@ -7,7 +7,7 @@ import org.springframework.cloud.client.discovery.EnableDiscoveryClient;
 import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
 import org.springframework.kafka.annotation.EnableKafka;
 
-@SpringBootApplication(scanBasePackages = { "com.pdh.notification", "com.pdh.common" })
+@SpringBootApplication(scanBasePackages = { "com.pdh.notification" })
 @EnableDiscoveryClient
 @EnableKafka
 @EnableJpaRepositories(basePackages = {"com.pdh.notification"})
