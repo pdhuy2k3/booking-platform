@@ -16,8 +16,6 @@ services:
       KC_DB_PASSWORD: p0stgr3s
       KC_HEALTH_ENABLED: true
       KC_HTTP_PORT: 80
-    ports:
-      - "9090:80"
     volumes:
       - ./identity/bookingsmart-keycloak-theme.jar:/opt/keycloak/providers/bookingsmart-keycloak-theme.jar
       - ./identity/realm-export.json:/opt/keycloak/data/import/realm-export.json
