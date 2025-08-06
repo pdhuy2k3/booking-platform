@@ -36,3 +36,16 @@ build/
 
 ### Node.js ###
 node_modules/
+.nx/installation
+.nx/cache
+.nx/workspace-data
+# Nuxt dev/build outputs
+.output
+.data
+.nuxt
+.nitro
+.cache
+vite.config.*.timestamp*
+vitest.config.*.timestamp*
+.cursor/rules/nx-rules.mdc
+.serena/

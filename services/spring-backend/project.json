@@ -1,0 +1,105 @@
+{
+  "name": "spring-backend",
+  "$schema": "../../node_modules/nx/schemas/project-schema.json",
+  "projectType": "application",
+  "sourceRoot": "services/spring-backend",
+  "targets": {
+    "build-all": {
+      "executor": "nx:run-commands",
+      "outputs": [
+        "services/spring-backend/target",
+        "services/spring-backend/*/target"
+      ],
+      "inputs": [
+        "{projectRoot}/**/*.java",
+        "{projectRoot}/**/pom.xml",
+        "{projectRoot}/**/*.properties",
+        "{projectRoot}/**/*.yml",
+        "{projectRoot}/**/*.yaml"
+      ],
+      "options": {
+        "command": "mvn clean package -DskipTests",
+        "cwd": "services/spring-backend"
+      },
+      "cache": true
+    },
+    "test-all": {
+      "executor": "nx:run-commands",
+      "outputs": [
+        "services/spring-backend/target/surefire-reports",
+        "services/spring-backend/*/target/surefire-reports"
+      ],
+      "inputs": [
+        "{projectRoot}/**/*.java",
+        "{projectRoot}/**/pom.xml"
+      ],
+      "options": {
+        "command": "mvn test",
+        "cwd": "services/spring-backend"
+      },
+      "cache": true
+    },
+    "clean": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "mvn clean",
+        "cwd": "services/spring-backend"
+      },
+      "cache": false
+    },
+    "install-all": {
+      "executor": "nx:run-commands",
+      "outputs": [
+        "services/spring-backend/target",
+        "services/spring-backend/*/target"
+      ],
+      "inputs": [
+        "{projectRoot}/**/*.java",
+        "{projectRoot}/**/pom.xml"
+      ],
+      "options": {
+        "command": "mvn clean install -DskipTests",
+        "cwd": "services/spring-backend"
+      },
+      "cache": true,
+      "dependsOn": [
+        "clean"
+      ]
+    },
+    "docker-build-all": {
+      "executor": "nx:run-commands",
+      "inputs": [
+        "{workspaceRoot}/docker-compose.yml"
+      ],
+      "options": {
+        "command": "docker-compose build",
+        "cwd": "."
+      },
+      "dependsOn": [
+        "build-all"
+      ]
+    },
+    "docker-up": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "docker-compose up -d",
+        "cwd": "."
+      },
+      "dependsOn": [
+        "docker-build-all"
+      ]
+    },
+    "docker-down": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "docker-compose down",
+        "cwd": "."
+      }
+    }
+  },
+  "tags": [
+    "backend",
+    "monolith",
+    "maven"
+  ]
+}

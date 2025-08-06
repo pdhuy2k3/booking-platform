@@ -1,0 +1,81 @@
+{
+  "name": "customer-service",
+  "$schema": "../../../node_modules/nx/schemas/project-schema.json",
+  "projectType": "application",
+  "sourceRoot": "services/spring-backend/customer-service/src",
+  "targets": {
+    "build": {
+      "executor": "nx:run-commands",
+      "outputs": [
+        "{projectRoot}/target"
+      ],
+      "inputs": [
+        "{projectRoot}/**/*.java",
+        "{projectRoot}/pom.xml",
+        "{workspaceRoot}/services/spring-backend/pom.xml",
+        "{workspaceRoot}/services/spring-backend/common-lib/**/*.java"
+      ],
+      "options": {
+        "command": "mvn clean package -DskipTests -pl customer-service -am",
+        "cwd": "services/spring-backend"
+      },
+      "cache": true,
+      "dependsOn": [
+        "^build"
+      ]
+    },
+    "test": {
+      "executor": "nx:run-commands",
+      "outputs": [
+        "services/spring-backend/customer-service/target/surefire-reports"
+      ],
+      "inputs": [
+        "{projectRoot}/**/*.java",
+        "{projectRoot}/pom.xml",
+        "{workspaceRoot}/services/spring-backend/pom.xml",
+        "{workspaceRoot}/services/spring-backend/common-lib/**/*.java"
+      ],
+      "options": {
+        "command": "mvn test -pl customer-service",
+        "cwd": "services/spring-backend"
+      },
+      "cache": true
+    },
+    "docker-build": {
+      "executor": "nx:run-commands",
+      "inputs": [
+        "{projectRoot}/Dockerfile",
+        "{projectRoot}/target/*.jar"
+      ],
+      "options": {
+        "command": "docker build -t phamduyhuyuit/bookingsmart-customer-service:latest .",
+        "cwd": "services/spring-backend/customer-service"
+      },
+      "dependsOn": [
+        "build"
+      ]
+    },
+    "docker-run": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "docker run phamduyhuyuit/bookingsmart-customer-service:latest",
+        "cwd": "services/spring-backend/customer-service"
+      },
+      "dependsOn": [
+        "docker-build"
+      ]
+    },
+    "dev": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "mvn spring-boot:run -pl customer-service",
+        "cwd": "services/spring-backend"
+      }
+    }
+  },
+  "tags": [
+    "backend",
+    "microservice",
+    "spring-boot"
+  ]
+}
