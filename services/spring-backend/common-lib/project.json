@@ -1,0 +1,63 @@
+{
+  "name": "common-lib",
+  "$schema": "../../../node_modules/nx/schemas/project-schema.json",
+  "projectType": "library",
+  "sourceRoot": "services/spring-backend/common-lib/src",
+  "targets": {
+    "build": {
+      "executor": "nx:run-commands",
+      "outputs": [
+        "{projectRoot}/target"
+      ],
+      "inputs": [
+        "{projectRoot}/**/*.java",
+        "{projectRoot}/pom.xml",
+        "{workspaceRoot}/services/spring-backend/pom.xml",
+        "{workspaceRoot}/services/spring-backend/common-lib/**/*.java"
+      ],
+      "options": {
+        "command": "mvn clean package -DskipTests -pl common-lib",
+        "cwd": "services/spring-backend"
+      },
+      "cache": true
+    },
+    "test": {
+      "executor": "nx:run-commands",
+      "outputs": [
+        "services/spring-backend/common-lib/target/surefire-reports"
+      ],
+      "inputs": [
+        "{projectRoot}/**/*.java",
+        "{projectRoot}/pom.xml",
+        "{workspaceRoot}/services/spring-backend/pom.xml",
+        "{workspaceRoot}/services/spring-backend/common-lib/**/*.java"
+      ],
+      "options": {
+        "command": "mvn test -pl common-lib",
+        "cwd": "services/spring-backend"
+      },
+      "cache": true
+    },
+    "install": {
+      "executor": "nx:run-commands",
+      "outputs": [
+        "services/spring-backend/common-lib/target"
+      ],
+      "inputs": [
+        "{projectRoot}/**/*.java",
+        "{projectRoot}/pom.xml",
+        "services/spring-backend/pom.xml"
+      ],
+      "options": {
+        "command": "mvn clean install -DskipTests -pl common-lib",
+        "cwd": "services/spring-backend"
+      },
+      "cache": true
+    }
+  },
+  "tags": [
+    "backend",
+    "library",
+    "spring-boot"
+  ]
+}
