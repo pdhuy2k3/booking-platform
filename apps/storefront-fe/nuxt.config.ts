@@ -3,8 +3,9 @@ import { defineNuxtConfig } from 'nuxt/config';
 
 // https://nuxt.com/docs/api/configuration/nuxt-config
 export default defineNuxtConfig({
-  workspaceDir: '../',
+  workspaceDir: '../../',
   srcDir: 'src',
+  buildDir: '../../dist/apps/nuxt/.nuxt',
   devtools: { enabled: true },
   devServer: {
     host: 'localhost',
@@ -13,14 +14,21 @@ export default defineNuxtConfig({
   typescript: {
     typeCheck: true,
     tsConfig: {
-      extends: '../../tsconfig.base.json', // Nuxt copies this string as-is to the `./.nuxt/tsconfig.json`, therefore it needs to be relative to that directory
+      extends: './tsconfig.app.json',
     },
   },
   imports: {
     autoImport: true,
   },
+
   css: ['~/assets/css/styles.css'],
+
   vite: {
     plugins: [nxViteTsPaths()],
+  },
+  nitro: {
+    output: {
+      dir: '../../dist/apps/nuxt/.output',
+    },
   },
 });

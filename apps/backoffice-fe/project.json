@@ -4,10 +4,5 @@
   "projectType": "application",
   "sourceRoot": "apps/backoffice-fe/src",
   "// targets": "to see all targets run: nx show project backoffice-fe --web",
-  "targets": {},
-  "tags": [
-    "frontend",
-    "application",
-    "nuxt"
-  ]
+  "targets": {}
 }
