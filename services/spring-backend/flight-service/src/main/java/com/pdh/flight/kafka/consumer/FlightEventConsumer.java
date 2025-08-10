@@ -33,7 +33,7 @@ public class FlightEventConsumer extends BaseCdcConsumer<BookingMsgKey, BookingC
     private final FlightService flightService;
     private final ObjectMapper objectMapper;
 
-    // Phase 3: Enhanced compensation support
+
     private final CompensationHandler compensationHandler;
 
     @KafkaListener(
@@ -67,6 +67,7 @@ public class FlightEventConsumer extends BaseCdcConsumer<BookingMsgKey, BookingC
         // For this example, we assume an update means a re-reservation.
         // In a real-world scenario, you would have more specific logic.
         flightService.reserveFlight(key.getId());
+
     }
 
     @Override
@@ -75,117 +76,5 @@ public class FlightEventConsumer extends BaseCdcConsumer<BookingMsgKey, BookingC
         flightService.cancelFlightReservation(key.getId());
     }
 
-    // ============== NEW SAGA COMMAND LISTENER ==============
 
-    /**
-     * Listens to saga commands for enhanced flight operations
-     * Works alongside existing CDC listeners for backward compatibility
-     */
-    @KafkaListener(
-        topics = "booking-saga-commands",
-        groupId = "flight-service-saga-group",
-        containerFactory = "sagaCommandListenerContainerFactory"
-    )
-    public void handleSagaCommand(@Payload String message, Acknowledgment ack) {
-        try {
-            log.debug("Received saga command: {}", message);
-            JsonNode command = objectMapper.readTree(message);
-            String action = command.get("action").asText();
-
-            switch (action) {
-                case "RESERVE_FLIGHT":
-                    handleFlightReservationCommand(command);
-                    break;
-                case "CANCEL_FLIGHT":
-                    handleFlightCancellationCommand(command);
-                    break;
-                default:
-                    log.debug("Unhandled flight saga command: {}", action);
-            }
-
-            // Acknowledge message after successful processing
-            ack.acknowledge();
-
-        } catch (Exception e) {
-            log.error("Error processing flight saga command: {}", message, e);
-            // Don't acknowledge on error - message will be retried
-        }
-    }
-
-    /**
-     * Handles flight reservation commands with enhanced product details
-     */
-    private void handleFlightReservationCommand(JsonNode command) {
-        try {
-            UUID bookingId = UUID.fromString(command.get("bookingId").asText());
-            String sagaId = command.get("sagaId").asText();
-
-            log.info("Processing flight reservation command for booking: {}, saga: {}", bookingId, sagaId);
-
-            if (command.has("flightDetails")) {
-                // Enhanced flow with flight details
-                JsonNode flightDetailsNode = command.get("flightDetails");
-                log.debug("Using enhanced flight reservation with product details for booking: {}", bookingId);
-
-                try {
-                    // Convert JsonNode to FlightBookingDetailsDto
-                    FlightBookingDetailsDto flightDetails = objectMapper.treeToValue(
-                        flightDetailsNode, FlightBookingDetailsDto.class);
-
-                    // Use existing enhanced method with proper DTO
-                    flightService.reserveFlight(bookingId, sagaId, flightDetails);
-                } catch (Exception e) {
-                    log.error("Error converting flight details for booking: {}", bookingId, e);
-                    // Fallback to legacy method
-                    flightService.reserveFlight(bookingId);
-                }
-            } else {
-                // Fallback to existing legacy method
-                log.debug("Using legacy flight reservation method for booking: {}", bookingId);
-                flightService.reserveFlight(bookingId);
-            }
-
-        } catch (Exception e) {
-            log.error("Error handling flight reservation command", e);
-            throw e; // Re-throw to prevent acknowledgment
-        }
-    }
-
-    /**
-     * Handles flight cancellation commands for compensation
-     */
-    private void handleFlightCancellationCommand(JsonNode command) {
-        try {
-            UUID bookingId = UUID.fromString(command.get("bookingId").asText());
-            String sagaId = command.get("sagaId").asText();
-
-            log.info("Processing flight cancellation command for booking: {}, saga: {}", bookingId, sagaId);
-
-            // Check if this is a compensation command
-            boolean isCompensation = command.has("metadata") &&
-                command.get("metadata").has("isCompensation") &&
-                "true".equals(command.get("metadata").get("isCompensation").asText());
-
-            if (isCompensation) {
-                log.info("Processing compensation flight cancellation for booking: {}", bookingId);
-
-                // For compensation, use best effort cancellation
-                try {
-                    flightService.cancelFlightReservation(bookingId);
-                    log.info("Compensation flight cancellation successful for booking: {}", bookingId);
-                } catch (Exception e) {
-                    log.warn("Compensation flight cancellation failed for booking: {}, continuing anyway", bookingId, e);
-                    // Don't re-throw for compensation - best effort
-                    return; // Exit without re-throwing
-                }
-            } else {
-                // Regular cancellation - fail if it doesn't work
-                flightService.cancelFlightReservation(bookingId);
-            }
-
-        } catch (Exception e) {
-            log.error("Error handling flight cancellation command", e);
-            throw e; // Re-throw to prevent acknowledgment
-        }
-    }
 }

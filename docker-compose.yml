@@ -3,9 +3,11 @@ services:
   identity:
     depends_on:
       - postgres
+
     profiles:
       - auth
       - app
+      - spring
     image: quay.io/keycloak/keycloak:26.2.4
     command: 'start --import-realm --http-enabled=true'
     environment:
@@ -30,6 +32,7 @@ services:
       - auth
       - dev
       - aiAgent
+      - spring
     image: debezium/postgres:17-alpine
     user: postgres
     environment:
@@ -145,8 +148,9 @@ services:
   discovery-service:
     profiles:
       - app
+      - spring
     build:
-      context: ./discovery-service
+      context: ./services/spring-backend/discovery-service
       dockerfile: Dockerfile
     image: phamduyhuyuit/bookingsmart-discovery-service:latest
     environment:
@@ -160,8 +164,9 @@ services:
   backoffice:
     profiles:
       - app
+      - spring
     build:
-      context: ./backoffice-bff
+      context: ./services/spring-backend/backoffice-bff
       dockerfile: Dockerfile
     image: phamduyhuyuit/bookingsmart-backoffice:latest
     depends_on:
@@ -182,8 +187,9 @@ services:
   storefront:
     profiles:
       - app
+      - spring
     build:
-      context: ./storefront-bff
+      context: ./services/spring-backend/storefront-bff
       dockerfile: Dockerfile
     image: phamduyhuyuit/bookingsmart-storefront:latest
     depends_on:
@@ -205,15 +211,16 @@ services:
   storefront-fe:
     profiles:
       - app
+      - fe
     build:
-      context: ./storefront-fe
+      context: ./apps/storefront-fe
       dockerfile: Dockerfile
       args:
-        - NEXT_PUBLIC_BFF_BASE_URL=${API_URL}
+        - NUXT_PUBLIC_API_BASE=${API_URL}
     image: phamduyhuyuit/bookingsmart-storefront-fe:latest
     environment:
       - NODE_ENV=production
-      - NEXT_PUBLIC_BFF_BASE_URL=${API_URL}
+      - NUXT_PUBLIC_API_BASE=${API_URL}
     networks:
       - booking-network
     restart: unless-stopped
@@ -222,8 +229,9 @@ services:
   backoffice-fe:
     profiles:
       - app
+      - fe
     build:
-      context: ./backoffice-fe
+      context: ./apps/backoffice-fe
       dockerfile: Dockerfile
       args:
         - NEXT_PUBLIC_BFF_BASE_URL=${API_URL}
@@ -239,8 +247,9 @@ services:
   flight-service:
     profiles:
       - app
+      - spring
     build:
-      context: ./flight-service
+      context: ./services/spring-backend/flight-service
       dockerfile: Dockerfile
     image: phamduyhuyuit/bookingsmart-flight-service:latest
     depends_on:
@@ -262,8 +271,9 @@ services:
   hotel-service:
     profiles:
       - app
+      - spring
     build:
-      context: ./hotel-service
+      context: ./services/spring-backend/hotel-service
       dockerfile: Dockerfile
     image: phamduyhuyuit/bookingsmart-hotel-service:latest
     depends_on:
@@ -285,8 +295,9 @@ services:
   booking-service:
     profiles:
       - app
+      - spring
     build:
-      context: ./booking-service
+      context: ./services/spring-backend/booking-service
       dockerfile: Dockerfile
     image: phamduyhuyuit/bookingsmart-booking-service:latest
     depends_on:
@@ -308,8 +319,9 @@ services:
   payment-service:
     profiles:
       - app
+      - spring
     build:
-      context: ./payment-service
+      context: ./services/spring-backend/payment-service
       dockerfile: Dockerfile
     image: phamduyhuyuit/bookingsmart-payment-service:latest
     depends_on:
@@ -331,8 +343,9 @@ services:
   notification-service:
     profiles:
       - app
+      - spring
     build:
-      context: ./notification-service
+      context: ./services/spring-backend/notification-service
       dockerfile: Dockerfile
     image: phamduyhuyuit/bookingsmart-notification-service:latest
     depends_on:
@@ -353,8 +366,9 @@ services:
   customer-service:
     profiles:
       - app
+      - spring
     build:
-      context: ./customer-service
+      context: ./services/spring-backend/customer-service
       dockerfile: Dockerfile
     image: phamduyhuyuit/bookingsmart-customer-service:latest
     depends_on:
@@ -415,6 +429,8 @@ services:
     image: nginx:1.25-alpine
     profiles:
       - app
+      - fe
+      - spring
     ports:
       - "80:80"
     volumes:

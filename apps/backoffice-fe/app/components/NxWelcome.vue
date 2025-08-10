@@ -1,7 +1,11 @@
 <script setup lang="ts">
+
+const count = ref(1)
 defineProps<{
   title: string;
 }>();
+
+
 </script>
 
 <template>
@@ -11,6 +15,8 @@ defineProps<{
         <h1>
           <span> Hello there, </span>
           Welcome {{ title }} 👋
+          <span>{{count}}</span>
+          <button @click="count++">Click me!</button>
         </h1>
       </div>
 
