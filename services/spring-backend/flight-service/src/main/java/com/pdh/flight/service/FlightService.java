@@ -19,7 +19,7 @@ import java.util.UUID;
 @Slf4j
 public class FlightService {
 
-    private final OutboxEventService eventPublisher;
+    private final FlightOutboxEventService eventPublisher;
     private final FlightInventoryService flightInventoryService;
 
     @Transactional
@@ -98,35 +98,5 @@ public class FlightService {
         eventPublisher.publishEvent("FlightReservationCancelled", "Booking", bookingId.toString(), Map.of("bookingId", bookingId));
     }
 
-    @Transactional
-    public void cancelFlightReservation(UUID bookingId, String sagaId, FlightBookingDetailsDto flightDetails) {
-        log.info("Canceling flight reservation for booking: {} with detailed product information", bookingId);
 
-        try {
-            // Release flight inventory
-            flightInventoryService.releaseSeats(
-                Long.parseLong(flightDetails.getFlightId()),
-                flightDetails.getSeatClass(),
-                flightDetails.getPassengerCount(),
-                flightDetails.getDepartureDateTime().toLocalDate()
-            );
-
-            // Create detailed cancellation event payload
-            Map<String, Object> eventPayload = new HashMap<>();
-            eventPayload.put("bookingId", bookingId);
-            eventPayload.put("sagaId", sagaId);
-            eventPayload.put("flightId", flightDetails.getFlightId());
-            eventPayload.put("passengers", flightDetails.getPassengerCount());
-            eventPayload.put("seatClass", flightDetails.getSeatClass());
-
-            // Publish detailed cancellation event
-            eventPublisher.publishEvent("FlightReservationCancelled", "Booking", bookingId.toString(), eventPayload);
-
-            log.info("Flight reservation cancelled successfully for booking: {}", bookingId);
-
-        } catch (Exception e) {
-            log.error("Failed to cancel flight reservation for booking: {}", bookingId, e);
-            throw e;
-        }
-    }
 }

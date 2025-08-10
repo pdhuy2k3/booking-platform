@@ -1,17 +1,26 @@
 <script setup lang="ts">
+
+const count = ref(1)
 defineProps<{
   title: string;
 }>();
+
+
 </script>
 
 <template>
+
   <div class="wrapper">
+    <UButton>Button</UButton>
     <div class="container">
       <div id="welcome">
         <h1>
           <span> Hello there, </span>
           Welcome {{ title }} 👋
+          <span>{{count}}</span>
+          <UButton @click="count++">Click me!</UButton>
         </h1>
+
       </div>
 
       <div id="hero" class="rounded">

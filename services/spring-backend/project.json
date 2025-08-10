@@ -6,10 +6,6 @@
   "targets": {
     "build-all": {
       "executor": "nx:run-commands",
-      "outputs": [
-        "services/spring-backend/target",
-        "services/spring-backend/*/target"
-      ],
       "inputs": [
         "{projectRoot}/**/*.java",
         "{projectRoot}/**/pom.xml",
@@ -23,16 +19,8 @@
       },
       "cache": true
     },
-    "test-all": {
+    "test": {
       "executor": "nx:run-commands",
-      "outputs": [
-        "services/spring-backend/target/surefire-reports",
-        "services/spring-backend/*/target/surefire-reports"
-      ],
-      "inputs": [
-        "{projectRoot}/**/*.java",
-        "{projectRoot}/**/pom.xml"
-      ],
       "options": {
         "command": "mvn test",
         "cwd": "services/spring-backend"
@@ -49,10 +37,6 @@
     },
     "install-all": {
       "executor": "nx:run-commands",
-      "outputs": [
-        "services/spring-backend/target",
-        "services/spring-backend/*/target"
-      ],
       "inputs": [
         "{projectRoot}/**/*.java",
         "{projectRoot}/**/pom.xml"
@@ -72,9 +56,10 @@
         "{workspaceRoot}/docker-compose.yml"
       ],
       "options": {
-        "command": "docker-compose build",
+        "command": "docker compose --profile spring build",
         "cwd": "."
       },
+      "cache": true,
       "dependsOn": [
         "build-all"
       ]
@@ -82,17 +67,25 @@
     "docker-up": {
       "executor": "nx:run-commands",
       "options": {
-        "command": "docker-compose up -d",
+        "command": "docker compose --profile spring up -d",
         "cwd": "."
-      },
-      "dependsOn": [
-        "docker-build-all"
-      ]
+      }
     },
     "docker-down": {
       "executor": "nx:run-commands",
       "options": {
-        "command": "docker-compose down",
+        "command": "docker compose --profile spring down",
+        "cwd": "."
+      }
+    },
+    "full-build": {
+      "dependsOn": [
+        "build-all",
+        "docker-build-all"
+      ],
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "echo 'Full build completed!'",
         "cwd": "."
       }
     }
