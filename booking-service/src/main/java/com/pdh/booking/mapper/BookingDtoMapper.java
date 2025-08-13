@@ -1,13 +1,17 @@
 package com.pdh.booking.mapper;
 
-import com.pdh.booking.dto.request.CreateBookingRequestDto;
-import com.pdh.booking.dto.request.StorefrontCreateBookingRequestDto;
-import com.pdh.booking.dto.response.BookingResponseDto;
-import com.pdh.booking.dto.response.StorefrontBookingResponseDto;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.pdh.booking.model.dto.request.CreateBookingRequestDto;
+import com.pdh.booking.model.dto.request.StorefrontCreateBookingRequestDto;
+import com.pdh.booking.model.dto.response.BookingResponseDto;
+import com.pdh.booking.model.dto.response.StorefrontBookingResponseDto;
 import com.pdh.booking.model.Booking;
+import com.pdh.booking.model.enums.BookingStatus;
 import com.pdh.booking.service.ProductDetailsService;
-import com.pdh.booking.viewmodel.BackofficeBookingViewModel;
-import com.pdh.booking.viewmodel.StorefrontBookingViewModel;
+import com.pdh.booking.model.viewmodel.BackofficeBookingViewModel;
+import com.pdh.booking.model.viewmodel.StorefrontBookingViewModel;
+import com.pdh.common.saga.SagaState;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
@@ -23,7 +27,7 @@ import java.util.UUID;
 @Component
 @RequiredArgsConstructor
 public class BookingDtoMapper {
-
+    private final ObjectMapper objectMapper;
     private final ProductDetailsService productDetailsService;
     private final NumberFormat currencyFormatter = NumberFormat.getCurrencyInstance(new Locale("vi", "VN"));
     
@@ -43,8 +47,10 @@ public class BookingDtoMapper {
 
         // Handle product details based on booking type
         if (dto.getProductDetails() != null) {
-            productDetailsService.validateProductDetails(dto.getBookingType(), dto.getProductDetails());
-            String productDetailsJson = productDetailsService.convertToJson(dto.getBookingType(), dto.getProductDetails());
+            // Convert generic Object (from JSON) to typed DTO before validation
+            Object typedProductDetails = productDetailsService.convertToTypedDto(dto.getBookingType(), dto.getProductDetails());
+            productDetailsService.validateProductDetails(dto.getBookingType(), typedProductDetails);
+            String productDetailsJson = productDetailsService.convertToJson(dto.getBookingType(), typedProductDetails);
             booking.setProductDetailsJson(productDetailsJson);
         }
 
@@ -55,11 +61,12 @@ public class BookingDtoMapper {
      * Convert StorefrontCreateBookingRequestDto to Booking entity
      * Note: userId should be set separately from JWT authentication
      */
-    public Booking toEntity(StorefrontCreateBookingRequestDto dto) {
+    public Booking toEntity(StorefrontCreateBookingRequestDto dto) throws JsonProcessingException {
         if (dto == null) return null;
 
         Booking booking = new Booking();
         // userId will be set by the controller from JWT authentication
+        booking.setUserId(UUID.randomUUID());
         booking.setBookingType(dto.getBookingType());
         booking.setTotalAmount(BigDecimal.valueOf(dto.getTotalAmount())); // Convert double to BigDecimal
         booking.setCurrency(dto.getCurrency());
@@ -68,8 +75,10 @@ public class BookingDtoMapper {
 
         // Handle product details based on booking type
         if (dto.getProductDetails() != null) {
-            productDetailsService.validateProductDetails(dto.getBookingType(), dto.getProductDetails());
-            String productDetailsJson = productDetailsService.convertToJson(dto.getBookingType(), dto.getProductDetails());
+            // Convert generic Object (from JSON) to typed DTO before validation
+//            Object typedProductDetails = productDetailsService.convertToTypedDto(dto.getBookingType(), dto.getProductDetails());
+//            productDetailsService.validateProductDetails(dto.getBookingType(), typedProductDetails);
+            String productDetailsJson = objectMapper.writeValueAsString(dto.getProductDetails());
             booking.setProductDetailsJson(productDetailsJson);
         }
 
@@ -168,18 +177,18 @@ public class BookingDtoMapper {
     }
     
     /**
-     * Helper method to convert saga state (temporary workaround)
+     * Helper method to convert saga state
      */
-    private com.pdh.booking.model.enums.SagaState convertSagaState(Object commonSagaState) {
+    private SagaState convertSagaState(Object commonSagaState) {
         if (commonSagaState == null) {
-            return com.pdh.booking.model.enums.SagaState.BOOKING_INITIATED;
+            return SagaState.BOOKING_INITIATED;
         }
         
         String stateString = commonSagaState.toString();
         try {
-            return com.pdh.booking.model.enums.SagaState.valueOf(stateString);
+            return SagaState.valueOf(stateString);
         } catch (IllegalArgumentException e) {
-            return com.pdh.booking.model.enums.SagaState.BOOKING_INITIATED;
+            return SagaState.BOOKING_INITIATED;
         }
     }
     
@@ -199,13 +208,16 @@ public class BookingDtoMapper {
     /**
      * Get user-friendly status description
      */
-    private String getStatusDescription(com.pdh.booking.model.enums.BookingStatus status) {
+    private String getStatusDescription(BookingStatus status) {
         if (status == null) return "Unknown";
         
         return switch (status) {
             case VALIDATION_PENDING -> "Validating product availability...";
             case PENDING -> "Processing your booking...";
             case CONFIRMED -> "Booking confirmed successfully";
+            case PAYMENT_PENDING -> null;
+            case PAID -> null;
+            case PAYMENT_FAILED -> null;
             case CANCELLED -> "Booking has been cancelled";
             case FAILED -> "Booking failed - please try again";
             case VALIDATION_FAILED -> "Product availability validation failed";

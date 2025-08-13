@@ -2,24 +2,27 @@ package com.pdh.booking.service;
 
 import com.pdh.booking.model.Booking;
 import com.pdh.booking.model.enums.BookingStatus;
+import com.pdh.booking.model.enums.BookingType;
 import com.pdh.booking.repository.BookingRepository;
-import com.pdh.common.event.booking.BookingInitiatedEvent;
-import com.pdh.common.event.booking.BookingConfirmedEvent;
-import com.pdh.common.event.booking.BookingCancelledEvent;
-import com.pdh.common.event.booking.BookingFailedEvent;
-import com.pdh.common.outbox.service.OutboxEventService;
-import com.pdh.common.saga.SagaState;
+import com.pdh.common.utils.AuthenticationUtils;
+import io.github.resilience4j.circuitbreaker.annotation.CircuitBreaker;
+import io.github.resilience4j.retry.annotation.Retry;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.client.RestClient;
 
+import java.math.BigDecimal;
 import java.time.ZonedDateTime;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 
 /**
- * Domain service for managing booking lifecycle and publishing domain events
+ * Simplified Booking service using direct REST calls with circuit breakers
+ * Replaces complex saga orchestration with synchronous service communication
  */
 @Service
 @Slf4j
@@ -27,198 +30,219 @@ import java.util.UUID;
 public class BookingService {
 
     private final BookingRepository bookingRepository;
-    private final OutboxEventService outboxEventPublisher;
+    private final RestClient.Builder restClientBuilder;
+    private final WebhookNotificationService webhookNotificationService;
+    private final AnalyticsEventService analyticsEventService;
 
     /**
-     * Create a new booking and publish BookingInitiatedEvent
+     * Create and process booking with direct service calls
      */
     @Transactional
     public Booking createBooking(Booking booking) {
         log.info("Creating booking with reference: {}", booking.getBookingReference());
         
-        // Set initial status and saga state
+        // Set user ID from authentication context
+        booking.setUserId(UUID.fromString(AuthenticationUtils.extractUserId()));
         booking.setStatus(BookingStatus.PENDING);
-        booking.setSagaState(SagaState.BOOKING_INITIATED);
         
-        // Save booking
+        // Save booking first
         Booking savedBooking = bookingRepository.save(booking);
         
-        // Publish domain event to outbox
-        BookingInitiatedEvent event = BookingInitiatedEvent.builder()
-                .bookingId(savedBooking.getBookingId())
-                .sagaId(savedBooking.getSagaId())
-                .userId(savedBooking.getUserId())
-                .bookingReference(savedBooking.getBookingReference())
-                .bookingType(savedBooking.getBookingType().toString())
-                .totalAmount(savedBooking.getTotalAmount())
-                .currency(savedBooking.getCurrency())
-                .timestamp(ZonedDateTime.now())
-                .build();
+        // Publish analytics event for booking initiated
+        analyticsEventService.publishBookingAnalyticsEvent(savedBooking, "booking.initiated");
         
-        outboxEventPublisher.publishEvent("BookingInitiated", "Booking", savedBooking.getBookingId().toString(), event);
+        long startTime = System.currentTimeMillis();
+        boolean success = false;
         
-        log.info("Booking created and BookingInitiatedEvent published for booking: {}", savedBooking.getBookingReference());
+        try {
+            // Process booking based on type using direct REST calls
+            switch (booking.getBookingType()) {
+                case FLIGHT -> processFlightBooking(savedBooking);
+                case HOTEL -> processHotelBooking(savedBooking);
+                case COMBO -> processComboBooking(savedBooking);
+                default -> throw new IllegalArgumentException("Unsupported booking type: " + booking.getBookingType());
+            }
+            
+            // If all services succeed, confirm booking
+            savedBooking.setStatus(BookingStatus.CONFIRMED);
+            savedBooking.setConfirmationNumber(generateConfirmationNumber());
+            savedBooking = bookingRepository.save(savedBooking);
+            
+            // Send webhook notification for successful booking
+            webhookNotificationService.sendBookingConfirmedNotification(savedBooking);
+            
+            // Publish analytics events for successful booking
+            analyticsEventService.publishBookingAnalyticsEvent(savedBooking, "booking.confirmed");
+            
+            success = true;
+            log.info("Booking {} processed successfully", savedBooking.getBookingReference());
+            
+        } catch (Exception e) {
+            log.error("Error processing booking {}: {}", savedBooking.getBookingReference(), e.getMessage());
+            
+            // Mark booking as failed
+            savedBooking.setStatus(BookingStatus.FAILED);
+            savedBooking = bookingRepository.save(savedBooking);
+            
+            // Send webhook notification for failed booking
+            webhookNotificationService.sendBookingFailedNotification(savedBooking, e.getMessage());
+            
+            // Publish analytics event for failed booking
+            analyticsEventService.publishBookingAnalyticsEvent(savedBooking, "booking.failed");
+            
+            throw new BookingProcessingException("Failed to process booking: " + e.getMessage(), e);
+        } finally {
+            // Publish performance metrics
+            long duration = System.currentTimeMillis() - startTime;
+            analyticsEventService.publishPerformanceMetrics("booking.creation", duration, success);
+        }
+        
         return savedBooking;
     }
 
     /**
-     * Update booking status and saga state, publish appropriate domain event
+     * Process flight booking with circuit breaker
      */
-    @Transactional
-    public Optional<Booking> updateBookingStatus(UUID bookingId, BookingStatus newStatus, SagaState newSagaState) {
-        return updateBookingStatus(bookingId, newStatus, newSagaState, null);
+    @CircuitBreaker(name = "flight-service", fallbackMethod = "flightServiceFallback")
+    @Retry(name = "flight-service")
+    private void processFlightBooking(Booking booking) {
+        log.info("Processing flight booking: {}", booking.getBookingReference());
+        
+        RestClient restClient = restClientBuilder.build();
+        
+        // Call flight service using service discovery
+        Map<String, Object> flightBookingRequest = Map.of(
+            "bookingId", booking.getBookingId().toString(),
+            "userId", booking.getUserId().toString(),
+            "productDetails", booking.getProductDetailsJson(),
+            "totalAmount", booking.getTotalAmount(),
+            "currency", booking.getCurrency()
+        );
+        
+        String response = restClient.post()
+            .uri("http://flight-service/api/bookings")
+            .contentType(MediaType.APPLICATION_JSON)
+            .body(flightBookingRequest)
+            .retrieve()
+            .body(String.class);
+            
+        log.info("Flight booking processed successfully for booking: {}", booking.getBookingReference());
     }
 
     /**
-     * Update booking status and saga state with reason, publish appropriate domain event
+     * Process hotel booking with circuit breaker
      */
-    @Transactional
-    public Optional<Booking> updateBookingStatus(UUID bookingId, BookingStatus newStatus, SagaState newSagaState, String reason) {
-        Optional<Booking> bookingOpt = bookingRepository.findByBookingId(bookingId);
+    @CircuitBreaker(name = "hotel-service", fallbackMethod = "hotelServiceFallback")
+    @Retry(name = "hotel-service")
+    private void processHotelBooking(Booking booking) {
+        log.info("Processing hotel booking: {}", booking.getBookingReference());
         
-        if (bookingOpt.isEmpty()) {
-            log.warn("Booking not found with id: {}", bookingId);
-            return Optional.empty();
-        }
+        RestClient restClient = restClientBuilder.build();
         
-        Booking booking = bookingOpt.get();
-        BookingStatus oldStatus = booking.getStatus();
-        SagaState oldSagaState = booking.getSagaState();
+        Map<String, Object> hotelBookingRequest = Map.of(
+            "bookingId", booking.getBookingId().toString(),
+            "userId", booking.getUserId().toString(),
+            "productDetails", booking.getProductDetailsJson(),
+            "totalAmount", booking.getTotalAmount(),
+            "currency", booking.getCurrency()
+        );
         
-        // Update booking
-        booking.setStatus(newStatus);
-        booking.setSagaState(newSagaState);
-        
-        Booking savedBooking = bookingRepository.save(booking);
-        
-        // Publish appropriate domain event based on new status
-        publishBookingStatusEvent(savedBooking, oldStatus, newStatus, reason);
-        
-        log.info("Booking {} status updated from {} to {}, saga state from {} to {}", 
-                booking.getBookingReference(), oldStatus, newStatus, oldSagaState, newSagaState);
-        
-        return Optional.of(savedBooking);
+        String response = restClient.post()
+            .uri("http://hotel-service/api/bookings")
+            .contentType(MediaType.APPLICATION_JSON)
+            .body(hotelBookingRequest)
+            .retrieve()
+            .body(String.class);
+            
+        log.info("Hotel booking processed successfully for booking: {}", booking.getBookingReference());
     }
 
     /**
-     * Update saga state only
+     * Process combo booking (both flight and hotel)
      */
-    @Transactional
-    public Optional<Booking> updateSagaState(UUID bookingId, SagaState newSagaState) {
-        Optional<Booking> bookingOpt = bookingRepository.findByBookingId(bookingId);
+    private void processComboBooking(Booking booking) {
+        log.info("Processing combo booking: {}", booking.getBookingReference());
         
-        if (bookingOpt.isEmpty()) {
-            log.warn("Booking not found with id: {}", bookingId);
-            return Optional.empty();
-        }
+        // Process both flight and hotel
+        processFlightBooking(booking);
+        processHotelBooking(booking);
         
-        Booking booking = bookingOpt.get();
-        SagaState oldSagaState = booking.getSagaState();
-        booking.setSagaState(newSagaState);
-        
-        Booking savedBooking = bookingRepository.save(booking);
-        
-        log.info("Booking {} saga state updated from {} to {}", 
-                booking.getBookingReference(), oldSagaState, newSagaState);
-        
-        return Optional.of(savedBooking);
+        log.info("Combo booking processed successfully for booking: {}", booking.getBookingReference());
     }
 
     /**
-     * Find booking by saga ID
+     * Process payment with circuit breaker
      */
-    public Optional<Booking> findBySagaId(String sagaId) {
-        return bookingRepository.findBySagaId(sagaId);
+    @CircuitBreaker(name = "payment-service", fallbackMethod = "paymentServiceFallback")
+    @Retry(name = "payment-service")
+    private void processPayment(Booking booking) {
+        log.info("Processing payment for booking: {}", booking.getBookingReference());
+        
+        RestClient restClient = restClientBuilder.build();
+        
+        Map<String, Object> paymentRequest = Map.of(
+            "bookingId", booking.getBookingId().toString(),
+            "userId", booking.getUserId().toString(),
+            "amount", booking.getTotalAmount(),
+            "currency", booking.getCurrency(),
+            "paymentMethod", "CREDIT_CARD" // This would come from request
+        );
+        
+        String response = restClient.post()
+            .uri("http://payment-service/api/payments")
+            .contentType(MediaType.APPLICATION_JSON)
+            .body(paymentRequest)
+            .retrieve()
+            .body(String.class);
+            
+        log.info("Payment processed successfully for booking: {}", booking.getBookingReference());
     }
 
-    /**
-     * Find booking by booking ID
-     */
+    // Fallback methods
+    private void flightServiceFallback(Booking booking, Exception ex) {
+        log.error("Flight service fallback triggered for booking: {}, error: {}", 
+                booking.getBookingReference(), ex.getMessage());
+        throw new BookingProcessingException("Flight service unavailable", ex);
+    }
+
+    private void hotelServiceFallback(Booking booking, Exception ex) {
+        log.error("Hotel service fallback triggered for booking: {}, error: {}", 
+                booking.getBookingReference(), ex.getMessage());
+        throw new BookingProcessingException("Hotel service unavailable", ex);
+    }
+
+    private void paymentServiceFallback(Booking booking, Exception ex) {
+        log.error("Payment service fallback triggered for booking: {}, error: {}", 
+                booking.getBookingReference(), ex.getMessage());
+        throw new BookingProcessingException("Payment service unavailable", ex);
+    }
+
+    // Utility methods
     public Optional<Booking> findByBookingId(UUID bookingId) {
         return bookingRepository.findByBookingId(bookingId);
     }
 
-    /**
-     * Confirm booking and set confirmation number
-     */
-    @Transactional
-    public Optional<Booking> confirmBooking(UUID bookingId, String confirmationNumber) {
-        Optional<Booking> bookingOpt = bookingRepository.findByBookingId(bookingId);
-        
-        if (bookingOpt.isEmpty()) {
-            log.warn("Booking not found with id: {}", bookingId);
-            return Optional.empty();
-        }
-        
-        Booking booking = bookingOpt.get();
-        booking.setStatus(BookingStatus.CONFIRMED);
-        booking.setSagaState(SagaState.BOOKING_COMPLETED);
-        booking.setConfirmationNumber(confirmationNumber);
-        
-        Booking savedBooking = bookingRepository.save(booking);
-        
-        // Publish confirmation event
-        BookingConfirmedEvent event = BookingConfirmedEvent.builder()
-                .bookingId(savedBooking.getBookingId())
-                .sagaId(savedBooking.getSagaId())
-                .userId(savedBooking.getUserId())
-                .bookingReference(savedBooking.getBookingReference())
-                .confirmationNumber(confirmationNumber)
-                .timestamp(ZonedDateTime.now())
-                .build();
-        
-        outboxEventPublisher.publishEvent("BookingConfirmed", "Booking", savedBooking.getBookingId().toString(), event);
-        
-        log.info("Booking {} confirmed with confirmation number: {}", booking.getBookingReference(), confirmationNumber);
-        return Optional.of(savedBooking);
+    public Optional<Booking> findBySagaId(String sagaId) {
+        return bookingRepository.findBySagaId(sagaId);
     }
 
-    /**
-     * Publish appropriate domain event based on booking status change
-     */
-    private void publishBookingStatusEvent(Booking booking, BookingStatus oldStatus, BookingStatus newStatus, String reason) {
-        switch (newStatus) {
-            case CONFIRMED -> {
-                BookingConfirmedEvent confirmedEvent = BookingConfirmedEvent.builder()
-                        .bookingId(booking.getBookingId())
-                        .sagaId(booking.getSagaId())
-                        .userId(booking.getUserId())
-                        .bookingReference(booking.getBookingReference())
-                        .confirmationNumber(booking.getConfirmationNumber())
-                        .timestamp(ZonedDateTime.now())
-                        .build();
-                outboxEventPublisher.publishEvent("BookingConfirmed", "Booking", booking.getBookingId().toString(), confirmedEvent);
-            }
-            
-            case CANCELLED -> {
-                BookingCancelledEvent cancelledEvent = BookingCancelledEvent.builder()
-                        .bookingId(booking.getBookingId())
-                        .sagaId(booking.getSagaId())
-                        .userId(booking.getUserId())
-                        .bookingReference(booking.getBookingReference())
-                        .cancellationReason(reason != null ? reason : booking.getCancellationReason())
-                        .timestamp(ZonedDateTime.now())
-                        .build();
-                outboxEventPublisher.publishEvent("BookingCancelled", "Booking", booking.getBookingId().toString(), cancelledEvent);
-            }
-            
-            case FAILED -> {
-                BookingFailedEvent failedEvent = BookingFailedEvent.builder()
-                        .bookingId(booking.getBookingId())
-                        .sagaId(booking.getSagaId())
-                        .userId(booking.getUserId())
-                        .bookingReference(booking.getBookingReference())
-                        .failureReason(reason != null ? reason : "Booking processing failed")
-                        .timestamp(ZonedDateTime.now())
-                        .build();
-                outboxEventPublisher.publishEvent("BookingFailed", "Booking", booking.getBookingId().toString(), failedEvent);
-            }
-            
-            default -> {
-                // For other status changes, we might want to publish generic events
-                log.debug("No specific event published for status change from {} to {} for booking {}", 
-                        oldStatus, newStatus, booking.getBookingReference());
-            }
+    @Transactional
+    public Optional<Booking> updateBookingStatus(UUID bookingId, BookingStatus newStatus) {
+        return bookingRepository.findByBookingId(bookingId)
+            .map(booking -> {
+                booking.setStatus(newStatus);
+                return bookingRepository.save(booking);
+            });
+    }
+
+    private String generateConfirmationNumber() {
+        return "CNF" + System.currentTimeMillis();
+    }
+
+    // Exception class
+    public static class BookingProcessingException extends RuntimeException {
+        public BookingProcessingException(String message, Throwable cause) {
+            super(message, cause);
         }
     }
 }
