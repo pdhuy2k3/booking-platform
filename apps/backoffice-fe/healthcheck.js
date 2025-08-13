@@ -1,15 +1,16 @@
-// apps/backoffice-fe/healthcheck.js
+#!/usr/bin/env node
+
 const http = require('http');
 
 const options = {
-  host: process.env.NUXT_HOST || '0.0.0.0',
-  port: process.env.NUXT_PORT || process.env.PORT || 3000,
-  timeout: 2000,
-  path: '/api/health'  // Health endpoint
+  host: 'localhost',
+  port: process.env.NEXT_PORT || 3001,
+  path: '/api/health',
+  timeout: 2000
 };
 
 const request = http.request(options, (res) => {
-  console.log(`Health check STATUS: ${res.statusCode}`);
+  console.log(`Health check status: ${res.statusCode}`);
   if (res.statusCode === 200) {
     process.exit(0);
   } else {
@@ -17,15 +18,15 @@ const request = http.request(options, (res) => {
   }
 });
 
-request.on('timeout', () => {
-  console.log('Health check TIMEOUT');
-  process.exit(1);
-});
-
 request.on('error', (err) => {
-  console.log('Health check ERROR:', err.message);
+  console.log('Health check failed:', err.message);
   process.exit(1);
 });
 
-request.setTimeout(options.timeout);
+request.on('timeout', () => {
+  console.log('Health check timeout');
+  request.destroy();
+  process.exit(1);
+});
+
 request.end();

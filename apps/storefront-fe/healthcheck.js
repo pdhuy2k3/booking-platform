@@ -1,16 +1,14 @@
-#!/usr/bin/env node
-
 const http = require('http');
 
 const options = {
-  host: 'localhost',
-  port: process.env.NUXT_PORT || 3000,
+  hostname: 'localhost',
+  port: process.env.PORT || 3000,
   path: '/api/health',
+  method: 'GET',
   timeout: 2000
 };
 
 const request = http.request(options, (res) => {
-  console.log(`Health check status: ${res.statusCode}`);
   if (res.statusCode === 200) {
     process.exit(0);
   } else {
@@ -18,13 +16,11 @@ const request = http.request(options, (res) => {
   }
 });
 
-request.on('error', (err) => {
-  console.log('Health check failed:', err.message);
+request.on('error', () => {
   process.exit(1);
 });
 
 request.on('timeout', () => {
-  console.log('Health check timeout');
   request.destroy();
   process.exit(1);
 });

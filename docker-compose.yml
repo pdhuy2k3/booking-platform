@@ -215,8 +215,6 @@ services:
     build:
       context: ./apps/storefront-fe
       dockerfile: Dockerfile
-      args:
-        - NUXT_PUBLIC_API_BASE=${API_URL}
     image: phamduyhuyuit/bookingsmart-storefront-fe:latest
     environment:
       - NODE_ENV=production
@@ -233,8 +231,6 @@ services:
     build:
       context: ./apps/backoffice-fe
       dockerfile: Dockerfile
-      args:
-        - NEXT_PUBLIC_BFF_BASE_URL=${API_URL}
     image: phamduyhuyuit/bookingsmart-backoffice-fe:latest
     environment:
       - NODE_ENV=production

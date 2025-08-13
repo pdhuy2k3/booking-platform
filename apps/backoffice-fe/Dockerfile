@@ -1,61 +1,69 @@
-# Multi-stage Dockerfile for Backoffice Nuxt.js application
-# Stage 1: Build stage
-FROM node:22.17.1-alpine AS builder
+# syntax=docker/dockerfile:1.7-labs
 
-# Set working directory
+########################
+# Deps
+########################
+FROM node:22-alpine AS deps
 WORKDIR /app
+RUN apk add --no-cache libc6-compat
+RUN corepack enable && corepack prepare pnpm@9 --activate
 
-# Copy package files and nx configuration
-COPY package*.json ./
-COPY nx.json ./
-COPY tsconfig.base.json ./
+# root files needed for install & Nx
+COPY pnpm-lock.yaml pnpm-workspace.yaml package.json nx.json tsconfig.base.json eslint.config.mjs ./
+RUN --mount=type=cache,id=pnpm-store,target=/root/.local/share/pnpm/store \
+    pnpm install --frozen-lockfile
 
-# Copy the backoffice app and shared dependencies
+########################
+# Builder (build only backoffice-fe)
+########################
+FROM node:22-alpine AS builder
+WORKDIR /app
+RUN corepack enable && corepack prepare pnpm@9 --activate
+
+COPY --from=deps /app/node_modules ./node_modules
+COPY pnpm-lock.yaml pnpm-workspace.yaml package.json nx.json tsconfig.base.json eslint.config.mjs ./
 COPY apps/backoffice-fe ./apps/backoffice-fe
 COPY libs ./libs
 
-# Install dependencies
-RUN npm ci --only=production=false
+ENV CI=1
+ENV NX_DAEMON=false
+ENV NEXT_TELEMETRY_DISABLED=1
 
-# Build the Nuxt application
-RUN npx nx build backoffice-fe
+# 👇 build just this app (NOT run-many --all)
+RUN --mount=type=cache,target=/app/.nx/cache \
+    --mount=type=cache,target=/app/node_modules/.cache/nx \
+    pnpm exec nx build backoffice-fe --verbose
 
-# Stage 2: Production stage
-FROM node:22.17.1-alpine AS production
-
-# Set working directory
+########################
+# Runner (runtime-only)
+########################
+FROM node:22-alpine AS runner
 WORKDIR /app
 
-# Install dumb-init for proper signal handling
-RUN apk add --no-cache dumb-init
-
-# Create non-root user
-RUN addgroup -g 1001 -S nodejs && \
-    adduser -S nuxtjs -u 1001
-
-# Copy built application from builder stage
-COPY --from=builder --chown=nuxtjs:nodejs /app/dist/apps/backoffice-fe ./
-
-# Copy health check script
-COPY --from=builder --chown=nuxtjs:nodejs /app/apps/backoffice-fe/healthcheck.js ./
-
-# Switch to non-root user
-USER nuxtjs
-
-# Expose port
-EXPOSE 3000
-
-# Environment variables
 ENV NODE_ENV=production
-ENV NUXT_HOST=0.0.0.0
-ENV NUXT_PORT=3000
+ENV PORT=3001
+ENV HOSTNAME=0.0.0.0
+ENV NEXT_TELEMETRY_DISABLED=1
 
-# Health check using the Node.js script
-HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-  CMD node healthcheck.js
+RUN apk add --no-cache dumb-init libc6-compat
+RUN addgroup -S nodejs -g 1001 && adduser -S nextjs -u 1001
 
-# Use dumb-init for proper signal handling
-ENTRYPOINT ["dumb-init", "--"]
+# 1) standalone server (+ runtime node_modules)
+COPY --from=builder --chown=nextjs:nodejs /app/dist/apps/backoffice-fe/.next/standalone ./
 
-# Start the application
-CMD ["node", "server/index.mjs"]
+# 2) FULL .next (BUILD_ID + manifests + static)
+COPY --from=builder --chown=nextjs:nodejs /app/dist/apps/backoffice-fe/.next /app/.next
+
+# 3) public assets
+COPY --from=builder --chown=nextjs:nodejs /app/apps/backoffice-fe/public ./apps/backoffice-fe/public
+
+# 4) symlinks so any lookup path resolves
+RUN mkdir -p /app/apps/backoffice-fe \
+ && ln -s /app/.next /app/apps/backoffice-fe/.next \
+ && mkdir -p /app/dist/apps/backoffice-fe \
+ && ln -s /app/.next /app/dist/apps/backoffice-fe/.next
+
+USER nextjs
+EXPOSE 3001
+ENTRYPOINT ["dumb-init","--"]
+CMD ["node","apps/backoffice-fe/server.js"]

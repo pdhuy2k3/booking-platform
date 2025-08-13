@@ -49,3 +49,7 @@ vite.config.*.timestamp*
 vitest.config.*.timestamp*
 .cursor/rules/nx-rules.mdc
 .serena/
+
+# Next.js
+.next
+out

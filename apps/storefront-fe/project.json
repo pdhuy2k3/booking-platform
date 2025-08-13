@@ -1,30 +1,43 @@
 {
   "name": "storefront-fe",
   "$schema": "../../node_modules/nx/schemas/project-schema.json",
+  "sourceRoot": "apps/storefront-fe",
   "projectType": "application",
-  "sourceRoot": "apps/storefront-fe/src",
+  "tags": [
+    "frontend",
+    "application",
+    "nextjs"
+  ],
   "targets": {
     "build": {
-      "executor": "nx:run-commands",
+      "executor": "@nx/next:build",
       "outputs": ["{options.outputPath}"],
       "options": {
-        "command": "nuxt build",
-        "cwd": "apps/storefront-fe",
         "outputPath": "dist/apps/storefront-fe"
       }
     },
     "dev": {
-      "executor": "nx:run-commands",
+      "executor": "@nx/next:server",
       "options": {
-        "command": "nuxt dev",
-        "cwd": "apps/storefront-fe"
+        "dev": true,
+        "port": 3000,
+        "buildTarget": "storefront-fe:build"
       }
     },
     "serve": {
-      "executor": "nx:run-commands",
+      "executor": "@nx/next:server",
       "options": {
-        "command": "nuxt dev",
-        "cwd": "apps/storefront-fe"
+        "dev": true,
+        "port": 3000,
+        "buildTarget": "storefront-fe:build"
+      }
+    },
+    "start": {
+      "executor": "@nx/next:server",
+      "options": {
+        "dev": false,
+        "port": 3000,
+        "buildTarget": "storefront-fe:build"
       }
     },
     "docker-build": {
@@ -32,7 +45,8 @@
       "options": {
         "command": "docker build -f apps/storefront-fe/Dockerfile -t phamduyhuyuit/bookingsmart-storefront-fe:latest .",
         "cwd": "."
-      }
+      },
+      "dependsOn": ["build"]
     },
     "docker-run": {
       "executor": "nx:run-commands",
@@ -40,10 +54,5 @@
         "command": "docker run -p 3000:3000 --name storefront-fe-container phamduyhuyuit/bookingsmart-storefront-fe:latest"
       }
     }
-  },
-  "tags": [
-    "frontend",
-    "application",
-    "nuxt"
-  ]
+  }
 }

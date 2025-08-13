@@ -15,7 +15,8 @@
     "skipDefaultLibCheck": true,
     "baseUrl": ".",
     "paths": {
-      "@bookingsmart/nuxt-api-module": ["libs/nuxt-api-module/src/index.ts"]
+      "@bookingsmart-workspace/shared-types": ["libs/shared-types/src/index.ts"],
+      "@/*": ["apps/backoffice-fe/src/*"]
     }
   },
   "exclude": ["node_modules", "tmp", ".nuxt", ".output"]

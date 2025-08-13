@@ -1,61 +1,64 @@
-# Multi-stage Dockerfile for Storefront Nuxt.js application
-# Stage 1: Build stage
+# Build stage
 FROM node:22.17.1-alpine AS builder
 
 # Set working directory
 WORKDIR /app
 
-# Copy package files and nx configuration
+# Install dependencies only when needed
+# Copy package files
 COPY package*.json ./
 COPY nx.json ./
 COPY tsconfig.base.json ./
 
-# Copy the storefront app and shared dependencies
+# Install dependencies
+RUN npm ci --only=production
+
+# Copy source code
 COPY apps/storefront-fe ./apps/storefront-fe
 COPY libs ./libs
 
-# Install dependencies
-RUN npm ci --only=production=false
-
-# Build the Nuxt application
+# Build the application
 RUN npx nx build storefront-fe
 
-# Stage 2: Production stage
-FROM node:22.17.1-alpine AS production
-
-# Set working directory
-WORKDIR /app
+# Production stage
+FROM node:22.17.1-alpine AS runner
 
 # Install dumb-init for proper signal handling
 RUN apk add --no-cache dumb-init
 
-# Create non-root user
-RUN addgroup -g 1001 -S nodejs && \
-    adduser -S nuxtjs -u 1001
+# Create app user for security
+RUN addgroup --system --gid 1001 nodejs
+RUN adduser --system --uid 1001 nextjs
 
-# Copy built application from builder stage
-COPY --from=builder --chown=nuxtjs:nodejs /app/dist/apps/storefront-fe ./
+# Set working directory
+WORKDIR /app
+
+# Copy built application
+COPY --from=builder --chown=nextjs:nodejs /app/dist/apps/storefront-fe/standalone ./
+COPY --from=builder --chown=nextjs:nodejs /app/dist/apps/storefront-fe/static ./apps/storefront-fe/.next/static
 
 # Copy health check script
-COPY --from=builder --chown=nuxtjs:nodejs /app/apps/storefront-fe/healthcheck.js ./
+COPY apps/storefront-fe/healthcheck.js ./healthcheck.js
+
+# Create .next directory with proper permissions
+RUN mkdir .next
+RUN chown nextjs:nodejs .next
 
 # Switch to non-root user
-USER nuxtjs
+USER nextjs
 
 # Expose port
 EXPOSE 3000
 
-# Environment variables
+# Set environment variables
 ENV NODE_ENV=production
-ENV NUXT_HOST=0.0.0.0
-ENV NUXT_PORT=3000
+ENV PORT=3000
+ENV HOSTNAME="0.0.0.0"
 
-# Health check using the Node.js script
-HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+# Health check
+HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
   CMD node healthcheck.js
 
-# Use dumb-init for proper signal handling
+# Start the application with dumb-init
 ENTRYPOINT ["dumb-init", "--"]
-
-# Start the application
-CMD ["node", "server/index.mjs"]
+CMD ["node", "apps/storefront-fe/server.js"]
