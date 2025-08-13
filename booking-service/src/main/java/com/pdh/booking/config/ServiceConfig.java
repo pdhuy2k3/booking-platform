@@ -1,21 +1,21 @@
 package com.pdh.booking.config;
 
-// No imports needed - using event-driven architecture
+import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.DeserializationFeature;
+import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 
-/**
- * Configuration for service implementations
- * Payment Service now uses real payment-service integration
- * Flight and Hotel services use real implementations with crawled data
- *
- * Note: Services are auto-configured using @Service annotation with @Profile
- * - PaymentServiceImpl: @Profile("!docker") - for development/local
- * - PaymentServiceMockImpl: @Profile("docker") - for docker deployment
- */
 @Configuration
+@EnableConfigurationProperties(ServiceUrlConfig.class)
 public class ServiceConfig {
 
-    // Payment Service configuration is now handled by @Profile annotations
-    // No explicit bean configuration needed
+    @Bean
+    public ObjectMapper objectMapper() {
+        ObjectMapper mapper = new ObjectMapper();
+        mapper.registerModule(new JavaTimeModule());
+        mapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+        return mapper;
+    }
 }
