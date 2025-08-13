@@ -2,9 +2,9 @@ package com.pdh.booking.service;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.pdh.booking.dto.request.ComboBookingDetailsDto;
-import com.pdh.booking.dto.request.FlightBookingDetailsDto;
-import com.pdh.booking.dto.request.HotelBookingDetailsDto;
+import com.pdh.booking.model.dto.request.ComboBookingDetailsDto;
+import com.pdh.booking.model.dto.request.FlightBookingDetailsDto;
+import com.pdh.booking.model.dto.request.HotelBookingDetailsDto;
 import com.pdh.booking.model.Booking;
 import com.pdh.booking.model.enums.BookingType;
 import lombok.RequiredArgsConstructor;
@@ -88,6 +88,51 @@ public class ProductDetailsService {
         } catch (JsonProcessingException e) {
             log.error("Error parsing product details JSON for booking type: {}", bookingType, e);
             throw new RuntimeException("Failed to deserialize product details", e);
+        }
+    }
+
+    /**
+     * Convert generic Object (from JSON deserialization) to typed DTO based on booking type
+     */
+    public Object convertToTypedDto(BookingType bookingType, Object productDetails) {
+        if (productDetails == null) {
+            return null;
+        }
+
+        // If already the correct type, return as-is
+        switch (bookingType) {
+            case FLIGHT:
+                if (productDetails instanceof FlightBookingDetailsDto) {
+                    return productDetails;
+                }
+                break;
+            case HOTEL:
+                if (productDetails instanceof HotelBookingDetailsDto) {
+                    return productDetails;
+                }
+                break;
+            case COMBO:
+                if (productDetails instanceof ComboBookingDetailsDto) {
+                    return productDetails;
+                }
+                break;
+        }
+
+        // Convert from generic Object (LinkedHashMap from JSON) to typed DTO
+        try {
+            String json = objectMapper.writeValueAsString(productDetails);
+            return switch (bookingType) {
+                case FLIGHT -> objectMapper.readValue(json, FlightBookingDetailsDto.class);
+                case HOTEL -> objectMapper.readValue(json, HotelBookingDetailsDto.class);
+                case COMBO -> objectMapper.readValue(json, ComboBookingDetailsDto.class);
+                default -> {
+                    log.warn("Unknown booking type: {}, returning raw object", bookingType);
+                    yield productDetails;
+                }
+            };
+        } catch (JsonProcessingException e) {
+            log.error("Error converting object to typed DTO for booking type: {}", bookingType, e);
+            throw new RuntimeException("Failed to convert product details to typed DTO", e);
         }
     }
 

@@ -1,12 +1,13 @@
 package com.pdh.booking.service;
 
-import com.pdh.booking.dto.request.FlightBookingDetailsDto;
-import com.pdh.booking.dto.request.HotelBookingDetailsDto;
-import com.pdh.booking.dto.request.ComboBookingDetailsDto;
+import com.pdh.booking.model.dto.request.FlightBookingDetailsDto;
+import com.pdh.booking.model.dto.request.HotelBookingDetailsDto;
+import com.pdh.booking.model.dto.request.ComboBookingDetailsDto;
 import com.pdh.booking.model.enums.BookingType;
 import com.pdh.common.lock.DistributedLock;
 import com.pdh.common.lock.DistributedLockManager;
 import com.pdh.common.lock.LockResourceType;
+
 import com.pdh.common.validation.ValidationResult;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;

@@ -1,17 +1,14 @@
 package com.pdh.booking.controller;
 
-import com.pdh.booking.dto.request.CreateBookingRequestDto;
-import com.pdh.booking.dto.request.StorefrontCreateBookingRequestDto;
-import com.pdh.booking.dto.response.BookingResponseDto;
-import com.pdh.booking.dto.response.StorefrontBookingResponseDto;
-import com.pdh.booking.dto.response.BookingStatusResponseDto;
+import com.pdh.booking.model.dto.request.CreateBookingRequestDto;
+import com.pdh.booking.model.dto.request.StorefrontCreateBookingRequestDto;
+import com.pdh.booking.model.dto.response.BookingResponseDto;
+import com.pdh.booking.model.dto.response.StorefrontBookingResponseDto;
+import com.pdh.booking.model.dto.response.BookingStatusResponseDto;
 import com.pdh.booking.mapper.BookingDtoMapper;
 import com.pdh.booking.model.Booking;
-import com.pdh.booking.service.BookingSagaService;
+import com.pdh.booking.service.BookingService;
 import com.pdh.booking.repository.BookingRepository;
-import com.pdh.booking.model.enums.BookingStatus;
-import com.pdh.common.utils.AuthenticationUtils;
-import com.pdh.common.outbox.service.OutboxEventService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 import java.util.Map;
@@ -25,19 +22,22 @@ import org.springframework.web.bind.annotation.*;
 
 import jakarta.validation.Valid;
 
+/**
+ * Simplified Booking Controller using direct REST communication
+ * Replaces complex saga orchestration with synchronous processing
+ */
 @RestController
 @RequiredArgsConstructor
 @Slf4j
 public class BookingController {
 
-    private final BookingSagaService bookingSagaService;
+    private final BookingService bookingService;
     private final BookingDtoMapper bookingDtoMapper;
-    private final OutboxEventService eventPublisher;
     private final BookingRepository bookingRepository;
     private final ObjectMapper objectMapper;
 
     /**
-     * Create a new booking and start saga (Backoffice/Admin)
+     * Create a new booking using simplified direct REST communication
      */
     @PostMapping("/backoffice")
     public ResponseEntity<BookingResponseDto> createBooking(@Valid @RequestBody CreateBookingRequestDto request) {
@@ -48,14 +48,17 @@ public class BookingController {
             Booking booking = bookingDtoMapper.toEntity(request);
             booking.setBookingReference(generateBookingReference());
 
-            // Start saga
-            Booking createdBooking = bookingSagaService.startBookingSaga(booking);
+            // Process booking using simplified service (direct REST calls)
+            Booking createdBooking = bookingService.createBooking(booking);
 
             // Convert entity to response DTO
             BookingResponseDto response = bookingDtoMapper.toResponseDto(createdBooking);
 
             return ResponseEntity.ok(response);
 
+        } catch (BookingService.BookingProcessingException e) {
+            log.error("Error processing booking: {}", e.getMessage());
+            return ResponseEntity.badRequest().build();
         } catch (Exception e) {
             log.error("Error creating booking", e);
             return ResponseEntity.internalServerError().build();
@@ -67,7 +70,7 @@ public class BookingController {
      */
     @GetMapping("/saga/{sagaId}")
     public ResponseEntity<BookingResponseDto> getBookingBySagaId(@PathVariable String sagaId) {
-        return bookingSagaService.findBySagaId(sagaId)
+        return bookingService.findBySagaId(sagaId)
                 .map(booking -> {
                     BookingResponseDto response = bookingDtoMapper.toResponseDto(booking);
                     return ResponseEntity.ok(response);
@@ -78,43 +81,32 @@ public class BookingController {
     // === STOREFRONT ENDPOINTS ===
 
     /**
-     * Create a new booking and start saga (Storefront)
+     * Create a new booking using simplified direct REST communication (Storefront)
      */
     @PostMapping("/storefront")
     public ResponseEntity<StorefrontBookingResponseDto> createStorefrontBooking(@Valid @RequestBody StorefrontCreateBookingRequestDto request) {
         try {
-            log.info("Creating storefront booking with type: {} (async validation)", request.getBookingType());
+            log.info("Creating storefront booking with type: {}", request.getBookingType());
 
-            // 1. Create booking immediately with VALIDATION_PENDING status (Listen to Yourself ✅)
+            // Convert DTO to entity
             Booking booking = bookingDtoMapper.toEntity(request);
             booking.setBookingReference(generateBookingReference());
-            booking.setStatus(BookingStatus.VALIDATION_PENDING); // Set validation pending status
 
-            // Save booking to database immediately
-            Booking savedBooking = bookingRepository.save(booking);
-            log.info("Booking created with ID: {} and reference: {}, status: VALIDATION_PENDING",
-                savedBooking.getBookingId(), savedBooking.getBookingReference());
+            // Process booking using simplified service (direct REST calls)
+            Booking createdBooking = bookingService.createBooking(booking);
 
-            // 2. Write validation command to own outbox (Listen to Yourself ✅)
-            String validationCommandPayload = createValidationCommandPayload(savedBooking, request.getProductDetails());
-            eventPublisher.publishEvent(
-                "ValidateInventoryCommand",
-                "Booking",
-                savedBooking.getBookingId().toString(),
-                validationCommandPayload
-            );
+            // Convert entity to response DTO
+            StorefrontBookingResponseDto response = bookingDtoMapper.toStorefrontResponseDto(createdBooking);
 
-            log.info("Validation command published for booking: {}", savedBooking.getBookingId());
+            return ResponseEntity.ok(response);
 
-            // 3. Return immediately with VALIDATION_PENDING status (202 Accepted)
-            StorefrontBookingResponseDto response = bookingDtoMapper.toStorefrontResponseDto(savedBooking);
-            response.setValidationDetails(Map.of(
-                "message", "Booking created successfully. Inventory validation in progress.",
-                "estimatedValidationTime", "2-5 seconds"
-            ));
-
-            return ResponseEntity.accepted().body(response); // 202 Accepted - processing async
-
+        } catch (BookingService.BookingProcessingException e) {
+            log.error("Error processing storefront booking: {}", e.getMessage());
+            StorefrontBookingResponseDto errorResponse = StorefrontBookingResponseDto.builder()
+                .error(e.getMessage())
+                .errorCode("BOOKING_PROCESSING_ERROR")
+                .build();
+            return ResponseEntity.badRequest().body(errorResponse);
         } catch (Exception e) {
             log.error("Error creating storefront booking", e);
             StorefrontBookingResponseDto errorResponse = StorefrontBookingResponseDto.builder()
@@ -130,7 +122,7 @@ public class BookingController {
      */
     @GetMapping("/storefront/saga/{sagaId}")
     public ResponseEntity<StorefrontBookingResponseDto> getStorefrontBookingBySagaId(@PathVariable String sagaId) {
-        return bookingSagaService.findBySagaId(sagaId)
+        return bookingService.findBySagaId(sagaId)
                 .map(booking -> {
                     StorefrontBookingResponseDto response = bookingDtoMapper.toStorefrontResponseDto(booking);
                     return ResponseEntity.ok(response);
@@ -218,3 +210,4 @@ public class BookingController {
     }
 
 }
+

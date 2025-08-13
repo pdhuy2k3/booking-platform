@@ -4,3 +4,60 @@ spring:
   cloud:
     discovery:
       enabled: false
+  
+  # Database configuration (overridden by Testcontainers)
+  datasource:
+    url: jdbc:h2:mem:testdb
+    driver-class-name: org.h2.Driver
+    username: sa
+    password: password
+  
+  # JPA configuration for testing
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    show-sql: true
+    properties:
+      hibernate:
+        format_sql: true
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+  
+  # Liquibase configuration
+  liquibase:
+    enabled: true
+    change-log: classpath:db/changelog/db.changelog-master.yaml
+  
+  # Kafka configuration (overridden by Testcontainers)
+  kafka:
+    bootstrap-servers: localhost:9092
+    consumer:
+      group-id: booking-test-group
+      auto-offset-reset: earliest
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.apache.kafka.common.serialization.StringSerializer
+  
+  # Security configuration - disable OAuth2 for testing
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          issuer-uri: ""
+
+# Logging configuration
+logging:
+  level:
+    com.pdh.booking: DEBUG
+    org.springframework.kafka: INFO
+    org.springframework.security: INFO
+    org.testcontainers: INFO
+    org.hibernate.SQL: DEBUG
+    org.hibernate.type.descriptor.sql.BasicBinder: TRACE
+
+# Test specific properties
+test:
+  kafka:
+    topics:
+      auto-create: true
