@@ -10,6 +10,8 @@ RUN corepack enable && corepack prepare pnpm@9 --activate
 
 # root files needed for install & Nx
 COPY pnpm-lock.yaml pnpm-workspace.yaml package.json nx.json tsconfig.base.json eslint.config.mjs ./
+# workspace package manifest for backoffice-fe (ensures deps like lucide-react install)
+COPY apps/backoffice-fe/package.json apps/backoffice-fe/package.json
 RUN --mount=type=cache,id=pnpm-store,target=/root/.local/share/pnpm/store \
     pnpm install --frozen-lockfile
 
