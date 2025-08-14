@@ -7,8 +7,7 @@ const inter = Inter({ subsets: ["latin"] })
 
 export const metadata: Metadata = {
   title: "BookingSmart Admin",
-  description: "Admin panel for BookingSmart platform",
-    generator: 'v0.dev'
+
 }
 
 export default function RootLayout({

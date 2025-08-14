@@ -44,6 +44,7 @@ public class CustomerService {
 
     public CustomerListVm getCustomers(int pageNo) {
         try {
+
             List<CustomerAdminVm> result = keycloak.realm(keycloakPropsConfig.getRealm()).users()
                     .search(null, pageNo * USER_PER_PAGE, USER_PER_PAGE).stream()
                     .filter(UserRepresentation::isEnabled)
@@ -171,6 +172,7 @@ public class CustomerService {
         CredentialRepresentation credential = createPasswordCredentials(customerPostVm.password());
         user.setCredentials(Collections.singletonList(credential));
         user.setEnabled(true);
+
         Response response = realmResource.users().create(user);
 
         // get new user
