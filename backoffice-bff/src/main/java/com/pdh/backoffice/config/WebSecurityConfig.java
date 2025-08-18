@@ -21,6 +21,7 @@ import org.springframework.security.oauth2.core.oidc.user.OidcUserAuthority;
 import org.springframework.security.oauth2.core.user.OAuth2UserAuthority;
 import org.springframework.security.web.server.SecurityWebFilterChain;
 import org.springframework.security.web.server.authentication.logout.ServerLogoutSuccessHandler;
+import reactor.core.publisher.Mono;
 
 @Configuration
 @EnableWebFluxSecurity
@@ -35,9 +36,26 @@ public class WebSecurityConfig {
     SecurityWebFilterChain securityFilterChain(ServerHttpSecurity http) throws Exception {
         http.authorizeExchange(authorizationManagerRequestMatcherRegistry -> {
             authorizationManagerRequestMatcherRegistry
-                   .pathMatchers("/health", "/actuator/prometheus", "/actuator/health/**").permitAll()
+                   .pathMatchers("/health", "/actuator/prometheus", "/actuator/health/**","/access-denied").permitAll()
+
                     .anyExchange().hasAnyRole("ADMIN");
         })
+                //redirect to access denied page off frontend
+                .exceptionHandling(exceptionHandling -> exceptionHandling
+                        .accessDeniedHandler((exchange, denied) -> {
+                            return exchange.getResponse().writeWith(
+                                    Mono.just(exchange.getResponse().bufferFactory().wrap(
+                                            "<script>window.location.href='/access-denied';</script>".getBytes()))
+                            ).doFirst(() -> {
+                                exchange.getResponse().setStatusCode(org.springframework.http.HttpStatus.FOUND);
+                                exchange.getResponse().getHeaders().add("Content-Type", "text/html");
+                                exchange.getResponse().getHeaders().setLocation(
+                                        exchange.getRequest().getURI().resolve("/access-denied"));
+                            });
+
+                        })
+
+                )
                 .oauth2Login(Customizer.withDefaults())
                 .httpBasic(ServerHttpSecurity.HttpBasicSpec::disable)
                 .formLogin(ServerHttpSecurity.FormLoginSpec::disable)
