@@ -57,7 +57,7 @@ COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
 USER nextjs
 
 EXPOSE 3001
-
+ENV NEXT_PUBLIC_BFF_BASE_URL="https://api-bookingsmart.huypd.dev"
 ENV PORT=3001
 
 # server.js is created by next build from the standalone output

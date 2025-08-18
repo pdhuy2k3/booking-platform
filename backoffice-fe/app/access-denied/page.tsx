@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { ShieldX, ArrowLeft, Home } from "lucide-react"
 import Link from "next/link"
-
+import { useAuth } from '@/hooks/use-auth';
 export default function AccessDeniedPage() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-red-50 to-pink-50 flex items-center justify-center p-4">
@@ -44,7 +44,7 @@ export default function AccessDeniedPage() {
             <Button
               variant="outline"
               className="w-full bg-transparent border-red-300 text-red-700 hover:bg-red-50"
-              onClick={() => (window.location.href = "/api/auth/logout")}
+              onClick={() => (useAuth().logout())}
             >
               Đăng xuất và đăng nhập lại
             </Button>

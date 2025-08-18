@@ -1,3 +1,4 @@
+SELECT name, setting FROM pg_settings WHERE name IN ('wal_level', 'max_replication_slots');
 
 CREATE DATABASE keycloak_db WITH OWNER = postgres ENCODING = 'UTF8' LC_COLLATE = 'en_US.utf8' LC_CTYPE = 'en_US.utf8' TABLESPACE = pg_default CONNECTION
 LIMIT = -1;

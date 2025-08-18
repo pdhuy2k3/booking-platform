@@ -149,7 +149,7 @@ export function CreateCustomerDialog({ open, onOpenChange, onSuccess }: CreateCu
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="CUSTOMER">Khách hàng</SelectItem>
-                  <SelectItem value="PARTNER">Đối tác</SelectItem>
+                  <SelectItem value="ADMIN">Quản trị</SelectItem>
                 </SelectContent>
               </Select>
             </div>
