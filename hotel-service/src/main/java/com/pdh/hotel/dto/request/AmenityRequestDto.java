@@ -17,7 +17,7 @@ public class AmenityRequestDto {
     private String name;
     
     @Size(max = 500, message = "Icon URL cannot exceed 500 characters")
-    @Pattern(regexp = "^(https?://.*|/.*)?$", message = "Invalid icon URL format")
+    @Pattern(regexp = "^(https?://[\\w\\-\\.]+(:\\d+)?(/[\\w\\-\\.~:/?#[\\]@!$&'()*+,;=%]*)?)?$", message = "Invalid icon URL format")
     private String iconUrl;
     
     @NotNull(message = "Active status is required")
