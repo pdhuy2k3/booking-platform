@@ -229,7 +229,21 @@ public class RoomService {
                     .orElseThrow(() -> new EntityNotFoundException("Room not found with ID: " + roomId));
             room.setIsAvailable(isAvailable);
             roomRepository.save(room);
+        List<Room> rooms = roomRepository.findAllById(roomIds);
+        if (rooms.size() != roomIds.size()) {
+            // Find missing IDs
+            List<Long> foundIds = new ArrayList<>();
+            for (Room room : rooms) {
+                foundIds.add(room.getId());
+            }
+            List<Long> missingIds = new ArrayList<>(roomIds);
+            missingIds.removeAll(foundIds);
+            throw new EntityNotFoundException("Rooms not found with IDs: " + missingIds);
         }
+        for (Room room : rooms) {
+            room.setIsAvailable(isAvailable);
+        }
+        roomRepository.saveAll(rooms);
         
         log.info("Bulk availability update completed for {} rooms", roomIds.size());
     }
