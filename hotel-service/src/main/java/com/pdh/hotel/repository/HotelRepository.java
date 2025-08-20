@@ -27,7 +27,7 @@ public interface HotelRepository extends JpaRepository<Hotel, Long> {
         SELECT h FROM Hotel h
         WHERE (LOWER(h.city) LIKE LOWER(CONCAT('%', :destination, '%'))
         OR LOWER(h.name) LIKE LOWER(CONCAT('%', :destination, '%')))
-        AND h.isDeleted = false
+        AND (h.isDeleted IS NULL OR h.isDeleted = false)
         ORDER BY h.starRating DESC, h.name ASC
         """)
     Page<Hotel> findHotelsByDestination(@Param("destination") String destination, Pageable pageable);
@@ -41,7 +41,7 @@ public interface HotelRepository extends JpaRepository<Hotel, Long> {
     @Query("""
         SELECT h FROM Hotel h
         WHERE LOWER(h.city) = LOWER(:city)
-        AND h.isDeleted = false
+        AND (h.isDeleted IS NULL OR h.isDeleted = false)
         ORDER BY h.starRating DESC, h.name ASC
         """)
     Page<Hotel> findHotelsByCity(@Param("city") String city, Pageable pageable);
@@ -56,7 +56,7 @@ public interface HotelRepository extends JpaRepository<Hotel, Long> {
     @Query("""
         SELECT h FROM Hotel h
         WHERE h.starRating BETWEEN :minRating AND :maxRating
-        AND h.isDeleted = false
+        AND (h.isDeleted IS NULL OR h.isDeleted = false)
         ORDER BY h.starRating DESC, h.name ASC
         """)
     Page<Hotel> findHotelsByStarRatingRange(
@@ -78,7 +78,7 @@ public interface HotelRepository extends JpaRepository<Hotel, Long> {
         WHERE (LOWER(h.city) LIKE LOWER(CONCAT('%', :destination, '%'))
         OR LOWER(h.name) LIKE LOWER(CONCAT('%', :destination, '%')))
         AND h.starRating BETWEEN :minRating AND :maxRating
-        AND h.isDeleted = false
+        AND (h.isDeleted IS NULL OR h.isDeleted = false)
         ORDER BY h.starRating DESC, h.name ASC
         """)
     Page<Hotel> findHotelsByDestinationAndRating(
@@ -95,7 +95,7 @@ public interface HotelRepository extends JpaRepository<Hotel, Long> {
      */
     @Query("""
         SELECT h FROM Hotel h
-        WHERE h.isDeleted = false
+        WHERE (h.isDeleted IS NULL OR h.isDeleted = false)
         ORDER BY h.starRating DESC, h.name ASC
         """)
     Page<Hotel> findAllWithDetails(Pageable pageable);

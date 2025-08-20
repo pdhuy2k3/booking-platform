@@ -25,7 +25,17 @@ public final class AuthenticationUtils {
 
         return contextHolder.getToken().getSubject();
     }
+    public static String extractRole() {
+        Authentication authentication = getAuthentication();
 
+        if (authentication instanceof AnonymousAuthenticationToken) {
+            throw new AccessDeniedException(ApiConstant.ACCESS_DENIED);
+        }
+
+        JwtAuthenticationToken contextHolder = (JwtAuthenticationToken) authentication;
+
+        return contextHolder.getToken().getClaimAsString("role");
+    }
     public static String extractJwt() {
         return ((Jwt) getAuthentication().getPrincipal()).getTokenValue();
     }

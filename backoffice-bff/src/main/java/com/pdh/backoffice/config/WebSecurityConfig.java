@@ -26,11 +26,14 @@ import reactor.core.publisher.Mono;
 @Configuration
 @EnableWebFluxSecurity
 public class WebSecurityConfig {
-    @Autowired
-    private ReactiveClientRegistrationRepository clientRegistrationRepository;
+    private final ReactiveClientRegistrationRepository clientRegistrationRepository;
 
     private static final String REALM_ACCESS_CLAIM = "realm_access";
     private static final String ROLES_CLAIM = "roles";
+
+    public WebSecurityConfig(ReactiveClientRegistrationRepository clientRegistrationRepository) {
+        this.clientRegistrationRepository = clientRegistrationRepository;
+    }
 
     @Bean
     SecurityWebFilterChain securityFilterChain(ServerHttpSecurity http) throws Exception {

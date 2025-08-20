@@ -10,7 +10,7 @@ export interface UserInfo {
 }
 
 export class AuthClient {
-  // TODO: Replace with real BFF endpoints
+
   static async getUserInfo(): Promise<UserInfo | null> {
     try {
       return await apiClient.get<UserInfo>("/api/customers/storefront/profile")
