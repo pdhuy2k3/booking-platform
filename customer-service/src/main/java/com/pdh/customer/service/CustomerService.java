@@ -73,15 +73,21 @@ public class CustomerService {
             throw new NotFoundException(Constants.ErrorCode.USER_NOT_FOUND);
         }
     }
-
+    //make sure revoke the user's access token before deleting the user
+    //if the user is not revoked, the user can still access the system with the old access token
+    //so we need to disable the user first, then delete the user
     public void deleteCustomer(String id) {
         UserRepresentation userRepresentation =
                 keycloak.realm(keycloakPropsConfig.getRealm()).users().get(id).toRepresentation();
         if (userRepresentation != null) {
             RealmResource realmResource = keycloak.realm(keycloakPropsConfig.getRealm());
             UserResource userResource = realmResource.users().get(id);
+            userResource.logout();
             userRepresentation.setEnabled(false);
             userResource.update(userRepresentation);
+            userResource.getUserSessions().forEach((session) -> {
+                realmResource.deleteSession(session.getId());
+            });
         } else {
             throw new NotFoundException(Constants.ErrorCode.USER_NOT_FOUND);
         }
@@ -107,6 +113,7 @@ public class CustomerService {
 
     public CustomerVm getCustomerProfile(String userId) {
         try {
+
             return CustomerVm.fromUserRepresentation(
                     keycloak.realm(keycloakPropsConfig.getRealm()).users().get(userId).toRepresentation());
 
