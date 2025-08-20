@@ -29,7 +29,7 @@ public interface RoomRepository extends JpaRepository<Room, Long> {
         LEFT JOIN FETCH r.roomType rt 
         WHERE h.hotelId = :hotelId 
         AND r.isAvailable = true 
-        AND r.isDeleted = false
+        AND (r.isDeleted IS NULL OR r.isDeleted = false)
         ORDER BY r.price ASC
         """)
     Page<Room> findAvailableRoomsByHotelId(@Param("hotelId") Long hotelId, Pageable pageable);
@@ -49,7 +49,7 @@ public interface RoomRepository extends JpaRepository<Room, Long> {
         WHERE h.hotelId = :hotelId 
         AND r.price BETWEEN :minPrice AND :maxPrice 
         AND r.isAvailable = true 
-        AND r.isDeleted = false
+        AND (r.isDeleted IS NULL OR r.isDeleted = false)
         ORDER BY r.price ASC
         """)
     Page<Room> findRoomsByHotelIdAndPriceRange(
@@ -73,7 +73,7 @@ public interface RoomRepository extends JpaRepository<Room, Long> {
         WHERE h.hotelId = :hotelId 
         AND rt.name = :roomTypeName 
         AND r.isAvailable = true 
-        AND r.isDeleted = false
+        AND (r.isDeleted IS NULL OR r.isDeleted = false)
         ORDER BY r.price ASC
         """)
     Page<Room> findRoomsByHotelIdAndRoomType(
@@ -91,7 +91,7 @@ public interface RoomRepository extends JpaRepository<Room, Long> {
         SELECT COUNT(r) FROM Room r 
         WHERE r.hotel.hotelId = :hotelId 
         AND r.isAvailable = true 
-        AND r.isDeleted = false
+        AND (r.isDeleted IS NULL OR r.isDeleted = false)
         """)
     Long countAvailableRoomsByHotelId(@Param("hotelId") Long hotelId);
 
@@ -104,7 +104,7 @@ public interface RoomRepository extends JpaRepository<Room, Long> {
         SELECT MIN(r.price) FROM Room r 
         WHERE r.hotel.hotelId = :hotelId 
         AND r.isAvailable = true 
-        AND r.isDeleted = false
+        AND (r.isDeleted IS NULL OR r.isDeleted = false)
         """)
     BigDecimal findMinPriceByHotelId(@Param("hotelId") Long hotelId);
 }

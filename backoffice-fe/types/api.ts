@@ -40,29 +40,63 @@ export interface Flight {
 }
 
 export interface Hotel {
-  id: string
+  id: number
   name: string
   description: string
   address: string
   city: string
   country: string
-  rating: number
-  amenities: string[]
+  starRating: number
+  availableRooms: number
+  minPrice: number
+  maxPrice?: number
+  averageRating?: number
+  totalReviews?: number
+  amenities?: Amenity[]
+  images?: string[]
+  latitude?: number
+  longitude?: number
+  status?: string
+  createdAt?: string
+  updatedAt?: string
+}
+
+export interface HotelDetails extends Hotel {
   rooms: Room[]
-  images: string[]
-  status: "ACTIVE" | "INACTIVE"
-  createdAt: string
-  updatedAt: string
+}
+
+export interface RoomType {
+  id: number
+  name: string
+  description: string
+}
+
+export interface Amenity {
+  id: number
+  name: string
+  iconUrl?: string
+  isActive: boolean
+  displayOrder: number
+  createdAt?: string
+  updatedAt?: string
 }
 
 export interface Room {
-  id: string
-  type: string
+  id: number
+  hotelId: number
+  hotelName?: string
+  roomNumber: string
+  description: string
   price: number
-  currency: string
-  capacity: number
-  amenities: string[]
-  available: boolean
+  maxOccupancy: number
+  bedType: string
+  roomSize: number
+  isAvailable: boolean
+  roomType?: RoomType
+  amenities?: Amenity[]
+  images?: string[]
+  createdAt?: string
+  updatedAt?: string
 }
 
 export interface Booking {
