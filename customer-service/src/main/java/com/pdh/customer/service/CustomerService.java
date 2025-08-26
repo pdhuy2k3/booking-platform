@@ -198,7 +198,7 @@ public class CustomerService {
         return !users.isEmpty();
     }
 
-    private boolean checkEmailExists(RealmResource realmResource, String email) {
+    boolean checkEmailExists(RealmResource realmResource, String email) {
         // Search for users by email
         List<UserRepresentation> users = realmResource.users().search(null, null, null, email, 0, 1);
         return !users.isEmpty();

@@ -212,7 +212,7 @@ export default function HotelDetails() {
     try {
       await RoomService.toggleRoomAvailability(roomId, !isAvailable)
       toast.success(`Phòng đã được ${!isAvailable ? 'kích hoạt' : 'vô hiệu hóa'}`)
-      loadHotelDetails()
+      await loadHotelDetails()
     } catch (error) {
       console.error("Failed to toggle room availability:", error)
       toast.error("Không thể thay đổi trạng thái phòng")
