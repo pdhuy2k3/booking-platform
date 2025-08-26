@@ -2,7 +2,7 @@ import type { Hotel, PaginatedResponse } from "@/types/api"
 import { apiClient } from "@/lib/api-client"
 
 export class HotelService {
-  private static readonly BASE_PATH = "/api/hotels"
+  private static readonly BASE_PATH = "/api/hotels/backoffice/hotels"
 
   static async getHotels(params?: {
     page?: number
@@ -25,7 +25,7 @@ export class HotelService {
   }
 
   static async getHotel(id: number): Promise<Hotel> {
-    return  await apiClient.get<Hotel>(`${this.BASE_PATH}/backoffice/hotels/${id}`)
+    return  await apiClient.get<Hotel>(`${this.BASE_PATH}/${id}`)
 
   }
 
@@ -44,7 +44,7 @@ export class HotelService {
   }
 
   static async updateHotelAmenities(hotelId: number, amenityIds: number[]): Promise<Hotel> {
-    return await apiClient.put<Hotel>(`${this.BASE_PATH}/backoffice/hotels/${hotelId}/amenities`, {
+    return await apiClient.put<Hotel>(`${this.BASE_PATH}/${hotelId}/amenities`, {
       amenityIds
     })
   }
