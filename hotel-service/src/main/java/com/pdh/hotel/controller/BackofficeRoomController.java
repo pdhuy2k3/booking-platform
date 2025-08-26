@@ -33,7 +33,7 @@ public class BackofficeRoomController {
     /**
      * Get all rooms for a specific hotel with pagination
      */
-    @GetMapping("/hotels/{hotelId}/rooms")
+    @GetMapping("/rooms/{hotelId}/rooms")
     public ResponseEntity<Map<String, Object>> getRoomsByHotel(
             @PathVariable Long hotelId,
             @RequestParam(defaultValue = "0") int page,
@@ -93,7 +93,7 @@ public class BackofficeRoomController {
     /**
      * Create a new room for a hotel
      */
-    @PostMapping("/hotels/{hotelId}/rooms")
+    @PostMapping("/rooms/{hotelId}/rooms")
     public ResponseEntity<?> createRoom(
             @PathVariable Long hotelId,
             @Valid @RequestBody RoomRequestDto requestDto) {
@@ -239,7 +239,7 @@ public class BackofficeRoomController {
     /**
      * Get available rooms count for a hotel
      */
-    @GetMapping("/hotels/{hotelId}/rooms/count")
+    @GetMapping("/rooms/{hotelId}/rooms/count")
     public ResponseEntity<?> getAvailableRoomsCount(@PathVariable Long hotelId) {
         log.info("Getting available rooms count for hotel ID: {}", hotelId);
         

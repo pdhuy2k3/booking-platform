@@ -40,7 +40,7 @@ public class RoomType extends AbstractAuditEntity {
     
     // Relationships
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "hotel_id", insertable = false, updatable = false)
+    @JoinColumn(name = "hotel_id", nullable = false)
     private Hotel hotel;
     
     @OneToMany(mappedBy = "roomType", cascade = CascadeType.ALL, fetch = FetchType.LAZY)

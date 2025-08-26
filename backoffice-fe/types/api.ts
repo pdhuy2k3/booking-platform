@@ -69,6 +69,10 @@ export interface RoomType {
   id: number
   name: string
   description: string
+  capacityAdults?: number
+  basePrice?: number
+  createdAt?: string
+  updatedAt?: string
 }
 
 export interface Amenity {
@@ -93,8 +97,11 @@ export interface Room {
   roomSize: number
   isAvailable: boolean
   roomType?: RoomType
+  roomTypeId?: number | null  // For creating/updating rooms
   amenities?: Amenity[]
+  amenityIds?: number[]       // For creating/updating rooms
   images?: string[]
+  imageUrls?: string[]        // For creating/updating rooms
   createdAt?: string
   updatedAt?: string
 }

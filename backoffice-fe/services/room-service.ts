@@ -24,7 +24,7 @@ export class RoomService {
     if (params?.sortDirection) queryParams.append('sortDirection', params.sortDirection)
     
     const queryString = queryParams.toString()
-    const url = `${this.BASE_PATH}/backoffice/hotels/${hotelId}/rooms${queryString ? `?${queryString}` : ''}`
+    const url = `${this.BASE_PATH}/backoffice/rooms/${hotelId}/rooms${queryString ? `?${queryString}` : ''}`
     
     return await apiClient.get<PaginatedResponse<Room>>(url)
   }
@@ -44,7 +44,7 @@ export class RoomService {
     room: Omit<Room, "id" | "hotelId" | "hotelName" | "createdAt" | "updatedAt">
   ): Promise<Room> {
     const response = await apiClient.post<{ room: Room }>(
-      `${this.BASE_PATH}/backoffice/hotels/${hotelId}/rooms`,
+      `${this.BASE_PATH}/backoffice/rooms/${hotelId}/rooms`,
       room
     )
     return response.room

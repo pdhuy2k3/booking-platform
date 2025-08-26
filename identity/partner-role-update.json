@@ -1,0 +1,18 @@
+{
+  "roles": {
+    "realm": [
+      {
+        "name": "PARTNER",
+        "description": "Hotel/Service Partner Role",
+        "composite": false,
+        "clientRole": false,
+        "containerId": "BookingSmart",
+        "attributes": {
+          "partner_type": ["hotel", "transport", "activity"],
+          "approval_status": ["pending", "approved", "rejected", "suspended"],
+          "onboarding_status": ["incomplete", "pending_review", "approved", "active"]
+        }
+      }
+    ]
+  }
+}

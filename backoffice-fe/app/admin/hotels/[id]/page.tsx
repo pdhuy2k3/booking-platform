@@ -26,9 +26,11 @@ import { AdminLayout } from "@/components/admin/admin-layout"
 import { HotelService } from "@/services/hotel-service"
 import { RoomService } from "@/services/room-service"
 import { AmenityService } from "@/services/amenity-service"
+import { RoomTypeService } from "@/services/room-type-service"
 import { HotelAmenityManager } from "@/components/admin/hotel/hotel-amenity-manager"
 import { HotelStatistics } from "@/components/admin/hotel/hotel-statistics"
-import type { Hotel, Room, Amenity, PaginatedResponse } from "@/types/api"
+import { RoomTypeManager } from "@/components/admin/hotel/room-type-manager"
+import type { Hotel, Room, Amenity, RoomType, PaginatedResponse } from "@/types/api"
 import { toast } from "sonner"
 
 export default function HotelDetails() {
@@ -38,6 +40,7 @@ export default function HotelDetails() {
   const [hotel, setHotel] = useState<Hotel | null>(null)
   const [rooms, setRooms] = useState<Room[]>([])
   const [amenities, setAmenities] = useState<Amenity[]>([])
+  const [roomTypes, setRoomTypes] = useState<RoomType[]>([])
   const [loading, setLoading] = useState(true)
   const [activeTab, setActiveTab] = useState("overview")
   const [isAddRoomDialogOpen, setIsAddRoomDialogOpen] = useState(false)
@@ -83,6 +86,10 @@ export default function HotelDetails() {
       const amenitiesData = await AmenityService.getActiveAmenities()
       setAmenities(amenitiesData)
       
+      // Load room types for this hotel
+      const roomTypesData = await RoomTypeService.getRoomTypesByHotel(hotelId)
+      setRoomTypes(roomTypesData)
+      
       // Set hotel amenities if available
       if (hotelData.amenities) {
         setHotelAmenities(hotelData.amenities.map(a => a.id))
@@ -97,6 +104,20 @@ export default function HotelDetails() {
   }
 
   const handleCreateRoom = async () => {
+    // Validate required fields
+    if (!newRoom.roomNumber.trim()) {
+      toast.error("Vui lòng nhập số phòng")
+      return
+    }
+    if (!newRoom.roomTypeId) {
+      toast.error("Vui lòng chọn loại phòng")
+      return
+    }
+    if (!newRoom.price || newRoom.price <= 0) {
+      toast.error("Vui lòng nhập giá phòng hợp lệ")
+      return
+    }
+    
     try {
       const roomData = {
         roomNumber: newRoom.roomNumber,
@@ -143,8 +164,27 @@ export default function HotelDetails() {
   const handleUpdateRoom = async () => {
     if (!selectedRoom) return
     
+    // Validate required fields
+    if (!selectedRoom.roomNumber.trim()) {
+      toast.error("Vui lòng nhập số phòng")
+      return
+    }
+    if (!selectedRoom.roomTypeId && !selectedRoom.roomType?.id) {
+      toast.error("Vui lòng chọn loại phòng")
+      return
+    }
+    if (!selectedRoom.price || selectedRoom.price <= 0) {
+      toast.error("Vui lòng nhập giá phòng hợp lệ")
+      return
+    }
+    
     try {
-      await RoomService.updateRoom(selectedRoom.id, selectedRoom)
+      // Ensure roomTypeId is set for the request
+      const updateData = {
+        ...selectedRoom,
+        roomTypeId: selectedRoom.roomTypeId || selectedRoom.roomType?.id
+      }
+      await RoomService.updateRoom(selectedRoom.id, updateData)
       toast.success("Phòng đã được cập nhật thành công")
       setIsEditRoomDialogOpen(false)
       setSelectedRoom(null)
@@ -251,20 +291,38 @@ export default function HotelDetails() {
               Thêm phòng
             </Button>
           </DialogTrigger>
-          <DialogContent className="sm:max-w-[600px]">
+          <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>Thêm phòng mới</DialogTitle>
               <DialogDescription>Nhập thông tin phòng mới</DialogDescription>
             </DialogHeader>
             <div className="grid grid-cols-2 gap-4 py-4">
               <div className="col-span-2 space-y-2">
-                <Label htmlFor="roomNumber">Số phòng</Label>
+                <Label htmlFor="roomNumber">Số phòng *</Label>
                 <Input 
                   id="roomNumber" 
                   placeholder="101" 
                   value={newRoom.roomNumber}
                   onChange={(e) => setNewRoom({...newRoom, roomNumber: e.target.value})}
                 />
+              </div>
+              <div className="col-span-2 space-y-2">
+                <Label htmlFor="roomType">Loại phòng *</Label>
+                <Select 
+                  value={newRoom.roomTypeId?.toString() || ""} 
+                  onValueChange={(value) => setNewRoom({...newRoom, roomTypeId: value ? Number(value) : null})}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Chọn loại phòng" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {roomTypes.map((roomType) => (
+                      <SelectItem key={roomType.id} value={roomType.id.toString()}>
+                        {roomType.name} {roomType.basePrice ? `(${formatPrice(roomType.basePrice)})` : ""}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
               <div className="col-span-2 space-y-2">
                 <Label htmlFor="description">Mô tả</Label>
@@ -276,7 +334,7 @@ export default function HotelDetails() {
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="price">Giá (VND)</Label>
+                <Label htmlFor="price">Giá (VND) *</Label>
                 <Input 
                   id="price" 
                   type="number"
@@ -362,7 +420,12 @@ export default function HotelDetails() {
               <Button variant="outline" onClick={() => setIsAddRoomDialogOpen(false)}>
                 Hủy
               </Button>
-              <Button onClick={handleCreateRoom}>Thêm phòng</Button>
+              <Button 
+                onClick={handleCreateRoom}
+                disabled={!newRoom.roomNumber.trim() || !newRoom.roomTypeId || !newRoom.price || newRoom.price <= 0}
+              >
+                Thêm phòng
+              </Button>
             </div>
           </DialogContent>
         </Dialog>
@@ -370,9 +433,10 @@ export default function HotelDetails() {
 
       {/* Tabs for different sections */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-        <TabsList className="grid grid-cols-4 w-full md:w-auto">
+        <TabsList className="grid grid-cols-5 w-full md:w-auto">
           <TabsTrigger value="overview">Tổng quan</TabsTrigger>
           <TabsTrigger value="rooms">Quản lý phòng</TabsTrigger>
+          <TabsTrigger value="room-types">Loại phòng</TabsTrigger>
           <TabsTrigger value="amenities">Tiện nghi</TabsTrigger>
           <TabsTrigger value="statistics">Thống kê</TabsTrigger>
         </TabsList>
@@ -543,6 +607,17 @@ export default function HotelDetails() {
       </Card>
         </TabsContent>
 
+        {/* Room Types Tab */}
+        <TabsContent value="room-types" className="space-y-6">
+          <RoomTypeManager
+            hotelId={hotelId}
+            onRoomTypesChange={() => {
+              // Reload room types when they change
+              loadHotelDetails()
+            }}
+          />
+        </TabsContent>
+
         {/* Amenities Tab */}
         <TabsContent value="amenities" className="space-y-6">
           <HotelAmenityManager
@@ -561,7 +636,7 @@ export default function HotelDetails() {
 
       {/* Edit Room Dialog */}
       <Dialog open={isEditRoomDialogOpen} onOpenChange={setIsEditRoomDialogOpen}>
-        <DialogContent className="sm:max-w-[600px]">
+        <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Chỉnh sửa phòng</DialogTitle>
             <DialogDescription>Cập nhật thông tin phòng</DialogDescription>
@@ -569,12 +644,30 @@ export default function HotelDetails() {
           {selectedRoom && (
             <div className="grid grid-cols-2 gap-4 py-4">
               <div className="col-span-2 space-y-2">
-                <Label htmlFor="edit-roomNumber">Số phòng</Label>
+                <Label htmlFor="edit-roomNumber">Số phòng *</Label>
                 <Input 
                   id="edit-roomNumber" 
                   value={selectedRoom.roomNumber}
                   onChange={(e) => setSelectedRoom({...selectedRoom, roomNumber: e.target.value})}
                 />
+              </div>
+              <div className="col-span-2 space-y-2">
+                <Label htmlFor="edit-roomType">Loại phòng *</Label>
+                <Select 
+                  value={selectedRoom.roomTypeId?.toString() || selectedRoom.roomType?.id.toString() || ""} 
+                  onValueChange={(value) => setSelectedRoom({...selectedRoom, roomTypeId: value ? Number(value) : null})}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Chọn loại phòng" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {roomTypes.map((roomType) => (
+                      <SelectItem key={roomType.id} value={roomType.id.toString()}>
+                        {roomType.name} {roomType.basePrice ? `(${formatPrice(roomType.basePrice)})` : ""}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
               <div className="col-span-2 space-y-2">
                 <Label htmlFor="edit-description">Mô tả</Label>
@@ -585,7 +678,7 @@ export default function HotelDetails() {
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="edit-price">Giá (VND)</Label>
+                <Label htmlFor="edit-price">Giá (VND) *</Label>
                 <Input 
                   id="edit-price" 
                   type="number"
@@ -669,7 +762,12 @@ export default function HotelDetails() {
             <Button variant="outline" onClick={() => setIsEditRoomDialogOpen(false)}>
               Hủy
             </Button>
-            <Button onClick={handleUpdateRoom}>Cập nhật</Button>
+            <Button 
+              onClick={handleUpdateRoom}
+              disabled={!selectedRoom || !selectedRoom.roomNumber.trim() || (!selectedRoom.roomTypeId && !selectedRoom.roomType?.id) || !selectedRoom.price || selectedRoom.price <= 0}
+            >
+              Cập nhật
+            </Button>
           </div>
         </DialogContent>
       </Dialog>

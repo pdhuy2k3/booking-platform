@@ -36,7 +36,7 @@ public class BackofficeHotelController {
     @GetMapping("/hotels")
     public ResponseEntity<Map<String, Object>> getAllHotels(
             @RequestParam(defaultValue = "0") int page,
-            @RequestParam(defaultValue = "20") int size,
+            @RequestParam(defaultValue = "10") int size,
             @RequestParam(required = false) String search,
             @RequestParam(required = false) String city,
             @RequestParam(required = false) String status) {

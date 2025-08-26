@@ -35,7 +35,7 @@ export class HotelService {
   }
 
   static async updateHotel(id: number, hotel: Partial<Hotel>): Promise<Hotel> {
-    return await apiClient.put<Hotel>(`${this.BASE_PATH}/${id}`, hotel)
+    return await apiClient.put<Hotel>(`${this.BASE_PATH}/backoffice/hotels/${id}`, hotel)
 
   }
 

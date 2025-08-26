@@ -52,6 +52,8 @@ import {
   MessageSquare,
   FileText,
   HelpCircle,
+  Sparkles,
+  Building2,
 } from "lucide-react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
@@ -93,6 +95,11 @@ const data = {
           icon: Hotel,
         },
         {
+          title: "Tiện nghi",
+          url: "/admin/amenities",
+          icon: Sparkles,
+        },
+        {
           title: "Đặt chỗ",
           url: "/admin/bookings",
           icon: Calendar,
@@ -106,6 +113,11 @@ const data = {
           title: "Khách hàng",
           url: "/admin/customers",
           icon: Users,
+        },
+        {
+          title: "Đối tác",
+          url: "/admin/partners",
+          icon: Building2,
         },
         {
           title: "Nhân viên",
@@ -303,6 +315,8 @@ function getBreadcrumbs(pathname: string) {
     settings: "Cài đặt",
     analytics: "Thống kê",
     help: "Trợ giúp",
+    amenities: "Tiện nghi",
+    partners: "Đối tác",
   }
 
   for (let i = 1; i < segments.length; i++) {
