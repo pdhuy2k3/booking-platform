@@ -14,27 +14,39 @@ export interface PaginatedResponse<T> {
   last: boolean
 }
 
+export interface Airline {
+  id: number
+  name: string
+  code: string
+  country?: string
+  isActive: boolean
+  createdAt: string
+  updatedAt: string
+}
+
+export interface Airport {
+  id: number
+  name: string
+  code: string
+  city: string
+  country: string
+  timezone?: string
+  isActive: boolean
+  createdAt: string
+  updatedAt: string
+}
+
 export interface Flight {
-  id: string
+  id: number
   flightNumber: string
-  airline: string
-  departure: {
-    airport: string
-    city: string
-    time: string
-    date: string
-  }
-  arrival: {
-    airport: string
-    city: string
-    time: string
-    date: string
-  }
-  price: number
-  currency: string
-  totalSeats: number
-  availableSeats: number
-  status: "ACTIVE" | "CANCELLED" | "DELAYED"
+  airline: Airline
+  departureAirport: Airport
+  arrivalAirport: Airport
+  baseDurationMinutes?: number
+  aircraftType?: string
+  status: "ACTIVE" | "CANCELLED" | "DELAYED" | "ON_TIME"
+  basePrice?: number
+  isActive: boolean
   createdAt: string
   updatedAt: string
 }

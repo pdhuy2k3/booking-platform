@@ -25,7 +25,7 @@ public interface FlightLegRepository extends JpaRepository<FlightLeg, Long> {
      * @param departureDate The departure date
      * @return List of FlightLeg records
      */
-    @Query("SELECT fl FROM FlightLeg fl WHERE fl.flightId = :flightId AND DATE(fl.departureTime) = :departureDate ORDER BY fl.legNumber")
+    @Query("SELECT fl FROM FlightLeg fl WHERE fl.flight.flightId = :flightId AND DATE(fl.departureTime) = :departureDate ORDER BY fl.legNumber")
     List<FlightLeg> findByFlightIdAndDepartureDate(@Param("flightId") Long flightId, @Param("departureDate") LocalDate departureDate);
 
     /**
@@ -34,6 +34,15 @@ public interface FlightLegRepository extends JpaRepository<FlightLeg, Long> {
      * @param flightId The flight ID
      * @return List of FlightLeg records
      */
+    @Query("""
+        SELECT fl FROM FlightLeg fl 
+        JOIN FETCH fl.flight f
+        JOIN FETCH f.airline
+        JOIN FETCH fl.departureAirport
+        JOIN FETCH fl.arrivalAirport
+        WHERE f.flightId = :flightId 
+        ORDER BY fl.legNumber
+    """)
     List<FlightLeg> findByFlightIdOrderByLegNumber(Long flightId);
 
     /**
@@ -43,6 +52,16 @@ public interface FlightLegRepository extends JpaRepository<FlightLeg, Long> {
      * @param arrivalAirportId Arrival airport ID
      * @return List of FlightLeg records
      */
+    @Query("""
+        SELECT fl FROM FlightLeg fl 
+        JOIN FETCH fl.flight f
+        JOIN FETCH f.airline
+        JOIN FETCH fl.departureAirport
+        JOIN FETCH fl.arrivalAirport
+        WHERE fl.departureAirport.airportId = :departureAirportId 
+        AND fl.arrivalAirport.airportId = :arrivalAirportId
+        ORDER BY fl.departureTime
+    """)
     List<FlightLeg> findByDepartureAirportIdAndArrivalAirportId(Long departureAirportId, Long arrivalAirportId);
 
     /**
@@ -72,7 +91,7 @@ public interface FlightLegRepository extends JpaRepository<FlightLeg, Long> {
      * @param departureDate The departure date
      * @return Optional FlightLeg
      */
-    @Query("SELECT fl FROM FlightLeg fl WHERE fl.flightId = :flightId AND DATE(fl.departureTime) = :departureDate AND fl.legNumber = 1")
+    @Query("SELECT fl FROM FlightLeg fl WHERE fl.flight.flightId = :flightId AND DATE(fl.departureTime) = :departureDate AND fl.legNumber = 1")
     Optional<FlightLeg> findFirstLegByFlightIdAndDate(@Param("flightId") Long flightId, @Param("departureDate") LocalDate departureDate);
 
     /**
@@ -82,7 +101,7 @@ public interface FlightLegRepository extends JpaRepository<FlightLeg, Long> {
      * @param departureDate The departure date
      * @return Optional FlightLeg
      */
-    @Query("SELECT fl FROM FlightLeg fl WHERE fl.flightId = :flightId AND DATE(fl.departureTime) = :departureDate ORDER BY fl.legNumber DESC LIMIT 1")
+    @Query("SELECT fl FROM FlightLeg fl WHERE fl.flight.flightId = :flightId AND DATE(fl.departureTime) = :departureDate ORDER BY fl.legNumber DESC LIMIT 1")
     Optional<FlightLeg> findLastLegByFlightIdAndDate(@Param("flightId") Long flightId, @Param("departureDate") LocalDate departureDate);
 
     /**
@@ -92,7 +111,7 @@ public interface FlightLegRepository extends JpaRepository<FlightLeg, Long> {
      * @param departureDate The departure date
      * @return Number of legs
      */
-    @Query("SELECT COUNT(fl) FROM FlightLeg fl WHERE fl.flightId = :flightId AND DATE(fl.departureTime) = :departureDate")
+    @Query("SELECT COUNT(fl) FROM FlightLeg fl WHERE fl.flight.flightId = :flightId AND DATE(fl.departureTime) = :departureDate")
     Long countByFlightIdAndDate(@Param("flightId") Long flightId, @Param("departureDate") LocalDate departureDate);
 
     /**
@@ -103,8 +122,8 @@ public interface FlightLegRepository extends JpaRepository<FlightLeg, Long> {
      * @param departureDate Departure date
      * @return List of FlightLeg records
      */
-    @Query("SELECT fl FROM FlightLeg fl WHERE fl.departureAirportId = :departureAirportId " +
-           "AND fl.arrivalAirportId = :arrivalAirportId AND DATE(fl.departureTime) = :departureDate " +
+    @Query("SELECT fl FROM FlightLeg fl WHERE fl.departureAirport.airportId = :departureAirportId " +
+           "AND fl.arrivalAirport.airportId = :arrivalAirportId AND DATE(fl.departureTime) = :departureDate " +
            "ORDER BY fl.departureTime")
     List<FlightLeg> findByRouteAndDate(@Param("departureAirportId") Long departureAirportId,
                                       @Param("arrivalAirportId") Long arrivalAirportId,

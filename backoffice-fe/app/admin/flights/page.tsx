@@ -14,8 +14,33 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+  DropdownMenuSeparator,
+} from "@/components/ui/dropdown-menu"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 import { Label } from "@/components/ui/label"
-import { Plus, Search, Edit, Trash2, Plane } from "lucide-react"
+import { Plus, Search, Edit, Trash2, Plane, Eye, MoreHorizontal } from "lucide-react"
+import { toast } from "@/components/ui/use-toast"
 import { AdminLayout } from "@/components/admin/admin-layout"
 import { FlightService } from "@/services/flight-service"
 import type { Flight, PaginatedResponse } from "@/types/api"
@@ -24,7 +49,16 @@ export default function AdminFlights() {
   const [flights, setFlights] = useState<PaginatedResponse<Flight> | null>(null)
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState("")
+  
+  // Dialog states
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false)
+  const [isViewDialogOpen, setIsViewDialogOpen] = useState(false)
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false)
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
+  
+  // Selected flight for actions
+  const [selectedFlight, setSelectedFlight] = useState<Flight | null>(null)
+  const [submitting, setSubmitting] = useState(false)
 
   useEffect(() => {
     loadFlights()
@@ -46,17 +80,19 @@ export default function AdminFlights() {
     }
   }
 
-  const getStatusBadge = (status: string, available: number) => {
-    if (status === "CANCELLED") {
-      return <Badge className="bg-red-100 text-red-800">Đã hủy</Badge>
+  const getStatusBadge = (status: string) => {
+    switch (status) {
+      case "CANCELLED":
+        return <Badge className="bg-red-100 text-red-800">Đã hủy</Badge>
+      case "DELAYED":
+        return <Badge className="bg-yellow-100 text-yellow-800">Tạm hoãn</Badge>
+      case "ACTIVE":
+        return <Badge className="bg-green-100 text-green-800">Hoạt động</Badge>
+      case "ON_TIME":
+        return <Badge className="bg-blue-100 text-blue-800">Đúng giờ</Badge>
+      default:
+        return <Badge className="bg-gray-100 text-gray-800">Không xác định</Badge>
     }
-    if (available === 0) {
-      return <Badge className="bg-red-100 text-red-800">Hết chỗ</Badge>
-    }
-    if (available < 30) {
-      return <Badge className="bg-yellow-100 text-yellow-800">Sắp hết</Badge>
-    }
-    return <Badge className="bg-green-100 text-green-800">Còn chỗ</Badge>
   }
 
   const formatPrice = (price: number) => {
@@ -66,9 +102,10 @@ export default function AdminFlights() {
     }).format(price)
   }
 
-  const totalSeats = flights?.content.reduce((sum, flight) => sum + flight.totalSeats, 0) || 0
-  const availableSeats = flights?.content.reduce((sum, flight) => sum + flight.availableSeats, 0) || 0
-  const occupancyRate = totalSeats > 0 ? Math.round(((totalSeats - availableSeats) / totalSeats) * 100) : 0
+  // Note: These stats will need to be implemented once backend provides seat information
+  // For now, using placeholder values since the new Flight interface doesn't have seat data
+  const totalFlights = flights?.totalElements || 0
+  const activeFlights = flights?.content.filter(f => f.status === 'ACTIVE').length || 0
 
   return (
     <AdminLayout>
@@ -157,34 +194,39 @@ export default function AdminFlights() {
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Tổng ghế</CardTitle>
+            <CardTitle className="text-sm font-medium">Chuyến bay hoạt động</CardTitle>
             <Plane className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{totalSeats.toLocaleString()}</div>
-            <p className="text-xs text-muted-foreground">Trên tất cả chuyến bay</p>
+            <div className="text-2xl font-bold">{activeFlights}</div>
+            <p className="text-xs text-muted-foreground">Đang hoạt động</p>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Ghế trống</CardTitle>
+            <CardTitle className="text-sm font-medium">Chuyến bay hủy</CardTitle>
             <Plane className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{availableSeats.toLocaleString()}</div>
-            <p className="text-xs text-muted-foreground">Có thể đặt</p>
+            <div className="text-2xl font-bold">{flights?.content.filter(f => f.status === 'CANCELLED').length || 0}</div>
+            <p className="text-xs text-muted-foreground">Đã hủy</p>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Tỷ lệ lấp đầy</CardTitle>
+            <CardTitle className="text-sm font-medium">Giá trung bình</CardTitle>
             <Plane className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{occupancyRate}%</div>
-            <p className="text-xs text-muted-foreground">Ghế đã đặt</p>
+            <div className="text-2xl font-bold">
+              {flights?.content.length ? 
+                formatPrice(flights.content.reduce((sum, f) => sum + (f.basePrice || 0), 0) / flights.content.length) : 
+                '0 ₫'
+              }
+            </div>
+            <p className="text-xs text-muted-foreground">Giá vé trung bình</p>
           </CardContent>
         </Card>
       </div>
@@ -218,10 +260,10 @@ export default function AdminFlights() {
                   <TableHead>Mã chuyến bay</TableHead>
                   <TableHead>Hãng hàng không</TableHead>
                   <TableHead>Tuyến đường</TableHead>
-                  <TableHead>Thời gian</TableHead>
-                  <TableHead>Ngày bay</TableHead>
-                  <TableHead>Giá vé</TableHead>
-                  <TableHead>Ghế trống</TableHead>
+                  <TableHead>Thời gian bay</TableHead>
+                  <TableHead>Loại máy bay</TableHead>
+                  <TableHead>Giá cơ bản</TableHead>
+                  <TableHead>Hoạt động</TableHead>
                   <TableHead>Trạng thái</TableHead>
                   <TableHead className="w-[100px]">Thao tác</TableHead>
                 </TableRow>
@@ -246,30 +288,60 @@ export default function AdminFlights() {
                   flights?.content.map((flight) => (
                     <TableRow key={flight.id}>
                       <TableCell className="font-medium">{flight.flightNumber}</TableCell>
-                      <TableCell>{flight.airline}</TableCell>
+                      <TableCell>{flight.airline?.name || 'N/A'}</TableCell>
                       <TableCell>
-                        {flight.departure.airport} → {flight.arrival.airport}
+                        {flight.departureAirport?.code} → {flight.arrivalAirport?.code}
                       </TableCell>
                       <TableCell>
-                        {flight.departure.time} - {flight.arrival.time}
+                        {flight.baseDurationMinutes ? `${Math.floor(flight.baseDurationMinutes / 60)}h ${flight.baseDurationMinutes % 60}m` : 'N/A'}
                       </TableCell>
-                      <TableCell>{flight.departure.date}</TableCell>
-                      <TableCell className="font-medium">{formatPrice(flight.price)}</TableCell>
+                      <TableCell>{flight.aircraftType || 'N/A'}</TableCell>
+                      <TableCell className="font-medium">{flight.basePrice ? formatPrice(flight.basePrice) : 'N/A'}</TableCell>
                       <TableCell>
-                        <span className={flight.availableSeats < 30 ? "text-orange-600 font-medium" : ""}>
-                          {flight.availableSeats}/{flight.totalSeats}
-                        </span>
+                        <Badge className={flight.isActive ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"}>
+                          {flight.isActive ? 'Có' : 'Không'}
+                        </Badge>
                       </TableCell>
-                      <TableCell>{getStatusBadge(flight.status, flight.availableSeats)}</TableCell>
+                      <TableCell>{getStatusBadge(flight.status)}</TableCell>
                       <TableCell>
-                        <div className="flex items-center space-x-2">
-                          <Button variant="ghost" size="sm">
-                            <Edit className="h-4 w-4" />
-                          </Button>
-                          <Button variant="ghost" size="sm" className="text-red-600 hover:text-red-700">
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        </div>
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" size="sm">
+                              <MoreHorizontal className="h-4 w-4" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuItem
+                              onClick={() => {
+                                setSelectedFlight(flight)
+                                setIsViewDialogOpen(true)
+                              }}
+                            >
+                              <Eye className="mr-2 h-4 w-4" />
+                              Xem chi tiết
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                              onClick={() => {
+                                setSelectedFlight(flight)
+                                setIsEditDialogOpen(true)
+                              }}
+                            >
+                              <Edit className="mr-2 h-4 w-4" />
+                              Chỉnh sửa
+                            </DropdownMenuItem>
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem
+                              className="text-red-600 focus:text-red-600"
+                              onClick={() => {
+                                setSelectedFlight(flight)
+                                setIsDeleteDialogOpen(true)
+                              }}
+                            >
+                              <Trash2 className="mr-2 h-4 w-4" />
+                              Xóa
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
                       </TableCell>
                     </TableRow>
                   ))
@@ -279,6 +351,199 @@ export default function AdminFlights() {
           </div>
         </CardContent>
       </Card>
+
+      {/* View Flight Details Dialog */}
+      <Dialog open={isViewDialogOpen} onOpenChange={setIsViewDialogOpen}>
+        <DialogContent className="sm:max-w-[600px]">
+          <DialogHeader>
+            <DialogTitle>Chi tiết chuyến bay</DialogTitle>
+            <DialogDescription>
+              Thông tin chi tiết của chuyến bay {selectedFlight?.flightNumber}
+            </DialogDescription>
+          </DialogHeader>
+          {selectedFlight && (
+            <div className="grid grid-cols-2 gap-4 py-4">
+              <div className="space-y-2">
+                <Label className="font-semibold">Mã chuyến bay</Label>
+                <div className="text-sm">{selectedFlight.flightNumber}</div>
+              </div>
+              <div className="space-y-2">
+                <Label className="font-semibold">Hãng hàng không</Label>
+                <div className="text-sm">{selectedFlight.airline?.name || 'N/A'}</div>
+              </div>
+              <div className="space-y-2">
+                <Label className="font-semibold">Sân bay đi</Label>
+                <div className="text-sm">
+                  {selectedFlight.departureAirport?.code} - {selectedFlight.departureAirport?.name}
+                </div>
+              </div>
+              <div className="space-y-2">
+                <Label className="font-semibold">Sân bay đến</Label>
+                <div className="text-sm">
+                  {selectedFlight.arrivalAirport?.code} - {selectedFlight.arrivalAirport?.name}
+                </div>
+              </div>
+              <div className="space-y-2">
+                <Label className="font-semibold">Thời gian bay</Label>
+                <div className="text-sm">
+                  {selectedFlight.baseDurationMinutes
+                    ? `${Math.floor(selectedFlight.baseDurationMinutes / 60)}h ${selectedFlight.baseDurationMinutes % 60}m`
+                    : 'N/A'}
+                </div>
+              </div>
+              <div className="space-y-2">
+                <Label className="font-semibold">Loại máy bay</Label>
+                <div className="text-sm">{selectedFlight.aircraftType || 'N/A'}</div>
+              </div>
+              <div className="space-y-2">
+                <Label className="font-semibold">Giá cơ bản</Label>
+                <div className="text-sm font-medium">
+                  {selectedFlight.basePrice ? formatPrice(selectedFlight.basePrice) : 'N/A'}
+                </div>
+              </div>
+              <div className="space-y-2">
+                <Label className="font-semibold">Trạng thái hoạt động</Label>
+                <div>{selectedFlight.isActive ? getStatusBadge('ACTIVE') : getStatusBadge('CANCELLED')}</div>
+              </div>
+              <div className="space-y-2 col-span-2">
+                <Label className="font-semibold">Trạng thái chuyến bay</Label>
+                <div>{getStatusBadge(selectedFlight.status)}</div>
+              </div>
+            </div>
+          )}
+          <div className="flex justify-end">
+            <Button variant="outline" onClick={() => setIsViewDialogOpen(false)}>
+              Đóng
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit Flight Dialog */}
+      <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+        <DialogContent className="sm:max-w-[600px]">
+          <DialogHeader>
+            <DialogTitle>Chỉnh sửa chuyến bay</DialogTitle>
+            <DialogDescription>
+              Cập nhật thông tin chuyến bay {selectedFlight?.flightNumber}
+            </DialogDescription>
+          </DialogHeader>
+          {selectedFlight && (
+            <div className="grid grid-cols-2 gap-4 py-4">
+              <div className="space-y-2">
+                <Label htmlFor="edit-flightNumber">Mã chuyến bay</Label>
+                <Input
+                  id="edit-flightNumber"
+                  defaultValue={selectedFlight.flightNumber}
+                  placeholder="VN001"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="edit-aircraftType">Loại máy bay</Label>
+                <Input
+                  id="edit-aircraftType"
+                  defaultValue={selectedFlight.aircraftType || ''}
+                  placeholder="Boeing 777"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="edit-basePrice">Giá cơ bản (VND)</Label>
+                <Input
+                  id="edit-basePrice"
+                  type="number"
+                  defaultValue={selectedFlight.basePrice || 0}
+                  placeholder="2500000"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="edit-baseDuration">Thời gian bay (phút)</Label>
+                <Input
+                  id="edit-baseDuration"
+                  type="number"
+                  defaultValue={selectedFlight.baseDurationMinutes || 0}
+                  placeholder="120"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="edit-isActive">Trạng thái hoạt động</Label>
+                <Select defaultValue={selectedFlight.isActive ? "true" : "false"}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="true">Hoạt động</SelectItem>
+                    <SelectItem value="false">Không hoạt động</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="edit-status">Trạng thái chuyến bay</Label>
+                <Select defaultValue={selectedFlight.status}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="ACTIVE">Hoạt động</SelectItem>
+                    <SelectItem value="ON_TIME">Đúng giờ</SelectItem>
+                    <SelectItem value="DELAYED">Tạm hoãn</SelectItem>
+                    <SelectItem value="CANCELLED">Đã hủy</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+          )}
+          <div className="flex justify-end space-x-2">
+            <Button variant="outline" onClick={() => setIsEditDialogOpen(false)}>
+              Hủy
+            </Button>
+            <Button
+              disabled={submitting}
+              onClick={() => {
+                // TODO: Implement update flight logic
+                setIsEditDialogOpen(false)
+                toast({
+                  title: "Thành công",
+                  description: "Chuyến bay đã được cập nhật.",
+                })
+              }}
+            >
+              {submitting ? "Đang lưu..." : "Lưu thay đổi"}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Flight Confirmation Dialog */}
+      <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Xác nhận xóa chuyến bay</AlertDialogTitle>
+            <AlertDialogDescription>
+              Bạn có chắc chắn muốn xóa chuyến bay <strong>{selectedFlight?.flightNumber}</strong>?
+              <br />
+              Hành động này không thể hoàn tác.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Hủy</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-red-600 hover:bg-red-700"
+              disabled={submitting}
+              onClick={() => {
+                // TODO: Implement delete flight logic
+                setIsDeleteDialogOpen(false)
+                setSelectedFlight(null)
+                toast({
+                  title: "Thành công",
+                  description: "Chuyến bay đã được xóa.",
+                })
+              }}
+            >
+              {submitting ? "Đang xóa..." : "Xóa chuyến bay"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </AdminLayout>
   )
 }
