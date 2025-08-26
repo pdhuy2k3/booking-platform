@@ -2,7 +2,7 @@ import { filterFlights } from "@/lib/mock-data"
 import type { Flight, PaginatedResponse } from "@/types/api"
 
 export class FlightService {
-  private static readonly BASE_PATH = "/api/flights" // Updated base path
+  private static readonly BASE_PATH = "/api/flights/backoffice/flights" // Updated base path
 
   static async getFlights(params?: {
     page?: number

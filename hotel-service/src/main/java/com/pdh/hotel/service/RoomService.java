@@ -16,9 +16,6 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.ArrayList;
 import java.util.List;
 
-/**
- * Service class for managing rooms
- */
 @Service
 @RequiredArgsConstructor
 @Slf4j
@@ -233,18 +230,19 @@ public class RoomService {
         if (rooms.size() != roomIds.size()) {
             // Find missing IDs
             List<Long> foundIds = new ArrayList<>();
-            for (Room room : rooms) {
-                foundIds.add(room.getId());
+            for (Room room1 : rooms) {
+                foundIds.add(room1.getId());
             }
             List<Long> missingIds = new ArrayList<>(roomIds);
             missingIds.removeAll(foundIds);
             throw new EntityNotFoundException("Rooms not found with IDs: " + missingIds);
         }
-        for (Room room : rooms) {
-            room.setIsAvailable(isAvailable);
+        for (Room room2 : rooms) {
+            room2.setIsAvailable(isAvailable);
         }
         roomRepository.saveAll(rooms);
         
         log.info("Bulk availability update completed for {} rooms", roomIds.size());
+        }
     }
 }

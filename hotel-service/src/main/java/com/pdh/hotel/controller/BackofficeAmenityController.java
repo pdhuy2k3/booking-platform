@@ -25,7 +25,6 @@ import java.util.Map;
 @RequestMapping("/backoffice/amenities")
 @RequiredArgsConstructor
 @Slf4j
-@CrossOrigin(origins = "*", maxAge = 3600)
 public class BackofficeAmenityController {
     
     private final AmenityService amenityService;

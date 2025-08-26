@@ -79,9 +79,7 @@ export function HotelAmenityManager({
 
   const filteredAmenities = allAmenities.filter(amenity => {
     const matchesSearch = amenity.name.toLowerCase().includes(searchTerm.toLowerCase())
-    // Since category doesn't exist in backend, we'll filter all when "all" is selected
-    const matchesCategory = activeCategory === "all"
-    return matchesSearch && matchesCategory
+    return matchesSearch
   })
 
   // Since categories don't exist in backend, we'll just use "all" for now
@@ -190,9 +188,6 @@ export function HotelAmenityManager({
                           {getAmenityIcon(amenity)}
                           {amenity.name}
                         </Label>
-                        {amenity.iconUrl && (
-                          <p className="text-sm text-gray-600">Icon: {amenity.iconUrl}</p>
-                        )}
                         {!amenity.isActive && (
                           <Badge variant="secondary" className="text-xs">Không hoạt động</Badge>
                         )}
