@@ -75,4 +75,28 @@ public interface AirportRepository extends JpaRepository<Airport, Long> {
      */
     Page<Airport> findByNameContainingIgnoreCaseOrIataCodeContainingIgnoreCaseOrCityContainingIgnoreCase(
         String name, String iataCode, String city, Pageable pageable);
+    
+    /**
+     * Find active airports with pagination
+     * @param pageable pagination information
+     * @return Page of active airports
+     */
+    @Query("SELECT a FROM Airport a WHERE a.isDeleted = false")
+    Page<Airport> findAllActive(Pageable pageable);
+    
+    /**
+     * Find airports by city with pagination
+     * @param city the city name
+     * @param pageable pagination information
+     * @return Page of airports in the city
+     */
+    Page<Airport> findByCityIgnoreCase(String city, Pageable pageable);
+    
+    /**
+     * Find airports by country with pagination
+     * @param country the country name
+     * @param pageable pagination information
+     * @return Page of airports in the country
+     */
+    Page<Airport> findByCountryIgnoreCase(String country, Pageable pageable);
 }

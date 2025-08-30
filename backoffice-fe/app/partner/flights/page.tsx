@@ -76,6 +76,22 @@ export default function PartnerFlights() {
   const [loading, setLoading] = useState(false)
   const [searchTerm, setSearchTerm] = useState("")
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false)
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false)
+  const [selectedFlight, setSelectedFlight] = useState<any>(null)
+
+  // Form state for edit flight
+  const [editForm, setEditForm] = useState({
+    flightNumber: '',
+    airline: '',
+    from: '',
+    to: '',
+    departure: '',
+    arrival: '',
+    date: '',
+    price: '',
+    seats: '',
+    aircraft: ''
+  })
 
   // Redirect if no permission
   if (!permissions.canManageFlights) {
@@ -117,6 +133,52 @@ export default function PartnerFlights() {
     totalSeats > 0
       ? Math.round(((totalSeats - flights.reduce((sum, flight) => sum + flight.availableSeats, 0)) / totalSeats) * 100)
       : 0
+
+  // Handle opening edit dialog
+  const handleOpenEditDialog = (flight: any) => {
+    setSelectedFlight(flight)
+    // Parse route to get from and to airports
+    const routeParts = flight.route.split(' → ')
+    const fromAirport = routeParts[0] || ''
+    const toAirport = routeParts[1] || ''
+    
+    setEditForm({
+      flightNumber: flight.flightNumber || '',
+      airline: flight.airline || '',
+      from: fromAirport,
+      to: toAirport,
+      departure: flight.departure || '',
+      arrival: flight.arrival || '',
+      date: flight.date || '',
+      price: flight.price?.replace('₫', '').replace(',', '') || '',
+      seats: flight.totalSeats?.toString() || '',
+      aircraft: '' // We don't have aircraft type in the mock data
+    })
+    setIsEditDialogOpen(true)
+  }
+
+  const handleUpdateFlight = () => {
+    if (!selectedFlight) return
+    
+    // Update the flight in the list
+    const updatedFlights = flights.map(flight => 
+      flight.id === selectedFlight.id ? {
+        ...flight,
+        flightNumber: editForm.flightNumber,
+        airline: editForm.airline,
+        route: `${editForm.from} → ${editForm.to}`,
+        departure: editForm.departure,
+        arrival: editForm.arrival,
+        date: editForm.date,
+        price: editForm.price ? `${parseInt(editForm.price).toLocaleString()}₫` : flight.price,
+        totalSeats: editForm.seats ? parseInt(editForm.seats) : flight.totalSeats
+      } : flight
+    )
+    
+    setFlights(updatedFlights)
+    setIsEditDialogOpen(false)
+    setSelectedFlight(null)
+  }
 
   return (
     <PartnerLayout>
@@ -337,7 +399,7 @@ export default function PartnerFlights() {
                               <Eye className="mr-2 h-4 w-4" />
                               Xem chi tiết
                             </DropdownMenuItem>
-                            <DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => handleOpenEditDialog(flight)}>
                               <Edit className="mr-2 h-4 w-4" />
                               Chỉnh sửa
                             </DropdownMenuItem>
@@ -356,6 +418,125 @@ export default function PartnerFlights() {
           </div>
         </CardContent>
       </Card>
+
+      {/* Edit Flight Dialog */}
+      <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+        <DialogContent className="sm:max-w-[600px]">
+          <DialogHeader>
+            <DialogTitle>Chỉnh sửa chuyến bay</DialogTitle>
+            <DialogDescription>Cập nhật thông tin chuyến bay {selectedFlight?.flightNumber}</DialogDescription>
+          </DialogHeader>
+          <div className="grid grid-cols-2 gap-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="edit-flightNumber">Mã chuyến bay *</Label>
+              <Input 
+                id="edit-flightNumber" 
+                placeholder="VD: VN001" 
+                value={editForm.flightNumber}
+                onChange={(e) => setEditForm(prev => ({...prev, flightNumber: e.target.value}))}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="edit-airline">Hãng hàng không *</Label>
+              <Input 
+                id="edit-airline" 
+                placeholder="VD: Vietnam Airlines" 
+                value={editForm.airline}
+                onChange={(e) => setEditForm(prev => ({...prev, airline: e.target.value}))}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="edit-from">Sân bay đi *</Label>
+              <Select value={editForm.from} onValueChange={(value) => setEditForm(prev => ({...prev, from: value}))}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Chọn sân bay" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="HAN">HAN - Nội Bài</SelectItem>
+                  <SelectItem value="SGN">SGN - Tân Sơn Nhất</SelectItem>
+                  <SelectItem value="DAD">DAD - Đà Nẵng</SelectItem>
+                  <SelectItem value="CXR">CXR - Cam Ranh</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="edit-to">Sân bay đến *</Label>
+              <Select value={editForm.to} onValueChange={(value) => setEditForm(prev => ({...prev, to: value}))}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Chọn sân bay" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="HAN">HAN - Nội Bài</SelectItem>
+                  <SelectItem value="SGN">SGN - Tân Sơn Nhất</SelectItem>
+                  <SelectItem value="DAD">DAD - Đà Nẵng</SelectItem>
+                  <SelectItem value="CXR">CXR - Cam Ranh</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="edit-departure">Giờ khởi hành *</Label>
+              <Input 
+                id="edit-departure" 
+                type="time" 
+                value={editForm.departure}
+                onChange={(e) => setEditForm(prev => ({...prev, departure: e.target.value}))}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="edit-arrival">Giờ đến *</Label>
+              <Input 
+                id="edit-arrival" 
+                type="time" 
+                value={editForm.arrival}
+                onChange={(e) => setEditForm(prev => ({...prev, arrival: e.target.value}))}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="edit-date">Ngày bay *</Label>
+              <Input 
+                id="edit-date" 
+                type="date" 
+                value={editForm.date}
+                onChange={(e) => setEditForm(prev => ({...prev, date: e.target.value}))}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="edit-price">Giá vé (VND) *</Label>
+              <Input 
+                id="edit-price" 
+                placeholder="2500000" 
+                value={editForm.price}
+                onChange={(e) => setEditForm(prev => ({...prev, price: e.target.value}))}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="edit-seats">Tổng số ghế *</Label>
+              <Input 
+                id="edit-seats" 
+                type="number" 
+                placeholder="180" 
+                value={editForm.seats}
+                onChange={(e) => setEditForm(prev => ({...prev, seats: e.target.value}))}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="edit-aircraft">Loại máy bay</Label>
+              <Input 
+                id="edit-aircraft" 
+                placeholder="VD: Boeing 787" 
+                value={editForm.aircraft}
+                onChange={(e) => setEditForm(prev => ({...prev, aircraft: e.target.value}))}
+              />
+            </div>
+          </div>
+          <div className="flex justify-end space-x-2">
+            <Button variant="outline" onClick={() => setIsEditDialogOpen(false)}>
+              Hủy
+            </Button>
+            <Button onClick={handleUpdateFlight}>Lưu thay đổi</Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </PartnerLayout>
   )
 }

@@ -18,7 +18,7 @@ export class HotelService {
     if (params?.city) queryParams.append('city', params.city)
     
     const queryString = queryParams.toString()
-    const url = `${this.BASE_PATH}/backoffice/hotels${queryString ? `?${queryString}` : ''}`
+    const url = `${this.BASE_PATH}${queryString ? `?${queryString}` : ''}`
     
     return await apiClient.get<PaginatedResponse<Hotel>>(url)
 

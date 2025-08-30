@@ -1,0 +1,37 @@
+package com.pdh.flight.dto.response;
+
+import lombok.*;
+import java.time.LocalDateTime;
+
+/**
+ * DTO for airport data transfer
+ */
+@Data
+@Builder
+@NoArgsConstructor
+@AllArgsConstructor
+public class AirportDto {
+    
+    private Long airportId;
+    
+    private String name;
+    
+    private String iataCode;
+    
+    private String city;
+    
+    private String country;
+    
+    // Audit information
+    private LocalDateTime createdAt;
+    private String createdBy;
+    private LocalDateTime updatedAt;
+    private String updatedBy;
+    
+    // Statistics (for list view)
+    private Long totalDepartureFlights;
+    private Long totalArrivalFlights;
+    private Long activeDepartureFlights;
+    private Long activeArrivalFlights;
+    private String status; // ACTIVE, INACTIVE
+}
