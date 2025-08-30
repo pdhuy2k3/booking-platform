@@ -32,6 +32,13 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
 import {
+  InfiniteScrollSelect,
+  InfiniteScrollSelectContent,
+  InfiniteScrollSelectItem,
+  InfiniteScrollSelectTrigger,
+  InfiniteScrollSelectValue,
+} from "@/components/ui/infinite-scroll-select"
+import {
   Select,
   SelectContent,
   SelectItem,
@@ -43,7 +50,9 @@ import { Plus, Search, Edit, Trash2, Plane, Eye, MoreHorizontal } from "lucide-r
 import { toast } from "@/components/ui/use-toast"
 import { AdminLayout } from "@/components/admin/admin-layout"
 import { FlightService } from "@/services/flight-service"
-import type { Flight, PaginatedResponse } from "@/types/api"
+import { AirlineService } from "@/services/airline-service"
+import { AirportService } from "@/services/airport-service"
+import type { Flight, PaginatedResponse, Airline, Airport } from "@/types/api"
 
 export default function AdminFlights() {
   const [flights, setFlights] = useState<PaginatedResponse<Flight> | null>(null)
@@ -60,6 +69,49 @@ export default function AdminFlights() {
   const [selectedFlight, setSelectedFlight] = useState<Flight | null>(null)
   const [submitting, setSubmitting] = useState(false)
 
+  // Form data for add/edit with infinite scroll support
+  const [airlines, setAirlines] = useState<Airline[]>([])
+  const [airports, setAirports] = useState<Airport[]>([])
+  const [loadingFormData, setLoadingFormData] = useState(false)
+  
+  // Infinite scroll states for airlines
+  const [airlinePage, setAirlinePage] = useState(0)
+  const [hasMoreAirlines, setHasMoreAirlines] = useState(true)
+  const [loadingMoreAirlines, setLoadingMoreAirlines] = useState(false)
+  const [airlineSearchTerm, setAirlineSearchTerm] = useState('')
+  
+  // Infinite scroll states for airports
+  const [airportPage, setAirportPage] = useState(0)
+  const [hasMoreAirports, setHasMoreAirports] = useState(true)
+  const [loadingMoreAirports, setLoadingMoreAirports] = useState(false)
+  const [airportSearchTerm, setAirportSearchTerm] = useState('')
+
+  // Form state for add flight
+  const [addForm, setAddForm] = useState({
+    flightNumber: '',
+    airlineId: '',
+    departureAirportId: '',
+    arrivalAirportId: '',
+    aircraftType: '',
+    basePrice: '',
+    baseDurationMinutes: '',
+    status: 'ACTIVE',
+    isActive: true
+  })
+
+  // Form state for edit flight
+  const [editForm, setEditForm] = useState({
+    flightNumber: '',
+    airlineId: '',
+    departureAirportId: '',
+    arrivalAirportId: '',
+    aircraftType: '',
+    basePrice: '',
+    baseDurationMinutes: '',
+    status: 'ACTIVE',
+    isActive: true
+  })
+
   useEffect(() => {
     loadFlights()
   }, [searchTerm])
@@ -69,7 +121,7 @@ export default function AdminFlights() {
       setLoading(true)
       const data = await FlightService.getFlights({
         search: searchTerm || undefined,
-        page: 1,
+        page: 0,
         size: 20,
       })
       setFlights(data)
@@ -102,6 +154,387 @@ export default function AdminFlights() {
     }).format(price)
   }
 
+  // Load initial form data
+  const loadFormData = async () => {
+    try {
+      setLoadingFormData(true)
+      // Reset pagination states
+      setAirlinePage(0)
+      setAirportPage(0)
+      setHasMoreAirlines(true)
+      setHasMoreAirports(true)
+      setAirlineSearchTerm('')
+      setAirportSearchTerm('')
+      
+      // Load initial data
+      await Promise.all([
+        loadInitialAirlines(),
+        loadInitialAirports()
+      ])
+    } catch (error) {
+      console.error("Failed to load form data:", error)
+      toast({
+        title: "Lỗi",
+        description: "Không thể tải dữ liệu form. Vui lòng thử lại.",
+        variant: "destructive",
+      })
+    } finally {
+      setLoadingFormData(false)
+    }
+  }
+
+  // Load initial airlines
+  const loadInitialAirlines = async () => {
+    try {
+      const data = await AirlineService.getAirlines({
+        page: 0,
+        size: 20,
+        search: airlineSearchTerm || undefined
+      })
+      setAirlines(data.content)
+      setHasMoreAirlines(data.totalPages > 1)
+      setAirlinePage(1)
+    } catch (error) {
+      console.error("Failed to load airlines:", error)
+      setAirlines([])
+    }
+  }
+
+  // Load initial airports
+  const loadInitialAirports = async () => {
+    try {
+      const data = await AirportService.getAirports({
+        page: 0,
+        size: 20,
+        search: airportSearchTerm || undefined
+      })
+      setAirports(data.content)
+      setHasMoreAirports(data.totalPages > 1)
+      setAirportPage(1)
+    } catch (error) {
+      console.error("Failed to load airports:", error)
+      setAirports([])
+    }
+  }
+
+  // Load more airlines for infinite scroll
+  const loadMoreAirlines = async () => {
+    if (loadingMoreAirlines || !hasMoreAirlines) return
+
+    try {
+      setLoadingMoreAirlines(true)
+      const data = await AirlineService.getAirlines({
+        page: airlinePage,
+        size: 20,
+        search: airlineSearchTerm || undefined
+      })
+      
+      setAirlines(prev => [...prev, ...data.content])
+      setHasMoreAirlines(airlinePage < data.totalPages)
+      setAirlinePage(prev => prev + 1)
+    } catch (error) {
+      console.error("Failed to load more airlines:", error)
+    } finally {
+      setLoadingMoreAirlines(false)
+    }
+  }
+
+  // Load more airports for infinite scroll
+  const loadMoreAirports = async () => {
+    if (loadingMoreAirports || !hasMoreAirports) return
+
+    try {
+      setLoadingMoreAirports(true)
+      const data = await AirportService.getAirports({
+        page: airportPage,
+        size: 20,
+        search: airportSearchTerm || undefined
+      })
+      
+      setAirports(prev => [...prev, ...data.content])
+      setHasMoreAirports(airportPage < data.totalPages)
+      setAirportPage(prev => prev + 1)
+    } catch (error) {
+      console.error("Failed to load more airports:", error)
+    } finally {
+      setLoadingMoreAirports(false)
+    }
+  }
+
+  // Handle airline search
+  const handleAirlineSearch = async (searchTerm: string) => {
+    setAirlineSearchTerm(searchTerm)
+    setAirlinePage(0)
+    setHasMoreAirlines(true)
+    
+    try {
+      const data = await AirlineService.getAirlines({
+        page: 0,
+        size: 20,
+        search: searchTerm || undefined
+      })
+      setAirlines(data.content)
+      setHasMoreAirlines(data.totalPages > 1)
+      setAirlinePage(1)
+    } catch (error) {
+      console.error("Failed to search airlines:", error)
+    }
+  }
+
+  // Handle airport search
+  const handleAirportSearch = async (searchTerm: string) => {
+    setAirportSearchTerm(searchTerm)
+    setAirportPage(0)
+    setHasMoreAirports(true)
+    
+    try {
+      const data = await AirportService.getAirports({
+        page: 0,
+        size: 20,
+        search: searchTerm || undefined
+      })
+      setAirports(data.content)
+      setHasMoreAirports(data.totalPages > 1)
+      setAirportPage(1)
+    } catch (error) {
+      console.error("Failed to search airports:", error)
+    }
+  }
+
+  // Reset add form
+  const resetAddForm = () => {
+    setAddForm({
+      flightNumber: '',
+      airlineId: '',
+      departureAirportId: '',
+      arrivalAirportId: '',
+      aircraftType: '',
+      basePrice: '',
+      baseDurationMinutes: '',
+      status: 'ACTIVE',
+      isActive: true
+    })
+  }
+
+  // Populate edit form with selected flight data
+  const populateEditForm = (flight: Flight) => {
+    const editFormData = {
+      flightNumber: flight.flightNumber || '',
+      airlineId: flight.airline?.id?.toString() || '',
+      departureAirportId: flight.departureAirport?.id?.toString() || '',
+      arrivalAirportId: flight.arrivalAirport?.id?.toString() || '',
+      aircraftType: flight.aircraftType || '',
+      basePrice: flight.basePrice?.toString() || '',
+      baseDurationMinutes: flight.baseDurationMinutes?.toString() || '',
+      status: flight.status || 'ACTIVE',
+      isActive: flight.isActive ?? true
+    }
+    
+    setEditForm(editFormData)
+    
+    // Ensure the selected airline and airports are available in the lists (only if they exist)
+    if (flight.airline && flight.airline.id && !airlines.some(a => a.id === flight.airline!.id)) {
+      setAirlines(prev => [...prev, flight.airline!])
+    }
+    if (flight.departureAirport && flight.departureAirport.id && !airports.some(a => a.id === flight.departureAirport!.id)) {
+      setAirports(prev => [...prev, flight.departureAirport!])
+    }
+    if (flight.arrivalAirport && flight.arrivalAirport.id && !airports.some(a => a.id === flight.arrivalAirport!.id)) {
+      setAirports(prev => [...prev, flight.arrivalAirport!])
+    }
+  }
+
+  // Handle add flight
+  const handleAddFlight = async () => {
+    try {
+      // Basic validation
+      if (!addForm.flightNumber.trim()) {
+        toast({
+          title: "Lỗi",
+          description: "Vui lòng nhập mã chuyến bay.",
+          variant: "destructive",
+        })
+        return
+      }
+      if (!addForm.airlineId) {
+        toast({
+          title: "Lỗi",
+          description: "Vui lòng chọn hãng hàng không.",
+          variant: "destructive",
+        })
+        return
+      }
+      if (!addForm.departureAirportId || !addForm.arrivalAirportId) {
+        toast({
+          title: "Lỗi",
+          description: "Vui lòng chọn sân bay đi và đến.",
+          variant: "destructive",
+        })
+        return
+      }
+      if (addForm.departureAirportId === addForm.arrivalAirportId) {
+        toast({
+          title: "Lỗi",
+          description: "Sân bay đi và đến không thể giống nhau.",
+          variant: "destructive",
+        })
+        return
+      }
+
+      setSubmitting(true)
+
+      const newFlight = {
+        flightNumber: addForm.flightNumber.trim(),
+        airlineId: parseInt(addForm.airlineId),
+        departureAirportId: parseInt(addForm.departureAirportId),
+        arrivalAirportId: parseInt(addForm.arrivalAirportId),
+        aircraftType: addForm.aircraftType.trim() || undefined,
+        basePrice: addForm.basePrice ? parseFloat(addForm.basePrice) : undefined,
+        baseDurationMinutes: addForm.baseDurationMinutes ? parseInt(addForm.baseDurationMinutes) : undefined,
+        status: addForm.status,
+      }
+
+      await FlightService.createFlight(newFlight)
+      
+      toast({
+        title: "Thành công",
+        description: "Chuyến bay đã được thêm thành công.",
+      })
+
+      setIsAddDialogOpen(false)
+      resetAddForm()
+      loadFlights() // Reload the flights list
+    } catch (error: any) {
+      console.error("Error adding flight:", error)
+      toast({
+        title: "Lỗi",
+        description: error.message || "Không thể thêm chuyến bay. Vui lòng thử lại.",
+        variant: "destructive",
+      })
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  // Handle edit flight
+  const handleEditFlight = async () => {
+    if (!selectedFlight) return
+
+    try {
+      // Basic validation
+      if (!editForm.flightNumber.trim()) {
+        toast({
+          title: "Lỗi",
+          description: "Vui lòng nhập mã chuyến bay.",
+          variant: "destructive",
+        })
+        return
+      }
+      if (!editForm.airlineId) {
+        toast({
+          title: "Lỗi",
+          description: "Vui lòng chọn hãng hàng không.",
+          variant: "destructive",
+        })
+        return
+      }
+      if (!editForm.departureAirportId || !editForm.arrivalAirportId) {
+        toast({
+          title: "Lỗi",
+          description: "Vui lòng chọn sân bay đi và đến.",
+          variant: "destructive",
+        })
+        return
+      }
+      if (editForm.departureAirportId === editForm.arrivalAirportId) {
+        toast({
+          title: "Lỗi",
+          description: "Sân bay đi và đến không thể giống nhau.",
+          variant: "destructive",
+        })
+        return
+      }
+
+      setSubmitting(true)
+
+      const updatedFlight = {
+        flightNumber: editForm.flightNumber.trim(),
+        airlineId: parseInt(editForm.airlineId),
+        departureAirportId: parseInt(editForm.departureAirportId),
+        arrivalAirportId: parseInt(editForm.arrivalAirportId),
+        aircraftType: editForm.aircraftType.trim() || undefined,
+        basePrice: editForm.basePrice ? parseFloat(editForm.basePrice) : undefined,
+        baseDurationMinutes: editForm.baseDurationMinutes ? parseInt(editForm.baseDurationMinutes) : undefined,
+        status: editForm.status,
+      }
+
+      await FlightService.updateFlight(selectedFlight.id, updatedFlight)
+      
+      toast({
+        title: "Thành công",
+        description: "Chuyến bay đã được cập nhật thành công.",
+      })
+
+      setIsEditDialogOpen(false)
+      setSelectedFlight(null)
+      loadFlights() // Reload the flights list
+    } catch (error: any) {
+      console.error("Error updating flight:", error)
+      toast({
+        title: "Lỗi",
+        description: error.message || "Không thể cập nhật chuyến bay. Vui lòng thử lại.",
+        variant: "destructive",
+      })
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  // Handle delete flight
+  const handleDeleteFlight = async () => {
+    if (!selectedFlight) return
+
+    try {
+      setSubmitting(true)
+      await FlightService.deleteFlight(selectedFlight.id)
+      
+      toast({
+        title: "Thành công",
+        description: "Chuyến bay đã được xóa thành công.",
+      })
+
+      setIsDeleteDialogOpen(false)
+      setSelectedFlight(null)
+      loadFlights() // Reload the flights list
+    } catch (error: any) {
+      console.error("Error deleting flight:", error)
+      toast({
+        title: "Lỗi",
+        description: error.message || "Không thể xóa chuyến bay. Vui lòng thử lại.",
+        variant: "destructive",
+      })
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  // Handle opening add dialog
+  const handleOpenAddDialog = () => {
+    resetAddForm()
+    loadFormData()
+    setIsAddDialogOpen(true)
+  }
+
+  // Handle opening edit dialog
+  const handleOpenEditDialog = async (flight: Flight) => {
+    setSelectedFlight(flight)
+    setIsEditDialogOpen(true)
+    
+    // Load form data first, then populate the form
+    await loadFormData()
+    populateEditForm(flight)
+  }
+
   // Note: These stats will need to be implemented once backend provides seat information
   // For now, using placeholder values since the new Flight interface doesn't have seat data
   const totalFlights = flights?.totalElements || 0
@@ -115,65 +548,156 @@ export default function AdminFlights() {
           <h1 className="text-2xl lg:text-3xl font-bold text-gray-900">Quản lý Chuyến bay</h1>
           <p className="text-gray-600 mt-2 text-sm lg:text-base">Quản lý tất cả chuyến bay trong hệ thống</p>
         </div>
+        <Button 
+          className="bg-blue-600 hover:bg-blue-700 w-full lg:w-auto"
+          onClick={handleOpenAddDialog}
+        >
+          <Plus className="w-4 h-4 mr-2" />
+          Thêm chuyến bay
+        </Button>
         <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
-          <DialogTrigger asChild>
-            <Button className="bg-blue-600 hover:bg-blue-700 w-full lg:w-auto">
-              <Plus className="w-4 h-4 mr-2" />
-              Thêm chuyến bay
-            </Button>
-          </DialogTrigger>
           <DialogContent className="sm:max-w-[600px]">
             <DialogHeader>
               <DialogTitle>Thêm chuyến bay mới</DialogTitle>
               <DialogDescription>Nhập thông tin chuyến bay mới vào hệ thống</DialogDescription>
             </DialogHeader>
-            <div className="grid grid-cols-2 gap-4 py-4">
-              <div className="space-y-2">
-                <Label htmlFor="flightId">Mã chuyến bay</Label>
-                <Input id="flightId" placeholder="VN001" />
+            {loadingFormData ? (
+              <div className="flex items-center justify-center py-8">
+                <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div>
+                <span className="ml-2">Đang tải dữ liệu...</span>
               </div>
-              <div className="space-y-2">
-                <Label htmlFor="airline">Hãng hàng không</Label>
-                <Input id="airline" placeholder="Vietnam Airlines" />
+            ) : (
+              <div className="grid grid-cols-2 gap-4 py-4">
+                <div className="space-y-2">
+                  <Label htmlFor="add-flightNumber">Mã chuyến bay *</Label>
+                  <Input 
+                    id="add-flightNumber" 
+                    placeholder="VN001"
+                    value={addForm.flightNumber}
+                    onChange={(e) => setAddForm(prev => ({...prev, flightNumber: e.target.value}))}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="add-aircraftType">Loại máy bay</Label>
+                  <Input 
+                    id="add-aircraftType" 
+                    placeholder="Boeing 777"
+                    value={addForm.aircraftType}
+                    onChange={(e) => setAddForm(prev => ({...prev, aircraftType: e.target.value}))}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="add-airline">Hãng hàng không *</Label>
+                  <InfiniteScrollSelect value={addForm.airlineId} onValueChange={(value) => setAddForm(prev => ({...prev, airlineId: value}))}>
+                    <InfiniteScrollSelectTrigger>
+                      <InfiniteScrollSelectValue placeholder="Chọn hãng hàng không" />
+                    </InfiniteScrollSelectTrigger>
+                    <InfiniteScrollSelectContent
+                      searchPlaceholder="Tìm hãng hàng không..."
+                      onSearchChange={handleAirlineSearch}
+                      onLoadMore={loadMoreAirlines}
+                      hasMore={hasMoreAirlines}
+                      loading={loadingMoreAirlines}
+                      searchValue={airlineSearchTerm}
+                    >
+                      {airlines.map((airline) => (
+                        <InfiniteScrollSelectItem key={airline.id} value={airline.id.toString()}>
+                          {airline.name} ({airline.code})
+                        </InfiniteScrollSelectItem>
+                      ))}
+                    </InfiniteScrollSelectContent>
+                  </InfiniteScrollSelect>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="add-basePrice">Giá cơ bản (VND)</Label>
+                  <Input 
+                    id="add-basePrice" 
+                    type="number"
+                    placeholder="2500000"
+                    value={addForm.basePrice}
+                    onChange={(e) => setAddForm(prev => ({...prev, basePrice: e.target.value}))}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="add-departureAirport">Sân bay đi *</Label>
+                  <InfiniteScrollSelect value={addForm.departureAirportId} onValueChange={(value) => setAddForm(prev => ({...prev, departureAirportId: value}))}>
+                    <InfiniteScrollSelectTrigger>
+                      <InfiniteScrollSelectValue placeholder="Chọn sân bay đi" />
+                    </InfiniteScrollSelectTrigger>
+                    <InfiniteScrollSelectContent
+                      searchPlaceholder="Tìm sân bay đi..."
+                      onSearchChange={handleAirportSearch}
+                      onLoadMore={loadMoreAirports}
+                      hasMore={hasMoreAirports}
+                      loading={loadingMoreAirports}
+                      searchValue={airportSearchTerm}
+                    >
+                      {airports.map((airport) => (
+                        <InfiniteScrollSelectItem key={airport.id} value={airport.id.toString()}>
+                          {airport.code} - {airport.name}
+                        </InfiniteScrollSelectItem>
+                      ))}
+                    </InfiniteScrollSelectContent>
+                  </InfiniteScrollSelect>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="add-arrivalAirport">Sân bay đến *</Label>
+                  <InfiniteScrollSelect value={addForm.arrivalAirportId} onValueChange={(value) => setAddForm(prev => ({...prev, arrivalAirportId: value}))}>
+                    <InfiniteScrollSelectTrigger>
+                      <InfiniteScrollSelectValue placeholder="Chọn sân bay đến" />
+                    </InfiniteScrollSelectTrigger>
+                    <InfiniteScrollSelectContent
+                      searchPlaceholder="Tìm sân bay đến..."
+                      onSearchChange={handleAirportSearch}
+                      onLoadMore={loadMoreAirports}
+                      hasMore={hasMoreAirports}
+                      loading={loadingMoreAirports}
+                      searchValue={airportSearchTerm}
+                    >
+                      {airports.map((airport) => (
+                        <InfiniteScrollSelectItem key={airport.id} value={airport.id.toString()}>
+                          {airport.code} - {airport.name}
+                        </InfiniteScrollSelectItem>
+                      ))}
+                    </InfiniteScrollSelectContent>
+                  </InfiniteScrollSelect>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="add-baseDuration">Thời gian bay (phút)</Label>
+                  <Input 
+                    id="add-baseDuration" 
+                    type="number"
+                    placeholder="120"
+                    value={addForm.baseDurationMinutes}
+                    onChange={(e) => setAddForm(prev => ({...prev, baseDurationMinutes: e.target.value}))}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="add-status">Trạng thái chuyến bay</Label>
+                  <Select value={addForm.status} onValueChange={(value) => setAddForm(prev => ({...prev, status: value}))}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="ACTIVE">Hoạt động</SelectItem>
+                      <SelectItem value="ON_TIME">Đúng giờ</SelectItem>
+                      <SelectItem value="DELAYED">Tạm hoãn</SelectItem>
+                      <SelectItem value="CANCELLED">Đã hủy</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
-              <div className="space-y-2">
-                <Label htmlFor="from">Điểm đi</Label>
-                <Input id="from" placeholder="HAN" />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="to">Điểm đến</Label>
-                <Input id="to" placeholder="SGN" />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="departure">Giờ khởi hành</Label>
-                <Input id="departure" type="time" />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="arrival">Giờ đến</Label>
-                <Input id="arrival" type="time" />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="date">Ngày bay</Label>
-                <Input id="date" type="date" />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="price">Giá vé</Label>
-                <Input id="price" placeholder="2,500,000" />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="seats">Tổng số ghế</Label>
-                <Input id="seats" type="number" placeholder="180" />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="available">Ghế trống</Label>
-                <Input id="available" type="number" placeholder="180" />
-              </div>
-            </div>
+            )}
             <div className="flex justify-end space-x-2">
               <Button variant="outline" onClick={() => setIsAddDialogOpen(false)}>
                 Hủy
               </Button>
-              <Button onClick={() => setIsAddDialogOpen(false)}>Thêm chuyến bay</Button>
+              <Button 
+                disabled={submitting || loadingFormData}
+                onClick={handleAddFlight}
+              >
+                {submitting ? "Đang thêm..." : "Thêm chuyến bay"}
+              </Button>
             </div>
           </DialogContent>
         </Dialog>
@@ -288,9 +812,12 @@ export default function AdminFlights() {
                   flights?.content.map((flight) => (
                     <TableRow key={flight.id}>
                       <TableCell className="font-medium">{flight.flightNumber}</TableCell>
-                      <TableCell>{flight.airline?.name || 'N/A'}</TableCell>
+                      <TableCell>{flight.airline?.name || 'Chưa có thông tin'}</TableCell>
                       <TableCell>
-                        {flight.departureAirport?.code} → {flight.arrivalAirport?.code}
+                        {flight.departureAirport?.code && flight.arrivalAirport?.code 
+                          ? `${flight.departureAirport.code} → ${flight.arrivalAirport.code}`
+                          : 'Chưa có thông tin'
+                        }
                       </TableCell>
                       <TableCell>
                         {flight.baseDurationMinutes ? `${Math.floor(flight.baseDurationMinutes / 60)}h ${flight.baseDurationMinutes % 60}m` : 'N/A'}
@@ -321,10 +848,7 @@ export default function AdminFlights() {
                               Xem chi tiết
                             </DropdownMenuItem>
                             <DropdownMenuItem
-                              onClick={() => {
-                                setSelectedFlight(flight)
-                                setIsEditDialogOpen(true)
-                              }}
+                              onClick={() => handleOpenEditDialog(flight)}
                             >
                               <Edit className="mr-2 h-4 w-4" />
                               Chỉnh sửa
@@ -428,57 +952,120 @@ export default function AdminFlights() {
               Cập nhật thông tin chuyến bay {selectedFlight?.flightNumber}
             </DialogDescription>
           </DialogHeader>
-          {selectedFlight && (
+          {loadingFormData ? (
+            <div className="flex items-center justify-center py-8">
+              <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div>
+              <span className="ml-2">Đang tải dữ liệu...</span>
+            </div>
+          ) : (
             <div className="grid grid-cols-2 gap-4 py-4">
               <div className="space-y-2">
-                <Label htmlFor="edit-flightNumber">Mã chuyến bay</Label>
+                <Label htmlFor="edit-flightNumber">Mã chuyến bay *</Label>
                 <Input
                   id="edit-flightNumber"
-                  defaultValue={selectedFlight.flightNumber}
                   placeholder="VN001"
+                  value={editForm.flightNumber}
+                  onChange={(e) => setEditForm(prev => ({...prev, flightNumber: e.target.value}))}
                 />
               </div>
               <div className="space-y-2">
                 <Label htmlFor="edit-aircraftType">Loại máy bay</Label>
                 <Input
                   id="edit-aircraftType"
-                  defaultValue={selectedFlight.aircraftType || ''}
                   placeholder="Boeing 777"
+                  value={editForm.aircraftType}
+                  onChange={(e) => setEditForm(prev => ({...prev, aircraftType: e.target.value}))}
                 />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="edit-airline">Hãng hàng không *</Label>
+                <InfiniteScrollSelect value={editForm.airlineId} onValueChange={(value) => setEditForm(prev => ({...prev, airlineId: value}))}>
+                  <InfiniteScrollSelectTrigger>
+                    <InfiniteScrollSelectValue placeholder="Chọn hãng hàng không" />
+                  </InfiniteScrollSelectTrigger>
+                  <InfiniteScrollSelectContent
+                    searchPlaceholder="Tìm hãng hàng không..."
+                    onSearchChange={handleAirlineSearch}
+                    onLoadMore={loadMoreAirlines}
+                    hasMore={hasMoreAirlines}
+                    loading={loadingMoreAirlines}
+                    searchValue={airlineSearchTerm}
+                  >
+                    {airlines.map((airline) => (
+                      <InfiniteScrollSelectItem key={airline.id} value={airline.id.toString()}>
+                        {airline.name} ({airline.code})
+                      </InfiniteScrollSelectItem>
+                    ))}
+                  </InfiniteScrollSelectContent>
+                </InfiniteScrollSelect>
               </div>
               <div className="space-y-2">
                 <Label htmlFor="edit-basePrice">Giá cơ bản (VND)</Label>
                 <Input
                   id="edit-basePrice"
                   type="number"
-                  defaultValue={selectedFlight.basePrice || 0}
                   placeholder="2500000"
+                  value={editForm.basePrice}
+                  onChange={(e) => setEditForm(prev => ({...prev, basePrice: e.target.value}))}
                 />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="edit-departureAirport">Sân bay đi *</Label>
+                <InfiniteScrollSelect value={editForm.departureAirportId} onValueChange={(value) => setEditForm(prev => ({...prev, departureAirportId: value}))}>
+                  <InfiniteScrollSelectTrigger>
+                    <InfiniteScrollSelectValue placeholder="Chọn sân bay đi" />
+                  </InfiniteScrollSelectTrigger>
+                  <InfiniteScrollSelectContent
+                    searchPlaceholder="Tìm sân bay đi..."
+                    onSearchChange={handleAirportSearch}
+                    onLoadMore={loadMoreAirports}
+                    hasMore={hasMoreAirports}
+                    loading={loadingMoreAirports}
+                    searchValue={airportSearchTerm}
+                  >
+                    {airports.map((airport) => (
+                      <InfiniteScrollSelectItem key={airport.id} value={airport.id.toString()}>
+                        {airport.code} - {airport.name}
+                      </InfiniteScrollSelectItem>
+                    ))}
+                  </InfiniteScrollSelectContent>
+                </InfiniteScrollSelect>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="edit-arrivalAirport">Sân bay đến *</Label>
+                <InfiniteScrollSelect value={editForm.arrivalAirportId} onValueChange={(value) => setEditForm(prev => ({...prev, arrivalAirportId: value}))}>
+                  <InfiniteScrollSelectTrigger>
+                    <InfiniteScrollSelectValue placeholder="Chọn sân bay đến" />
+                  </InfiniteScrollSelectTrigger>
+                  <InfiniteScrollSelectContent
+                    searchPlaceholder="Tìm sân bay đến..."
+                    onSearchChange={handleAirportSearch}
+                    onLoadMore={loadMoreAirports}
+                    hasMore={hasMoreAirports}
+                    loading={loadingMoreAirports}
+                    searchValue={airportSearchTerm}
+                  >
+                    {airports.map((airport) => (
+                      <InfiniteScrollSelectItem key={airport.id} value={airport.id.toString()}>
+                        {airport.code} - {airport.name}
+                      </InfiniteScrollSelectItem>
+                    ))}
+                  </InfiniteScrollSelectContent>
+                </InfiniteScrollSelect>
               </div>
               <div className="space-y-2">
                 <Label htmlFor="edit-baseDuration">Thời gian bay (phút)</Label>
                 <Input
                   id="edit-baseDuration"
                   type="number"
-                  defaultValue={selectedFlight.baseDurationMinutes || 0}
                   placeholder="120"
+                  value={editForm.baseDurationMinutes}
+                  onChange={(e) => setEditForm(prev => ({...prev, baseDurationMinutes: e.target.value}))}
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="edit-isActive">Trạng thái hoạt động</Label>
-                <Select defaultValue={selectedFlight.isActive ? "true" : "false"}>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="true">Hoạt động</SelectItem>
-                    <SelectItem value="false">Không hoạt động</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2">
                 <Label htmlFor="edit-status">Trạng thái chuyến bay</Label>
-                <Select defaultValue={selectedFlight.status}>
+                <Select value={editForm.status} onValueChange={(value) => setEditForm(prev => ({...prev, status: value}))}>
                   <SelectTrigger>
                     <SelectValue />
                   </SelectTrigger>
@@ -497,15 +1084,8 @@ export default function AdminFlights() {
               Hủy
             </Button>
             <Button
-              disabled={submitting}
-              onClick={() => {
-                // TODO: Implement update flight logic
-                setIsEditDialogOpen(false)
-                toast({
-                  title: "Thành công",
-                  description: "Chuyến bay đã được cập nhật.",
-                })
-              }}
+              disabled={submitting || loadingFormData}
+              onClick={handleEditFlight}
             >
               {submitting ? "Đang lưu..." : "Lưu thay đổi"}
             </Button>
@@ -529,15 +1109,7 @@ export default function AdminFlights() {
             <AlertDialogAction
               className="bg-red-600 hover:bg-red-700"
               disabled={submitting}
-              onClick={() => {
-                // TODO: Implement delete flight logic
-                setIsDeleteDialogOpen(false)
-                setSelectedFlight(null)
-                toast({
-                  title: "Thành công",
-                  description: "Chuyến bay đã được xóa.",
-                })
-              }}
+              onClick={handleDeleteFlight}
             >
               {submitting ? "Đang xóa..." : "Xóa chuyến bay"}
             </AlertDialogAction>

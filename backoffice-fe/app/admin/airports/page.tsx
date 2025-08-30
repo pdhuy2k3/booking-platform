@@ -36,7 +36,6 @@ interface AirportFormData {
   code: string
   city: string
   country: string
-  timezone: string
 }
 
 export default function AdminAirports() {
@@ -57,8 +56,7 @@ export default function AdminAirports() {
     name: "", 
     code: "", 
     city: "", 
-    country: "", 
-    timezone: "" 
+    country: "" 
   })
   const [formErrors, setFormErrors] = useState<Partial<AirportFormData>>({})
   const [editingAirport, setEditingAirport] = useState<Airport | null>(null)
@@ -127,7 +125,6 @@ export default function AdminAirports() {
         code: formData.code.trim().toUpperCase(),
         city: formData.city.trim(),
         country: formData.country.trim(),
-        timezone: formData.timezone.trim() || undefined,
       })
       
       toast({

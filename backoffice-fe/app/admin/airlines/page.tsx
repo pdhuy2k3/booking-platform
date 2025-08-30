@@ -34,7 +34,6 @@ import { toast } from "@/components/ui/use-toast"
 interface AirlineFormData {
   name: string
   code: string
-  country: string
 }
 
 export default function AdminAirlines() {
@@ -49,7 +48,7 @@ export default function AdminAirlines() {
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
   
   // Form states
-  const [formData, setFormData] = useState<AirlineFormData>({ name: "", code: "", country: "" })
+  const [formData, setFormData] = useState<AirlineFormData>({ name: "", code: "" })
   const [formErrors, setFormErrors] = useState<Partial<AirlineFormData>>({})
   const [editingAirline, setEditingAirline] = useState<Airline | null>(null)
   const [deletingAirline, setDeletingAirline] = useState<Airline | null>(null)
@@ -93,10 +92,6 @@ export default function AdminAirlines() {
       errors.code = "Mã IATA phải có đúng 2 ký tự"
     }
     
-    if (!data.country.trim()) {
-      errors.country = "Quốc gia là bắt buộc"
-    }
-    
     setFormErrors(errors)
     return Object.keys(errors).length === 0
   }
@@ -109,7 +104,6 @@ export default function AdminAirlines() {
       await AirlineService.createAirline({
         name: formData.name.trim(),
         code: formData.code.trim().toUpperCase(),
-        country: formData.country.trim(),
       })
       
       toast({
@@ -118,7 +112,7 @@ export default function AdminAirlines() {
       })
       
       setIsAddDialogOpen(false)
-      setFormData({ name: "", code: "", country: "" })
+      setFormData({ name: "", code: "" })
       setFormErrors({})
       loadAirlines()
     } catch (error: any) {
@@ -141,7 +135,6 @@ export default function AdminAirlines() {
       await AirlineService.updateAirline(editingAirline.id, {
         name: formData.name.trim(),
         code: formData.code.trim().toUpperCase(),
-        country: formData.country.trim(),
       })
       
       toast({
@@ -151,7 +144,7 @@ export default function AdminAirlines() {
       
       setIsEditDialogOpen(false)
       setEditingAirline(null)
-      setFormData({ name: "", code: "", country: "" })
+      setFormData({ name: "", code: "" })
       setFormErrors({})
       loadAirlines()
     } catch (error: any) {
@@ -198,7 +191,6 @@ export default function AdminAirlines() {
     setFormData({
       name: airline.name,
       code: airline.code,
-      country: airline.country || "",
     })
     setFormErrors({})
     setIsEditDialogOpen(true)
@@ -210,7 +202,7 @@ export default function AdminAirlines() {
   }
 
   const resetAddForm = () => {
-    setFormData({ name: "", code: "", country: "" })
+    setFormData({ name: "", code: "" })
     setFormErrors({})
   }
 
@@ -261,17 +253,6 @@ export default function AdminAirlines() {
                 />
                 {formErrors.code && <p className="text-sm text-red-500">{formErrors.code}</p>}
               </div>
-              <div className="space-y-2">
-                <Label htmlFor="country">Quốc gia *</Label>
-                <Input
-                  id="country"
-                  placeholder="Vietnam"
-                  value={formData.country}
-                  onChange={(e) => setFormData({ ...formData, country: e.target.value })}
-                  className={formErrors.country ? "border-red-500" : ""}
-                />
-                {formErrors.country && <p className="text-sm text-red-500">{formErrors.country}</p>}
-              </div>
             </div>
             <div className="flex justify-end space-x-2">
               <Button variant="outline" onClick={() => setIsAddDialogOpen(false)} disabled={submitting}>
@@ -319,19 +300,6 @@ export default function AdminAirlines() {
             <p className="text-xs text-muted-foreground">Hãng tạm ngừng</p>
           </CardContent>
         </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Quốc gia</CardTitle>
-            <Building className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">
-              {new Set(airlines?.content.map(a => a.country).filter(Boolean)).size}
-            </div>
-            <p className="text-xs text-muted-foreground">Số quốc gia</p>
-          </CardContent>
-        </Card>
       </div>
 
       {/* Airlines Table */}
@@ -362,7 +330,6 @@ export default function AdminAirlines() {
                 <TableRow>
                   <TableHead>Mã IATA</TableHead>
                   <TableHead>Tên hãng</TableHead>
-                  <TableHead>Quốc gia</TableHead>
                   <TableHead>Trạng thái</TableHead>
                   <TableHead>Ngày tạo</TableHead>
                   <TableHead className="w-[100px]">Thao tác</TableHead>
@@ -371,7 +338,7 @@ export default function AdminAirlines() {
               <TableBody>
                 {loading ? (
                   <TableRow>
-                    <TableCell colSpan={6} className="text-center py-8">
+                    <TableCell colSpan={5} className="text-center py-8">
                       <div className="flex items-center justify-center">
                         <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div>
                         <span className="ml-2">Đang tải...</span>
@@ -380,7 +347,7 @@ export default function AdminAirlines() {
                   </TableRow>
                 ) : airlines?.content.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={6} className="text-center py-8 text-gray-500">
+                    <TableCell colSpan={5} className="text-center py-8 text-gray-500">
                       Không có dữ liệu
                     </TableCell>
                   </TableRow>
@@ -389,7 +356,6 @@ export default function AdminAirlines() {
                     <TableRow key={airline.id}>
                       <TableCell className="font-medium">{airline.code}</TableCell>
                       <TableCell>{airline.name}</TableCell>
-                      <TableCell>{airline.country || 'N/A'}</TableCell>
                       <TableCell>
                         <Badge className={airline.isActive ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"}>
                           {airline.isActive ? 'Hoạt động' : 'Tạm ngừng'}
@@ -450,17 +416,6 @@ export default function AdminAirlines() {
                 className={formErrors.code ? "border-red-500" : ""}
               />
               {formErrors.code && <p className="text-sm text-red-500">{formErrors.code}</p>}
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="edit-country">Quốc gia *</Label>
-              <Input
-                id="edit-country"
-                placeholder="Vietnam"
-                value={formData.country}
-                onChange={(e) => setFormData({ ...formData, country: e.target.value })}
-                className={formErrors.country ? "border-red-500" : ""}
-              />
-              {formErrors.country && <p className="text-sm text-red-500">{formErrors.country}</p>}
             </div>
           </div>
           <div className="flex justify-end space-x-2">

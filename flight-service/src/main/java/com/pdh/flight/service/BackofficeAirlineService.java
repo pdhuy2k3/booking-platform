@@ -97,14 +97,14 @@ public class BackofficeAirlineService {
         log.info("Creating new airline: {}", requestDto.getName());
         
         // Validate IATA code uniqueness
-        if (airlineRepository.existsByIataCodeIgnoreCase(requestDto.getIataCode())) {
-            throw new IllegalArgumentException("IATA code already exists: " + requestDto.getIataCode());
+        if (airlineRepository.existsByIataCodeIgnoreCase(requestDto.getCode())) {
+            throw new IllegalArgumentException("IATA code already exists: " + requestDto.getCode());
         }
         
         // Create new airline
         Airline airline = new Airline();
         airline.setName(requestDto.getName());
-        airline.setIataCode(requestDto.getIataCode().toUpperCase());
+        airline.setIataCode(requestDto.getCode().toUpperCase());
         airline.setLogoUrl(requestDto.getLogoUrl());
         
         Airline savedAirline = airlineRepository.save(airline);
@@ -126,8 +126,8 @@ public class BackofficeAirlineService {
             .orElseThrow(() -> new EntityNotFoundException("Airline not found with ID: " + id));
         
         // Check if IATA code is unique (exclude current airline)
-        if (StringUtils.hasText(requestDto.getIataCode())) {
-            String upperIataCode = requestDto.getIataCode().toUpperCase();
+        if (StringUtils.hasText(requestDto.getCode())) {
+            String upperIataCode = requestDto.getCode().toUpperCase();
             if (!upperIataCode.equals(airline.getIataCode()) && 
                 airlineRepository.existsByIataCodeIgnoreCase(upperIataCode)) {
                 throw new IllegalArgumentException("IATA code already exists: " + upperIataCode);
@@ -201,17 +201,11 @@ public class BackofficeAirlineService {
         
         response.put("id", airline.getAirlineId());
         response.put("name", airline.getName() != null ? airline.getName() : "");
-        response.put("iataCode", airline.getIataCode() != null ? airline.getIataCode() : "");
-        response.put("logoUrl", airline.getLogoUrl() != null ? airline.getLogoUrl() : "");
-        
-        // Audit information
-        response.put("createdAt", airline.getCreatedAt());
-        response.put("createdBy", airline.getCreatedBy());
-        response.put("updatedAt", airline.getUpdatedAt());
-        response.put("updatedBy", airline.getUpdatedBy());
-        
-        // Status
-        response.put("status", airline.isDeleted() ? "INACTIVE" : "ACTIVE");
+        response.put("code", airline.getIataCode() != null ? airline.getIataCode() : "");
+        response.put("country", ""); // Not available in current schema
+        response.put("isActive", !airline.isDeleted());
+        response.put("createdAt", airline.getCreatedAt() != null ? airline.getCreatedAt().toString() : "");
+        response.put("updatedAt", airline.getUpdatedAt() != null ? airline.getUpdatedAt().toString() : "");
         
         return response;
     }

@@ -267,40 +267,54 @@ public class BackofficeFlightService {
         response.put("flightNumber", flight.getFlightNumber() != null ? flight.getFlightNumber() : "");
         response.put("baseDurationMinutes", flight.getBaseDurationMinutes());
         response.put("aircraftType", flight.getAircraftType() != null ? flight.getAircraftType() : "");
-        response.put("status", flight.getStatus() != null ? flight.getStatus() : "ACTIVE");
+        response.put("status", flight.getStatus() != null ? flight.getStatus().toString() : "ACTIVE");
         response.put("basePrice", flight.getBasePrice() != null ? flight.getBasePrice().doubleValue() : 0.0);
+        response.put("isActive", flight.getStatus() != null && !"CANCELLED".equals(flight.getStatus()));
         
-        // Airline information
+        // Airline information as nested object
         if (flight.getAirline() != null) {
-            response.put("airlineId", flight.getAirline().getAirlineId());
-            response.put("airline", flight.getAirline().getName());
-            response.put("airlineIataCode", flight.getAirline().getIataCode());
-            response.put("airlineLogoUrl", flight.getAirline().getLogoUrl());
+            Map<String, Object> airlineData = new HashMap<>();
+            airlineData.put("id", flight.getAirline().getAirlineId());
+            airlineData.put("name", flight.getAirline().getName() != null ? flight.getAirline().getName() : "");
+            airlineData.put("code", flight.getAirline().getIataCode() != null ? flight.getAirline().getIataCode() : "");
+            airlineData.put("country", ""); // Not available in current schema
+            airlineData.put("isActive", true); // Default to true
+            airlineData.put("createdAt", flight.getAirline().getCreatedAt() != null ? flight.getAirline().getCreatedAt().toString() : "");
+            airlineData.put("updatedAt", flight.getAirline().getUpdatedAt() != null ? flight.getAirline().getUpdatedAt().toString() : "");
+            response.put("airline", airlineData);
         }
         
-        // Departure airport information
+        // Departure airport information as nested object
         if (flight.getDepartureAirport() != null) {
-            response.put("departureAirportId", flight.getDepartureAirport().getAirportId());
-            response.put("origin", flight.getDepartureAirport().getIataCode());
-            response.put("originName", flight.getDepartureAirport().getName());
-            response.put("originCity", flight.getDepartureAirport().getCity());
-            response.put("originCountry", flight.getDepartureAirport().getCountry());
+            Map<String, Object> departureAirportData = new HashMap<>();
+            departureAirportData.put("id", flight.getDepartureAirport().getAirportId());
+            departureAirportData.put("name", flight.getDepartureAirport().getName() != null ? flight.getDepartureAirport().getName() : "");
+            departureAirportData.put("code", flight.getDepartureAirport().getIataCode() != null ? flight.getDepartureAirport().getIataCode() : "");
+            departureAirportData.put("city", flight.getDepartureAirport().getCity() != null ? flight.getDepartureAirport().getCity() : "");
+            departureAirportData.put("country", flight.getDepartureAirport().getCountry() != null ? flight.getDepartureAirport().getCountry() : "");
+            departureAirportData.put("isActive", true); // Default to true
+            departureAirportData.put("createdAt", flight.getDepartureAirport().getCreatedAt() != null ? flight.getDepartureAirport().getCreatedAt().toString() : "");
+            departureAirportData.put("updatedAt", flight.getDepartureAirport().getUpdatedAt() != null ? flight.getDepartureAirport().getUpdatedAt().toString() : "");
+            response.put("departureAirport", departureAirportData);
         }
         
-        // Arrival airport information
+        // Arrival airport information as nested object
         if (flight.getArrivalAirport() != null) {
-            response.put("arrivalAirportId", flight.getArrivalAirport().getAirportId());
-            response.put("destination", flight.getArrivalAirport().getIataCode());
-            response.put("destinationName", flight.getArrivalAirport().getName());
-            response.put("destinationCity", flight.getArrivalAirport().getCity());
-            response.put("destinationCountry", flight.getArrivalAirport().getCountry());
+            Map<String, Object> arrivalAirportData = new HashMap<>();
+            arrivalAirportData.put("id", flight.getArrivalAirport().getAirportId());
+            arrivalAirportData.put("name", flight.getArrivalAirport().getName() != null ? flight.getArrivalAirport().getName() : "");
+            arrivalAirportData.put("code", flight.getArrivalAirport().getIataCode() != null ? flight.getArrivalAirport().getIataCode() : "");
+            arrivalAirportData.put("city", flight.getArrivalAirport().getCity() != null ? flight.getArrivalAirport().getCity() : "");
+            arrivalAirportData.put("country", flight.getArrivalAirport().getCountry() != null ? flight.getArrivalAirport().getCountry() : "");
+            arrivalAirportData.put("isActive", true); // Default to true
+            arrivalAirportData.put("createdAt", flight.getArrivalAirport().getCreatedAt() != null ? flight.getArrivalAirport().getCreatedAt().toString() : "");
+            arrivalAirportData.put("updatedAt", flight.getArrivalAirport().getUpdatedAt() != null ? flight.getArrivalAirport().getUpdatedAt().toString() : "");
+            response.put("arrivalAirport", arrivalAirportData);
         }
         
         // Audit information
-        response.put("createdAt", flight.getCreatedAt());
-        response.put("createdBy", flight.getCreatedBy());
-        response.put("updatedAt", flight.getUpdatedAt());
-        response.put("updatedBy", flight.getUpdatedBy());
+        response.put("createdAt", flight.getCreatedAt() != null ? flight.getCreatedAt().toString() : "");
+        response.put("updatedAt", flight.getUpdatedAt() != null ? flight.getUpdatedAt().toString() : "");
         
         return response;
     }

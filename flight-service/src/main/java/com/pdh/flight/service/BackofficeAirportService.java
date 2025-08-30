@@ -107,14 +107,14 @@ public class BackofficeAirportService {
         log.info("Creating new airport: {}", requestDto.getName());
         
         // Validate IATA code uniqueness
-        if (airportRepository.existsByIataCodeIgnoreCase(requestDto.getIataCode())) {
-            throw new IllegalArgumentException("IATA code already exists: " + requestDto.getIataCode());
+        if (airportRepository.existsByIataCodeIgnoreCase(requestDto.getCode())) {
+            throw new IllegalArgumentException("IATA code already exists: " + requestDto.getCode());
         }
         
         // Create new airport
         Airport airport = new Airport();
         airport.setName(requestDto.getName());
-        airport.setIataCode(requestDto.getIataCode().toUpperCase());
+        airport.setIataCode(requestDto.getCode().toUpperCase());
         airport.setCity(requestDto.getCity());
         airport.setCountry(requestDto.getCountry());
         
@@ -137,8 +137,8 @@ public class BackofficeAirportService {
             .orElseThrow(() -> new EntityNotFoundException("Airport not found with ID: " + id));
         
         // Check if IATA code is unique (exclude current airport)
-        if (StringUtils.hasText(requestDto.getIataCode())) {
-            String upperIataCode = requestDto.getIataCode().toUpperCase();
+        if (StringUtils.hasText(requestDto.getCode())) {
+            String upperIataCode = requestDto.getCode().toUpperCase();
             if (!upperIataCode.equals(airport.getIataCode()) && 
                 airportRepository.existsByIataCodeIgnoreCase(upperIataCode)) {
                 throw new IllegalArgumentException("IATA code already exists: " + upperIataCode);
@@ -240,18 +240,12 @@ public class BackofficeAirportService {
         
         response.put("id", airport.getAirportId());
         response.put("name", airport.getName() != null ? airport.getName() : "");
-        response.put("iataCode", airport.getIataCode() != null ? airport.getIataCode() : "");
+        response.put("code", airport.getIataCode() != null ? airport.getIataCode() : "");
         response.put("city", airport.getCity() != null ? airport.getCity() : "");
         response.put("country", airport.getCountry() != null ? airport.getCountry() : "");
-        
-        // Audit information
-        response.put("createdAt", airport.getCreatedAt());
-        response.put("createdBy", airport.getCreatedBy());
-        response.put("updatedAt", airport.getUpdatedAt());
-        response.put("updatedBy", airport.getUpdatedBy());
-        
-        // Status
-        response.put("status", airport.isDeleted() ? "INACTIVE" : "ACTIVE");
+        response.put("isActive", !airport.isDeleted());
+        response.put("createdAt", airport.getCreatedAt() != null ? airport.getCreatedAt().toString() : "");
+        response.put("updatedAt", airport.getUpdatedAt() != null ? airport.getUpdatedAt().toString() : "");
         
         return response;
     }
