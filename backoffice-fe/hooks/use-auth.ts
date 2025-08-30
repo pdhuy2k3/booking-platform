@@ -42,7 +42,9 @@ export function useAuth() {
   const hasPermission = (permission: string): boolean => {
     return user?.permissions?.includes(permission) ?? false
   }
-
+  const login= () => {
+    window.location.href = AuthClient.loginUrl()
+  }
   return {
     user,
     loading,
@@ -52,5 +54,6 @@ export function useAuth() {
     checkAuth,
     hasRole,
     hasPermission,
+    login
   }
 }

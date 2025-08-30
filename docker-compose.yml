@@ -3,13 +3,10 @@ services:
   identity:
     depends_on:
       - postgres
-    profiles:
-      - auth
-      - app
     image: quay.io/keycloak/keycloak:26.2.4
     command: 'start --import-realm --http-enabled=true'
     environment:
-      KC_HOSTNAME: https://identity.huypd.dev
+      KC_HOSTNAME: https://identity-bookingsmart.huypd.dev
       KC_DB: postgres
       KC_DB_URL: jdbc:postgresql://postgres:5432/keycloak_db
       KC_DB_USERNAME: postgres
@@ -25,11 +22,6 @@ services:
       - booking-network
   # PostgreSQL Database
   postgres:
-    profiles:
-      - app
-      - auth
-      - dev
-      - aiAgent
     image: debezium/postgres:17-alpine
     user: postgres
     environment:
@@ -51,9 +43,6 @@ services:
 
   # Redis for Event Deduplication
   redis:
-    profiles:
-      - app
-      - dev
     image: redis:7.2-alpine
     ports:
       - "6379:6379"
@@ -71,8 +60,6 @@ services:
   # Zookeeper
   zookeeper:
     image: confluentinc/cp-zookeeper:7.3.2
-    profiles:
-      - app
     networks:
       - booking-network
     environment:
@@ -82,8 +69,6 @@ services:
   # Kafka
   kafka:
     image: confluentinc/cp-kafka:7.7.1
-    profiles:
-      - app
     networks:
       - booking-network
     depends_on:
@@ -103,9 +88,7 @@ services:
 
   # Debezium Connect
   connect:
-    image: debezium/connect:2.7.3.Final
-    profiles:
-      - app
+    image: quay.io/debezium/connect:3.2.0.Final
     ports:
       - "8083:8083"
     networks:
@@ -128,8 +111,7 @@ services:
   # Kafka UI
   kafka-ui:
     image: provectuslabs/kafka-ui:latest
-    profiles:
-      - app
+
     ports:
       - "8091:8080"
     depends_on:
@@ -143,8 +125,6 @@ services:
 
   # Discovery Service (Eureka)
   discovery-service:
-    profiles:
-      - app
     build:
       context: ./discovery-service
       dockerfile: Dockerfile
@@ -158,8 +138,6 @@ services:
 
   # API Gateway (Backoffice BFF)
   backoffice:
-    profiles:
-      - app
     build:
       context: ./backoffice-bff
       dockerfile: Dockerfile
@@ -180,8 +158,6 @@ services:
       - booking-network
 
   storefront:
-    profiles:
-      - app
     build:
       context: ./storefront-bff
       dockerfile: Dockerfile
@@ -220,8 +196,6 @@ services:
 
   # Backoffice Frontend
   backoffice-fe:
-    profiles:
-      - app
     build:
       context: ./backoffice-fe
       dockerfile: Dockerfile
@@ -237,8 +211,6 @@ services:
     restart: unless-stopped
   # Flight Service
   flight-service:
-    profiles:
-      - app
     build:
       context: ./flight-service
       dockerfile: Dockerfile
@@ -260,8 +232,6 @@ services:
 
   # Hotel Service
   hotel-service:
-    profiles:
-      - app
     build:
       context: ./hotel-service
       dockerfile: Dockerfile
@@ -283,8 +253,6 @@ services:
 
   # Booking Service
   booking-service:
-    profiles:
-      - app
     build:
       context: ./booking-service
       dockerfile: Dockerfile
@@ -306,8 +274,6 @@ services:
 
   # Payment Service
   payment-service:
-    profiles:
-      - app
     build:
       context: ./payment-service
       dockerfile: Dockerfile
@@ -329,8 +295,6 @@ services:
 
   # Notification Service
   notification-service:
-    profiles:
-      - app
     build:
       context: ./notification-service
       dockerfile: Dockerfile
@@ -351,8 +315,6 @@ services:
       - booking-network
   # Customer Service
   customer-service:
-    profiles:
-      - app
     build:
       context: ./customer-service
       dockerfile: Dockerfile
@@ -413,8 +375,6 @@ services:
   # Nginx Reverse Proxy - API Gateway for Cloudflare Tunnel
   nginx:
     image: nginx:1.25-alpine
-    profiles:
-      - app
     ports:
       - "80:80"
     volumes:
@@ -430,12 +390,10 @@ services:
       - payment-service
       - notification-service
     networks:
-      booking-network:
+      - booking-network
     restart: unless-stopped
 
   cloudflared:
-    profiles:
-      - app
     image: cloudflare/cloudflared:latest
     command: tunnel --no-autoupdate run --token ${CLOUDFLARE_TUNNEL_TOKEN}
     networks:
@@ -459,9 +417,6 @@ services:
 
   # N8N Workflow Automation
   n8n:
-    profiles:
-      - app
-      - aiAgent
     image: docker.n8n.io/n8nio/n8n
     ports:
       - "5678:5678"

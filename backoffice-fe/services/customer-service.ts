@@ -33,7 +33,7 @@ export interface CustomerProfileRequestVm {
 }
 
 export class CustomerService {
-  private static readonly BASE_PATH = "/api/customer-service/backoffice/admin/customers"
+  private static readonly BASE_PATH = "/api/customers/backoffice/admin/customers"
 
   static async getCustomers(params?: {
     page?: number

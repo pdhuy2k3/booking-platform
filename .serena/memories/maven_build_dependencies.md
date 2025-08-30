@@ -34,26 +34,14 @@ When building services that depend on `common-lib`, you need to ensure the depen
 
 #### Building Multiple Modules Together (RECOMMENDED)
 ```bash
-# Build common-lib and a service together
-mvn clean install -pl common-lib,booking-service
-mvn clean install -pl common-lib,flight-service
-mvn clean install -pl common-lib,hotel-service
-mvn clean install -pl common-lib,payment-service
+# Build a service
+mvn clean install -pl booking-service -am
 
-# Build multiple services that depend on common-lib
-mvn clean install -pl common-lib,booking-service,flight-service,hotel-service
+# Build multiple services 
+mvn clean install -pl booking-service,flight-service,hotel-service -am
 ```
 
-#### Sequential Build Process (Alternative)
-```bash
-# 1. First install parent POM
-mvn clean install -N
 
-# 2. Then install common-lib
-mvn clean install -pl common-lib
-
-# 3. Finally build specific services
-mvn clean compile -pl booking-service
 ```
 
 ### Why This is Necessary

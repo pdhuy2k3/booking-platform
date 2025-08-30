@@ -155,7 +155,6 @@ public class PaymentController {
      * Process refund using Strategy Pattern
      */
     @PostMapping("/refund/{transactionId}")
-    @PreAuthorize("hasRole('USER')")
     public ResponseEntity<Map<String, Object>> processRefund(
             @PathVariable UUID transactionId,
             @RequestBody RefundRequest refundRequest) {

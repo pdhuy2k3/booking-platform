@@ -1,8 +1,11 @@
 package com.pdh.flight.repository;
 
 import com.pdh.flight.model.Airline;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.util.List;
@@ -41,4 +44,20 @@ public interface AirlineRepository extends JpaRepository<Airline, Long> {
      * @return true if exists, false otherwise
      */
     boolean existsByIataCodeIgnoreCase(String iataCode);
+    
+    /**
+     * Find active airlines with pagination
+     * @param pageable pagination information
+     * @return Page of active airlines
+     */
+    @Query("SELECT a FROM Airline a WHERE a.isDeleted = false")
+    Page<Airline> findAllActive(Pageable pageable);
+    
+    /**
+     * Find airlines by name containing the given string with pagination
+     * @param name the name to search for
+     * @param pageable pagination information
+     * @return Page of matching airlines
+     */
+    Page<Airline> findByNameContainingIgnoreCase(String name, Pageable pageable);
 }

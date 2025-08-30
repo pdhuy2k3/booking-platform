@@ -7,6 +7,8 @@ import lombok.Data;
 import lombok.EqualsAndHashCode;
 import lombok.NoArgsConstructor;
 
+import java.math.BigDecimal;
+
 @Entity
 @Table(name = "flights")
 @Data
@@ -23,28 +25,28 @@ public class Flight extends AbstractAuditEntity {
     @Column(name = "flight_number", nullable = false, length = 20)
     private String flightNumber;
 
-    @Column(name = "airline_id", nullable = false)
-    private Long airlineId;
-
-    @Column(name = "departure_airport_id", nullable = false)
-    private Long departureAirportId;
-
-    @Column(name = "arrival_airport_id", nullable = false)
-    private Long arrivalAirportId;
-
     @Column(name = "base_duration_minutes")
     private Integer baseDurationMinutes;
 
-    // Reference entities - avoiding @ManyToMany as requested
+    @Column(name = "aircraft_type", length = 50)
+    private String aircraftType;
+
+    @Column(name = "status", length = 20)
+    private String status; // ACTIVE, CANCELLED, DELAYED
+
+    @Column(name = "base_price", precision = 10, scale = 2)
+    private BigDecimal basePrice;
+
+    // Reference entities with proper JPA mapping
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "airline_id", insertable = false, updatable = false)
+    @JoinColumn(name = "airline_id", nullable = false)
     private Airline airline;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "departure_airport_id", insertable = false, updatable = false)
+    @JoinColumn(name = "departure_airport_id", nullable = false)
     private Airport departureAirport;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "arrival_airport_id", insertable = false, updatable = false)
+    @JoinColumn(name = "arrival_airport_id", nullable = false)
     private Airport arrivalAirport;
 }

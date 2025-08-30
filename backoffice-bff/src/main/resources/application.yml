@@ -63,6 +63,11 @@ eureka:
     hostname: localhost
     prefer-ip-address: false
 
+# Hotel service configuration
+hotel:
+  service:
+    url: http://localhost:8083
+
 ---
 
 spring:
@@ -145,3 +150,8 @@ eureka:
       defaultZone: ${EUREKA_URI}
   instance:
     prefer-ip-address: true
+
+# Hotel service configuration
+hotel:
+  service:
+    url: http://hotel-service:8080
