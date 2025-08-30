@@ -54,6 +54,10 @@ import {
   HelpCircle,
   Sparkles,
   Building2,
+  Navigation,
+  Building,
+  ChevronRight,
+  ChevronDown,
 } from "lucide-react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
@@ -63,7 +67,7 @@ interface AdminLayoutProps {
   children: React.ReactNode
 }
 
-// Navigation data
+// Navigation data with new structure
 const data = {
   navMain: [
     {
@@ -84,20 +88,38 @@ const data = {
     {
       title: "Quản lý dịch vụ",
       items: [
+        // Flight parent menu with submenu
         {
           title: "Chuyến bay",
           url: "/admin/flights",
           icon: Plane,
+          hasSubMenu: true,
+          subItems: [
+            {
+              title: "Hãng hàng không",
+              url: "/admin/airlines",
+              icon: Building,
+            },
+            {
+              title: "Sân bay",
+              url: "/admin/airports",
+              icon: Navigation,
+            },
+          ],
         },
+        // Hotel parent menu with submenu
         {
           title: "Khách sạn",
           url: "/admin/hotels",
           icon: Hotel,
-        },
-        {
-          title: "Tiện nghi",
-          url: "/admin/amenities",
-          icon: Sparkles,
+          hasSubMenu: true,
+          subItems: [
+            {
+              title: "Tiện nghi",
+              url: "/admin/amenities",
+              icon: Sparkles,
+            },
+          ],
         },
         {
           title: "Đặt chỗ",
@@ -173,6 +195,20 @@ const data = {
 
 function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const pathname = usePathname()
+  const [expandedMenus, setExpandedMenus] = React.useState<Record<string, boolean>>({})
+
+  // Toggle submenu expansion
+  const toggleMenu = (itemTitle: string) => {
+    setExpandedMenus(prev => ({
+      ...prev,
+      [itemTitle]: !prev[itemTitle]
+    }))
+  }
+
+  // Check if any submenu item is active
+  const isSubmenuActive = (subItems: any[]) => {
+    return subItems.some(subItem => pathname === subItem.url)
+  }
 
   return (
     <Sidebar collapsible="icon" {...props}>
@@ -202,15 +238,62 @@ function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
               <SidebarMenu>
                 {group.items.map((item) => {
                   const isActive = pathname === item.url
+                  const isExpanded = expandedMenus[item.title] || false
+                  const hasActiveSubItem = item.hasSubMenu && item.subItems ? isSubmenuActive(item.subItems) : false
+                  
                   return (
-                    <SidebarMenuItem key={item.title}>
-                      <SidebarMenuButton asChild isActive={isActive}>
-                        <Link href={item.url}>
-                          <item.icon />
-                          <span>{item.title}</span>
-                        </Link>
-                      </SidebarMenuButton>
-                    </SidebarMenuItem>
+                    <React.Fragment key={item.title}>
+                      {/* Main menu item */}
+                      <SidebarMenuItem>
+                        <div className="flex items-center w-full">
+                          {/* Main link - navigates to parent page */}
+                          <SidebarMenuButton asChild isActive={isActive || hasActiveSubItem} className="flex-1">
+                            <Link href={item.url} className="flex items-center">
+                              <item.icon className="h-4 w-4" />
+                              <span className="ml-2">{item.title}</span>
+                            </Link>
+                          </SidebarMenuButton>
+                          
+                          {/* Chevron button - toggles submenu */}
+                          {item.hasSubMenu && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-8 w-8 p-0 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+                              onClick={(e) => {
+                                e.preventDefault()
+                                toggleMenu(item.title)
+                              }}
+                            >
+                              {isExpanded ? (
+                                <ChevronDown className="h-4 w-4" />
+                              ) : (
+                                <ChevronRight className="h-4 w-4" />
+                              )}
+                            </Button>
+                          )}
+                        </div>
+                      </SidebarMenuItem>
+
+                      {/* Submenu items */}
+                      {item.hasSubMenu && item.subItems && isExpanded && (
+                        <div className="ml-4 border-l border-sidebar-border pl-4 space-y-1">
+                          {item.subItems.map((subItem) => {
+                            const isSubItemActive = pathname === subItem.url
+                            return (
+                              <SidebarMenuItem key={subItem.title}>
+                                <SidebarMenuButton asChild isActive={isSubItemActive} size="sm">
+                                  <Link href={subItem.url} className="flex items-center">
+                                    <subItem.icon className="h-4 w-4" />
+                                    <span className="ml-2">{subItem.title}</span>
+                                  </Link>
+                                </SidebarMenuButton>
+                              </SidebarMenuItem>
+                            )
+                          })}
+                        </div>
+                      )}
+                    </React.Fragment>
                   )
                 })}
               </SidebarMenu>
@@ -304,6 +387,8 @@ function getBreadcrumbs(pathname: string) {
 
   const routeMap: Record<string, string> = {
     flights: "Chuyến bay",
+    airlines: "Hãng hàng không",
+    airports: "Sân bay",
     hotels: "Khách sạn",
     bookings: "Đặt chỗ",
     customers: "Khách hàng",
