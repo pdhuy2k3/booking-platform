@@ -1,37 +1,28 @@
 {
- 
-  
   "mcpServers": {
-      "postgres-flight_db": {
-        "command": "docker",
-      "args": [
-        "run",
-        "-i",
-        "--rm",
-        "-e",
-        "DATABASE_URI",
-        "crystaldba/postgres-mcp",
-        "--access-mode=unrestricted"
-      ],
-        "env": {
-            "DATABASE_URI": "postgresql://postgres:p0stgr3s@host.docker.internal:5432/flight_db"
-        }
+    "context7": {
+      "type": "http",
+      "url": "https://mcp.context7.com/mcp"
     },
-    "postgres-hotel_db": {
-        "command": "docker",
+    "Serena": {
+      "command": "uvx",
       "args": [
-        "run",
-        "-i",
-        "--rm",
-        "-e",
-        "DATABASE_URI",
-        "crystaldba/postgres-mcp",
-        "--access-mode=unrestricted"
+        "--from",
+        "git+https://github.com/oraios/serena",
+        "serena-mcp-server",
+        "--context",
+        "ide-assistant",
+        "--project",
+        "F:/UIT/KhoaLuanTotNghiep/bookingsmart"
+      ]
+    },
+    "playwright": {
+      "type": "stdio",
+      "command": "npx",
+      "args": [
+        "@playwright/mcp@latest"
       ],
-        "env": {
-            "DATABASE_URI": "postgresql://postgres:p0stgr3s@host.docker.internal:5432/hotel_db"
-        }
+      "env": {}
     }
-  },
-  "contextFileName": "GEMINI.md"
+  }
 }

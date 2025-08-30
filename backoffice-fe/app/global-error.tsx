@@ -2,7 +2,7 @@
 
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { AlertTriangle, RefreshCw, Home, Bug } from "lucide-react"
+import {RefreshCw, Home, Bug } from "lucide-react"
 import Link from "next/link"
 import { useEffect } from "react"
 
@@ -12,6 +12,16 @@ interface ErrorProps {
 }
 
 export default function GlobalError({ error, reset }: ErrorProps) {
+  const logout = async () => {
+    try {
+
+      await fetch("/logout", { method: "POST" })
+    } catch (error) {
+      console.error("Logout failed:", error)
+
+      window.location.href = "/"
+    }
+  }
   useEffect(() => {
     // Log the error to an error reporting service
     console.error("Global Error:", error)
@@ -85,7 +95,7 @@ export default function GlobalError({ error, reset }: ErrorProps) {
                 <Button
                   variant="ghost"
                   className="w-full text-gray-500 hover:text-gray-700"
-                  onClick={() => (window.location.href = "/api/auth/logout")}
+                  onClick={logout}
                 >
                   Đăng xuất
                 </Button>

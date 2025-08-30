@@ -14,55 +14,108 @@ export interface PaginatedResponse<T> {
   last: boolean
 }
 
+export interface Airline {
+  id: number
+  name: string
+  code: string
+  country?: string
+  isActive: boolean
+  createdAt: string
+  updatedAt: string
+}
+
+export interface Airport {
+  id: number
+  name: string
+  code: string
+  city: string
+  country: string
+  timezone?: string
+  isActive: boolean
+  createdAt: string
+  updatedAt: string
+}
+
 export interface Flight {
-  id: string
+  id: number
   flightNumber: string
-  airline: string
-  departure: {
-    airport: string
-    city: string
-    time: string
-    date: string
-  }
-  arrival: {
-    airport: string
-    city: string
-    time: string
-    date: string
-  }
-  price: number
-  currency: string
-  totalSeats: number
-  availableSeats: number
-  status: "ACTIVE" | "CANCELLED" | "DELAYED"
+  airline: Airline
+  departureAirport: Airport
+  arrivalAirport: Airport
+  baseDurationMinutes?: number
+  aircraftType?: string
+  status: "ACTIVE" | "CANCELLED" | "DELAYED" | "ON_TIME"
+  basePrice?: number
+  isActive: boolean
   createdAt: string
   updatedAt: string
 }
 
 export interface Hotel {
-  id: string
+  id: number
   name: string
   description: string
   address: string
   city: string
   country: string
-  rating: number
-  amenities: string[]
+  starRating: number
+  availableRooms: number
+  minPrice: number
+  maxPrice?: number
+  averageRating?: number
+  totalReviews?: number
+  amenities?: Amenity[]
+  images?: string[]
+  latitude?: number
+  longitude?: number
+  status?: string
+  createdAt?: string
+  updatedAt?: string
+}
+
+export interface HotelDetails extends Hotel {
   rooms: Room[]
-  images: string[]
-  status: "ACTIVE" | "INACTIVE"
-  createdAt: string
-  updatedAt: string
+}
+
+export interface RoomType {
+  id: number
+  name: string
+  description: string
+  capacityAdults?: number
+  basePrice?: number
+  createdAt?: string
+  updatedAt?: string
+}
+
+export interface Amenity {
+  id: number
+  name: string
+  iconUrl?: string
+  isActive: boolean
+  displayOrder: number
+  createdAt?: string
+  updatedAt?: string
 }
 
 export interface Room {
-  id: string
-  type: string
+  id: number
+  hotelId: number
+  hotelName?: string
+  roomNumber: string
+  description: string
   price: number
-  currency: string
-  capacity: number
-  amenities: string[]
-  available: boolean
+  maxOccupancy: number
+  bedType: string
+  roomSize: number
+  isAvailable: boolean
+  roomType?: RoomType
+  roomTypeId?: number | null  // For creating/updating rooms
+  amenities?: Amenity[]
+  amenityIds?: number[]       // For creating/updating rooms
+  images?: string[]
+  imageUrls?: string[]        // For creating/updating rooms
+  createdAt?: string
+  updatedAt?: string
 }
 
 export interface Booking {

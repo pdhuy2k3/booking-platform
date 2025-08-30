@@ -44,6 +44,7 @@ public class CustomerService {
 
     public CustomerListVm getCustomers(int pageNo) {
         try {
+
             List<CustomerAdminVm> result = keycloak.realm(keycloakPropsConfig.getRealm()).users()
                     .search(null, pageNo * USER_PER_PAGE, USER_PER_PAGE).stream()
                     .filter(UserRepresentation::isEnabled)
@@ -72,15 +73,21 @@ public class CustomerService {
             throw new NotFoundException(Constants.ErrorCode.USER_NOT_FOUND);
         }
     }
-
+    //make sure revoke the user's access token before deleting the user
+    //if the user is not revoked, the user can still access the system with the old access token
+    //so we need to disable the user first, then delete the user
     public void deleteCustomer(String id) {
         UserRepresentation userRepresentation =
                 keycloak.realm(keycloakPropsConfig.getRealm()).users().get(id).toRepresentation();
         if (userRepresentation != null) {
             RealmResource realmResource = keycloak.realm(keycloakPropsConfig.getRealm());
             UserResource userResource = realmResource.users().get(id);
+            userResource.logout();
             userRepresentation.setEnabled(false);
             userResource.update(userRepresentation);
+            userResource.getUserSessions().forEach((session) -> {
+                realmResource.deleteSession(session.getId());
+            });
         } else {
             throw new NotFoundException(Constants.ErrorCode.USER_NOT_FOUND);
         }
@@ -106,6 +113,7 @@ public class CustomerService {
 
     public CustomerVm getCustomerProfile(String userId) {
         try {
+
             return CustomerVm.fromUserRepresentation(
                     keycloak.realm(keycloakPropsConfig.getRealm()).users().get(userId).toRepresentation());
 
@@ -171,6 +179,7 @@ public class CustomerService {
         CredentialRepresentation credential = createPasswordCredentials(customerPostVm.password());
         user.setCredentials(Collections.singletonList(credential));
         user.setEnabled(true);
+
         Response response = realmResource.users().create(user);
 
         // get new user
@@ -189,7 +198,7 @@ public class CustomerService {
         return !users.isEmpty();
     }
 
-    private boolean checkEmailExists(RealmResource realmResource, String email) {
+    boolean checkEmailExists(RealmResource realmResource, String email) {
         // Search for users by email
         List<UserRepresentation> users = realmResource.users().search(null, null, null, email, 0, 1);
         return !users.isEmpty();

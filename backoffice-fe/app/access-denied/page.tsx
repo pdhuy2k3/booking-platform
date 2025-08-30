@@ -5,7 +5,17 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { ShieldX, ArrowLeft, Home } from "lucide-react"
 import Link from "next/link"
 
+
 export default function AccessDeniedPage() {
+  const logout = async () => {
+    try {
+      await fetch("/logout", { method: "POST" })
+
+    } catch (error) {
+      console.error("Logout failed:", error)
+      window.location.href = "/"
+    }
+  }
   return (
     <div className="min-h-screen bg-gradient-to-br from-red-50 to-pink-50 flex items-center justify-center p-4">
       <Card className="w-full max-w-md shadow-2xl">
@@ -44,7 +54,7 @@ export default function AccessDeniedPage() {
             <Button
               variant="outline"
               className="w-full bg-transparent border-red-300 text-red-700 hover:bg-red-50"
-              onClick={() => (window.location.href = "/api/auth/logout")}
+              onClick={logout}
             >
               Đăng xuất và đăng nhập lại
             </Button>

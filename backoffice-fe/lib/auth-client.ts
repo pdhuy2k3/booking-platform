@@ -1,23 +1,19 @@
 import { mockUserInfo } from "./mock-data"
+import { apiClient } from '@/lib/api-client';
 
 export interface UserInfo {
   sub: string
-  name: string
+  username: string
   email: string
   roles: string[]
   permissions: string[]
 }
 
 export class AuthClient {
-  // TODO: Replace with real BFF endpoints
+
   static async getUserInfo(): Promise<UserInfo | null> {
     try {
-      // TODO: Replace with real API call
-      // return await apiClient.get<UserInfo>("/api/auth/userinfo")
-
-      // Mock implementation
-      await new Promise((resolve) => setTimeout(resolve, 500)) // Simulate network delay
-      return mockUserInfo
+      return await apiClient.get<UserInfo>("/api/customers/storefront/profile")
     } catch (error) {
       return null
     }
@@ -25,23 +21,8 @@ export class AuthClient {
 
   static async logout(): Promise<void> {
     try {
-      // Create a form and submit it as POST request to /logout
-      const form = document.createElement('form')
-      form.method = 'POST'
-      form.action = '/logout'
-      
-      // Add CSRF token if available (for security)
-      const csrfToken = document.querySelector('meta[name="_csrf"]')?.getAttribute('content')
-      if (csrfToken) {
-        const csrfInput = document.createElement('input')
-        csrfInput.type = 'hidden'
-        csrfInput.name = '_csrf'
-        csrfInput.value = csrfToken
-        form.appendChild(csrfInput)
-      }
-      
-      document.body.appendChild(form)
-      form.submit()
+      await apiClient.post("/logout")
+
     } catch (error) {
       console.error('Logout failed:', error)
       // Force redirect even if logout fails
@@ -59,7 +40,7 @@ export class AuthClient {
   }
 
   static loginUrl(): string {
-    // TODO: Replace with real BFF login endpoint
+
     return "/oauth2/authorization/api-client"
   }
 }
