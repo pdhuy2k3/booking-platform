@@ -1,6 +1,8 @@
 package com.pdh.hotel;
 
+import io.modelcontextprotocol.server.transport.WebMvcSseServerTransportProvider;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.boot.autoconfigure.domain.EntityScan;
@@ -10,7 +12,6 @@ import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
 import java.util.TimeZone;
 
 @SpringBootApplication(scanBasePackages = { "com.pdh.hotel","com.pdh.common" })
-@EnableDiscoveryClient
 @EnableJpaRepositories(basePackages = {"com.pdh.hotel"})
 @EntityScan(basePackages = {"com.pdh.hotel"})
 
@@ -26,4 +27,5 @@ public class HotelServiceApplication {
         
         log.info("BookingSmart Hotel Service started successfully!");
     }
+    
 }
