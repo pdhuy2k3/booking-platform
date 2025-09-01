@@ -1,8 +1,6 @@
 import axios, { type AxiosInstance, type AxiosRequestConfig, type AxiosResponse } from "axios"
 import {AuthClient} from "@/lib/auth-client";
 
-
-
 class ApiClient {
   private client: AxiosInstance
 

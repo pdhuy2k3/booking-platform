@@ -2,13 +2,21 @@ package com.pdh.hotel.controller;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.pdh.hotel.dto.HotelBookingDetailsDto;
+import com.pdh.hotel.dto.response.AmenityResponseDto;
+import com.pdh.hotel.dto.response.RoomResponseDto;
 import com.pdh.hotel.model.Hotel;
-import com.pdh.hotel.model.Room;
 import com.pdh.hotel.repository.HotelRepository;
 import com.pdh.hotel.repository.RoomRepository;
+import com.pdh.hotel.service.AmenityService;
 import com.pdh.hotel.service.HotelService;
+import com.pdh.hotel.service.RoomService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+
+import org.springframework.ai.tool.ToolCallbackProvider;
+import org.springframework.ai.tool.annotation.Tool;
+import org.springframework.ai.tool.method.MethodToolCallbackProvider;
+import org.springframework.context.annotation.Bean;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -16,7 +24,6 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
-import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.HashMap;
@@ -38,8 +45,12 @@ public class HotelController {
     private final HotelRepository hotelRepository;
     private final RoomRepository roomRepository;
     private final HotelService hotelService;
+    private final RoomService roomService;
+    private final AmenityService amenityService;
     private final ObjectMapper objectMapper;
+    
 
+  
     /**
      * Health check endpoint
      */
@@ -299,8 +310,8 @@ public class HotelController {
         response.put("rating", hotel.getStarRating() != null ? hotel.getStarRating().intValue() : 3);
         response.put("pricePerNight", generateMockPrice()); // Mock price - in production, get from pricing service
         response.put("currency", "VND");
-        response.put("availableRooms", generateMockRooms(hotel)); // Mock rooms - in production, get from inventory
-        response.put("amenities", generateMockAmenities()); // Mock amenities - in production, get from hotel amenities
+        response.put("availableRooms", getRealAvailableRooms(hotel)); // Get real rooms from service
+        response.put("amenities", getRealHotelAmenities()); // Get real amenities from service
         response.put("images", List.of("/hotel-" + hotel.getHotelId() + ".jpg")); // Mock images
         return response;
     }
@@ -318,8 +329,8 @@ public class HotelController {
         response.put("description", hotel.getDescription() != null ? hotel.getDescription() : "");
         response.put("pricePerNight", generateMockPrice());
         response.put("currency", "VND");
-        response.put("availableRooms", generateMockRooms(hotel));
-        response.put("amenities", generateMockAmenities());
+        response.put("availableRooms", getRealAvailableRooms(hotel)); // Get real rooms from service
+        response.put("amenities", getRealHotelAmenities()); // Get real amenities from service
         response.put("images", List.of("/hotel-" + hotel.getHotelId() + ".jpg", "/hotel-" + hotel.getHotelId() + "-room.jpg"));
         response.put("checkInTime", "14:00");
         response.put("checkOutTime", "12:00");
@@ -341,9 +352,55 @@ public class HotelController {
     }
 
     /**
-     * Generate mock available rooms (in production, this would come from inventory service)
+     * Get real available rooms from room service
      */
-    private List<Map<String, Object>> generateMockRooms(Hotel hotel) {
+    private List<Map<String, Object>> getRealAvailableRooms(Hotel hotel) {
+        try {
+            // Get rooms for this hotel using room service
+            Page<RoomResponseDto> roomsPage = roomService.getRoomsByHotel(hotel.getHotelId(), PageRequest.of(0, 20));
+            
+            return roomsPage.getContent().stream()
+                .map(room -> {
+                    Map<String, Object> roomMap = new HashMap<>();
+                    roomMap.put("roomId", room.getId());
+                    roomMap.put("roomNumber", room.getRoomNumber());
+                    roomMap.put("roomType", room.getRoomType() != null ? room.getRoomType().getName() : "Standard Room");
+                    roomMap.put("capacity", room.getMaxOccupancy() != null ? room.getMaxOccupancy() : 2);
+                    roomMap.put("pricePerNight", room.getPrice() != null ? room.getPrice().longValue() : generateMockPrice());
+                    roomMap.put("amenities", room.getAmenities() != null ? 
+                        room.getAmenities().stream().map(amenity -> amenity.getName()).collect(Collectors.toList()) : 
+                        List.of("WiFi", "Air Conditioning", "TV"));
+                    roomMap.put("available", room.getIsAvailable() != null ? room.getIsAvailable() : true);
+                    return roomMap;
+                })
+                .collect(Collectors.toList());
+        } catch (Exception e) {
+            log.warn("Failed to get real room data for hotel {}, falling back to fallback room data", hotel.getHotelId(), e);
+            return createFallbackRooms(hotel);
+        }
+    }
+
+    /**
+     * Get real hotel amenities from amenity service
+     */
+    private List<String> getRealHotelAmenities() {
+        try {
+            // Get all active amenities
+            List<AmenityResponseDto> amenities = amenityService.getActiveAmenities();
+            
+            return amenities.stream()
+                .map(AmenityResponseDto::getName)
+                .collect(Collectors.toList());
+        } catch (Exception e) {
+            log.warn("Failed to get real amenity data, falling back to fallback amenities", e);
+            return createFallbackAmenities();
+        }
+    }
+
+    /**
+     * Create fallback room data when real data is not available
+     */
+    private List<Map<String, Object>> createFallbackRooms(Hotel hotel) {
         return List.of(
             Map.of(
                 "roomId", "room-" + hotel.getHotelId() + "-1",
@@ -365,9 +422,9 @@ public class HotelController {
     }
 
     /**
-     * Generate mock amenities (in production, this would come from hotel amenities)
+     * Create fallback amenity data when real data is not available
      */
-    private List<String> generateMockAmenities() {
+    private List<String> createFallbackAmenities() {
         return List.of("WiFi", "Pool", "Spa", "Gym", "Restaurant", "Bar", "Parking", "Room Service");
     }
 }
