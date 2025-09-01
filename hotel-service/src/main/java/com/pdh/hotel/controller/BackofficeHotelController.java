@@ -3,6 +3,7 @@ package com.pdh.hotel.controller;
 import com.pdh.hotel.service.BackofficeHotelService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.ai.tool.annotation.Tool;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -23,6 +24,8 @@ public class BackofficeHotelController {
      * Get all hotels with pagination and filtering for backoffice
      */
     @GetMapping
+    @Tool(description = "Search hotels by destination, dates, guests, and rooms with pagination support")
+
     public ResponseEntity<Map<String, Object>> getAllHotels(
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "10") int size,
