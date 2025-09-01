@@ -19,6 +19,12 @@ target/
 *.iml
 *.ipr
 .junie
+.qoder
+.gemini
+.claude
+.qwen
+.serena
+QWEN.md
 ### NetBeans ###
 /nbproject/private/
 /nbbuild/

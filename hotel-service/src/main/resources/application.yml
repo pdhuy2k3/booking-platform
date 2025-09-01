@@ -1,12 +1,11 @@
 server:
   port: 8082
+  application:
+    name: HOTEL-SERVICE
   servlet:
     context-path: /hotels
 spring:
-  profiles:
-    active: local
-  application:
-    name: hotel-service
+
   threads:
     virtual:
       enabled: true
@@ -30,11 +29,25 @@ spring:
       hibernate:
         dialect: org.hibernate.dialect.PostgreSQLDialect
         format_sql: true
-  security:
-    oauth2:
-      resourceserver:
-        jwt:
-          issuer-uri: http://identity/realms/BookingSmart
+#  security:
+#    oauth2:
+#      resourceserver:
+#        jwt:
+#          issuer-uri: http://identity/realms/BookingSmart
+  ai:
+    mcp:
+      server:
+        enabled: true
+        stdio: false
+        name: hotel-mcp-server
+        version: 1.0.0
+        type: sync
+        base-url: /hotels
+        capabilities:
+          prompt: false
+          completion: false
+          resource: false
+          tool: true
 
   liquibase:
     enabled: true
@@ -59,6 +72,20 @@ spring:
   config:
     activate:
       on-profile: docker
+  ai:
+    mcp:
+      server:
+        enabled: true
+        stdio: false
+        name: hotel-mcp-server
+        version: 1.0.0
+        type: sync
+        base-url: /hotels
+        capabilities:
+          prompt: false
+          completion: false
+          resource: false
+          tool: true
   datasource:
     url: ${DB_URL}
     username: ${DB_USERNAME}
@@ -105,6 +132,7 @@ management:
 
 logging:
   level:
+    io.modelcontextprotocol: DEBUG
+    org.springframework.ai: DEBUG
     com.pdh.hotel: DEBUG
-    org.springframework.security: DEBUG
     org.hibernate.SQL: DEBUG

@@ -8,7 +8,6 @@ import org.springframework.security.config.annotation.web.reactive.EnableWebFlux
 
 @SpringBootApplication
 @EnableDiscoveryClient
-@EnableWebFluxSecurity
 @Slf4j
 public class BackOfficeApplication {
 
