@@ -41,12 +41,7 @@ spring:
             - TokenRelay=
 
         # Frontend fallback route - redirect to storefront domain
-        - id: frontend-fallback
-          uri: http://storefront:3000
-          predicates:
-            - Path=/**
-          filters:
-            - RedirectTo=302, http://storefront
+
       default-filters:
         - SaveSession
 
@@ -124,10 +119,7 @@ spring:
             - TokenRelay=
         
         # Frontend fallback route - redirect to storefront domain
-        - id: frontend-fallback
-          uri: http://storefront-fe:3000
-          predicates:
-            - Path=/**
+
 
       default-filters:
         - SaveSession

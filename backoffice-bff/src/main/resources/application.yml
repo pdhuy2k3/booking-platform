@@ -90,49 +90,22 @@ spring:
   cloud:
     gateway:
       routes:
-        - id: flight-service
-          uri: lb://FLIGHT-SERVICE
+        - id: sse
+          uri: ${API_URL}
           predicates:
-            - Path=/api/flights/**
+            - Path=/mcp/**
           filters:
-            - StripPrefix=1
+            - RewritePath=/mcp/(?<segment>.*), /$\{segment}
             - TokenRelay=
-        - id: hotel-service
-          uri: lb://HOTEL-SERVICE
+            - SetResponseHeader=Cache-Control, no-cache, no-transform
+            - AddResponseHeader=Connection, keep-alive
+        - id: api
+          uri: ${API_URL}
           predicates:
-            - Path=/api/hotels/**
+            - Path=/api/**
           filters:
-            - StripPrefix=1
+            - RewritePath=/api/(?<segment>.*), /$\{segment}
             - TokenRelay=
-        - id: booking-service
-          uri: lb://BOOKING-SERVICE
-          predicates:
-            - Path=/api/bookings/**
-          filters:
-            - StripPrefix=1
-            - TokenRelay=
-        - id: customer-service
-          uri: lb://CUSTOMER-SERVICE
-          predicates:
-            - Path=/api/customers/**
-          filters:
-            - StripPrefix=1
-            - TokenRelay=
-        - id: payment-service
-          uri: lb://PAYMENT-SERVICE
-          predicates:
-            - Path=/api/payments/**
-          filters:
-            - StripPrefix=1
-            - TokenRelay=
-        - id: notification-service
-          uri: lb://NOTIFICATION-SERVICE
-          predicates:
-            - Path=/api/notifications/**
-          filters:
-            - StripPrefix=1
-            - TokenRelay=
-        
         # Default frontend route (lowest priority)
         - id: frontend-fallback
           uri: http://backoffice-fe:3001

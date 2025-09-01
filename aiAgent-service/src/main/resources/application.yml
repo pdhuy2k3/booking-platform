@@ -1,0 +1,96 @@
+server:
+  port: 8090
+  servlet:
+    context-path: /ai
+spring:
+  profiles:
+    active: local,resilience
+  application:
+    name: aiAgent-service
+  threads:
+    virtual:
+      enabled: true
+  autoconfigure:
+    exclude:
+      - org.springframework.ai.mcp.client.autoconfigure.SseWebFluxTransportAutoConfiguration
+---
+spring:
+  config:
+    activate:
+      on-profile: local
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          issuer-uri: http://localhost:9090/realms/BookingSmart
+      client:
+        registration:
+          my-client1:
+            provider: auth-server
+            client-id: ai-agent
+            client-secret: ${BOOKING_SMART_AI_CLIENT_SECRET}
+            authorization-grant-type: client_credentials
+            scope:
+              - mcp
+        provider:
+          auth-server:
+            token-uri: http://localhost:9000/realms/BookingSmart/protocol/openid-connect/token
+  ai:
+    openai:
+      api-key: ${GEMINI_API_KEY}
+---
+spring:
+  config:
+    activate:
+      on-profile: docker
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          issuer-uri: ${JWT_ISSUER_URI}
+      client:
+        registration:
+          my-client1:
+            provider: auth-server
+            client-id: ai-agent
+            client-secret: ${BOOKING_SMART_AI_CLIENT_SECRET}
+            authorization-grant-type: client_credentials
+            scope:
+              - mcp
+        provider:
+          auth-server:
+            token-uri: ${KEYCLOAK_HOST}/realms/BookingSmart/protocol/openid-connect/token
+
+  ai:
+    openai:
+      api-key: ${GEMINI_API_KEY}
+      chat:
+        base-url: https://generativelanguage.googleapis.com
+        completions-path: /v1beta2/openai/chat/completions
+        options:
+          model: gemini-2.5-flash
+    mcp:
+      client:
+        enabled: true
+        name: llm-mcp-client-demo
+        version: 1.0.0
+
+        request-timeout: 120s
+        type: sync
+        root-change-notification: true
+        toolcallback.enabled: true
+        sse:
+          connections:
+            server1:
+              url: https://api-bookingsmart.huypd.dev
+              sse-endpoint: /hotels/sse
+        initialized: true
+eureka:
+  client:
+    serviceUrl:
+      defaultZone: ${EUREKA_URI}
+  instance:
+    prefer-ip-address: true
+
+
+
