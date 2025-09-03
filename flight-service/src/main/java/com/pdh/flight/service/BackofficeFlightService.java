@@ -6,8 +6,10 @@ import com.pdh.flight.dto.response.FlightDto;
 import com.pdh.flight.model.Airline;
 import com.pdh.flight.model.Airport;
 import com.pdh.flight.model.Flight;
+import com.pdh.flight.model.FlightImage;
 import com.pdh.flight.repository.AirlineRepository;
 import com.pdh.flight.repository.AirportRepository;
+import com.pdh.flight.repository.FlightImageRepository;
 import com.pdh.flight.repository.FlightRepository;
 import com.pdh.flight.repository.FlightScheduleRepository;
 import jakarta.persistence.EntityNotFoundException;
@@ -39,6 +41,7 @@ public class BackofficeFlightService {
     private final AirlineRepository airlineRepository;
     private final AirportRepository airportRepository;
     private final FlightScheduleRepository flightScheduleRepository;
+    private final FlightImageRepository flightImageRepository;
 
     /**
      * Get all flights with pagination and filtering
@@ -137,6 +140,11 @@ public class BackofficeFlightService {
         
         Flight savedFlight = flightRepository.save(flight);
         
+        // Handle images if provided
+        if (createDto.getImages() != null && !createDto.getImages().isEmpty()) {
+            processFlightImages(savedFlight.getFlightId(), createDto.getImages());
+        }
+        
         Map<String, Object> response = convertFlightToResponse(savedFlight);
         response.put("message", "Flight created successfully");
         
@@ -199,6 +207,11 @@ public class BackofficeFlightService {
         
         Flight updatedFlight = flightRepository.save(flight);
         
+        // Handle images if provided
+        if (updateDto.getImages() != null) {
+            processFlightImages(id, updateDto.getImages());
+        }
+        
         Map<String, Object> response = convertFlightToResponse(updatedFlight);
         response.put("message", "Flight updated successfully");
         
@@ -242,6 +255,51 @@ public class BackofficeFlightService {
         stats.put("totalAirports", airportRepository.count());
         
         return stats;
+    }
+
+    /**
+     * Process flight images by replacing existing active images with new ones
+     * @param flightId The flight ID
+     * @param imageUrls List of image URLs/publicIds from frontend
+     */
+    private void processFlightImages(Long flightId, List<String> imageUrls) {
+        if (imageUrls == null) {
+            // If no images provided, deactivate all existing images
+            List<FlightImage> existingImages = flightImageRepository.findByFlightIdAndIsActiveTrue(flightId);
+            existingImages.forEach(img -> img.setIsActive(false));
+            if (!existingImages.isEmpty()) {
+                flightImageRepository.saveAll(existingImages);
+            }
+            return;
+        }
+
+        // Deactivate all existing images first
+        List<FlightImage> existingImages = flightImageRepository.findByFlightIdAndIsActiveTrue(flightId);
+        existingImages.forEach(img -> img.setIsActive(false));
+        if (!existingImages.isEmpty()) {
+            flightImageRepository.saveAll(existingImages);
+        }
+
+        // Create new active images
+        List<FlightImage> newImages = new ArrayList<>();
+        for (int i = 0; i < imageUrls.size(); i++) {
+            String imageUrl = imageUrls.get(i);
+            if (imageUrl != null && !imageUrl.trim().isEmpty()) {
+                FlightImage flightImage = new FlightImage();
+                // Set the flight reference instead of flightId
+                Flight flight = new Flight();
+                flight.setFlightId(flightId);
+                flightImage.setFlight(flight);
+                flightImage.setImageUrl(imageUrl.trim());
+                flightImage.setIsActive(true);
+                flightImage.setDisplayOrder(i + 1);
+                newImages.add(flightImage);
+            }
+        }
+
+        if (!newImages.isEmpty()) {
+            flightImageRepository.saveAll(newImages);
+        }
     }
 
     // === Helper Methods ===
@@ -315,6 +373,14 @@ public class BackofficeFlightService {
         // Audit information
         response.put("createdAt", flight.getCreatedAt() != null ? flight.getCreatedAt().toString() : "");
         response.put("updatedAt", flight.getUpdatedAt() != null ? flight.getUpdatedAt().toString() : "");
+        
+        // Add images field - return simple URLs/publicIds for frontend MediaSelector compatibility
+        List<String> imageUrls = flight.getImages() != null ? 
+            flight.getImages().stream()
+                .filter(img -> img.getIsActive() != null && img.getIsActive())
+                .map(img -> img.getImageUrl())
+                .collect(Collectors.toList()) : new ArrayList<>();
+        response.put("images", imageUrls);
         
         return response;
     }

@@ -3,6 +3,8 @@ package com.pdh.hotel.dto.request;
 import jakarta.validation.constraints.*;
 import lombok.*;
 
+import java.util.List;
+
 /**
  * DTO for creating or updating amenity information
  */
@@ -25,4 +27,7 @@ public class AmenityRequestDto {
     @Min(value = 0, message = "Display order must be non-negative")
     @Max(value = 9999, message = "Display order cannot exceed 9999")
     private Integer displayOrder;
+    
+    // Images field for frontend MediaSelector compatibility
+    private List<String> images;
 }

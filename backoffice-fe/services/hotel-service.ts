@@ -29,12 +29,12 @@ export class HotelService {
 
   }
 
-  static async createHotel(hotel: Omit<Hotel, "id" | "createdAt" | "updatedAt" | "availableRooms" | "minPrice">): Promise<Hotel> {
+  static async createHotel(hotel: Omit<Hotel, "id" | "createdAt" | "updatedAt" | "availableRooms" | "minPrice"> & { images?: string[] }): Promise<Hotel> {
     return  await apiClient.post<Hotel>(this.BASE_PATH, hotel)
 
   }
 
-  static async updateHotel(id: number, hotel: Partial<Hotel>): Promise<Hotel> {
+  static async updateHotel(id: number, hotel: Partial<Hotel> & { images?: string[] }): Promise<Hotel> {
     return await apiClient.put<Hotel>(`${this.BASE_PATH}/${id}`, hotel)
 
   }

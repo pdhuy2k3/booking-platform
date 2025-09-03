@@ -3,6 +3,8 @@ package com.pdh.flight.service;
 import com.pdh.flight.dto.request.AirportRequestDto;
 import com.pdh.flight.dto.response.AirportDto;
 import com.pdh.flight.model.Airport;
+import com.pdh.flight.model.AirportImage;
+import com.pdh.flight.repository.AirportImageRepository;
 import com.pdh.flight.repository.AirportRepository;
 import com.pdh.flight.repository.FlightRepository;
 import jakarta.persistence.EntityNotFoundException;
@@ -31,6 +33,7 @@ public class BackofficeAirportService {
 
     private final AirportRepository airportRepository;
     private final FlightRepository flightRepository;
+    private final AirportImageRepository airportImageRepository;
 
     /**
      * Get all airports with pagination and filtering
@@ -120,6 +123,11 @@ public class BackofficeAirportService {
         
         Airport savedAirport = airportRepository.save(airport);
         
+        // Handle images if provided
+        if (requestDto.getImages() != null && !requestDto.getImages().isEmpty()) {
+            processAirportImages(savedAirport.getAirportId(), requestDto.getImages());
+        }
+        
         Map<String, Object> response = convertAirportToResponse(savedAirport);
         response.put("message", "Airport created successfully");
         
@@ -160,6 +168,11 @@ public class BackofficeAirportService {
         }
         
         Airport updatedAirport = airportRepository.save(airport);
+        
+        // Handle images if provided
+        if (requestDto.getImages() != null) {
+            processAirportImages(id, requestDto.getImages());
+        }
         
         Map<String, Object> response = convertAirportToResponse(updatedAirport);
         response.put("message", "Airport updated successfully");
@@ -230,6 +243,51 @@ public class BackofficeAirportService {
         return stats;
     }
 
+    /**
+     * Process airport images by replacing existing active images with new ones
+     * @param airportId The airport ID
+     * @param imageUrls List of image URLs/publicIds from frontend
+     */
+    private void processAirportImages(Long airportId, List<String> imageUrls) {
+        if (imageUrls == null) {
+            // If no images provided, deactivate all existing images
+            List<AirportImage> existingImages = airportImageRepository.findByAirportIdAndIsActiveTrue(airportId);
+            existingImages.forEach(img -> img.setIsActive(false));
+            if (!existingImages.isEmpty()) {
+                airportImageRepository.saveAll(existingImages);
+            }
+            return;
+        }
+
+        // Deactivate all existing images first
+        List<AirportImage> existingImages = airportImageRepository.findByAirportIdAndIsActiveTrue(airportId);
+        existingImages.forEach(img -> img.setIsActive(false));
+        if (!existingImages.isEmpty()) {
+            airportImageRepository.saveAll(existingImages);
+        }
+
+        // Create new active images
+        List<AirportImage> newImages = new ArrayList<>();
+        for (int i = 0; i < imageUrls.size(); i++) {
+            String imageUrl = imageUrls.get(i);
+            if (imageUrl != null && !imageUrl.trim().isEmpty()) {
+                AirportImage airportImage = new AirportImage();
+                // Set the airport reference instead of airportId
+                Airport airport = new Airport();
+                airport.setAirportId(airportId);
+                airportImage.setAirport(airport);
+                airportImage.setImageUrl(imageUrl.trim());
+                airportImage.setIsActive(true);
+                airportImage.setDisplayOrder(i + 1);
+                newImages.add(airportImage);
+            }
+        }
+
+        if (!newImages.isEmpty()) {
+            airportImageRepository.saveAll(newImages);
+        }
+    }
+
     // === Helper Methods ===
 
     /**
@@ -246,6 +304,14 @@ public class BackofficeAirportService {
         response.put("isActive", !airport.isDeleted());
         response.put("createdAt", airport.getCreatedAt() != null ? airport.getCreatedAt().toString() : "");
         response.put("updatedAt", airport.getUpdatedAt() != null ? airport.getUpdatedAt().toString() : "");
+        
+        // Add images field - return simple URLs/publicIds for frontend MediaSelector compatibility
+        List<String> imageUrls = airport.getImages() != null ? 
+            airport.getImages().stream()
+                .filter(img -> img.getIsActive() != null && img.getIsActive())
+                .map(img -> img.getImageUrl())
+                .collect(Collectors.toList()) : new ArrayList<>();
+        response.put("images", imageUrls);
         
         return response;
     }

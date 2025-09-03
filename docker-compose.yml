@@ -359,7 +359,26 @@ services:
       - SERVER_PORT
     networks:
       - booking-network
+  # Media Service - Temporarily disabled (not built in Maven)
 
+  media-service:
+
+    build:
+      context: ./media-service
+      dockerfile: Dockerfile
+    depends_on:
+      - discovery-service
+    environment:
+      - SPRING_PROFILES_ACTIVE=docker
+      - EUREKA_URI
+      - JWT_ISSUER_URI
+      - KAFKA_BOOTSTRAP_SERVERS
+      - SERVER_PORT
+      - CLOUDINARY_CLOUD_NAME
+      - CLOUDINARY_API_KEY
+      - CLOUDINARY_API_SECRET
+    networks:
+      - booking-network
   # Transport Service - Temporarily disabled (not built in Maven)
   #  transport-service:
   #    profiles:
@@ -381,22 +400,7 @@ services:
   #    networks:
   #      - booking-network
 
-  # Media Service - Temporarily disabled (not built in Maven)
-  #  media-service:
-  #    profiles:
-  #      - app
-  #    build:
-  #      context: ./media-service
-  #      dockerfile: Dockerfile
-  #    ports:
-  #      - "8089:8089"
-  #    depends_on:
-  #      - discovery-service
-  #    environment:
-  #      - SPRING_PROFILES_ACTIVE=docker
-  #      - EUREKA_URI=http://discovery-service:8761/eureka
-  #    networks:
-  #      - booking-network
+
 
   # Nginx Reverse Proxy - API Gateway for Cloudflare Tunnel
   nginx:
@@ -405,16 +409,6 @@ services:
       - "80:80"
     volumes:
       - ./nginx.conf:/etc/nginx/conf.d/default.conf
-    depends_on:
-      - identity
-      - storefront
-      - backoffice
-      - customer-service
-      - booking-service
-      - flight-service
-      - hotel-service
-      - payment-service
-      - notification-service
     networks:
       - booking-network
     restart: unless-stopped

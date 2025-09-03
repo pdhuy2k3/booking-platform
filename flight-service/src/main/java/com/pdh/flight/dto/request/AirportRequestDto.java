@@ -4,6 +4,8 @@ import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import jakarta.validation.constraints.*;
 import lombok.*;
 
+import java.util.List;
+
 /**
  * DTO for airport creation and updates
  */
@@ -30,4 +32,7 @@ public class AirportRequestDto {
     @NotBlank(message = "Country is required")
     @Size(max = 100, message = "Country name cannot exceed 100 characters")
     private String country;
+    
+    // Images field for frontend MediaSelector compatibility
+    private List<String> images;
 }

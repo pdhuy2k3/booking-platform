@@ -25,6 +25,8 @@ target/
 .qwen
 .serena
 QWEN.md
+GEMINI.md
+CLAUDE.md
 ### NetBeans ###
 /nbproject/private/
 /nbbuild/

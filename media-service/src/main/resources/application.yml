@@ -1,21 +1,96 @@
+# OpenAPI Documentation Configuration
+springdoc:
+  api-docs:
+    path: /api/docs
+    enabled: true
+  swagger-ui:
+    path: /api/swagger-ui
+    enabled: true
+    operationsSorter: method
+    tagsSorter: alpha
+    try-it-out-enabled: true
+    oauth:
+      clientId: swagger-ui
+      realm: BookingSmart
+      appName: ${spring.application.name}
+  show-actuator: true
+  group-configs:
+    - group: 'public'
+      display-name: 'Public API'
+      paths-to-match: ['/upload/**', '/download/**']
+    - group: 'admin'
+      display-name: 'Admin API'
+      paths-to-match: '/admin/**'
+
+# API Documentation Properties
+api:
+  info:
+    title: Media Service API
+    description: File upload and media management API for the BookingSmart platform
+    version: '@project.version@'
+    contact:
+      name: BookingSmart Media Team
+      email: media-team@bookingsmart.com
+    license:
+      name: MIT License
+      url: https://opensource.org/licenses/MIT
+    oauth2:
+      authorization-url: http://localhost:9090/realms/BookingSmart/protocol/openid-connect/auth
+      token-url: http://localhost:9090/realms/BookingSmart/protocol/openid-connect/token
+      refresh-url: http://localhost:9090/realms/BookingSmart/protocol/openid-connect/token
+      scopes:
+        admin: Administrative access to media management
+        customer: Customer access to media viewing and basic operations
+        partner: Partner access to media integration endpoints
+
+logging:
+  level:
+    com.pdh.media: DEBUG
+    org.springframework.security: DEBUG
+    org.springframework.oauth2: DEBUG
+server:
+  servlet:
+    context-path: /media
 spring:
   application:
-    name: media-service
-#   datasource:
-#     url: jdbc:postgresql://localhost:5432/bookingsmart
-#     username: postgres
-#     password: password
-#     driver-class-name: org.postgresql.Driver
-#   jpa:
-#     hibernate:
-#       ddl-auto: validate
-#     show-sql: false
-#     database-platform: org.hibernate.dialect.PostgreSQLDialect
-#     properties:
-#       hibernate:
-#         format_sql: true
-#         jdbc:
-#           time_zone: UTC
+    name: MEDIA-SERVICE
+  profiles:
+    active: local
+  servlet:
+    multipart:
+      max-file-size: 10MB
+      max-request-size: 10MB
+      enabled: true
+  threads:
+    virtual:
+      enabled: true
+
+---
+
+spring:
+  config:
+    activate:
+      on-profile: local
+  devtools:
+    restart:
+      enabled: true
+      poll-interval: 2000
+      quiet-period: 1000
+    livereload:
+      enabled: true
+      port: 35731
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          issuer-uri: http://localhost:9090/realms/BookingSmart
+
+# Cloudinary Configuration
+cloudinary:
+  cloud-name: ${CLOUDINARY_CLOUD_NAME}
+  api-key: ${CLOUDINARY_API_KEY}
+  api-secret: ${CLOUDINARY_API_SECRET}
+  secure: true
 
 server:
   port: 8089
@@ -26,8 +101,15 @@ eureka:
   client:
     service-url:
       defaultZone: http://localhost:8761/eureka/
+    fetch-registry: true
+    register-with-eureka: true
+    initial-instance-info-replication-interval-seconds: 5
+    instance-info-replication-interval-seconds: 5
   instance:
-    prefer-ip-address: true
+    hostname: localhost
+    prefer-ip-address: false
+    lease-renewal-interval-in-seconds: 5
+    lease-expiration-duration-in-seconds: 10
 
 management:
   endpoints:
@@ -38,7 +120,42 @@ management:
     health:
       show-details: always
 
-logging:
-  level:
-    com.pdh.media: DEBUG
-    org.springframework.web: DEBUG
+---
+
+spring:
+  config:
+    activate:
+      on-profile: docker
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          issuer-uri: ${JWT_ISSUER_URI}
+
+# Cloudinary Configuration
+cloudinary:
+  cloud-name: ${CLOUDINARY_CLOUD_NAME}
+  api-key: ${CLOUDINARY_API_KEY}
+  api-secret: ${CLOUDINARY_API_SECRET}
+  secure: true
+
+server:
+  port: 8089
+  servlet:
+    context-path: /media
+
+eureka:
+  client:
+    service-url:
+      defaultZone: ${EUREKA_URI}
+  instance:
+    prefer-ip-address: true
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: "*"
+  endpoint:
+    health:
+      show-details: always

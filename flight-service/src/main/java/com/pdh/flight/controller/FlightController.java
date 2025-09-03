@@ -1,6 +1,7 @@
 package com.pdh.flight.controller;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.pdh.common.config.OpenApiResponses;
 import com.pdh.flight.dto.FlightBookingDetailsDto;
 import com.pdh.flight.model.Flight;
 import com.pdh.flight.model.Airport;
@@ -9,6 +10,13 @@ import com.pdh.flight.repository.FlightRepository;
 import com.pdh.flight.repository.AirportRepository;
 import com.pdh.flight.repository.AirlineRepository;
 import com.pdh.flight.service.FlightService;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.Schema;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
@@ -29,11 +37,15 @@ import java.util.stream.Collectors;
 
 /**
  * Flight Controller
- * Xử lý các API requests liên quan đến chuyến bay
+ * 
+ * Handles all flight-related API endpoints including search, details, and reservations.
+ * This controller provides both public APIs for storefront and internal APIs for booking integration.
  */
 @RestController
 @RequiredArgsConstructor
 @Slf4j
+@Tag(name = "Flights", description = "Flight search and booking operations")
+@SecurityRequirement(name = "oauth2")
 public class FlightController {
 
     private final FlightRepository flightRepository;
@@ -45,6 +57,15 @@ public class FlightController {
     /**
      * Health check endpoint
      */
+    @Operation(
+        summary = "Flight service health check",
+        description = "Returns the health status of the flight service",
+        tags = {"Monitoring"}
+    )
+    @ApiResponses(value = {
+        @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "Service is healthy",
+            content = @Content(schema = @Schema(implementation = Map.class)))
+    })
     @GetMapping("/backoffice/flight/health")
     public ResponseEntity<Map<String, Object>> health() {
         log.info("Flight service health check requested");
@@ -65,15 +86,34 @@ public class FlightController {
      * Search flights for storefront
      * GET /flights/storefront/search?origin=HAN&destination=SGN&departureDate=2024-02-15&passengers=1&seatClass=ECONOMY
      */
+    @Operation(
+        summary = "Search flights",
+        description = "Search for flights based on origin, destination, date, and passenger requirements. Returns paginated results with availability and pricing information.",
+        tags = {"Public API", "Search"}
+    )
+    @ApiResponses(value = {
+        @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "Flights found successfully",
+            content = @Content(schema = @Schema(implementation = Map.class))
+        ),
+        @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400", description = "Invalid search parameters")
+    })
     @GetMapping("/storefront/search")
     public ResponseEntity<Map<String, Object>> searchFlights(
+            @Parameter(description = "Origin airport IATA code", required = true, example = "HAN")
             @RequestParam String origin,
+            @Parameter(description = "Destination airport IATA code", required = true, example = "SGN")
             @RequestParam String destination,
+            @Parameter(description = "Departure date in YYYY-MM-DD format", required = true, example = "2024-02-15")
             @RequestParam String departureDate,
+            @Parameter(description = "Return date in YYYY-MM-DD format (for round-trip)", example = "2024-02-20")
             @RequestParam(required = false) String returnDate,
+            @Parameter(description = "Number of passengers", example = "1")
             @RequestParam(defaultValue = "1") int passengers,
+            @Parameter(description = "Seat class", example = "ECONOMY")
             @RequestParam(defaultValue = "ECONOMY") String seatClass,
+            @Parameter(description = "Page number (1-based)", example = "1")
             @RequestParam(defaultValue = "1") int page,
+            @Parameter(description = "Number of results per page", example = "20")
             @RequestParam(defaultValue = "20") int limit) {
 
         log.info("Flight search request: origin={}, destination={}, departureDate={}, passengers={}, seatClass={}",
@@ -131,8 +171,16 @@ public class FlightController {
     /**
      * Get flight details by ID for storefront
      */
+    @Operation(
+        summary = "Get flight details",
+        description = "Retrieve detailed information about a specific flight including schedule, pricing, and availability",
+        tags = {"Public API"}
+    )
+    @OpenApiResponses.StandardApiResponsesWithNotFound
     @GetMapping("/storefront/{flightId}")
-    public ResponseEntity<Map<String, Object>> getStorefrontFlightDetails(@PathVariable Long flightId) {
+    public ResponseEntity<Map<String, Object>> getStorefrontFlightDetails(
+            @Parameter(description = "Flight ID", required = true, example = "1")
+            @PathVariable Long flightId) {
         log.info("Flight details request for ID: {}", flightId);
 
         try {
@@ -154,8 +202,15 @@ public class FlightController {
     /**
      * Get popular destinations for storefront
      */
+    @Operation(
+        summary = "Get popular destinations",
+        description = "Retrieve a list of popular flight destinations with average pricing information",
+        tags = {"Public API"}
+    )
+    @OpenApiResponses.StandardApiResponses
     @GetMapping("/storefront/popular-destinations")
     public ResponseEntity<List<Map<String, Object>>> getPopularDestinations(
+            @Parameter(description = "Origin airport code to filter destinations", example = "HAN")
             @RequestParam(required = false) String origin) {
 
         log.info("Popular destinations request with origin: {}", origin);
@@ -201,10 +256,19 @@ public class FlightController {
     }
 
     /**
-     * Lấy thông tin chi tiết chuyến bay
+     * Get flight details for backoffice
      */
+    @Operation(
+        summary = "Get flight details for backoffice",
+        description = "Retrieve flight information for administrative purposes",
+        tags = {"Admin API"}
+    )
+    @SecurityRequirement(name = "oauth2", scopes = {"admin"})
+    @OpenApiResponses.StandardApiResponsesWithNotFound
     @GetMapping("/backoffice/flight/{flightId}")
-    public ResponseEntity<Long> getFlightDetails(@PathVariable Long flightId) {
+    public ResponseEntity<Long> getFlightDetails(
+            @Parameter(description = "Flight ID", required = true, example = "1")
+            @PathVariable Long flightId) {
         log.info("Getting flight details for ID: {}", flightId);
         
         return ResponseEntity.ok(flightId);
@@ -216,8 +280,23 @@ public class FlightController {
      * Reserve flight for booking (called by Booking Service)
      * Enhanced to handle detailed product information
      */
+    @Operation(
+        summary = "Reserve flight",
+        description = "Create a flight reservation as part of the booking process. Supports both detailed product information and legacy mode.",
+        tags = {"Internal API", "Booking"}
+    )
+    @SecurityRequirement(name = "oauth2", scopes = {"admin", "internal"})
+    @ApiResponses(value = {
+        @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "Reservation created successfully",
+            content = @Content(schema = @Schema(implementation = Map.class))
+        ),
+        @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400", description = "Invalid reservation data"),
+        @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "500", description = "Reservation failed")
+    })
     @PostMapping("/reserve")
-    public ResponseEntity<Map<String, Object>> reserveFlight(@RequestBody Map<String, Object> request) {
+    public ResponseEntity<Map<String, Object>> reserveFlight(
+            @Parameter(description = "Reservation request containing booking details", required = true)
+            @RequestBody Map<String, Object> request) {
         log.info("Flight reservation request: {}", request);
 
         try {
@@ -282,6 +361,13 @@ public class FlightController {
     /**
      * Cancel flight reservation (compensation)
      */
+    @Operation(
+        summary = "Cancel flight reservation",
+        description = "Cancel a flight reservation as part of compensation logic in the booking saga",
+        tags = {"Internal API", "Booking"}
+    )
+    @SecurityRequirement(name = "oauth2", scopes = {"admin", "internal"})
+    @OpenApiResponses.StandardApiResponses
     @PostMapping("/cancel-reservation")
     public ResponseEntity<Map<String, Object>> cancelFlightReservation(@RequestBody Map<String, Object> request) {
         log.info("Flight cancellation request: {}", request);
@@ -310,6 +396,13 @@ public class FlightController {
     /**
      * Confirm flight reservation (final step)
      */
+    @Operation(
+        summary = "Confirm flight reservation",
+        description = "Confirm a flight reservation as the final step in the booking process",
+        tags = {"Internal API", "Booking"}
+    )
+    @SecurityRequirement(name = "oauth2", scopes = {"admin", "internal"})
+    @OpenApiResponses.StandardApiResponses
     @PostMapping("/confirm-reservation")
     public ResponseEntity<Map<String, Object>> confirmFlightReservation(@RequestBody Map<String, Object> request) {
         log.info("Flight confirmation request: {}", request);

@@ -1,5 +1,6 @@
 package com.pdh.flight.controller;
 
+import com.pdh.flight.client.MediaServiceClient;
 import com.pdh.flight.dto.request.AirlineRequestDto;
 import com.pdh.flight.service.BackofficeAirlineService;
 import jakarta.validation.Valid;
@@ -8,8 +9,10 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -22,6 +25,7 @@ import java.util.Map;
 public class BackofficeAirlineController {
 
     private final BackofficeAirlineService backofficeAirlineService;
+    private final MediaServiceClient mediaServiceClient;
 
     /**
      * Get all airlines with pagination and filtering for backoffice
@@ -182,4 +186,61 @@ public class BackofficeAirlineController {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(errorResponse);
         }
     }
+
+    /**
+     * Upload media for airline
+     */
+    @PostMapping("/{id}/media/upload")
+    public ResponseEntity<Map<String, Object>> uploadAirlineMedia(
+            @PathVariable("id") Long airlineId,
+            @RequestParam("file") MultipartFile file,
+            @RequestParam(value = "altText", required = false) String altText,
+            @RequestParam(value = "displayOrder", required = false) Integer displayOrder,
+            @RequestParam(value = "isPrimary", required = false) Boolean isPrimary,
+            @RequestParam(value = "folder", required = false) String folder
+    ) {
+        log.info("Uploading media for airline: ID={}", airlineId);
+        try {
+            // Upload to media service and get URL reference
+            String mediaUrl = mediaServiceClient.uploadImage(file, folder != null ? folder : "airlines");
+            
+            // TODO: Save the mediaUrl to airline's image collection in database
+            // Example: airlineService.addAirlineImage(airlineId, mediaUrl, altText, displayOrder, isPrimary);
+            
+            Map<String, Object> response = new HashMap<>();
+            response.put("mediaUrl", mediaUrl);
+            response.put("message", "Media uploaded successfully");
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            log.error("Error uploading airline media: ID={}", airlineId, e);
+            Map<String, Object> errorResponse = new HashMap<>();
+            errorResponse.put("error", "Failed to upload airline media");
+            errorResponse.put("message", e.getMessage());
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(errorResponse);
+        }
+    }
+
+    /**
+     * Get media for airline
+     */
+    @GetMapping("/{id}/media")
+    public ResponseEntity<Map<String, Object>> getAirlineMedia(@PathVariable("id") Long airlineId) {
+        log.info("Getting media for airline: ID={}", airlineId);
+        try {
+            // TODO: Get airline images from database
+            // Example: List<AirlineImage> images = airlineService.getAirlineImages(airlineId);
+            
+            Map<String, Object> response = new HashMap<>();
+            response.put("data", List.of()); // Replace with actual airline images
+            response.put("airlineId", airlineId);
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            log.error("Error getting airline media: ID={}", airlineId, e);
+            Map<String, Object> errorResponse = new HashMap<>();
+            errorResponse.put("error", "Failed to get airline media");
+            errorResponse.put("message", e.getMessage());
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(errorResponse);
+        }
+    }
+
 }

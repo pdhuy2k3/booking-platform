@@ -4,6 +4,8 @@ import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import jakarta.validation.constraints.*;
 import lombok.*;
 
+import java.util.List;
+
 /**
  * DTO for airline creation and updates
  */
@@ -27,4 +29,7 @@ public class AirlineRequestDto {
     @Pattern(regexp = "^(https?://).*\\.(jpg|jpeg|png|gif|svg)$", 
              message = "Logo URL must be a valid HTTP/HTTPS URL ending with jpg, jpeg, png, gif, or svg")
     private String logoUrl;
+    
+    // Images field for frontend MediaSelector compatibility
+    private List<String> images;
 }

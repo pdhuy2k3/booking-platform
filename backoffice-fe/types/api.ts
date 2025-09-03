@@ -22,6 +22,7 @@ export interface Airline {
   isActive: boolean
   createdAt: string
   updatedAt: string
+  images?: string[] // Array of image URLs or publicIds
 }
 
 export interface Airport {
@@ -34,6 +35,7 @@ export interface Airport {
   isActive: boolean
   createdAt: string
   updatedAt: string
+  images?: string[] // Array of image URLs or publicIds
 }
 
 export interface Flight {
@@ -49,6 +51,7 @@ export interface Flight {
   isActive: boolean
   createdAt: string
   updatedAt: string
+  images?: string[] // Array of image URLs or publicIds
 }
 
 export interface Hotel {

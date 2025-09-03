@@ -1,7 +1,12 @@
 package com.pdh.hotel.controller;
 
+import com.pdh.hotel.client.MediaServiceClient;
 import com.pdh.hotel.dto.request.RoomRequestDto;
 import com.pdh.hotel.dto.response.RoomResponseDto;
+import com.pdh.hotel.model.Room;
+import com.pdh.hotel.model.RoomImage;
+import com.pdh.hotel.repository.RoomRepository;
+import com.pdh.hotel.repository.RoomImageRepository;
 import com.pdh.hotel.service.RoomService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -13,10 +18,12 @@ import org.springframework.data.domain.Sort;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 /**
  * REST controller for managing rooms in backoffice
@@ -29,6 +36,9 @@ import java.util.Map;
 public class BackofficeRoomController {
     
     private final RoomService roomService;
+    private final MediaServiceClient mediaServiceClient;
+    private final RoomRepository roomRepository;
+    private final RoomImageRepository roomImageRepository;
     
     /**
      * Get all rooms for a specific hotel with pagination
@@ -260,4 +270,5 @@ public class BackofficeRoomController {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(errorResponse);
         }
     }
+
 }

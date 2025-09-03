@@ -3,9 +3,11 @@ package com.pdh.hotel.service;
 import com.pdh.hotel.model.Amenity;
 import com.pdh.hotel.model.Hotel;
 import com.pdh.hotel.model.HotelAmenity;
+import com.pdh.hotel.model.HotelImage;
 import com.pdh.hotel.model.Room;
 import com.pdh.hotel.repository.AmenityRepository;
 import com.pdh.hotel.repository.HotelAmenityRepository;
+import com.pdh.hotel.repository.HotelImageRepository;
 import com.pdh.hotel.repository.HotelRepository;
 import com.pdh.hotel.repository.RoomRepository;
 import jakarta.persistence.EntityNotFoundException;
@@ -33,6 +35,7 @@ public class BackofficeHotelService {
     private final RoomRepository roomRepository;
     private final AmenityRepository amenityRepository;
     private final HotelAmenityRepository hotelAmenityRepository;
+    private final HotelImageRepository hotelImageRepository;
 
     @Transactional(readOnly = true)
     public Map<String, Object> getAllHotels(int page, int size, String search, String city, String status) {
@@ -102,6 +105,15 @@ public class BackofficeHotelService {
         }
 
         Hotel savedHotel = hotelRepository.save(hotel);
+        
+        // Handle images if provided
+        Object imagesObj = hotelData.get("images");
+        if (imagesObj instanceof List<?>) {
+            @SuppressWarnings("unchecked")
+            List<String> imageUrls = (List<String>) imagesObj;
+            processHotelImages(savedHotel.getHotelId(), imageUrls);
+        }
+        
         Map<String, Object> response = convertHotelToResponse(savedHotel);
         response.put("message", "Hotel created successfully");
         return response;
@@ -128,6 +140,15 @@ public class BackofficeHotelService {
         }
 
         Hotel updatedHotel = hotelRepository.save(hotel);
+        
+        // Handle images if provided
+        Object imagesObj = hotelData.get("images");
+        if (imagesObj instanceof List<?>) {
+            @SuppressWarnings("unchecked")
+            List<String> imageUrls = (List<String>) imagesObj;
+            processHotelImages(id, imageUrls);
+        }
+        
         Map<String, Object> response = convertHotelToResponse(updatedHotel);
         response.put("message", "Hotel updated successfully");
         return response;
@@ -164,6 +185,51 @@ public class BackofficeHotelService {
         return response;
     }
 
+    /**
+     * Process hotel images by replacing existing active images with new ones
+     * @param hotelId The hotel ID
+     * @param imageUrls List of image URLs/publicIds from frontend
+     */
+    private void processHotelImages(Long hotelId, List<String> imageUrls) {
+        if (imageUrls == null || imageUrls.isEmpty()) {
+            // If no images provided, deactivate all existing images
+            List<HotelImage> existingImages = hotelImageRepository.findByHotelIdAndIsActiveTrue(hotelId);
+            existingImages.forEach(img -> img.setIsActive(false));
+            if (!existingImages.isEmpty()) {
+                hotelImageRepository.saveAll(existingImages);
+            }
+            return;
+        }
+
+        // Deactivate all existing images first
+        List<HotelImage> existingImages = hotelImageRepository.findByHotelIdAndIsActiveTrue(hotelId);
+        existingImages.forEach(img -> img.setIsActive(false));
+        if (!existingImages.isEmpty()) {
+            hotelImageRepository.saveAll(existingImages);
+        }
+
+        // Create new active images
+        List<HotelImage> newImages = new ArrayList<>();
+        for (int i = 0; i < imageUrls.size(); i++) {
+            String imageUrl = imageUrls.get(i);
+            if (imageUrl != null && !imageUrl.trim().isEmpty()) {
+                HotelImage hotelImage = new HotelImage();
+                // Set the hotel reference instead of hotelId
+                Hotel hotel = new Hotel();
+                hotel.setHotelId(hotelId);
+                hotelImage.setHotel(hotel);
+                hotelImage.setImageUrl(imageUrl.trim());
+                hotelImage.setIsActive(true);
+                hotelImage.setDisplayOrder(i + 1);
+                newImages.add(hotelImage);
+            }
+        }
+
+        if (!newImages.isEmpty()) {
+            hotelImageRepository.saveAll(newImages);
+        }
+    }
+
     // === Helper mapping methods ===
     private Map<String, Object> convertHotelToResponse(Hotel hotel) {
         Map<String, Object> response = new HashMap<>();
@@ -189,6 +255,14 @@ public class BackofficeHotelService {
         } else {
             response.put("amenities", Collections.emptyList());
         }
+
+        // Add images field - return simple URLs for frontend MediaSelector compatibility
+        List<HotelImage> hotelImages = hotelImageRepository.findByHotelIdAndIsActiveTrue(hotel.getHotelId());
+        List<String> imageUrls = hotelImages != null ? 
+            hotelImages.stream()
+                .map(HotelImage::getImageUrl)
+                .collect(Collectors.toList()) : new ArrayList<>();
+        response.put("images", imageUrls);
 
         return response;
     }

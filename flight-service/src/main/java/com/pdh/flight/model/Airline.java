@@ -7,6 +7,8 @@ import lombok.Data;
 import lombok.EqualsAndHashCode;
 import lombok.NoArgsConstructor;
 
+import java.util.List;
+
 @Entity
 @Table(name = "airlines")
 @Data
@@ -28,4 +30,8 @@ public class Airline extends AbstractAuditEntity {
 
     @Column(name = "logo_url", length = 500)
     private String logoUrl;
+
+    // One-to-Many relationship with AirlineImage
+    @OneToMany(mappedBy = "airline", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
+    private List<AirlineImage> images;
 }

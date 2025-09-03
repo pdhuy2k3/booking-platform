@@ -3,6 +3,8 @@ package com.pdh.flight.service;
 import com.pdh.flight.dto.request.AirlineRequestDto;
 import com.pdh.flight.dto.response.AirlineDto;
 import com.pdh.flight.model.Airline;
+import com.pdh.flight.model.AirlineImage;
+import com.pdh.flight.repository.AirlineImageRepository;
 import com.pdh.flight.repository.AirlineRepository;
 import com.pdh.flight.repository.FlightRepository;
 import jakarta.persistence.EntityNotFoundException;
@@ -31,6 +33,7 @@ public class BackofficeAirlineService {
 
     private final AirlineRepository airlineRepository;
     private final FlightRepository flightRepository;
+    private final AirlineImageRepository airlineImageRepository;
 
     /**
      * Get all airlines with pagination and filtering
@@ -109,6 +112,11 @@ public class BackofficeAirlineService {
         
         Airline savedAirline = airlineRepository.save(airline);
         
+        // Handle images if provided
+        if (requestDto.getImages() != null && !requestDto.getImages().isEmpty()) {
+            processAirlineImages(savedAirline.getAirlineId(), requestDto.getImages());
+        }
+        
         Map<String, Object> response = convertAirlineToResponse(savedAirline);
         response.put("message", "Airline created successfully");
         
@@ -145,6 +153,11 @@ public class BackofficeAirlineService {
         }
         
         Airline updatedAirline = airlineRepository.save(airline);
+        
+        // Handle images if provided
+        if (requestDto.getImages() != null) {
+            processAirlineImages(id, requestDto.getImages());
+        }
         
         Map<String, Object> response = convertAirlineToResponse(updatedAirline);
         response.put("message", "Airline updated successfully");
@@ -191,6 +204,51 @@ public class BackofficeAirlineService {
         return stats;
     }
 
+    /**
+     * Process airline images by replacing existing active images with new ones
+     * @param airlineId The airline ID
+     * @param imageUrls List of image URLs/publicIds from frontend
+     */
+    private void processAirlineImages(Long airlineId, List<String> imageUrls) {
+        if (imageUrls == null) {
+            // If no images provided, deactivate all existing images
+            List<AirlineImage> existingImages = airlineImageRepository.findByAirlineIdAndIsActiveTrue(airlineId);
+            existingImages.forEach(img -> img.setIsActive(false));
+            if (!existingImages.isEmpty()) {
+                airlineImageRepository.saveAll(existingImages);
+            }
+            return;
+        }
+
+        // Deactivate all existing images first
+        List<AirlineImage> existingImages = airlineImageRepository.findByAirlineIdAndIsActiveTrue(airlineId);
+        existingImages.forEach(img -> img.setIsActive(false));
+        if (!existingImages.isEmpty()) {
+            airlineImageRepository.saveAll(existingImages);
+        }
+
+        // Create new active images
+        List<AirlineImage> newImages = new ArrayList<>();
+        for (int i = 0; i < imageUrls.size(); i++) {
+            String imageUrl = imageUrls.get(i);
+            if (imageUrl != null && !imageUrl.trim().isEmpty()) {
+                AirlineImage airlineImage = new AirlineImage();
+                // Set the airline reference instead of airlineId
+                Airline airline = new Airline();
+                airline.setAirlineId(airlineId);
+                airlineImage.setAirline(airline);
+                airlineImage.setImageUrl(imageUrl.trim());
+                airlineImage.setIsActive(true);
+                airlineImage.setDisplayOrder(i + 1);
+                newImages.add(airlineImage);
+            }
+        }
+
+        if (!newImages.isEmpty()) {
+            airlineImageRepository.saveAll(newImages);
+        }
+    }
+
     // === Helper Methods ===
 
     /**
@@ -206,7 +264,13 @@ public class BackofficeAirlineService {
         response.put("isActive", !airline.isDeleted());
         response.put("createdAt", airline.getCreatedAt() != null ? airline.getCreatedAt().toString() : "");
         response.put("updatedAt", airline.getUpdatedAt() != null ? airline.getUpdatedAt().toString() : "");
-        
+        // Add images field - return simple URLs/publicIds for frontend MediaSelector compatibility
+        List<String> imageUrls = airline.getImages() != null ? 
+            airline.getImages().stream()
+                .filter(img -> img.getIsActive() != null && img.getIsActive())
+                .map(img -> img.getImageUrl())
+                .collect(Collectors.toList()) : new ArrayList<>();
+        response.put("images", imageUrls);
         return response;
     }
 
