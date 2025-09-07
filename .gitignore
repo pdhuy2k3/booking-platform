@@ -25,6 +25,9 @@ target/
 .qwen
 .serena
 QWEN.md
+GEMINI.md
+CLAUDE.md
+WARP.md
 ### NetBeans ###
 /nbproject/private/
 /nbbuild/
@@ -39,6 +42,8 @@ build/
 .vscode/
 .github/**/*.md
 .env
-
+memory
+scripts
+templates
 ### Node.js ###
 node_modules/

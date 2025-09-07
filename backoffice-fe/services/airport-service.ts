@@ -6,6 +6,7 @@ interface AirportCreateRequest {
   city: string
   country: string
   timezone?: string
+  images?: string[] // Array of publicIds from MediaSelector
 }
 
 interface AirportUpdateRequest {
@@ -14,6 +15,7 @@ interface AirportUpdateRequest {
   city?: string
   country?: string
   timezone?: string
+  images?: string[] // Array of publicIds from MediaSelector
 }
 
 export class AirportService {

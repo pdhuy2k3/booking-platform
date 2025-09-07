@@ -29,14 +29,18 @@ export class HotelService {
 
   }
 
-  static async createHotel(hotel: Omit<Hotel, "id" | "createdAt" | "updatedAt" | "availableRooms" | "minPrice">): Promise<Hotel> {
-    return  await apiClient.post<Hotel>(this.BASE_PATH, hotel)
-
+  static async createHotel(hotel: Omit<Hotel, "id" | "createdAt" | "updatedAt" | "availableRooms" | "minPrice"> & { mediaPublicIds?: string[] }): Promise<Hotel> {
+    // Remove images field if it exists and prepare data for backend
+    const { images, ...hotelData } = hotel as any
+    
+    return await apiClient.post<Hotel>(this.BASE_PATH, hotelData)
   }
 
-  static async updateHotel(id: number, hotel: Partial<Hotel>): Promise<Hotel> {
-    return await apiClient.put<Hotel>(`${this.BASE_PATH}/${id}`, hotel)
-
+  static async updateHotel(id: number, hotel: Partial<Hotel> & { mediaPublicIds?: string[] }): Promise<Hotel> {
+    // Remove images field if it exists and prepare data for backend
+    const { images, ...hotelData } = hotel as any
+    
+    return await apiClient.put<Hotel>(`${this.BASE_PATH}/${id}`, hotelData)
   }
 
   static async deleteHotel(id: number): Promise<void> {

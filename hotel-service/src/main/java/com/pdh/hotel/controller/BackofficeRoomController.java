@@ -2,6 +2,8 @@ package com.pdh.hotel.controller;
 
 import com.pdh.hotel.dto.request.RoomRequestDto;
 import com.pdh.hotel.dto.response.RoomResponseDto;
+import com.pdh.hotel.model.Room;
+import com.pdh.hotel.repository.RoomRepository;
 import com.pdh.hotel.service.RoomService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -17,18 +19,21 @@ import org.springframework.web.bind.annotation.*;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 /**
  * REST controller for managing rooms in backoffice
  */
 @RestController
 @RequestMapping("/backoffice")
-@RequiredArgsConstructor
 @Slf4j
 @CrossOrigin(origins = "*", maxAge = 3600)
+@RequiredArgsConstructor
 public class BackofficeRoomController {
     
     private final RoomService roomService;
+
+    private final RoomRepository roomRepository;
     
     /**
      * Get all rooms for a specific hotel with pagination
@@ -260,4 +265,8 @@ public class BackofficeRoomController {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(errorResponse);
         }
     }
+
+
+
+
 }

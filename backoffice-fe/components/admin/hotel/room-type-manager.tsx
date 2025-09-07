@@ -16,6 +16,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog"
+import { MediaSelector } from "@/components/ui/media-selector"
 import { Plus, Search, MoreHorizontal, Edit, Trash2, Users, DollarSign } from "lucide-react"
 import { RoomTypeService } from "@/services/room-type-service"
 import type { RoomType } from "@/types/api"
@@ -39,6 +40,8 @@ export function RoomTypeManager({ hotelId, onRoomTypesChange }: RoomTypeManagerP
     capacityAdults: 2,
     basePrice: 0,
   })
+  const [newRoomTypeImages, setNewRoomTypeImages] = useState<string[]>([])
+  const [editingRoomTypeImages, setEditingRoomTypeImages] = useState<string[]>([])
 
   useEffect(() => {
     loadRoomTypes()
@@ -73,7 +76,11 @@ export function RoomTypeManager({ hotelId, onRoomTypesChange }: RoomTypeManagerP
     }
 
     try {
-      await RoomTypeService.createRoomType(hotelId, newRoomType)
+      const roomTypeData = {
+        ...newRoomType,
+        mediaPublicIds: newRoomTypeImages
+      }
+      await RoomTypeService.createRoomType(hotelId, roomTypeData)
       toast.success("Loại phòng đã được tạo thành công")
       setIsCreateDialogOpen(false)
       setNewRoomType({
@@ -82,6 +89,7 @@ export function RoomTypeManager({ hotelId, onRoomTypesChange }: RoomTypeManagerP
         capacityAdults: 2,
         basePrice: 0,
       })
+      setNewRoomTypeImages([])
       loadRoomTypes()
       onRoomTypesChange?.()
     } catch (error: any) {
@@ -92,6 +100,7 @@ export function RoomTypeManager({ hotelId, onRoomTypesChange }: RoomTypeManagerP
 
   const handleEditRoomType = (roomType: RoomType) => {
     setSelectedRoomType(roomType)
+    setEditingRoomTypeImages(roomType.images || [])
     setIsEditDialogOpen(true)
   }
 
@@ -113,10 +122,15 @@ export function RoomTypeManager({ hotelId, onRoomTypesChange }: RoomTypeManagerP
     }
 
     try {
-      await RoomTypeService.updateRoomType(selectedRoomType.id, selectedRoomType)
+      const roomTypeData = {
+        ...selectedRoomType,
+        mediaPublicIds: editingRoomTypeImages
+      }
+      await RoomTypeService.updateRoomType(selectedRoomType.id, roomTypeData)
       toast.success("Loại phòng đã được cập nhật thành công")
       setIsEditDialogOpen(false)
       setSelectedRoomType(null)
+      setEditingRoomTypeImages([])
       loadRoomTypes()
       onRoomTypesChange?.()
     } catch (error: any) {
@@ -222,9 +236,20 @@ export function RoomTypeManager({ hotelId, onRoomTypesChange }: RoomTypeManagerP
                     />
                   </div>
                 </div>
+                <div className="space-y-2">
+                  <Label htmlFor="roomtype-images">Hình ảnh loại phòng</Label>
+                  <MediaSelector
+                    onChange={setNewRoomTypeImages}
+                    maxSelection={10}
+                    folder="room-types"
+                  />
+                </div>
               </div>
               <div className="flex justify-end space-x-2">
-                <Button variant="outline" onClick={() => setIsCreateDialogOpen(false)}>
+                <Button variant="outline" onClick={() => {
+                  setIsCreateDialogOpen(false)
+                  setNewRoomTypeImages([])
+                }}>
                   Hủy
                 </Button>
                 <Button 
@@ -367,10 +392,22 @@ export function RoomTypeManager({ hotelId, onRoomTypesChange }: RoomTypeManagerP
                   />
                 </div>
               </div>
+              <div className="space-y-2">
+                <Label htmlFor="edit-roomtype-images">Hình ảnh loại phòng</Label>
+                <MediaSelector
+                  value={editingRoomTypeImages}
+                  onChange={setEditingRoomTypeImages}
+                  maxSelection={10}
+                  folder="room-types"
+                />
+              </div>
             </div>
           )}
           <div className="flex justify-end space-x-2">
-            <Button variant="outline" onClick={() => setIsEditDialogOpen(false)}>
+            <Button variant="outline" onClick={() => {
+              setIsEditDialogOpen(false)
+              setEditingRoomTypeImages([])
+            }}>
               Hủy
             </Button>
             <Button 

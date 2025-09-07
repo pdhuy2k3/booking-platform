@@ -1,6 +1,29 @@
 server:
   port: 8761
 
+# OpenAPI Documentation Configuration
+springdoc:
+  api-docs:
+    path: /api/docs
+    enabled: true
+  swagger-ui:
+    path: /api/swagger-ui
+    enabled: true
+    operationsSorter: method
+    tagsSorter: alpha
+    try-it-out-enabled: true
+  show-actuator: true
+
+# API Documentation Properties
+api:
+  info:
+    title: Discovery Service API
+    description: Service discovery and registration API for the BookingSmart platform
+    version: '@project.version@'
+    contact:
+      name: BookingSmart Infrastructure Team
+      email: infra-team@bookingsmart.com
+
 spring:
   profiles:
     active: local
@@ -20,6 +43,11 @@ eureka:
   client:
     serviceUrl:
       defaultZone: http://localhost:8761/eureka
+    register-with-eureka: false
+    fetch-registry: false
+  server:
+    enable-self-preservation: false
+    eviction-interval-timer-in-ms: 5000
 
 ---
 
@@ -31,4 +59,21 @@ spring:
 eureka:
   client:
     serviceUrl:
-      defaultZone: ${EUREKA_URI}
+      defaultZone: ${EUREKA_URI:http://discovery-service:8761/eureka}
+    register-with-eureka: false
+    fetch-registry: false
+    restclient:
+      enabled: true
+
+  server:
+    enable-self-preservation: false
+    eviction-interval-timer-in-ms: 5000
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: "*"
+  endpoint:
+    health:
+      show-details: always

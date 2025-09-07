@@ -47,6 +47,6 @@ public class RoomRequestDto {
     // List of amenity IDs to associate with this room
     private List<Long> amenityIds;
     
-    // List of image URLs for the room
-    private List<String> imageUrls;
+    // List of media public IDs to associate with this room (from MediaSelector)
+    private List<String> mediaPublicIds;
 }

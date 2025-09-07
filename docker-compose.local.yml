@@ -1,0 +1,193 @@
+# Local Development Infrastructure
+# This compose file only runs infrastructure services, allowing microservices to run locally for faster development
+version: '3.8'
+
+services:
+  # PostgreSQL Database
+  postgres:
+    image: debezium/postgres:17-alpine
+    container_name: bookingsmart-postgres-local
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: p0stgr3s
+      POSTGRES_DB: postgres
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    volumes:
+      - postgres_local_data:/var/lib/postgresql/data
+      - ./postgres-init.sql:/docker-entrypoint-initdb.d/init.sql
+    networks:
+      - booking-local-network
+
+  # Redis for Caching and Event Deduplication
+  redis:
+    image: redis:7.2-alpine
+    container_name: bookingsmart-redis-local
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    volumes:
+      - redis_local_data:/data
+    command: redis-server --appendonly yes
+    networks:
+      - booking-local-network
+
+  # Zookeeper for Kafka
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.3.2
+    container_name: bookingsmart-zookeeper-local
+    ports:
+      - "2181:2181"
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+    networks:
+      - booking-local-network
+
+  # Kafka Message Broker
+  kafka:
+    image: confluentinc/cp-kafka:7.7.1
+    container_name: bookingsmart-kafka-local
+    ports:
+      - "9092:9092"
+      - "29092:29092"
+    depends_on:
+      - zookeeper
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://localhost:9092,PLAINTEXT_HOST://localhost:29092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: true
+      KAFKA_LOG_RETENTION_HOURS: 24
+    networks:
+      - booking-local-network
+
+  # Keycloak Identity Provider
+  identity:
+    image: quay.io/keycloak/keycloak:26.2.4
+    container_name: bookingsmart-keycloak-local
+    depends_on:
+      postgres:
+        condition: service_healthy
+    command: 'start-dev --import-realm --verbose --features=scripts'
+    environment:
+      KC_BOOTSTRAP_ADMIN_USERNAME: admin
+      KC_BOOTSTRAP_ADMIN_PASSWORD: admin
+      KC_DB: postgres
+      KC_DB_URL: jdbc:postgresql://postgres:5432/keycloak_db
+      KC_DB_USERNAME: postgres
+      KC_DB_PASSWORD: p0stgr3s
+      KC_FEATURES: scripts
+      
+    ports:
+      - "9090:8080"
+      - "8443:8443"
+    volumes:
+      - ./identity/realm-export.json:/opt/keycloak/data/import/realm-export.json
+      - ./identity/bookingsmart-keycloak-theme.jar:/opt/keycloak/providers/bookingsmart-keycloak-theme.jar
+    networks:
+      - booking-local-network
+
+  # Eureka Discovery Service
+  discovery-service:
+    build:
+      context: ./discovery-service
+      dockerfile: Dockerfile
+    container_name: bookingsmart-discovery-local
+    ports:
+      - "8761:8761"
+    environment:
+      - SPRING_PROFILES_ACTIVE=local
+      - SERVER_PORT=8761
+    networks:
+      - booking-local-network
+
+  # Debezium Connect for CDC (Optional for local development)
+  connect:
+    image: quay.io/debezium/connect:3.2.0.Final
+    container_name: bookingsmart-debezium-local
+    ports:
+      - "8083:8083"
+    depends_on:
+      kafka:
+        condition: service_started
+      postgres:
+        condition: service_healthy
+    environment:
+      BOOTSTRAP_SERVERS: kafka:29092
+      GROUP_ID: 1
+      CONFIG_STORAGE_TOPIC: connect_configs
+      OFFSET_STORAGE_TOPIC: connect_offsets
+      STATUS_STORAGE_TOPIC: connect_statuses
+      CONNECT_KEY_CONVERTER: org.apache.kafka.connect.json.JsonConverter
+      CONNECT_VALUE_CONVERTER: org.apache.kafka.connect.json.JsonConverter
+      CONNECT_REST_ADVERTISED_HOST_NAME: connect
+    volumes:
+      - ./debezium:/kafka/connect/debezium-connectors
+    networks:
+      - booking-local-network
+    profiles:
+      - full  # Only start with --profile full
+
+  # Kafka UI for Development Monitoring
+  kafka-ui:
+    image: provectuslabs/kafka-ui:latest
+    container_name: bookingsmart-kafka-ui-local
+    ports:
+      - "8080:8080"
+    depends_on:
+      - kafka
+    environment:
+      KAFKA_CLUSTERS_0_NAME: local
+      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:29092
+      KAFKA_CLUSTERS_0_ZOOKEEPER: zookeeper:2181
+    networks:
+      - booking-local-network
+    profiles:
+      - monitoring  # Only start with --profile monitoring
+
+  # PgAdmin for Database Management
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    container_name: bookingsmart-pgadmin-local
+    ports:
+      - "8888:80"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      PGADMIN_CONFIG_SERVER_MODE: 'False'
+      PGADMIN_DEFAULT_EMAIL: admin@local.dev
+      PGADMIN_DEFAULT_PASSWORD: admin123
+    volumes:
+      - pgadmin_local_data:/var/lib/pgadmin
+    networks:
+      - booking-local-network
+    profiles:
+      - monitoring  # Only start with --profile monitoring
+
+networks:
+  booking-local-network:
+    driver: bridge
+    name: booking-local-network
+
+volumes:
+  postgres_local_data:
+    name: bookingsmart_postgres_local_data
+  redis_local_data:
+    name: bookingsmart_redis_local_data
+  pgadmin_local_data:
+    name: bookingsmart_pgadmin_local_data

@@ -1,7 +1,9 @@
 package com.pdh.flight.service;
 
+import com.pdh.flight.client.MediaServiceClient;
 import com.pdh.flight.dto.request.AirportRequestDto;
 import com.pdh.flight.dto.response.AirportDto;
+import com.pdh.flight.mapper.AirportMapper;
 import com.pdh.flight.model.Airport;
 import com.pdh.flight.repository.AirportRepository;
 import com.pdh.flight.repository.FlightRepository;
@@ -16,7 +18,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
-import java.time.ZonedDateTime;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -31,6 +32,8 @@ public class BackofficeAirportService {
 
     private final AirportRepository airportRepository;
     private final FlightRepository flightRepository;
+    private final AirportMapper airportMapper;
+    private final MediaServiceClient mediaServiceClient;
 
     /**
      * Get all airports with pagination and filtering
@@ -56,9 +59,7 @@ public class BackofficeAirportService {
             airportPage = airportRepository.findAllActive(pageable);
         }
 
-        List<Map<String, Object>> airports = airportPage.getContent().stream()
-            .map(this::convertAirportToResponse)
-            .collect(Collectors.toList());
+        List<AirportDto> airports = airportMapper.toDtoListWithMedia(airportPage.getContent());
 
         Map<String, Object> response = new HashMap<>();
         response.put("content", airports);
@@ -78,32 +79,29 @@ public class BackofficeAirportService {
      * Get single airport with full details
      */
     @Transactional(readOnly = true)
-    public Map<String, Object> getAirport(Long id) {
+    public AirportDto getAirport(Long id) {
         log.info("Fetching airport details for backoffice: ID={}", id);
         
         Airport airport = airportRepository.findById(id)
             .orElseThrow(() -> new EntityNotFoundException("Airport not found with ID: " + id));
         
-        Map<String, Object> response = convertAirportToDetailedResponse(airport);
-        
-        // Add statistics
+        // Get statistics
         Long totalDepartureFlights = flightRepository.countByDepartureAirportId(id);
         Long totalArrivalFlights = flightRepository.countByArrivalAirportId(id);
         Long activeDepartureFlights = flightRepository.countByDepartureAirportIdAndStatus(id, "ACTIVE");
         Long activeArrivalFlights = flightRepository.countByArrivalAirportIdAndStatus(id, "ACTIVE");
         
-        response.put("totalDepartureFlights", totalDepartureFlights);
-        response.put("totalArrivalFlights", totalArrivalFlights);
-        response.put("activeDepartureFlights", activeDepartureFlights);
-        response.put("activeArrivalFlights", activeArrivalFlights);
+        AirportDto airportDto = airportMapper.toDtoWithMediaAndStats(airport, totalDepartureFlights, 
+                totalArrivalFlights, activeDepartureFlights, activeArrivalFlights);
         
-        return response;
+        log.info("Retrieved airport details for ID: {}", id);
+        return airportDto;
     }
 
     /**
      * Create new airport
      */
-    public Map<String, Object> createAirport(AirportRequestDto requestDto) {
+    public AirportDto createAirport(AirportRequestDto requestDto) {
         log.info("Creating new airport: {}", requestDto.getName());
         
         // Validate IATA code uniqueness
@@ -111,17 +109,22 @@ public class BackofficeAirportService {
             throw new IllegalArgumentException("IATA code already exists: " + requestDto.getCode());
         }
         
-        // Create new airport
-        Airport airport = new Airport();
-        airport.setName(requestDto.getName());
-        airport.setIataCode(requestDto.getCode().toUpperCase());
-        airport.setCity(requestDto.getCity());
-        airport.setCountry(requestDto.getCountry());
-        
+        // Create new airport using mapper
+        Airport airport = airportMapper.toEntity(requestDto);
         Airport savedAirport = airportRepository.save(airport);
-        
-        Map<String, Object> response = convertAirportToResponse(savedAirport);
-        response.put("message", "Airport created successfully");
+
+        // Associate media if provided
+        if (requestDto.getMediaPublicIds() != null && !requestDto.getMediaPublicIds().isEmpty()) {
+            try {
+                mediaServiceClient.associateMediaWithEntity("AIRPORT", savedAirport.getAirportId(), requestDto.getMediaPublicIds());
+                log.info("Associated {} media items with airport ID: {}", requestDto.getMediaPublicIds().size(), savedAirport.getAirportId());
+            } catch (Exception e) {
+                log.error("Failed to associate media with airport ID: {}. Error: {}", savedAirport.getAirportId(), e.getMessage());
+                // Continue without failing the airport creation
+            }
+        }
+
+        AirportDto response = airportMapper.toDto(savedAirport);
         
         log.info("Airport created successfully with ID: {}", savedAirport.getAirportId());
         return response;
@@ -130,7 +133,7 @@ public class BackofficeAirportService {
     /**
      * Update existing airport
      */
-    public Map<String, Object> updateAirport(Long id, AirportRequestDto requestDto) {
+    public AirportDto updateAirport(Long id, AirportRequestDto requestDto) {
         log.info("Updating airport: ID={}", id);
         
         Airport airport = airportRepository.findById(id)
@@ -143,26 +146,24 @@ public class BackofficeAirportService {
                 airportRepository.existsByIataCodeIgnoreCase(upperIataCode)) {
                 throw new IllegalArgumentException("IATA code already exists: " + upperIataCode);
             }
-            airport.setIataCode(upperIataCode);
         }
         
-        // Update fields
-        if (StringUtils.hasText(requestDto.getName())) {
-            airport.setName(requestDto.getName());
-        }
-        
-        if (StringUtils.hasText(requestDto.getCity())) {
-            airport.setCity(requestDto.getCity());
-        }
-        
-        if (StringUtils.hasText(requestDto.getCountry())) {
-            airport.setCountry(requestDto.getCountry());
-        }
-        
+        // Update entity using mapper
+        airportMapper.updateEntityFromRequest(airport, requestDto);
         Airport updatedAirport = airportRepository.save(airport);
-        
-        Map<String, Object> response = convertAirportToResponse(updatedAirport);
-        response.put("message", "Airport updated successfully");
+
+        // Associate media if provided
+        if (requestDto.getMediaPublicIds() != null && !requestDto.getMediaPublicIds().isEmpty()) {
+            try {
+                mediaServiceClient.associateMediaWithEntity("AIRPORT", updatedAirport.getAirportId(), requestDto.getMediaPublicIds());
+                log.info("Associated {} media items with airport ID: {}", requestDto.getMediaPublicIds().size(), updatedAirport.getAirportId());
+            } catch (Exception e) {
+                log.error("Failed to associate media with airport ID: {}. Error: {}", updatedAirport.getAirportId(), e.getMessage());
+                // Continue without failing the airport update
+            }
+        }
+
+        AirportDto response = airportMapper.toDto(updatedAirport);
         
         log.info("Airport updated successfully with ID: {}", id);
         return response;
@@ -187,8 +188,7 @@ public class BackofficeAirportService {
         }
         
         // Soft delete to preserve referential integrity
-        airport.setDeleted(true);
-        airport.setDeletedAt(ZonedDateTime.now());
+        airport.setIsActive(false);
         airportRepository.save(airport);
         
         log.info("Airport deleted successfully with ID: {}", id);
@@ -210,9 +210,7 @@ public class BackofficeAirportService {
         Page<Airport> airports = airportRepository.findByNameContainingIgnoreCaseOrIataCodeContainingIgnoreCaseOrCityContainingIgnoreCase(
             query, query, query, pageable);
         
-        return airports.getContent().stream()
-            .map(this::convertAirportToSimpleResponse)
-            .collect(Collectors.toList());
+        return airportMapper.toSimpleResponseList(airports.getContent());
     }
 
     /**
@@ -228,40 +226,5 @@ public class BackofficeAirportService {
         stats.put("activeAirports", activeAirports);
         
         return stats;
-    }
-
-    // === Helper Methods ===
-
-    /**
-     * Convert Airport entity to response format
-     */
-    public Map<String, Object> convertAirportToResponse(Airport airport) {
-        Map<String, Object> response = new HashMap<>();
-        
-        response.put("id", airport.getAirportId());
-        response.put("name", airport.getName() != null ? airport.getName() : "");
-        response.put("code", airport.getIataCode() != null ? airport.getIataCode() : "");
-        response.put("city", airport.getCity() != null ? airport.getCity() : "");
-        response.put("country", airport.getCountry() != null ? airport.getCountry() : "");
-        response.put("isActive", !airport.isDeleted());
-        response.put("createdAt", airport.getCreatedAt() != null ? airport.getCreatedAt().toString() : "");
-        response.put("updatedAt", airport.getUpdatedAt() != null ? airport.getUpdatedAt().toString() : "");
-        
-        return response;
-    }
-
-    private Map<String, Object> convertAirportToDetailedResponse(Airport airport) {
-        return convertAirportToResponse(airport);
-    }
-
-    private Map<String, Object> convertAirportToSimpleResponse(Airport airport) {
-        Map<String, Object> response = new HashMap<>();
-        response.put("id", airport.getAirportId());
-        response.put("name", airport.getName());
-        response.put("iataCode", airport.getIataCode());
-        response.put("city", airport.getCity());
-        response.put("country", airport.getCountry());
-        response.put("label", airport.getIataCode() + " - " + airport.getName() + " (" + airport.getCity() + ")");
-        return response;
     }
 }

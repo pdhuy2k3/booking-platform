@@ -25,11 +25,14 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
 import { Label } from "@/components/ui/label"
-import { Plus, Search, Edit, Trash2, Plane, Building } from "lucide-react"
+import { Plus, Search, Edit, Trash2, Plane, Building, MoreHorizontal, ImageIcon } from "lucide-react"
 import { AdminLayout } from "@/components/admin/admin-layout"
 import { AirlineService } from "@/services/airline-service"
+import { MediaSelector } from "@/components/ui/media-selector"
+const { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } = require("@/components/ui/dropdown-menu")
 import type { Airline, PaginatedResponse } from "@/types/api"
 import { toast } from "@/components/ui/use-toast"
+import { mediaService } from "@/services/media-service"
 
 interface AirlineFormData {
   name: string
@@ -49,10 +52,15 @@ export default function AdminAirlines() {
   
   // Form states
   const [formData, setFormData] = useState<AirlineFormData>({ name: "", code: "" })
-  const [formErrors, setFormErrors] = useState<Partial<AirlineFormData>>({})
+  const [formDataImages, setFormDataImages] = useState<string[]>([])
+  const [formErrors, setFormErrors] = useState<Partial<AirlineFormData>>({
+
+  })
   const [editingAirline, setEditingAirline] = useState<Airline | null>(null)
+  const [editingAirlineImages, setEditingAirlineImages] = useState<string[]>([])
   const [deletingAirline, setDeletingAirline] = useState<Airline | null>(null)
   const [submitting, setSubmitting] = useState(false)
+
 
   useEffect(() => {
     loadAirlines()
@@ -101,10 +109,15 @@ export default function AdminAirlines() {
     
     try {
       setSubmitting(true)
-      await AirlineService.createAirline({
+      
+      // Combine basic airline data with selected images
+      const airlineData = {
         name: formData.name.trim(),
         code: formData.code.trim().toUpperCase(),
-      })
+        mediaPublicIds: formDataImages // Send image publicIds to backend
+      }
+      
+      await AirlineService.createAirline(airlineData)
       
       toast({
         title: "Thành công",
@@ -113,6 +126,7 @@ export default function AdminAirlines() {
       
       setIsAddDialogOpen(false)
       setFormData({ name: "", code: "" })
+      setFormDataImages([])
       setFormErrors({})
       loadAirlines()
     } catch (error: any) {
@@ -132,10 +146,15 @@ export default function AdminAirlines() {
     
     try {
       setSubmitting(true)
-      await AirlineService.updateAirline(editingAirline.id, {
+      
+      // Combine basic airline data with selected images
+      const airlineData = {
         name: formData.name.trim(),
         code: formData.code.trim().toUpperCase(),
-      })
+        mediaPublicIds: editingAirlineImages // Send image publicIds to backend
+      }
+      
+      await AirlineService.updateAirline(editingAirline.id, airlineData)
       
       toast({
         title: "Thành công",
@@ -145,6 +164,7 @@ export default function AdminAirlines() {
       setIsEditDialogOpen(false)
       setEditingAirline(null)
       setFormData({ name: "", code: "" })
+      setEditingAirlineImages([])
       setFormErrors({})
       loadAirlines()
     } catch (error: any) {
@@ -192,6 +212,8 @@ export default function AdminAirlines() {
       name: airline.name,
       code: airline.code,
     })
+    // Load existing images if available
+    setEditingAirlineImages(airline.images || [])
     setFormErrors({})
     setIsEditDialogOpen(true)
   }
@@ -208,6 +230,38 @@ export default function AdminAirlines() {
 
   const totalAirlines = airlines?.totalElements || 0
   const activeAirlines = airlines?.content.filter(a => a.isActive).length || 0
+
+  const renderAirlineLogo = (airline: Airline) => {
+    // Get the first image if available
+    const firstImagePublicId = airline.images && airline.images.length > 0 ? airline.images[0] : null
+    
+    if (firstImagePublicId) {
+      // Use the media service to generate an optimized Cloudinary URL
+      // The mediaService expects the full path format /api/media/{publicId}
+      const imageUrl = mediaService.getOptimizedUrl(`/api/media/${firstImagePublicId}`, {
+        width: 32,
+        height: 32,
+        crop: 'fill',
+        quality: 'auto'
+      })
+      
+      return (
+        <img 
+          src={imageUrl} 
+          alt={airline.name} 
+          className="w-8 h-8 object-cover rounded-md"
+          onError={(e) => {
+            // Fallback to placeholder if image fails to load
+            const target = e.target as HTMLImageElement
+            target.src = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='32' height='32' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' fill='%23e5e7eb'/%3E%3C/svg%3E"
+          }}
+        />
+      )
+    }
+    
+    // Fallback placeholder
+    return <div className="bg-gray-200 border-2 border-dashed rounded-md w-8 h-8" />
+  }
 
   return (
     <AdminLayout>
@@ -252,6 +306,16 @@ export default function AdminAirlines() {
                   className={formErrors.code ? "border-red-500" : ""}
                 />
                 {formErrors.code && <p className="text-sm text-red-500">{formErrors.code}</p>}
+              </div>
+              <div className="space-y-2">
+                <Label>Logo hãng hàng không</Label>
+                <MediaSelector
+                  value={formDataImages}
+                  onChange={setFormDataImages}
+                  folder="airlines"
+                  maxSelection={2}
+                  allowUpload={true}
+                />
               </div>
             </div>
             <div className="flex justify-end space-x-2">
@@ -328,6 +392,7 @@ export default function AdminAirlines() {
             <Table className="min-w-[600px]">
               <TableHeader>
                 <TableRow>
+                  <TableHead>Logo</TableHead>
                   <TableHead>Mã IATA</TableHead>
                   <TableHead>Tên hãng</TableHead>
                   <TableHead>Trạng thái</TableHead>
@@ -338,7 +403,7 @@ export default function AdminAirlines() {
               <TableBody>
                 {loading ? (
                   <TableRow>
-                    <TableCell colSpan={5} className="text-center py-8">
+                    <TableCell colSpan={6} className="text-center py-8">
                       <div className="flex items-center justify-center">
                         <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div>
                         <span className="ml-2">Đang tải...</span>
@@ -347,13 +412,16 @@ export default function AdminAirlines() {
                   </TableRow>
                 ) : airlines?.content.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={5} className="text-center py-8 text-gray-500">
+                    <TableCell colSpan={6} className="text-center py-8 text-gray-500">
                       Không có dữ liệu
                     </TableCell>
                   </TableRow>
                 ) : (
                   airlines?.content.map((airline) => (
                     <TableRow key={airline.id}>
+                      <TableCell>
+                        {renderAirlineLogo(airline)}
+                      </TableCell>
                       <TableCell className="font-medium">{airline.code}</TableCell>
                       <TableCell>{airline.name}</TableCell>
                       <TableCell>
@@ -363,19 +431,26 @@ export default function AdminAirlines() {
                       </TableCell>
                       <TableCell>{new Date(airline.createdAt).toLocaleDateString('vi-VN')}</TableCell>
                       <TableCell>
-                        <div className="flex items-center space-x-2">
-                          <Button variant="ghost" size="sm" onClick={() => openEditDialog(airline)}>
-                            <Edit className="h-4 w-4" />
-                          </Button>
-                          <Button 
-                            variant="ghost" 
-                            size="sm" 
-                            className="text-red-600 hover:text-red-700"
-                            onClick={() => openDeleteDialog(airline)}
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        </div>
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" className="h-8 w-8 p-0">
+                              <MoreHorizontal className="h-4 w-4" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuItem onClick={() => openEditDialog(airline)}>
+                              <Edit className="mr-2 h-4 w-4" />
+                              Chỉnh sửa
+                            </DropdownMenuItem>
+                            <DropdownMenuItem 
+                              className="text-red-600"
+                              onClick={() => openDeleteDialog(airline)}
+                            >
+                              <Trash2 className="mr-2 h-4 w-4" />
+                              Xóa hãng
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
                       </TableCell>
                     </TableRow>
                   ))
@@ -417,6 +492,16 @@ export default function AdminAirlines() {
               />
               {formErrors.code && <p className="text-sm text-red-500">{formErrors.code}</p>}
             </div>
+            <div className="space-y-2">
+              <Label>Logo hãng hàng không</Label>
+              <MediaSelector
+                value={editingAirlineImages}
+                onChange={setEditingAirlineImages}
+                folder="airlines"
+                maxSelection={2}
+                allowUpload={true}
+              />
+            </div>
           </div>
           <div className="flex justify-end space-x-2">
             <Button variant="outline" onClick={() => setIsEditDialogOpen(false)} disabled={submitting}>
@@ -451,6 +536,8 @@ export default function AdminAirlines() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+
     </AdminLayout>
   )
 }

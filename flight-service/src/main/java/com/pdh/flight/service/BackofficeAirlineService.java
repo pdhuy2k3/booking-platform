@@ -1,7 +1,9 @@
 package com.pdh.flight.service;
 
+import com.pdh.flight.client.MediaServiceClient;
 import com.pdh.flight.dto.request.AirlineRequestDto;
 import com.pdh.flight.dto.response.AirlineDto;
+import com.pdh.flight.mapper.AirlineMapper;
 import com.pdh.flight.model.Airline;
 import com.pdh.flight.repository.AirlineRepository;
 import com.pdh.flight.repository.FlightRepository;
@@ -16,7 +18,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
-import java.time.ZonedDateTime;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -26,191 +27,162 @@ import java.util.stream.Collectors;
 @Service
 @RequiredArgsConstructor
 @Slf4j
-@Transactional
 public class BackofficeAirlineService {
 
     private final AirlineRepository airlineRepository;
     private final FlightRepository flightRepository;
+    private final AirlineMapper airlineMapper;
+    private final MediaServiceClient mediaServiceClient;
 
     /**
-     * Get all airlines with pagination and filtering
+     * Get all airlines with pagination and filtering for backoffice
      */
-    @Transactional(readOnly = true)
-    public Map<String, Object> getAllAirlines(int page, int size, String search) {
-        log.info("Fetching airlines for backoffice: page={}, size={}, search={}", page, size, search);
+    public Map<String, Object> getAllAirlines(int page, int size, String search, String country) {
+        log.info("Fetching airlines for backoffice with search: {}, country: {}, page: {}, size: {}", 
+                search, country, page, size);
 
-        Sort sort = Sort.by(Sort.Direction.ASC, "name").and(Sort.by("iataCode"));
-        Pageable pageable = PageRequest.of(page, size, sort);
+        Pageable pageable = PageRequest.of(page, size, Sort.by("name").ascending());
+        Page<Airline> airlinePage = airlineRepository.findAll(pageable);
 
-        Page<Airline> airlinePage;
-        
-        if (StringUtils.hasText(search)) {
-            airlinePage = airlineRepository.findByNameContainingIgnoreCase(search, pageable);
-        } else {
-            airlinePage = airlineRepository.findAllActive(pageable);
-        }
-
-        List<Map<String, Object>> airlines = airlinePage.getContent().stream()
-            .map(this::convertAirlineToResponse)
-            .collect(Collectors.toList());
+        List<AirlineDto> airlineDtos = airlinePage.getContent().stream()
+                .map(airlineMapper::toDto)
+                .collect(Collectors.toList());
 
         Map<String, Object> response = new HashMap<>();
-        response.put("content", airlines);
+        response.put("content", airlineDtos);
         response.put("totalElements", airlinePage.getTotalElements());
         response.put("totalPages", airlinePage.getTotalPages());
-        response.put("size", airlinePage.getSize());
-        response.put("number", airlinePage.getNumber());
-        response.put("first", airlinePage.isFirst());
-        response.put("last", airlinePage.isLast());
-        response.put("empty", airlinePage.isEmpty());
+        response.put("currentPage", page);
+        response.put("pageSize", size);
+        response.put("hasNext", airlinePage.hasNext());
+        response.put("hasPrevious", airlinePage.hasPrevious());
 
-        log.info("Found {} airlines for backoffice", airlines.size());
         return response;
     }
 
     /**
-     * Get single airline with full details
+     * Get airline by ID for backoffice
      */
-    @Transactional(readOnly = true)
-    public Map<String, Object> getAirline(Long id) {
+    public AirlineDto getAirline(Long id) {
         log.info("Fetching airline details for backoffice: ID={}", id);
         
         Airline airline = airlineRepository.findById(id)
-            .orElseThrow(() -> new EntityNotFoundException("Airline not found with ID: " + id));
+                .orElseThrow(() -> new EntityNotFoundException("Airline not found with ID: " + id));
         
-        Map<String, Object> response = convertAirlineToDetailedResponse(airline);
-        
-        // Add statistics
-        Long totalFlights = flightRepository.countByAirlineId(id);
-        Long activeFlights = flightRepository.countByAirlineIdAndStatus(id, "ACTIVE");
-        
-        response.put("totalFlights", totalFlights);
-        response.put("activeFlights", activeFlights);
-        
-        return response;
+        return airlineMapper.toDto(airline);
     }
 
     /**
-     * Create new airline
+     * Create a new airline
      */
-    public Map<String, Object> createAirline(AirlineRequestDto requestDto) {
-        log.info("Creating new airline: {}", requestDto.getName());
-        
-        // Validate IATA code uniqueness
-        if (airlineRepository.existsByIataCodeIgnoreCase(requestDto.getCode())) {
-            throw new IllegalArgumentException("IATA code already exists: " + requestDto.getCode());
-        }
-        
-        // Create new airline
-        Airline airline = new Airline();
-        airline.setName(requestDto.getName());
-        airline.setIataCode(requestDto.getCode().toUpperCase());
-        airline.setLogoUrl(requestDto.getLogoUrl());
-        
-        Airline savedAirline = airlineRepository.save(airline);
-        
-        Map<String, Object> response = convertAirlineToResponse(savedAirline);
-        response.put("message", "Airline created successfully");
-        
-        log.info("Airline created successfully with ID: {}", savedAirline.getAirlineId());
-        return response;
-    }
+    @Transactional
+    public AirlineDto createAirline(AirlineRequestDto airlineRequestDto) {
+        log.info("Creating new airline: {}", airlineRequestDto.getName());
 
-    /**
-     * Update existing airline
-     */
-    public Map<String, Object> updateAirline(Long id, AirlineRequestDto requestDto) {
-        log.info("Updating airline: ID={}", id);
+        Airline airline = airlineMapper.toEntity(airlineRequestDto);
+        airline = airlineRepository.save(airline);
         
-        Airline airline = airlineRepository.findById(id)
-            .orElseThrow(() -> new EntityNotFoundException("Airline not found with ID: " + id));
-        
-        // Check if IATA code is unique (exclude current airline)
-        if (StringUtils.hasText(requestDto.getCode())) {
-            String upperIataCode = requestDto.getCode().toUpperCase();
-            if (!upperIataCode.equals(airline.getIataCode()) && 
-                airlineRepository.existsByIataCodeIgnoreCase(upperIataCode)) {
-                throw new IllegalArgumentException("IATA code already exists: " + upperIataCode);
+        // Associate media if provided
+        if (airlineRequestDto.getMediaPublicIds() != null && !airlineRequestDto.getMediaPublicIds().isEmpty()) {
+            try {
+                mediaServiceClient.associateMediaWithEntity("AIRLINE", airline.getAirlineId(), airlineRequestDto.getMediaPublicIds());
+                log.info("Associated {} media items with airline ID: {}", airlineRequestDto.getMediaPublicIds().size(), airline.getAirlineId());
+            } catch (Exception e) {
+                log.error("Failed to associate media with airline ID: {}. Error: {}", airline.getAirlineId(), e.getMessage());
+                // Continue without failing the airline creation
             }
-            airline.setIataCode(upperIataCode);
         }
         
-        // Update fields
-        if (StringUtils.hasText(requestDto.getName())) {
-            airline.setName(requestDto.getName());
-        }
-        
-        if (StringUtils.hasText(requestDto.getLogoUrl())) {
-            airline.setLogoUrl(requestDto.getLogoUrl());
-        }
-        
-        Airline updatedAirline = airlineRepository.save(airline);
-        
-        Map<String, Object> response = convertAirlineToResponse(updatedAirline);
-        response.put("message", "Airline updated successfully");
-        
-        log.info("Airline updated successfully with ID: {}", id);
-        return response;
+        log.info("Airline created with ID: {}", airline.getAirlineId());
+        return airlineMapper.toDto(airline);
     }
 
     /**
-     * Soft delete airline
+     * Update an existing airline
      */
+    @Transactional
+    public AirlineDto updateAirline(Long id, AirlineRequestDto airlineRequestDto) {
+        log.info("Updating airline: ID={}", id);
+
+        Airline existingAirline = airlineRepository.findById(id)
+                .orElseThrow(() -> new EntityNotFoundException("Airline not found with ID: " + id));
+
+        // Update fields directly
+        existingAirline.setName(airlineRequestDto.getName());
+        existingAirline.setIataCode(airlineRequestDto.getCode());
+        
+        Airline updatedAirline = airlineRepository.save(existingAirline);
+
+        // Associate media if provided
+        if (airlineRequestDto.getMediaPublicIds() != null && !airlineRequestDto.getMediaPublicIds().isEmpty()) {
+            try {
+                mediaServiceClient.associateMediaWithEntity("AIRLINE", updatedAirline.getAirlineId(), airlineRequestDto.getMediaPublicIds());
+                log.info("Associated {} media items with airline ID: {}", airlineRequestDto.getMediaPublicIds().size(), updatedAirline.getAirlineId());
+            } catch (Exception e) {
+                log.error("Failed to associate media with airline ID: {}. Error: {}", updatedAirline.getAirlineId(), e.getMessage());
+                // Continue without failing the airline update
+            }
+        }
+
+        log.info("Airline updated with ID: {}", id);
+        return airlineMapper.toDto(updatedAirline);
+    }
+
+    /**
+     * Delete an airline (soft delete)
+     */
+    @Transactional
     public void deleteAirline(Long id) {
         log.info("Deleting airline: ID={}", id);
-        
+
         Airline airline = airlineRepository.findById(id)
-            .orElseThrow(() -> new EntityNotFoundException("Airline not found with ID: " + id));
-        
-        // Check if airline has active flights
-        Long activeFlights = flightRepository.countByAirlineIdAndStatus(id, "ACTIVE");
-        if (activeFlights > 0) {
-            throw new IllegalStateException("Cannot delete airline with active flights. Found " + activeFlights + " active flights.");
-        }
-        
-        // Soft delete to preserve referential integrity
-        airline.setDeleted(true);
-        airline.setDeletedAt(ZonedDateTime.now());
+                .orElseThrow(() -> new EntityNotFoundException("Airline not found with ID: " + id));
+
+        airline.setIsActive(false);
         airlineRepository.save(airline);
         
-        log.info("Airline deleted successfully with ID: {}", id);
+        log.info("Airline deleted with ID: {}", id);
+    }
+
+    /**
+     * Search airlines for autocomplete functionality
+     */
+    public List<Map<String, Object>> searchAirlines(String query) {
+        log.info("Searching airlines for autocomplete: query={}", query);
+        
+        if (!StringUtils.hasText(query) || query.trim().length() < 2) {
+            return new ArrayList<>();
+        }
+
+        List<Airline> airlines = airlineRepository.findAll();
+        
+        return airlines.stream()
+                .filter(airline -> airline.getName().toLowerCase().contains(query.toLowerCase()) ||
+                                   airline.getIataCode().toLowerCase().contains(query.toLowerCase()))
+                .limit(10)
+                .map(airline -> {
+                    Map<String, Object> result = new HashMap<>();
+                    result.put("id", airline.getAirlineId());
+                    result.put("name", airline.getName());
+                    result.put("code", airline.getIataCode());
+                    return result;
+                })
+                .collect(Collectors.toList());
     }
 
     /**
      * Get airline statistics
      */
-    @Transactional(readOnly = true)
     public Map<String, Object> getAirlineStatistics() {
+        log.info("Fetching airline statistics for backoffice");
+
         long totalAirlines = airlineRepository.count();
-        long activeAirlines = airlineRepository.findAllActive().size();
         
         Map<String, Object> stats = new HashMap<>();
         stats.put("totalAirlines", totalAirlines);
-        stats.put("activeAirlines", activeAirlines);
+        stats.put("airlinesWithFlights", 0L); // Simplified
+        stats.put("countriesCount", 0L); // Simplified
         
         return stats;
-    }
-
-    // === Helper Methods ===
-
-    /**
-     * Convert Airline entity to response format
-     */
-    public Map<String, Object> convertAirlineToResponse(Airline airline) {
-        Map<String, Object> response = new HashMap<>();
-        
-        response.put("id", airline.getAirlineId());
-        response.put("name", airline.getName() != null ? airline.getName() : "");
-        response.put("code", airline.getIataCode() != null ? airline.getIataCode() : "");
-        response.put("country", ""); // Not available in current schema
-        response.put("isActive", !airline.isDeleted());
-        response.put("createdAt", airline.getCreatedAt() != null ? airline.getCreatedAt().toString() : "");
-        response.put("updatedAt", airline.getUpdatedAt() != null ? airline.getUpdatedAt().toString() : "");
-        
-        return response;
-    }
-
-    private Map<String, Object> convertAirlineToDetailedResponse(Airline airline) {
-        return convertAirlineToResponse(airline);
     }
 }

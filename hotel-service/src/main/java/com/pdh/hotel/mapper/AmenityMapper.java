@@ -5,6 +5,7 @@ import com.pdh.hotel.dto.response.AmenityResponseDto;
 import com.pdh.hotel.model.Amenity;
 import org.springframework.stereotype.Component;
 
+import java.util.Collections;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -59,6 +60,7 @@ public class AmenityMapper {
                 .iconUrl(amenity.getIconUrl())
                 .isActive(amenity.getIsActive())
                 .displayOrder(amenity.getDisplayOrder())
+                .images(Collections.emptyList()) // Currently amenities use iconUrl, not image collections
                 .createdAt(amenity.getCreatedAt())
                 .updatedAt(amenity.getUpdatedAt())
                 .build();
