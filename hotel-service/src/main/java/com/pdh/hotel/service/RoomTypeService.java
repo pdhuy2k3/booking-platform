@@ -1,5 +1,6 @@
 package com.pdh.hotel.service;
 
+import com.pdh.hotel.client.MediaServiceClient;
 import com.pdh.hotel.dto.request.RoomTypeRequestDto;
 import com.pdh.hotel.dto.response.RoomTypeResponseDto;
 import com.pdh.hotel.mapper.RoomTypeMapper;
@@ -24,6 +25,7 @@ public class RoomTypeService {
     private final RoomTypeRepository roomTypeRepository;
     private final HotelRepository hotelRepository;
     private final RoomTypeMapper roomTypeMapper;
+    private final MediaServiceClient mediaServiceClient;
     
     /**
      * Get all room types for a hotel
@@ -114,6 +116,17 @@ public class RoomTypeService {
                 savedRoomType.getRoomTypeId(), 
                 savedRoomType.getHotel() != null ? savedRoomType.getHotel().getHotelId() : "NULL");
         
+        // Handle media association if provided
+        if (requestDto.getMediaPublicIds() != null && !requestDto.getMediaPublicIds().isEmpty()) {
+            try {
+                mediaServiceClient.associateMediaWithEntity("ROOM_TYPE", savedRoomType.getRoomTypeId(), requestDto.getMediaPublicIds());
+                log.info("Associated {} media items with room type ID: {}", requestDto.getMediaPublicIds().size(), savedRoomType.getRoomTypeId());
+            } catch (Exception e) {
+                log.error("Error associating media with room type {}: {}", savedRoomType.getRoomTypeId(), e.getMessage());
+                // Don't fail the room type creation if media association fails
+            }
+        }
+        
         return roomTypeMapper.toResponseDto(savedRoomType);
     }
     
@@ -139,6 +152,17 @@ public class RoomTypeService {
         
         RoomType updatedRoomType = roomTypeRepository.save(roomType);
         log.info("Room type updated successfully with ID: {}", updatedRoomType.getRoomTypeId());
+        
+        // Handle media association if provided
+        if (requestDto.getMediaPublicIds() != null && !requestDto.getMediaPublicIds().isEmpty()) {
+            try {
+                mediaServiceClient.associateMediaWithEntity("ROOM_TYPE", updatedRoomType.getRoomTypeId(), requestDto.getMediaPublicIds());
+                log.info("Associated {} media items with room type ID: {}", requestDto.getMediaPublicIds().size(), updatedRoomType.getRoomTypeId());
+            } catch (Exception e) {
+                log.error("Error associating media with room type {}: {}", updatedRoomType.getRoomTypeId(), e.getMessage());
+                // Don't fail the room type update if media association fails
+            }
+        }
         
         return roomTypeMapper.toResponseDto(updatedRoomType);
     }

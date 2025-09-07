@@ -49,6 +49,7 @@ import { Label } from "@/components/ui/label"
 import { Plus, Search, Edit, Trash2, Plane, Eye, MoreHorizontal } from "lucide-react"
 import { toast } from "@/components/ui/use-toast"
 import { AdminLayout } from "@/components/admin/admin-layout"
+import { MediaSelector } from "@/components/ui/media-selector"
 import { FlightService } from "@/services/flight-service"
 import { AirlineService } from "@/services/airline-service"
 import { AirportService } from "@/services/airport-service"
@@ -111,6 +112,10 @@ export default function AdminFlights() {
     status: 'ACTIVE',
     isActive: true
   })
+
+  // Image state management
+  const [newFlightImages, setNewFlightImages] = useState<string[]>([])
+  const [editingFlightImages, setEditingFlightImages] = useState<string[]>([])
 
   useEffect(() => {
     loadFlights()
@@ -314,6 +319,7 @@ export default function AdminFlights() {
       status: 'ACTIVE',
       isActive: true
     })
+    setNewFlightImages([]) // Reset flight images
   }
 
   // Populate edit form with selected flight data
@@ -331,6 +337,7 @@ export default function AdminFlights() {
     }
     
     setEditForm(editFormData)
+    setEditingFlightImages(flight.images || []) // Set current flight images
     
     // Ensure the selected airline and airports are available in the lists (only if they exist)
     if (flight.airline && flight.airline.id && !airlines.some(a => a.id === flight.airline!.id)) {
@@ -392,6 +399,7 @@ export default function AdminFlights() {
         basePrice: addForm.basePrice ? parseFloat(addForm.basePrice) : undefined,
         baseDurationMinutes: addForm.baseDurationMinutes ? parseInt(addForm.baseDurationMinutes) : undefined,
         status: addForm.status,
+        mediaPublicIds: newFlightImages // Include media public IDs
       }
 
       await FlightService.createFlight(newFlight)
@@ -466,6 +474,7 @@ export default function AdminFlights() {
         basePrice: editForm.basePrice ? parseFloat(editForm.basePrice) : undefined,
         baseDurationMinutes: editForm.baseDurationMinutes ? parseInt(editForm.baseDurationMinutes) : undefined,
         status: editForm.status,
+        mediaPublicIds: editingFlightImages // Include media public IDs
       }
 
       await FlightService.updateFlight(selectedFlight.id, updatedFlight)
@@ -477,6 +486,7 @@ export default function AdminFlights() {
 
       setIsEditDialogOpen(false)
       setSelectedFlight(null)
+      setEditingFlightImages([]) // Clear editing images
       loadFlights() // Reload the flights list
     } catch (error: any) {
       console.error("Error updating flight:", error)
@@ -686,10 +696,21 @@ export default function AdminFlights() {
                     </SelectContent>
                   </Select>
                 </div>
+                <div className="space-y-2">
+                  <Label htmlFor="flight-images">Hình ảnh chuyến bay</Label>
+                  <MediaSelector
+                    onChange={setNewFlightImages}
+                    maxSelection={10}
+                    folder="flights"
+                  />
+                </div>
               </div>
             )}
             <div className="flex justify-end space-x-2">
-              <Button variant="outline" onClick={() => setIsAddDialogOpen(false)}>
+              <Button variant="outline" onClick={() => {
+                setIsAddDialogOpen(false)
+                setNewFlightImages([])
+              }}>
                 Hủy
               </Button>
               <Button 
@@ -1077,10 +1098,22 @@ export default function AdminFlights() {
                   </SelectContent>
                 </Select>
               </div>
+              <div className="space-y-2">
+                <Label htmlFor="edit-flight-images">Hình ảnh chuyến bay</Label>
+                <MediaSelector
+                  value={editingFlightImages}
+                  onChange={setEditingFlightImages}
+                  maxSelection={10}
+                  folder="flights"
+                />
+              </div>
             </div>
           )}
           <div className="flex justify-end space-x-2">
-            <Button variant="outline" onClick={() => setIsEditDialogOpen(false)}>
+            <Button variant="outline" onClick={() => {
+              setIsEditDialogOpen(false)
+              setEditingFlightImages([])
+            }}>
               Hủy
             </Button>
             <Button

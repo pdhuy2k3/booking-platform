@@ -7,6 +7,8 @@ import lombok.Data;
 import lombok.EqualsAndHashCode;
 import lombok.NoArgsConstructor;
 
+import java.util.List;
+
 @Entity
 @Table(name = "airlines")
 @Data
@@ -26,6 +28,9 @@ public class Airline extends AbstractAuditEntity {
     @Column(name = "iata_code", unique = true, length = 2)
     private String iataCode;
 
-    @Column(name = "logo_url", length = 500)
-    private String logoUrl;
+    @Column(name = "is_active", nullable = false)
+    private Boolean isActive = true;
+
+    // Images are managed through the unified Image entity with entityType = "AIRLINE" and entityId = airlineId
+    // No direct JPA relationship - images are accessed via ImageService
 }

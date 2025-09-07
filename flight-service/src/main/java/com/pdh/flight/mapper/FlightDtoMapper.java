@@ -2,7 +2,7 @@ package com.pdh.flight.mapper;
 
 import com.pdh.flight.dto.response.FlightSearchResultDto;
 import com.pdh.flight.model.Flight;
-import com.pdh.flight.viewmodel.StorefrontFlightViewModel;
+import com.pdh.flight.viewmodel.StorefrontFlightVM;
 import org.springframework.stereotype.Component;
 
 import java.text.NumberFormat;
@@ -64,10 +64,10 @@ public class FlightDtoMapper {
     /**
      * Convert Flight entity to StorefrontFlightViewModel
      */
-    public StorefrontFlightViewModel toStorefrontViewModel(Flight flight) {
+    public StorefrontFlightVM toStorefrontViewModel(Flight flight) {
         if (flight == null) return null;
         
-        StorefrontFlightViewModel viewModel = StorefrontFlightViewModel.builder()
+        StorefrontFlightVM viewModel = StorefrontFlightVM.builder()
                 .flightId(flight.getFlightId().toString())
                 .flightNumber(flight.getFlightNumber())
                 .airline(flight.getAirline() != null ? flight.getAirline().getName() : "Unknown Airline")
@@ -169,3 +169,6 @@ public class FlightDtoMapper {
         return String.format("%.2f %s", amount, currency);
     }
 }
+
+
+

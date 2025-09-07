@@ -17,9 +17,10 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog"
 import { Label } from "@/components/ui/label"
-import { Plus, Search, MoreHorizontal, Edit, Trash2, Settings, Check, X } from "lucide-react"
+import { Plus, Search, MoreHorizontal, Edit, Trash2, Settings, Check, X, ImageIcon } from "lucide-react"
 import { AdminLayout } from "@/components/admin/admin-layout"
 import { AmenityService } from "@/services/amenity-service"
+import { MediaSelector } from "@/components/ui/media-selector"
 import type { Amenity, PaginatedResponse } from "@/types/api"
 import { toast } from "sonner"
 
@@ -36,15 +37,18 @@ export default function AdminAmenities() {
     isActive: true,
     displayOrder: 0,
   })
+  const [newAmenityImages, setNewAmenityImages] = useState<string[]>([])
   const [editingAmenity, setEditingAmenity] = useState({
     name: "",
     iconUrl: "",
     isActive: true,
     displayOrder: 0,
   })
+  const [editingAmenityImages, setEditingAmenityImages] = useState<string[]>([])
   const [selectedAmenities, setSelectedAmenities] = useState<number[]>([])
   const [page, setPage] = useState(0)
   const [size] = useState(20)
+
 
   useEffect(() => {
     loadAmenities()
@@ -76,7 +80,13 @@ export default function AdminAmenities() {
         return
       }
 
-      await AmenityService.createAmenity(newAmenity)
+      // Combine basic amenity data with selected images
+      const amenityData = {
+        ...newAmenity,
+        images: newAmenityImages // Send image publicIds to backend
+      }
+
+      await AmenityService.createAmenity(amenityData)
       toast.success("Tiện nghi đã được tạo thành công")
       setIsAddDialogOpen(false)
       setNewAmenity({
@@ -85,6 +95,7 @@ export default function AdminAmenities() {
         isActive: true,
         displayOrder: 0,
       })
+      setNewAmenityImages([])
       loadAmenities()
     } catch (error) {
       console.error("Failed to create amenity:", error)
@@ -100,6 +111,8 @@ export default function AdminAmenities() {
       isActive: amenity.isActive,
       displayOrder: amenity.displayOrder,
     })
+    // Load existing images if available
+    setEditingAmenityImages(amenity.images || [])
     setIsEditDialogOpen(true)
   }
 
@@ -112,10 +125,17 @@ export default function AdminAmenities() {
         return
       }
 
-      await AmenityService.updateAmenity(selectedAmenity.id, editingAmenity)
+      // Combine basic amenity data with selected images
+      const amenityData = {
+        ...editingAmenity,
+        images: editingAmenityImages // Send image publicIds to backend
+      }
+
+      await AmenityService.updateAmenity(selectedAmenity.id, amenityData)
       toast.success("Tiện nghi đã được cập nhật thành công")
       setIsEditDialogOpen(false)
       setSelectedAmenity(null)
+      setEditingAmenityImages([])
       loadAmenities()
     } catch (error) {
       console.error("Failed to update amenity:", error)
@@ -266,6 +286,16 @@ export default function AdminAmenities() {
                     onCheckedChange={(checked) => setNewAmenity({...newAmenity, isActive: checked})}
                   />
                   <Label htmlFor="isActive">Kích hoạt ngay</Label>
+                </div>
+                <div className="space-y-2">
+                  <Label>Hình ảnh tiện nghi</Label>
+                  <MediaSelector
+                    value={newAmenityImages}
+                    onChange={setNewAmenityImages}
+                    folder="amenities"
+                    maxSelection={3}
+                    allowUpload={true}
+                  />
                 </div>
               </div>
               <div className="flex justify-end space-x-2">
@@ -528,6 +558,16 @@ export default function AdminAmenities() {
                 />
                 <Label htmlFor="editIsActive">Kích hoạt</Label>
               </div>
+              <div className="space-y-2">
+                <Label>Hình ảnh tiện nghi</Label>
+                <MediaSelector
+                  value={editingAmenityImages}
+                  onChange={setEditingAmenityImages}
+                  folder="amenities"
+                  maxSelection={3}
+                  allowUpload={true}
+                />
+              </div>
             </div>
           )}
           <div className="flex justify-end space-x-2">
@@ -541,6 +581,8 @@ export default function AdminAmenities() {
           </div>
         </DialogContent>
       </Dialog>
+
+
     </AdminLayout>
   )
 }

@@ -1,0 +1,33 @@
+"use client"
+
+import { Button } from "@/components/ui/button"
+import { ArrowLeft, Plus } from "lucide-react"
+import type { Hotel } from "@/types/api"
+
+interface HotelHeaderProps {
+  hotel: Hotel
+  onBack: () => void
+  onAddRoom: () => void
+}
+
+export function HotelHeader({ hotel, onBack, onAddRoom }: HotelHeaderProps) {
+  return (
+    <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 mb-6">
+      <div>
+        <Button variant="outline" onClick={onBack} className="mb-4">
+          <ArrowLeft className="w-4 h-4 mr-2" />
+          Quay lại
+        </Button>
+        <h1 className="text-2xl lg:text-3xl font-bold text-gray-900">{hotel.name}</h1>
+        <p className="text-gray-600 mt-2 text-sm lg:text-base">Quản lý thông tin và phòng của khách sạn</p>
+      </div>
+      <Button
+        onClick={onAddRoom}
+        className="bg-blue-600 hover:bg-blue-700 w-full lg:w-auto"
+      >
+        <Plus className="w-4 h-4 mr-2" />
+        Thêm phòng
+      </Button>
+    </div>
+  )
+}
