@@ -13,6 +13,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
+import { MediaSelector } from "@/components/ui/media-selector"
 import type { Room, RoomType, Amenity } from "@/types/api"
 
 interface RoomFormData {
@@ -36,6 +37,8 @@ interface RoomFormDialogProps {
   onRoomChange: (room: RoomFormData) => void
   roomTypes: RoomType[]
   amenities: Amenity[]
+  images: string[]
+  onImagesChange: (images: string[]) => void
   onSubmit: () => void
   submitLabel: string
   formatPrice: (price: number) => string
@@ -50,6 +53,8 @@ export function RoomFormDialog({
   onRoomChange,
   roomTypes,
   amenities,
+  images,
+  onImagesChange,
   onSubmit,
   submitLabel,
   formatPrice
@@ -189,6 +194,17 @@ export function RoomFormDialog({
                 ))}
               </div>
             </div>
+          </div>
+
+          <div className="col-span-2 space-y-2">
+            <Label>Hình ảnh phòng</Label>
+            <MediaSelector
+              value={images}
+              onChange={onImagesChange}
+              folder="rooms"
+              maxSelection={5}
+              allowUpload={true}
+            />
           </div>
         </div>
 

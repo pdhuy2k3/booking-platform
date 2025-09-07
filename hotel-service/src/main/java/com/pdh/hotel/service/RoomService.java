@@ -5,6 +5,7 @@ import com.pdh.hotel.dto.response.RoomResponseDto;
 import com.pdh.hotel.mapper.RoomMapper;
 import com.pdh.hotel.model.*;
 import com.pdh.hotel.repository.*;
+import com.pdh.hotel.client.MediaServiceClient;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -27,7 +28,9 @@ public class RoomService {
     private final RoomTypeRepository roomTypeRepository;
     private final AmenityRepository amenityRepository;
     private final RoomMapper roomMapper;
-    
+    private final MediaServiceClient mediaServiceClient;
+
+
     /**
      * Get all rooms for a hotel with pagination
      */
@@ -90,23 +93,19 @@ public class RoomService {
             room.setRoomAmenities(roomAmenities);
         }
         
-        // Handle images if provided
-        if (requestDto.getImageUrls() != null && !requestDto.getImageUrls().isEmpty()) {
-            List<RoomImage> roomImages = new ArrayList<>();
-            int displayOrder = 1;
-            
-            for (String imageUrl : requestDto.getImageUrls()) {
-                RoomImage roomImage = new RoomImage();
-                roomImage.setRoom(room);
-                roomImage.setImageUrl(imageUrl);
-                roomImage.setDisplayOrder(displayOrder++);
-                roomImages.add(roomImage);
-            }
-            room.setRoomImages(roomImages);
-        }
-        
         Room savedRoom = roomRepository.save(room);
         log.info("Room created successfully with ID: {}", savedRoom.getId());
+
+        // Associate media with the newly created room if provided
+        if (requestDto.getMediaPublicIds() != null && !requestDto.getMediaPublicIds().isEmpty()) {
+            try {
+                mediaServiceClient.associateMediaWithEntity("ROOM", savedRoom.getId(), requestDto.getMediaPublicIds());
+                log.info("Associated {} media items with room ID: {}", requestDto.getMediaPublicIds().size(), savedRoom.getId());
+            } catch (Exception e) {
+                log.error("Error associating media with room {}: {}", savedRoom.getId(), e.getMessage());
+                // Don't fail the room creation if media association fails
+            }
+        }
         
         return roomMapper.toResponseDto(savedRoom);
     }
@@ -149,29 +148,27 @@ public class RoomService {
                 room.setRoomAmenities(roomAmenities);
             }
         }
-        
-        // Update images if provided
-        if (requestDto.getImageUrls() != null) {
-            // Clear existing images
-            room.getRoomImages().clear();
-            
-            if (!requestDto.getImageUrls().isEmpty()) {
-                List<RoomImage> roomImages = new ArrayList<>();
-                int displayOrder = 1;
-                
-                for (String imageUrl : requestDto.getImageUrls()) {
-                    RoomImage roomImage = new RoomImage();
-                    roomImage.setRoom(room);
-                    roomImage.setImageUrl(imageUrl);
-                    roomImage.setDisplayOrder(displayOrder++);
-                    roomImages.add(roomImage);
-                }
-                room.setRoomImages(roomImages);
-            }
-        }
+
         
         Room updatedRoom = roomRepository.save(room);
         log.info("Room updated successfully with ID: {}", updatedRoom.getId());
+        
+        // Handle media updates if provided
+        if (requestDto.getMediaPublicIds() != null) {
+            try {
+                // First, delete existing media associations
+                mediaServiceClient.deleteMediaByEntity("ROOM", id);
+                
+                // Then associate new media if any
+                if (!requestDto.getMediaPublicIds().isEmpty()) {
+                    mediaServiceClient.associateMediaWithEntity("ROOM", id, requestDto.getMediaPublicIds());
+                    log.info("Updated {} media items for room ID: {}", requestDto.getMediaPublicIds().size(), id);
+                }
+            } catch (Exception e) {
+                log.error("Error updating media for room {}: {}", id, e.getMessage());
+                // Don't fail the room update if media association fails
+            }
+        }
         
         return roomMapper.toResponseDto(updatedRoom);
     }

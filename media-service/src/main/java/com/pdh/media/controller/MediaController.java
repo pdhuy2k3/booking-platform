@@ -19,7 +19,7 @@ import java.util.Map;
 @RequestMapping("/upload")
 @RequiredArgsConstructor
 @Slf4j
-@Tag(name = "Media Upload", description = "Simple Cloudinary upload service")
+@Tag(name = "Media Upload", description = "Upload and manage media files in Cloudinary")
 public class MediaController {
 
     private final CloudinaryService cloudinaryService;
@@ -99,55 +99,6 @@ public class MediaController {
         }
     }
 
-    @GetMapping("/browse")
-    @Operation(summary = "Browse media by folder", description = "Browse and search media files with folder filtering")
-    public ResponseEntity<ApiResponse<Map<String, Object>>> browseMedia(
-            @Parameter(description = "Folder to filter by")
-            @RequestParam(value = "folder", required = false) String folder,
-            
-            @Parameter(description = "Search query for filename")
-            @RequestParam(value = "search", required = false) String search,
-            
-            @Parameter(description = "Resource type filter")
-            @RequestParam(value = "resource_type", required = false, defaultValue = "image") String resourceType,
-            
-            @Parameter(description = "Page number for pagination")
-            @RequestParam(value = "page", required = false, defaultValue = "1") int page,
-            
-            @Parameter(description = "Number of items per page")
-            @RequestParam(value = "limit", required = false, defaultValue = "20") int limit
-    ) {
-        try {
-            Map<String, Object> result = cloudinaryService.browseMedia(folder, search, resourceType, page, limit);
-            
-            // Format response for frontend compatibility
-            Map<String, Object> response = new HashMap<>();
-            response.put("resources", result.get("resources"));
-            response.put("total_count", result.get("total_count"));
-            response.put("next_cursor", result.get("next_cursor"));
-            response.put("totalPages", calculateTotalPages((Integer) result.get("total_count"), limit));
-            response.put("currentPage", page);
-            
-            return ResponseEntity.ok(ApiResponse.success(response));
-        } catch (Exception e) {
-            log.error("Error browsing media", e);
-            return ResponseEntity.internalServerError()
-                    .body(ApiResponse.error("Browse failed: " + e.getMessage(), "BROWSE_FAILED"));
-        }
-    }
-
-    @GetMapping("/folders")
-    @Operation(summary = "Get available folders", description = "Retrieve list of available folders in Cloudinary")
-    public ResponseEntity<ApiResponse<Map<String, Object>>> getFolders() {
-        try {
-            Map<String, Object> result = cloudinaryService.getFolders();
-            return ResponseEntity.ok(ApiResponse.success(result));
-        } catch (Exception e) {
-            log.error("Error getting folders", e);
-            return ResponseEntity.internalServerError()
-                    .body(ApiResponse.error("Get folders failed: " + e.getMessage(), "FOLDERS_FAILED"));
-        }
-    }
 
     // Updated upload endpoint to support general media types
     @PostMapping(consumes = {"multipart/form-data"})

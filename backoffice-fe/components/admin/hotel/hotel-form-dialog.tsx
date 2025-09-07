@@ -8,10 +8,10 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import {
   Dialog,
   DialogContent,
-  DialogDescription,
+  DialogDescription, DialogFooter,
   DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog"
+  DialogTitle
+} from '@/components/ui/dialog';
 import { MediaSelector } from "@/components/ui/media-selector"
 
 interface HotelFormData {
@@ -50,12 +50,13 @@ export function HotelFormDialog({
 }: HotelFormDialogProps) {
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
+
       <DialogContent className="sm:max-w-[600px]">
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>
           <DialogDescription>{description}</DialogDescription>
         </DialogHeader>
-        <div className="grid grid-cols-2 gap-4 py-4">
+        <div className="grid grid-cols-2 gap-4 py-4 max-h-[60vh] overflow-y-auto">
           <div className="col-span-2 space-y-2">
             <Label htmlFor="hotelName">Tên khách sạn</Label>
             <Input
@@ -130,13 +131,16 @@ export function HotelFormDialog({
             />
           </div>
         </div>
-        <div className="flex justify-end space-x-2">
-          <Button variant="outline" onClick={onClose}>
-            Hủy
-          </Button>
-          <Button onClick={onSubmit}>{submitLabel}</Button>
-        </div>
+        <DialogFooter>
+          <div className="flex justify-end space-x-2">
+            <Button variant="outline" onClick={onClose}>
+              Hủy
+            </Button>
+            <Button onClick={onSubmit}>{submitLabel}</Button>
+          </div>
+        </DialogFooter>
       </DialogContent>
+
     </Dialog>
   )
 }

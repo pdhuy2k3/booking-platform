@@ -51,7 +51,9 @@ public class Flight extends AbstractAuditEntity {
     @JoinColumn(name = "arrival_airport_id", nullable = false)
     private Airport arrivalAirport;
 
-    // One-to-Many relationship with FlightImage
-    @OneToMany(mappedBy = "flight", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
-    private List<FlightImage> images;
+    @Column(name = "is_active", nullable = false)
+    private Boolean isActive = true;
+
+    // Images are managed through the unified Image entity with entityType = "FLIGHT" and entityId = flightId
+    // No direct JPA relationship - images are accessed via ImageService
 }

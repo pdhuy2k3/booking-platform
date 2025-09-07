@@ -32,6 +32,7 @@ import { MediaSelector } from "@/components/ui/media-selector"
 const { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } = require("@/components/ui/dropdown-menu")
 import type { Airline, PaginatedResponse } from "@/types/api"
 import { toast } from "@/components/ui/use-toast"
+import { mediaService } from "@/services/media-service"
 
 interface AirlineFormData {
   name: string
@@ -113,7 +114,7 @@ export default function AdminAirlines() {
       const airlineData = {
         name: formData.name.trim(),
         code: formData.code.trim().toUpperCase(),
-        images: formDataImages // Send image publicIds to backend
+        mediaPublicIds: formDataImages // Send image publicIds to backend
       }
       
       await AirlineService.createAirline(airlineData)
@@ -150,7 +151,7 @@ export default function AdminAirlines() {
       const airlineData = {
         name: formData.name.trim(),
         code: formData.code.trim().toUpperCase(),
-        images: editingAirlineImages // Send image publicIds to backend
+        mediaPublicIds: editingAirlineImages // Send image publicIds to backend
       }
       
       await AirlineService.updateAirline(editingAirline.id, airlineData)
@@ -229,6 +230,38 @@ export default function AdminAirlines() {
 
   const totalAirlines = airlines?.totalElements || 0
   const activeAirlines = airlines?.content.filter(a => a.isActive).length || 0
+
+  const renderAirlineLogo = (airline: Airline) => {
+    // Get the first image if available
+    const firstImagePublicId = airline.images && airline.images.length > 0 ? airline.images[0] : null
+    
+    if (firstImagePublicId) {
+      // Use the media service to generate an optimized Cloudinary URL
+      // The mediaService expects the full path format /api/media/{publicId}
+      const imageUrl = mediaService.getOptimizedUrl(`/api/media/${firstImagePublicId}`, {
+        width: 32,
+        height: 32,
+        crop: 'fill',
+        quality: 'auto'
+      })
+      
+      return (
+        <img 
+          src={imageUrl} 
+          alt={airline.name} 
+          className="w-8 h-8 object-cover rounded-md"
+          onError={(e) => {
+            // Fallback to placeholder if image fails to load
+            const target = e.target as HTMLImageElement
+            target.src = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='32' height='32' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' fill='%23e5e7eb'/%3E%3C/svg%3E"
+          }}
+        />
+      )
+    }
+    
+    // Fallback placeholder
+    return <div className="bg-gray-200 border-2 border-dashed rounded-md w-8 h-8" />
+  }
 
   return (
     <AdminLayout>
@@ -359,6 +392,7 @@ export default function AdminAirlines() {
             <Table className="min-w-[600px]">
               <TableHeader>
                 <TableRow>
+                  <TableHead>Logo</TableHead>
                   <TableHead>Mã IATA</TableHead>
                   <TableHead>Tên hãng</TableHead>
                   <TableHead>Trạng thái</TableHead>
@@ -369,7 +403,7 @@ export default function AdminAirlines() {
               <TableBody>
                 {loading ? (
                   <TableRow>
-                    <TableCell colSpan={5} className="text-center py-8">
+                    <TableCell colSpan={6} className="text-center py-8">
                       <div className="flex items-center justify-center">
                         <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div>
                         <span className="ml-2">Đang tải...</span>
@@ -378,13 +412,16 @@ export default function AdminAirlines() {
                   </TableRow>
                 ) : airlines?.content.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={5} className="text-center py-8 text-gray-500">
+                    <TableCell colSpan={6} className="text-center py-8 text-gray-500">
                       Không có dữ liệu
                     </TableCell>
                   </TableRow>
                 ) : (
                   airlines?.content.map((airline) => (
                     <TableRow key={airline.id}>
+                      <TableCell>
+                        {renderAirlineLogo(airline)}
+                      </TableCell>
                       <TableCell className="font-medium">{airline.code}</TableCell>
                       <TableCell>{airline.name}</TableCell>
                       <TableCell>

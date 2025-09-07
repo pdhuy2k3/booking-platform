@@ -48,4 +48,7 @@ public class RoomType extends AbstractAuditEntity {
     
     @OneToMany(mappedBy = "roomType", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
     private List<RoomAvailability> roomAvailabilities = new ArrayList<>();
+    
+    // Images are now managed through the unified Image entity using ImageService
+    // No direct relationship needed - use ImageService.getImages("ROOM_TYPE", roomTypeId)
 }

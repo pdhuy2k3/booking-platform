@@ -25,19 +25,27 @@ public interface AirlineRepository extends JpaRepository<Airline, Long> {
     Optional<Airline> findByIataCodeIgnoreCase(String iataCode);
 
     /**
-     * Find all active airlines (not deleted)
+     * Find all active airlines
      * @return List of active airlines
      */
-    @Query("SELECT a FROM Airline a WHERE a.isDeleted = false")
+    @Query("SELECT a FROM Airline a WHERE a.isActive = true")
     List<Airline> findAllActive();
-
+    
     /**
      * Find airlines by name containing the given string (case insensitive)
      * @param name the name to search for
      * @return List of matching airlines
      */
     List<Airline> findByNameContainingIgnoreCase(String name);
-
+    
+    /**
+     * Find active airlines by name containing the given string (case insensitive)
+     * @param name the name to search for
+     * @return List of matching active airlines
+     */
+    @Query("SELECT a FROM Airline a WHERE a.isActive = true AND LOWER(a.name) LIKE LOWER(CONCAT('%', :name, '%'))")
+    List<Airline> findActiveByNameContainingIgnoreCase(@Param("name") String name);
+    
     /**
      * Check if an airline exists by IATA code
      * @param iataCode the IATA code
@@ -50,7 +58,7 @@ public interface AirlineRepository extends JpaRepository<Airline, Long> {
      * @param pageable pagination information
      * @return Page of active airlines
      */
-    @Query("SELECT a FROM Airline a WHERE a.isDeleted = false")
+    @Query("SELECT a FROM Airline a WHERE a.isActive = true")
     Page<Airline> findAllActive(Pageable pageable);
     
     /**
@@ -60,4 +68,13 @@ public interface AirlineRepository extends JpaRepository<Airline, Long> {
      * @return Page of matching airlines
      */
     Page<Airline> findByNameContainingIgnoreCase(String name, Pageable pageable);
+    
+    /**
+     * Find active airlines by name containing the given string with pagination
+     * @param name the name to search for
+     * @param pageable pagination information
+     * @return Page of matching active airlines
+     */
+    @Query("SELECT a FROM Airline a WHERE a.isActive = true AND LOWER(a.name) LIKE LOWER(CONCAT('%', :name, '%'))")
+    Page<Airline> findActiveByNameContainingIgnoreCase(@Param("name") String name, Pageable pageable);
 }

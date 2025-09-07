@@ -80,7 +80,7 @@ export default function AdminHotels() {
     try {
       const hotelData = {
         ...newHotel,
-        images: newHotelImages
+        mediaPublicIds: newHotelImages
       }
       
       await HotelService.createHotel(hotelData)
@@ -120,7 +120,7 @@ export default function AdminHotels() {
     try {
       const hotelData = {
         ...editHotelData,
-        images: editingHotelImages
+        mediaPublicIds: editingHotelImages
       }
       
       await HotelService.updateHotel(editingHotel.id, hotelData)

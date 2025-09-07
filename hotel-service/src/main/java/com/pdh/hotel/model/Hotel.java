@@ -45,4 +45,7 @@ public class Hotel extends AbstractAuditEntity {
     
     @Column(name = "longitude", precision = 9, scale = 6)
     private BigDecimal longitude;
+    
+    @Column(name = "is_active", nullable = false)
+    private Boolean isActive = true;
 }

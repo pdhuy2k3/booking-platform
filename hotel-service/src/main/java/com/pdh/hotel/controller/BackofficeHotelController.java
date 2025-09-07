@@ -1,6 +1,7 @@
 package com.pdh.hotel.controller;
 
 import com.pdh.hotel.client.MediaServiceClient;
+import com.pdh.hotel.dto.request.HotelRequestDto;
 import com.pdh.hotel.service.BackofficeHotelService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -10,6 +11,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
+import jakarta.validation.Valid;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -73,10 +75,10 @@ public class BackofficeHotelController {
      * Create a new hotel
      */
     @PostMapping
-    public ResponseEntity<Map<String, Object>> createHotel(@RequestBody Map<String, Object> hotelData) {
-        log.info("Creating new hotel: {}", hotelData);
+    public ResponseEntity<Map<String, Object>> createHotel(@Valid @RequestBody HotelRequestDto hotelRequestDto) {
+        log.info("Creating new hotel: {}", hotelRequestDto);
         try {
-            Map<String, Object> response = backofficeHotelService.createHotel(hotelData);
+            Map<String, Object> response = backofficeHotelService.createHotel(hotelRequestDto);
             log.info("Hotel created successfully with response: {}", response);
             return ResponseEntity.status(HttpStatus.CREATED).body(response);
         } catch (Exception e) {
@@ -92,10 +94,10 @@ public class BackofficeHotelController {
      * Update an existing hotel
      */
     @PutMapping("/{id}")
-    public ResponseEntity<Map<String, Object>> updateHotel(@PathVariable Long id, @RequestBody Map<String, Object> hotelData) {
-        log.info("Updating hotel: ID={}, data={}", id, hotelData);
+    public ResponseEntity<Map<String, Object>> updateHotel(@PathVariable Long id, @Valid @RequestBody HotelRequestDto hotelRequestDto) {
+        log.info("Updating hotel: ID={}, data={}", id, hotelRequestDto);
         try {
-            Map<String, Object> response = backofficeHotelService.updateHotel(id, hotelData);
+            Map<String, Object> response = backofficeHotelService.updateHotel(id, hotelRequestDto);
             log.info("Hotel updated successfully with ID: {}", id);
             return ResponseEntity.ok(response);
         } catch (Exception e) {
@@ -150,59 +152,6 @@ public class BackofficeHotelController {
         }
     }
 
-    /**
-     * Upload media for hotel
-     */
-    @PostMapping("/{id}/media/upload")
-    public ResponseEntity<Map<String, Object>> uploadHotelMedia(
-            @PathVariable("id") Long hotelId,
-            @RequestParam("file") MultipartFile file,
-            @RequestParam(value = "altText", required = false) String altText,
-            @RequestParam(value = "displayOrder", required = false) Integer displayOrder,
-            @RequestParam(value = "isPrimary", required = false) Boolean isPrimary,
-            @RequestParam(value = "folder", required = false) String folder
-    ) {
-        log.info("Uploading media for hotel: ID={}", hotelId);
-        try {
-            // Upload to media service and get URL reference
-            String mediaUrl = mediaServiceClient.uploadImage(file, folder != null ? folder : "hotels");
-            
-            // TODO: Save the mediaUrl to hotel's image collection in database
-            // Example: hotelService.addHotelImage(hotelId, mediaUrl, altText, displayOrder, isPrimary);
-            
-            Map<String, Object> response = new HashMap<>();
-            response.put("mediaUrl", mediaUrl);
-            response.put("message", "Media uploaded successfully");
-            return ResponseEntity.ok(response);
-        } catch (Exception e) {
-            log.error("Error uploading hotel media: ID={}", hotelId, e);
-            Map<String, Object> errorResponse = new HashMap<>();
-            errorResponse.put("error", "Failed to upload hotel media");
-            errorResponse.put("message", e.getMessage());
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(errorResponse);
-        }
-    }
 
-    /**
-     * Get media for hotel
-     */
-    @GetMapping("/{id}/media")
-    public ResponseEntity<Map<String, Object>> getHotelMedia(@PathVariable("id") Long hotelId) {
-        log.info("Getting media for hotel: ID={}", hotelId);
-        try {
-            // TODO: Get hotel images from database
-            // Example: List<HotelImage> images = hotelService.getHotelImages(hotelId);
-            
-            Map<String, Object> response = new HashMap<>();
-            response.put("data", List.of()); // Replace with actual hotel images
-            response.put("hotelId", hotelId);
-            return ResponseEntity.ok(response);
-        } catch (Exception e) {
-            log.error("Error getting hotel media: ID={}", hotelId, e);
-            Map<String, Object> errorResponse = new HashMap<>();
-            errorResponse.put("error", "Failed to get hotel media");
-            errorResponse.put("message", e.getMessage());
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(errorResponse);
-        }
-    }
+
 }

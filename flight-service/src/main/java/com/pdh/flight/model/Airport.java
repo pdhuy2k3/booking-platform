@@ -34,7 +34,9 @@ public class Airport extends AbstractAuditEntity {
     @Column(name = "country", length = 100)
     private String country;
 
-    // One-to-Many relationship with AirportImage
-    @OneToMany(mappedBy = "airport", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
-    private List<AirportImage> images;
+    @Column(name = "is_active", nullable = false)
+    private Boolean isActive = true;
+
+    // Images are managed through the unified Image entity with entityType = "AIRPORT" and entityId = airportId
+    // No direct JPA relationship - images are accessed via ImageService
 }

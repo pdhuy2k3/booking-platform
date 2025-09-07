@@ -3,6 +3,7 @@ import { apiClient } from '@/lib/api-client';
 export interface MediaUploadResponse {
   mediaUrl: string;    // URL in format "/api/media/{publicId}"
   publicId: string;    // Cloudinary public ID
+  secureUrl: string;   // Cloudinary secure HTTPS URL
   mediaType: string;   // image, video, document, etc.
   message: string;     // Success message
 }
@@ -43,7 +44,8 @@ class MediaService {
     return {
       mediaUrl: `/api/media/${data.public_id || data.publicId}`,
       publicId: data.public_id || data.publicId,
-      mediaType: data.resource_type || 'image',
+      secureUrl: data.secure_url || data.secureUrl || data.url,
+      mediaType: data.resource_type || data.resourceType || 'image',
       message: data.message || 'Media uploaded successfully'
     };
   }

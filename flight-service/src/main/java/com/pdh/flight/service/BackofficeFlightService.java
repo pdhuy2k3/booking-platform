@@ -1,17 +1,16 @@
 package com.pdh.flight.service;
 
+import com.pdh.flight.client.MediaServiceClient;
 import com.pdh.flight.dto.request.FlightCreateDto;
 import com.pdh.flight.dto.request.FlightUpdateDto;
 import com.pdh.flight.dto.response.FlightDto;
+import com.pdh.flight.mapper.BackofficeFlightMapper;
 import com.pdh.flight.model.Airline;
 import com.pdh.flight.model.Airport;
 import com.pdh.flight.model.Flight;
-import com.pdh.flight.model.FlightImage;
 import com.pdh.flight.repository.AirlineRepository;
 import com.pdh.flight.repository.AirportRepository;
-import com.pdh.flight.repository.FlightImageRepository;
 import com.pdh.flight.repository.FlightRepository;
-import com.pdh.flight.repository.FlightScheduleRepository;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -23,10 +22,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
-import java.time.LocalDateTime;
-import java.time.ZonedDateTime;
 import java.util.*;
-import java.util.stream.Collectors;
 
 /**
  * Service for managing flights in backoffice
@@ -40,8 +36,8 @@ public class BackofficeFlightService {
     private final FlightRepository flightRepository;
     private final AirlineRepository airlineRepository;
     private final AirportRepository airportRepository;
-    private final FlightScheduleRepository flightScheduleRepository;
-    private final FlightImageRepository flightImageRepository;
+    private final BackofficeFlightMapper flightMapper;
+    private final MediaServiceClient mediaServiceClient;
 
     /**
      * Get all flights with pagination and filtering
@@ -65,9 +61,7 @@ public class BackofficeFlightService {
             flightPage = flightRepository.findAllWithDetails(pageable);
         }
 
-        List<Map<String, Object>> flights = flightPage.getContent().stream()
-            .map(this::convertFlightToResponse)
-            .collect(Collectors.toList());
+        List<FlightDto> flights = flightMapper.toDtoList(flightPage.getContent());
 
         Map<String, Object> response = new HashMap<>();
         response.put("content", flights);
@@ -87,28 +81,22 @@ public class BackofficeFlightService {
      * Get single flight with full details
      */
     @Transactional(readOnly = true)
-    public Map<String, Object> getFlight(Long id) {
+    public FlightDto getFlight(Long id) {
         log.info("Fetching flight details for backoffice: ID={}", id);
         
         Flight flight = flightRepository.findById(id)
             .orElseThrow(() -> new EntityNotFoundException("Flight not found with ID: " + id));
         
-        Map<String, Object> response = convertFlightToDetailedResponse(flight);
+        FlightDto flightDto = flightMapper.toDto(flight);
         
-        // Add statistics
-        Long totalSchedules = flightScheduleRepository.countByFlightId(id);
-        Long activeSchedules = flightScheduleRepository.countByFlightIdAndStatus(id, "SCHEDULED");
-        
-        response.put("totalSchedules", totalSchedules);
-        response.put("activeSchedules", activeSchedules);
-        
-        return response;
+        log.info("Retrieved flight details for ID: {}", id);
+        return flightDto;
     }
 
     /**
      * Create new flight
      */
-    public Map<String, Object> createFlight(FlightCreateDto createDto) {
+    public FlightDto createFlight(FlightCreateDto createDto) {
         log.info("Creating new flight: {}", createDto.getFlightNumber());
         
         // Validate flight number uniqueness
@@ -137,16 +125,23 @@ public class BackofficeFlightService {
         flight.setAircraftType(createDto.getAircraftType());
         flight.setStatus(createDto.getStatus());
         flight.setBasePrice(createDto.getBasePrice());
+        flight.setIsActive(true);
         
         Flight savedFlight = flightRepository.save(flight);
         
-        // Handle images if provided
-        if (createDto.getImages() != null && !createDto.getImages().isEmpty()) {
-            processFlightImages(savedFlight.getFlightId(), createDto.getImages());
+        // Associate media if provided
+        if (createDto.getMediaPublicIds() != null && !createDto.getMediaPublicIds().isEmpty()) {
+            try {
+                mediaServiceClient.associateMediaWithEntity("FLIGHT", savedFlight.getFlightId(), createDto.getMediaPublicIds());
+                log.info("Associated {} media items with flight ID: {}", createDto.getMediaPublicIds().size(), savedFlight.getFlightId());
+            } catch (Exception e) {
+                log.error("Failed to associate media with flight ID: {}. Error: {}", savedFlight.getFlightId(), e.getMessage());
+                // Continue without failing the flight creation
+            }
         }
         
-        Map<String, Object> response = convertFlightToResponse(savedFlight);
-        response.put("message", "Flight created successfully");
+        // Return DTO with media information (will be empty for new entity)
+        FlightDto response = flightMapper.toDto(savedFlight);
         
         log.info("Flight created successfully with ID: {}", savedFlight.getFlightId());
         return response;
@@ -155,7 +150,7 @@ public class BackofficeFlightService {
     /**
      * Update existing flight
      */
-    public Map<String, Object> updateFlight(Long id, FlightUpdateDto updateDto) {
+    public FlightDto updateFlight(Long id, FlightUpdateDto updateDto) {
         log.info("Updating flight: ID={}", id);
         
         Flight flight = flightRepository.findById(id)
@@ -168,7 +163,6 @@ public class BackofficeFlightService {
             if (existingFlight.isPresent() && !existingFlight.get().getFlightId().equals(id)) {
                 throw new IllegalArgumentException("Flight number already exists: " + updateDto.getFlightNumber());
             }
-            flight.setFlightNumber(updateDto.getFlightNumber());
         }
         
         if (updateDto.getAirlineId() != null) {
@@ -189,31 +183,38 @@ public class BackofficeFlightService {
             flight.setArrivalAirport(arrivalAirport);
         }
         
+        // Update other fields
+        if (updateDto.getFlightNumber() != null) {
+            flight.setFlightNumber(updateDto.getFlightNumber());
+        }
+        if (updateDto.getBasePrice() != null) {
+            flight.setBasePrice(updateDto.getBasePrice());
+        }
         if (updateDto.getBaseDurationMinutes() != null) {
             flight.setBaseDurationMinutes(updateDto.getBaseDurationMinutes());
         }
-        
-        if (StringUtils.hasText(updateDto.getAircraftType())) {
-            flight.setAircraftType(updateDto.getAircraftType());
-        }
-        
-        if (StringUtils.hasText(updateDto.getStatus())) {
+        if (updateDto.getStatus() != null) {
             flight.setStatus(updateDto.getStatus());
         }
-        
-        if (updateDto.getBasePrice() != null) {
-            flight.setBasePrice(updateDto.getBasePrice());
+        if (updateDto.getAircraftType() != null) {
+            flight.setAircraftType(updateDto.getAircraftType());
         }
         
         Flight updatedFlight = flightRepository.save(flight);
         
-        // Handle images if provided
-        if (updateDto.getImages() != null) {
-            processFlightImages(id, updateDto.getImages());
+        // Associate media if provided
+        if (updateDto.getMediaPublicIds() != null && !updateDto.getMediaPublicIds().isEmpty()) {
+            try {
+                mediaServiceClient.associateMediaWithEntity("FLIGHT", updatedFlight.getFlightId(), updateDto.getMediaPublicIds());
+                log.info("Associated {} media items with flight ID: {}", updateDto.getMediaPublicIds().size(), updatedFlight.getFlightId());
+            } catch (Exception e) {
+                log.error("Failed to associate media with flight ID: {}. Error: {}", updatedFlight.getFlightId(), e.getMessage());
+                // Continue without failing the flight update
+            }
         }
         
-        Map<String, Object> response = convertFlightToResponse(updatedFlight);
-        response.put("message", "Flight updated successfully");
+        // Return DTO with media information
+        FlightDto response = flightMapper.toDto(updatedFlight);
         
         log.info("Flight updated successfully with ID: {}", id);
         return response;
@@ -229,8 +230,7 @@ public class BackofficeFlightService {
             .orElseThrow(() -> new EntityNotFoundException("Flight not found with ID: " + id));
         
         // Soft delete to preserve referential integrity
-        flight.setDeleted(true);
-        flight.setDeletedAt(ZonedDateTime.now());
+        flight.setIsActive(false);
         flightRepository.save(flight);
         
         log.info("Flight deleted successfully with ID: {}", id);
@@ -257,51 +257,6 @@ public class BackofficeFlightService {
         return stats;
     }
 
-    /**
-     * Process flight images by replacing existing active images with new ones
-     * @param flightId The flight ID
-     * @param imageUrls List of image URLs/publicIds from frontend
-     */
-    private void processFlightImages(Long flightId, List<String> imageUrls) {
-        if (imageUrls == null) {
-            // If no images provided, deactivate all existing images
-            List<FlightImage> existingImages = flightImageRepository.findByFlightIdAndIsActiveTrue(flightId);
-            existingImages.forEach(img -> img.setIsActive(false));
-            if (!existingImages.isEmpty()) {
-                flightImageRepository.saveAll(existingImages);
-            }
-            return;
-        }
-
-        // Deactivate all existing images first
-        List<FlightImage> existingImages = flightImageRepository.findByFlightIdAndIsActiveTrue(flightId);
-        existingImages.forEach(img -> img.setIsActive(false));
-        if (!existingImages.isEmpty()) {
-            flightImageRepository.saveAll(existingImages);
-        }
-
-        // Create new active images
-        List<FlightImage> newImages = new ArrayList<>();
-        for (int i = 0; i < imageUrls.size(); i++) {
-            String imageUrl = imageUrls.get(i);
-            if (imageUrl != null && !imageUrl.trim().isEmpty()) {
-                FlightImage flightImage = new FlightImage();
-                // Set the flight reference instead of flightId
-                Flight flight = new Flight();
-                flight.setFlightId(flightId);
-                flightImage.setFlight(flight);
-                flightImage.setImageUrl(imageUrl.trim());
-                flightImage.setIsActive(true);
-                flightImage.setDisplayOrder(i + 1);
-                newImages.add(flightImage);
-            }
-        }
-
-        if (!newImages.isEmpty()) {
-            flightImageRepository.saveAll(newImages);
-        }
-    }
-
     // === Helper Methods ===
 
     private Page<Flight> findFlightsWithFilters(String search, String origin, String destination, 
@@ -313,79 +268,5 @@ public class BackofficeFlightService {
         // TODO: Implement proper filtering with custom queries
         // This is a simplified version for demonstration
         return allFlights;
-    }
-
-    /**
-     * Convert Flight entity to response format
-     */
-    public Map<String, Object> convertFlightToResponse(Flight flight) {
-        Map<String, Object> response = new HashMap<>();
-        
-        response.put("id", flight.getFlightId());
-        response.put("flightNumber", flight.getFlightNumber() != null ? flight.getFlightNumber() : "");
-        response.put("baseDurationMinutes", flight.getBaseDurationMinutes());
-        response.put("aircraftType", flight.getAircraftType() != null ? flight.getAircraftType() : "");
-        response.put("status", flight.getStatus() != null ? flight.getStatus().toString() : "ACTIVE");
-        response.put("basePrice", flight.getBasePrice() != null ? flight.getBasePrice().doubleValue() : 0.0);
-        response.put("isActive", flight.getStatus() != null && !"CANCELLED".equals(flight.getStatus()));
-        
-        // Airline information as nested object
-        if (flight.getAirline() != null) {
-            Map<String, Object> airlineData = new HashMap<>();
-            airlineData.put("id", flight.getAirline().getAirlineId());
-            airlineData.put("name", flight.getAirline().getName() != null ? flight.getAirline().getName() : "");
-            airlineData.put("code", flight.getAirline().getIataCode() != null ? flight.getAirline().getIataCode() : "");
-            airlineData.put("country", ""); // Not available in current schema
-            airlineData.put("isActive", true); // Default to true
-            airlineData.put("createdAt", flight.getAirline().getCreatedAt() != null ? flight.getAirline().getCreatedAt().toString() : "");
-            airlineData.put("updatedAt", flight.getAirline().getUpdatedAt() != null ? flight.getAirline().getUpdatedAt().toString() : "");
-            response.put("airline", airlineData);
-        }
-        
-        // Departure airport information as nested object
-        if (flight.getDepartureAirport() != null) {
-            Map<String, Object> departureAirportData = new HashMap<>();
-            departureAirportData.put("id", flight.getDepartureAirport().getAirportId());
-            departureAirportData.put("name", flight.getDepartureAirport().getName() != null ? flight.getDepartureAirport().getName() : "");
-            departureAirportData.put("code", flight.getDepartureAirport().getIataCode() != null ? flight.getDepartureAirport().getIataCode() : "");
-            departureAirportData.put("city", flight.getDepartureAirport().getCity() != null ? flight.getDepartureAirport().getCity() : "");
-            departureAirportData.put("country", flight.getDepartureAirport().getCountry() != null ? flight.getDepartureAirport().getCountry() : "");
-            departureAirportData.put("isActive", true); // Default to true
-            departureAirportData.put("createdAt", flight.getDepartureAirport().getCreatedAt() != null ? flight.getDepartureAirport().getCreatedAt().toString() : "");
-            departureAirportData.put("updatedAt", flight.getDepartureAirport().getUpdatedAt() != null ? flight.getDepartureAirport().getUpdatedAt().toString() : "");
-            response.put("departureAirport", departureAirportData);
-        }
-        
-        // Arrival airport information as nested object
-        if (flight.getArrivalAirport() != null) {
-            Map<String, Object> arrivalAirportData = new HashMap<>();
-            arrivalAirportData.put("id", flight.getArrivalAirport().getAirportId());
-            arrivalAirportData.put("name", flight.getArrivalAirport().getName() != null ? flight.getArrivalAirport().getName() : "");
-            arrivalAirportData.put("code", flight.getArrivalAirport().getIataCode() != null ? flight.getArrivalAirport().getIataCode() : "");
-            arrivalAirportData.put("city", flight.getArrivalAirport().getCity() != null ? flight.getArrivalAirport().getCity() : "");
-            arrivalAirportData.put("country", flight.getArrivalAirport().getCountry() != null ? flight.getArrivalAirport().getCountry() : "");
-            arrivalAirportData.put("isActive", true); // Default to true
-            arrivalAirportData.put("createdAt", flight.getArrivalAirport().getCreatedAt() != null ? flight.getArrivalAirport().getCreatedAt().toString() : "");
-            arrivalAirportData.put("updatedAt", flight.getArrivalAirport().getUpdatedAt() != null ? flight.getArrivalAirport().getUpdatedAt().toString() : "");
-            response.put("arrivalAirport", arrivalAirportData);
-        }
-        
-        // Audit information
-        response.put("createdAt", flight.getCreatedAt() != null ? flight.getCreatedAt().toString() : "");
-        response.put("updatedAt", flight.getUpdatedAt() != null ? flight.getUpdatedAt().toString() : "");
-        
-        // Add images field - return simple URLs/publicIds for frontend MediaSelector compatibility
-        List<String> imageUrls = flight.getImages() != null ? 
-            flight.getImages().stream()
-                .filter(img -> img.getIsActive() != null && img.getIsActive())
-                .map(img -> img.getImageUrl())
-                .collect(Collectors.toList()) : new ArrayList<>();
-        response.put("images", imageUrls);
-        
-        return response;
-    }
-
-    private Map<String, Object> convertFlightToDetailedResponse(Flight flight) {
-        return convertFlightToResponse(flight);
     }
 }

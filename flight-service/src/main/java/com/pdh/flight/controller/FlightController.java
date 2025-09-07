@@ -54,31 +54,6 @@ public class FlightController {
     private final FlightService flightService;
     private final ObjectMapper objectMapper;
 
-    /**
-     * Health check endpoint
-     */
-    @Operation(
-        summary = "Flight service health check",
-        description = "Returns the health status of the flight service",
-        tags = {"Monitoring"}
-    )
-    @ApiResponses(value = {
-        @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "Service is healthy",
-            content = @Content(schema = @Schema(implementation = Map.class)))
-    })
-    @GetMapping("/backoffice/flight/health")
-    public ResponseEntity<Map<String, Object>> health() {
-        log.info("Flight service health check requested");
-
-        Map<String, Object> healthStatus = Map.of(
-                "status", "UP",
-                "service", "flight-service",
-                "timestamp", LocalDateTime.now(),
-                "messages", "Flight service is running properly"
-        );
-
-        return ResponseEntity.ok(healthStatus);
-    }
 
     // === STOREFRONT API ENDPOINTS ===
 
@@ -376,21 +351,13 @@ public class FlightController {
         String sagaId = (String) request.get("sagaId");
         String reason = (String) request.get("reason");
         
-        // Mock implementation - in real scenario, this would:
+        // TODO
         // 1. Find and cancel the reservation
         // 2. Free up the seats
         // 3. Update reservation status
         
-        Map<String, Object> response = Map.of(
-            "status", "success",
-            "message", "Flight reservation cancelled",
-            "bookingId", bookingId,
-            "sagaId", sagaId,
-            "reason", reason
-        );
-        
-        log.info("Flight cancellation response: {}", response);
-        return ResponseEntity.ok(response);
+
+        return ResponseEntity.ok(Map.of());
     }
     
     /**
@@ -416,17 +383,8 @@ public class FlightController {
         // 2. Generate tickets
         // 3. Send confirmation to customer
         
-        Map<String, Object> response = Map.of(
-            "status", "success",
-            "message", "Flight reservation confirmed",
-            "bookingId", bookingId,
-            "sagaId", sagaId,
-            "confirmationNumber", confirmationNumber,
-            "ticketNumber", "TKT-" + bookingId
-        );
-        
-        log.info("Flight confirmation response: {}", response);
-        return ResponseEntity.ok(response);
+
+        return ResponseEntity.ok(Map.of());
     }
 
     // === HELPER METHODS ===
@@ -450,10 +408,10 @@ public class FlightController {
         response.put("availableSeats", generateMockAvailableSeats()); // Mock - in production, get from inventory
         return response;
     }
-
-    /**
-     * Get airport name by IATA code
-     */
+//
+//    /**
+//     * Get airport name by IATA code
+//     */
     private String getAirportName(String iataCode) {
         try {
             return airportRepository.findByIataCode(iataCode)
@@ -463,10 +421,10 @@ public class FlightController {
             return iataCode + " Airport";
         }
     }
-
-    /**
-     * Get airport city by IATA code
-     */
+//
+//    /**
+//     * Get airport city by IATA code
+//     */
     private String getAirportCity(String iataCode) {
         try {
             return airportRepository.findByIataCode(iataCode)
@@ -476,10 +434,10 @@ public class FlightController {
             return "Unknown City";
         }
     }
-
-    /**
-     * Format duration from minutes to readable string
-     */
+//
+//    /**
+//     * Format duration from minutes to readable string
+//     */
     private String formatDuration(Integer durationMinutes) {
         if (durationMinutes == null) {
             return "2h 30m"; // Default duration
@@ -496,18 +454,18 @@ public class FlightController {
             return String.format("%dm", minutes);
         }
     }
-
-    /**
-     * Generate mock price (in production, this would come from pricing service)
-     */
+//
+//    /**
+//     * Generate mock price (in production, this would come from pricing service)
+//     */
     private long generateMockPrice() {
         // Generate random price between 1.5M and 5M VND
         return 1500000L + (long)(Math.random() * 3500000L);
     }
-
-    /**
-     * Generate mock available seats (in production, this would come from inventory service)
-     */
+//
+//    /**
+//     * Generate mock available seats (in production, this would come from inventory service)
+//     */
     private int generateMockAvailableSeats() {
         // Generate random available seats between 10 and 100
         return 10 + (int)(Math.random() * 90);

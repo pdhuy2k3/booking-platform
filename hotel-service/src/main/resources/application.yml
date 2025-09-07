@@ -83,12 +83,6 @@ spring:
     username: postgres
     password: p0stgr3s
     driver-class-name: org.postgresql.Driver
-    hikari:
-      maximum-pool-size: 5
-      minimum-idle: 2
-      connection-timeout: 20000
-      idle-timeout: 300000
-      leak-detection-threshold: 60000
   jpa:
     hibernate:
       ddl-auto: none
@@ -209,9 +203,15 @@ spring:
 eureka:
   client:
     serviceUrl:
-      defaultZone: ${EUREKA_URI}
+      defaultZone: ${EUREKA_URI:http://discovery-service:8761/eureka}
+    fetch-registry: true
+    register-with-eureka: true
+    initial-instance-info-replication-interval-seconds: 5
+    instance-info-replication-interval-seconds: 5
   instance:
     prefer-ip-address: true
+    lease-renewal-interval-in-seconds: 5
+    lease-expiration-duration-in-seconds: 10
 
 management:
   endpoints:

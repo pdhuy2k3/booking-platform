@@ -40,6 +40,7 @@ public class FlightCreateDto {
     
     @NotBlank(message = "Status is required")
     @Pattern(regexp = "^(ACTIVE|CANCELLED|DELAYED)$", message = "Status must be ACTIVE, CANCELLED, or DELAYED")
+    @Builder.Default
     private String status = "ACTIVE";
     
     @DecimalMin(value = "0.00", message = "Base price must be non-negative")
@@ -47,8 +48,8 @@ public class FlightCreateDto {
     @Digits(integer = 9, fraction = 2, message = "Base price must have at most 9 integer digits and 2 decimal places")
     private BigDecimal basePrice;
     
-    // Images field for frontend MediaSelector compatibility
-    private List<String> images;
+    // Media public IDs for flight images
+    private List<String> mediaPublicIds;
     
     @AssertTrue(message = "Departure and arrival airports cannot be the same")
     private boolean isDifferentAirports() {

@@ -33,6 +33,6 @@ public class AirportRequestDto {
     @Size(max = 100, message = "Country name cannot exceed 100 characters")
     private String country;
     
-    // Images field for frontend MediaSelector compatibility
-    private List<String> images;
+    // Media public IDs for airport images
+    private List<String> mediaPublicIds;
 }

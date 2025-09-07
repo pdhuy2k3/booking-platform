@@ -11,6 +11,7 @@ import {
 } from "@/components/ui/dialog"
 import { Star, Settings } from "lucide-react"
 import type { Hotel } from "@/types/api"
+import { mediaService } from "@/services/media-service"
 
 interface HotelViewDialogProps {
   isOpen: boolean
@@ -33,6 +34,51 @@ export function HotelViewDialog({
     ))
   }
 
+  const renderHotelImages = (images: string[] | undefined) => {
+    if (!images || images.length === 0) {
+      return (
+        <div className="bg-gray-200 border-2 border-dashed rounded-xl w-full h-48 flex items-center justify-center">
+          <span className="text-gray-500">Không có hình ảnh</span>
+        </div>
+      )
+    }
+
+    return (
+      <div className="grid grid-cols-2 gap-2">
+        {images.slice(0, 4).map((publicId, index) => {
+          // Use the media service to generate an optimized Cloudinary URL
+          // The mediaService expects the full path format /api/media/{publicId}
+          const imageUrl = mediaService.getOptimizedUrl(`/api/media/${publicId}`, {
+            width: 200,
+            height: 150,
+            crop: 'fill',
+            quality: 'auto'
+          })
+
+          return (
+            <img
+              key={index}
+              src={imageUrl}
+              alt={`Hotel image ${index + 1}`}
+              className="w-full h-32 object-cover rounded-md"
+              onError={(e) => {
+                const target = e.target as HTMLImageElement
+                target.src = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='150' viewBox='0 0 200 150'%3E%3Crect width='200' height='150' fill='%23e5e7eb'/%3E%3C/svg%3E"
+              }}
+            />
+          )
+        })}
+        {images.length > 4 && (
+          <div className="relative">
+            <div className="bg-gray-200 border-2 border-dashed rounded-xl w-full h-32 flex items-center justify-center">
+              <span className="text-gray-500">+{images.length - 4} ảnh nữa</span>
+            </div>
+          </div>
+        )}
+      </div>
+    )
+  }
+
   if (!hotel) return null
 
   return (
@@ -46,6 +92,9 @@ export function HotelViewDialog({
         </DialogHeader>
         <div className="space-y-4 py-4">
           <div className="grid grid-cols-2 gap-4">
+            <div className="col-span-2">
+              {renderHotelImages(hotel.images)}
+            </div>
             <div>
               <Label className="text-sm text-gray-500">Tên khách sạn</Label>
               <p className="font-medium">{hotel.name}</p>

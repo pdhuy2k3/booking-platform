@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import React, { useState, useEffect } from "react"
 import { useParams, useRouter } from "next/navigation"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Button } from "@/components/ui/button"
@@ -48,8 +48,15 @@ const initialRoomForm: RoomFormData = {
 
 export default function HotelDetails() {
   const router = useRouter()
-  const { id } = useParams()
-  const hotelId = Number(id)
+  const params = useParams()
+  const id = params?.id
+
+  // Ensure id is properly converted to number and handle edge cases
+  const hotelId = React.useMemo(() => {
+    if (!id || Array.isArray(id)) return null
+    const numId = Number(id)
+    return isNaN(numId) ? null : numId
+  }, [id])
 
   // State management
   const [hotel, setHotel] = useState<Hotel | null>(null)
@@ -67,14 +74,18 @@ export default function HotelDetails() {
 
   // Form data
   const [newRoom, setNewRoom] = useState<RoomFormData>(initialRoomForm)
+  const [newRoomImages, setNewRoomImages] = useState<string[]>([])
+  const [editingRoomImages, setEditingRoomImages] = useState<string[]>([])
 
   useEffect(() => {
-    if (id) {
+    if (hotelId) {
       loadHotelDetails()
     }
-  }, [id])
+  }, [hotelId]) // Use hotelId instead of id
 
   const loadHotelDetails = async () => {
+    if (!hotelId) return
+
     try {
       setLoading(true)
       
@@ -112,6 +123,8 @@ export default function HotelDetails() {
 
   // Room management handlers
   const handleCreateRoom = async () => {
+    if (!hotelId) return
+
     if (!newRoom.roomNumber.trim()) {
       toast.error("Vui lòng nhập số phòng")
       return
@@ -126,10 +139,16 @@ export default function HotelDetails() {
     }
     
     try {
-      await RoomService.createRoom(hotelId, newRoom)
+      const roomData = {
+        ...newRoom,
+        mediaPublicIds: newRoomImages
+      }
+      
+      await RoomService.createRoom(hotelId, roomData)
       toast.success("Phòng đã được tạo thành công")
       setIsAddRoomDialogOpen(false)
       setNewRoom(initialRoomForm)
+      setNewRoomImages([])
       loadHotelDetails()
     } catch (error) {
       console.error("Failed to create room:", error)
@@ -142,6 +161,7 @@ export default function HotelDetails() {
       ...room,
       amenityIds: room.amenities?.map(a => a.id) || []
     })
+    setEditingRoomImages(room.images || [])
     setIsEditRoomDialogOpen(true)
   }
 
@@ -164,12 +184,14 @@ export default function HotelDetails() {
     try {
       const updateData = {
         ...selectedRoom,
-        roomTypeId: selectedRoom.roomTypeId || selectedRoom.roomType?.id
+        roomTypeId: selectedRoom.roomTypeId || selectedRoom.roomType?.id,
+        mediaPublicIds: editingRoomImages
       }
       await RoomService.updateRoom(selectedRoom.id, updateData)
       toast.success("Phòng đã được cập nhật thành công")
       setIsEditRoomDialogOpen(false)
       setSelectedRoom(null)
+      setEditingRoomImages([])
       loadHotelDetails()
     } catch (error) {
       console.error("Failed to update room:", error)
@@ -203,6 +225,8 @@ export default function HotelDetails() {
 
   // Hotel management handlers
   const handleUpdateHotelAmenities = async (amenityIds: number[]) => {
+    if (!hotelId) return
+
     try {
       await HotelService.updateHotelAmenities(hotelId, amenityIds)
       await loadHotelDetails()
@@ -213,6 +237,8 @@ export default function HotelDetails() {
   }
 
   const handleUpdateHotelImages = async (imageIds: string[]) => {
+    if (!hotelId) return
+
     try {
       await HotelService.updateHotel(hotelId, { images: imageIds })
       setHotelImages(imageIds)
@@ -343,6 +369,8 @@ export default function HotelDetails() {
         onRoomChange={setNewRoom}
         roomTypes={roomTypes}
         amenities={amenities}
+        images={newRoomImages}
+        onImagesChange={setNewRoomImages}
         onSubmit={handleCreateRoom}
         submitLabel="Thêm phòng"
         formatPrice={formatPrice}
@@ -372,6 +400,8 @@ export default function HotelDetails() {
           })}
           roomTypes={roomTypes}
           amenities={amenities}
+          images={editingRoomImages}
+          onImagesChange={setEditingRoomImages}
           onSubmit={handleUpdateRoom}
           submitLabel="Cập nhật"
           formatPrice={formatPrice}

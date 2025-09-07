@@ -1,6 +1,8 @@
 package com.pdh.flight.controller;
 
+import com.pdh.common.dto.ApiResponse;
 import com.pdh.flight.dto.request.AirportRequestDto;
+import com.pdh.flight.dto.response.AirportDto;
 import com.pdh.flight.service.BackofficeAirportService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -12,6 +14,10 @@ import org.springframework.web.bind.annotation.*;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+
+
+
+import java.util.*;
 
 /**
  * REST Controller for airport management in backoffice
@@ -28,7 +34,7 @@ public class BackofficeAirportController {
      * Get all airports with pagination and filtering for backoffice
      */
     @GetMapping
-    public ResponseEntity<Map<String, Object>> getAllAirports(
+    public ResponseEntity<ApiResponse<Map<String, Object>>> getAllAirports(
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "10") int size,
             @RequestParam(required = false) String search,
@@ -40,14 +46,12 @@ public class BackofficeAirportController {
         
         try {
             Map<String, Object> response = backofficeAirportService.getAllAirports(page, size, search, city, country);
-            log.info("Found {} airports for backoffice", ((java.util.List<?>) response.getOrDefault("content", java.util.List.of())).size());
-            return ResponseEntity.ok(response);
+            log.info("Found {} airports for backoffice", ((List<?>) response.getOrDefault("content", List.of())).size());
+            return ResponseEntity.ok(ApiResponse.success(response));
         } catch (Exception e) {
             log.error("Error fetching airports for backoffice", e);
-            Map<String, Object> errorResponse = new HashMap<>();
-            errorResponse.put("error", "Failed to fetch airports");
-            errorResponse.put("message", e.getMessage());
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(errorResponse);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(ApiResponse.error("Failed to fetch airports", e.getMessage()));
         }
     }
 
@@ -55,24 +59,20 @@ public class BackofficeAirportController {
      * Get airport by ID for backoffice
      */
     @GetMapping("/{id}")
-    public ResponseEntity<Map<String, Object>> getAirport(@PathVariable Long id) {
+    public ResponseEntity<ApiResponse<AirportDto>> getAirport(@PathVariable Long id) {
         log.info("Fetching airport details for backoffice: ID={}", id);
         
         try {
-            Map<String, Object> response = backofficeAirportService.getAirport(id);
-            return ResponseEntity.ok(response);
+            AirportDto response = backofficeAirportService.getAirport(id);
+            return ResponseEntity.ok(ApiResponse.success(response));
         } catch (jakarta.persistence.EntityNotFoundException e) {
             log.error("Airport not found for backoffice: ID={}", id, e);
-            Map<String, Object> errorResponse = new HashMap<>();
-            errorResponse.put("error", "Airport not found");
-            errorResponse.put("message", e.getMessage());
-            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(errorResponse);
+            return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                    .body(ApiResponse.error("Airport not found", e.getMessage()));
         } catch (Exception e) {
             log.error("Error fetching airport details for backoffice: ID={}", id, e);
-            Map<String, Object> errorResponse = new HashMap<>();
-            errorResponse.put("error", "Failed to fetch airport details");
-            errorResponse.put("message", e.getMessage());
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(errorResponse);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(ApiResponse.error("Failed to fetch airport details", e.getMessage()));
         }
     }
 
@@ -80,25 +80,21 @@ public class BackofficeAirportController {
      * Create a new airport
      */
     @PostMapping
-    public ResponseEntity<Map<String, Object>> createAirport(@Valid @RequestBody AirportRequestDto airportRequestDto) {
+    public ResponseEntity<ApiResponse<AirportDto>> createAirport(@Valid @RequestBody AirportRequestDto airportRequestDto) {
         log.info("Creating new airport: {}", airportRequestDto.getName());
         
         try {
-            Map<String, Object> response = backofficeAirportService.createAirport(airportRequestDto);
+            AirportDto response = backofficeAirportService.createAirport(airportRequestDto);
             log.info("Airport created successfully: {}", airportRequestDto.getName());
-            return ResponseEntity.status(HttpStatus.CREATED).body(response);
+            return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.success(response));
         } catch (IllegalArgumentException e) {
             log.error("Invalid airport data", e);
-            Map<String, Object> errorResponse = new HashMap<>();
-            errorResponse.put("error", "Invalid airport data");
-            errorResponse.put("message", e.getMessage());
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(errorResponse);
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .body(ApiResponse.error("Invalid airport data", e.getMessage()));
         } catch (Exception e) {
             log.error("Error creating airport", e);
-            Map<String, Object> errorResponse = new HashMap<>();
-            errorResponse.put("error", "Failed to create airport");
-            errorResponse.put("message", e.getMessage());
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(errorResponse);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(ApiResponse.error("Failed to create airport", e.getMessage()));
         }
     }
 
@@ -106,31 +102,25 @@ public class BackofficeAirportController {
      * Update an existing airport
      */
     @PutMapping("/{id}")
-    public ResponseEntity<Map<String, Object>> updateAirport(@PathVariable Long id, @Valid @RequestBody AirportRequestDto airportRequestDto) {
+    public ResponseEntity<ApiResponse<AirportDto>> updateAirport(@PathVariable Long id, @Valid @RequestBody AirportRequestDto airportRequestDto) {
         log.info("Updating airport: ID={}", id);
         
         try {
-            Map<String, Object> response = backofficeAirportService.updateAirport(id, airportRequestDto);
+            AirportDto response = backofficeAirportService.updateAirport(id, airportRequestDto);
             log.info("Airport updated successfully with ID: {}", id);
-            return ResponseEntity.ok(response);
+            return ResponseEntity.ok(ApiResponse.success(response));
         } catch (jakarta.persistence.EntityNotFoundException e) {
             log.error("Airport not found for update: ID={}", id, e);
-            Map<String, Object> errorResponse = new HashMap<>();
-            errorResponse.put("error", "Airport not found");
-            errorResponse.put("message", e.getMessage());
-            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(errorResponse);
+            return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                    .body(ApiResponse.error("Airport not found", e.getMessage()));
         } catch (IllegalArgumentException e) {
             log.error("Invalid airport data for update", e);
-            Map<String, Object> errorResponse = new HashMap<>();
-            errorResponse.put("error", "Invalid airport data");
-            errorResponse.put("message", e.getMessage());
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(errorResponse);
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .body(ApiResponse.error("Invalid airport data", e.getMessage()));
         } catch (Exception e) {
             log.error("Error updating airport: ID={}", id, e);
-            Map<String, Object> errorResponse = new HashMap<>();
-            errorResponse.put("error", "Failed to update airport");
-            errorResponse.put("message", e.getMessage());
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(errorResponse);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(ApiResponse.error("Failed to update airport", e.getMessage()));
         }
     }
 
@@ -138,33 +128,27 @@ public class BackofficeAirportController {
      * Delete an airport (soft delete)
      */
     @DeleteMapping("/{id}")
-    public ResponseEntity<Map<String, Object>> deleteAirport(@PathVariable Long id) {
+    public ResponseEntity<ApiResponse<Map<String, String>>> deleteAirport(@PathVariable Long id) {
         log.info("Deleting airport: ID={}", id);
         
         try {
             backofficeAirportService.deleteAirport(id);
-            Map<String, Object> response = new HashMap<>();
+            Map<String, String> response = new HashMap<>();
             response.put("message", "Airport deleted successfully");
             log.info("Airport deleted successfully with ID: {}", id);
-            return ResponseEntity.ok(response);
+            return ResponseEntity.ok(ApiResponse.success(response));
         } catch (jakarta.persistence.EntityNotFoundException e) {
             log.error("Airport not found for deletion: ID={}", id, e);
-            Map<String, Object> errorResponse = new HashMap<>();
-            errorResponse.put("error", "Airport not found");
-            errorResponse.put("message", e.getMessage());
-            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(errorResponse);
+            return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                    .body(ApiResponse.error("Airport not found", e.getMessage()));
         } catch (IllegalStateException e) {
             log.error("Cannot delete airport with active flights: ID={}", id, e);
-            Map<String, Object> errorResponse = new HashMap<>();
-            errorResponse.put("error", "Cannot delete airport");
-            errorResponse.put("message", e.getMessage());
-            return ResponseEntity.status(HttpStatus.CONFLICT).body(errorResponse);
+            return ResponseEntity.status(HttpStatus.CONFLICT)
+                    .body(ApiResponse.error("Cannot delete airport", e.getMessage()));
         } catch (Exception e) {
             log.error("Error deleting airport: ID={}", id, e);
-            Map<String, Object> errorResponse = new HashMap<>();
-            errorResponse.put("error", "Failed to delete airport");
-            errorResponse.put("message", e.getMessage());
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(errorResponse);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(ApiResponse.error("Failed to delete airport", e.getMessage()));
         }
     }
 
@@ -172,15 +156,15 @@ public class BackofficeAirportController {
      * Search airports for autocomplete functionality
      */
     @GetMapping("/search")
-    public ResponseEntity<List<Map<String, Object>>> searchAirports(@RequestParam String query) {
+    public ResponseEntity<ApiResponse<List<Map<String, Object>>>> searchAirports(@RequestParam String query) {
         log.info("Searching airports for autocomplete: query={}", query);
         
         try {
             List<Map<String, Object>> response = backofficeAirportService.searchAirports(query);
-            return ResponseEntity.ok(response);
+            return ResponseEntity.ok(ApiResponse.success(response));
         } catch (Exception e) {
             log.error("Error searching airports", e);
-            return ResponseEntity.ok(java.util.List.of());
+            return ResponseEntity.ok(ApiResponse.success(List.of()));
         }
     }
 
@@ -188,18 +172,16 @@ public class BackofficeAirportController {
      * Get airport statistics
      */
     @GetMapping("/statistics")
-    public ResponseEntity<Map<String, Object>> getAirportStatistics() {
+    public ResponseEntity<ApiResponse<Map<String, Object>>> getAirportStatistics() {
         log.info("Fetching airport statistics for backoffice");
         
         try {
             Map<String, Object> response = backofficeAirportService.getAirportStatistics();
-            return ResponseEntity.ok(response);
+            return ResponseEntity.ok(ApiResponse.success(response));
         } catch (Exception e) {
             log.error("Error fetching airport statistics", e);
-            Map<String, Object> errorResponse = new HashMap<>();
-            errorResponse.put("error", "Failed to fetch airport statistics");
-            errorResponse.put("message", e.getMessage());
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(errorResponse);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(ApiResponse.error("Failed to fetch airport statistics", e.getMessage()));
         }
     }
 }

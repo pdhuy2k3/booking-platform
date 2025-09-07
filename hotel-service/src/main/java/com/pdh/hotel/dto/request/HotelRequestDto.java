@@ -47,6 +47,8 @@ public class HotelRequestDto {
     @DecimalMax(value = "180.0", message = "Invalid longitude")
     private BigDecimal longitude;
     
-    // Images field for frontend MediaSelector compatibility
-    private List<String> images;
+    /**
+     * List of media public IDs to associate with this hotel
+     */
+    private List<String> mediaPublicIds;
 }

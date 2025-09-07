@@ -4,6 +4,7 @@ import jakarta.validation.constraints.*;
 import lombok.*;
 
 import java.math.BigDecimal;
+import java.util.List;
 
 /**
  * DTO for creating or updating room type information
@@ -30,4 +31,9 @@ public class RoomTypeRequestDto {
     @DecimalMax(value = "99999999.99", message = "Base price cannot exceed 99,999,999.99")
     @Digits(integer = 8, fraction = 2, message = "Base price format invalid - maximum 8 digits before decimal point")
     private BigDecimal basePrice;
+    
+    /**
+     * List of media public IDs to associate with this room type
+     */
+    private List<String> mediaPublicIds;
 }

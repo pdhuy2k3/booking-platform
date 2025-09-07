@@ -44,6 +44,31 @@ public interface FlightLegRepository extends JpaRepository<FlightLeg, Long> {
         ORDER BY fl.legNumber
     """)
     List<FlightLeg> findByFlightIdOrderByLegNumber(Long flightId);
+    
+    /**
+     * Find flight legs by flight ID (simple version without joins)
+     *
+     * @param flightId The flight ID
+     * @return List of FlightLeg records
+     */
+    @Query("SELECT fl FROM FlightLeg fl WHERE fl.flight.flightId = :flightId ORDER BY fl.legNumber")
+    List<FlightLeg> findByFlightId(@Param("flightId") Long flightId);
+    
+    /**
+     * Find flight legs by multiple flight IDs
+     *
+     * @param flightIds List of flight IDs
+     * @return List of FlightLeg records
+     */
+    @Query("""
+        SELECT fl FROM FlightLeg fl 
+        JOIN FETCH fl.flight f
+        JOIN FETCH fl.departureAirport
+        JOIN FETCH fl.arrivalAirport
+        WHERE f.flightId IN :flightIds 
+        ORDER BY f.flightId, fl.legNumber
+    """)
+    List<FlightLeg> findByFlightIds(@Param("flightIds") List<Long> flightIds);
 
     /**
      * Find flight legs by departure and arrival airports

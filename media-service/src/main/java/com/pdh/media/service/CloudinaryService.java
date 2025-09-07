@@ -1,6 +1,7 @@
 package com.pdh.media.service;
 
 import com.cloudinary.Cloudinary;
+import com.cloudinary.Transformation;
 import com.cloudinary.utils.ObjectUtils;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -24,6 +25,11 @@ public class CloudinaryService {
      * Upload image to Cloudinary and return URL and metadata
      */
     public Map<String, Object> uploadImage(MultipartFile file, String folder) throws IOException {
+        // Input validation
+        if (file == null || file.isEmpty()) {
+            throw new IllegalArgumentException("File cannot be null or empty");
+        }
+        
         log.info("Uploading image: {} to folder: {}", file.getOriginalFilename(), folder);
 
         // Build Cloudinary upload parameters
@@ -35,29 +41,30 @@ public class CloudinaryService {
                 "overwrite", false
         );
 
-        // Add transformation for optimization
-        params.put("eager", ObjectUtils.asMap(
-                "width", 800, 
-                "height", 600, 
-                "crop", "limit", 
-                "quality", "auto"
+        // Add transformation for optimization - eager must be a List of Transformation objects
+        params.put("eager", java.util.List.of(
+                new Transformation()
+                        .width(800)
+                        .height(600)
+                        .crop("limit")
+                        .quality("auto")
         ));
 
         // Upload to Cloudinary
-        Map uploadResult = cloudinary.uploader().upload(file.getBytes(), params);
+        Map<String, Object> uploadResult = cloudinary.uploader().upload(file.getBytes(), params);
         
         log.info("Image uploaded successfully with public_id: {}", uploadResult.get("public_id"));
 
         // Return simplified response with only essential data
         return Map.of(
-                "public_id", uploadResult.get("public_id"),
-                "url", uploadResult.get("url"),
-                "secure_url", uploadResult.get("secure_url"),
-                "format", uploadResult.get("format"),
-                "width", uploadResult.get("width"),
-                "height", uploadResult.get("height"),
-                "bytes", uploadResult.get("bytes"),
-                "resource_type", uploadResult.get("resource_type")
+                "public_id", uploadResult.getOrDefault("public_id", ""),
+                "url", uploadResult.getOrDefault("url", ""),
+                "secure_url", uploadResult.getOrDefault("secure_url", ""),
+                "format", uploadResult.getOrDefault("format", ""),
+                "width", uploadResult.getOrDefault("width", 0),
+                "height", uploadResult.getOrDefault("height", 0),
+                "bytes", uploadResult.getOrDefault("bytes", 0),
+                "resource_type", uploadResult.getOrDefault("resource_type", "image")
         );
     }
 
@@ -67,7 +74,7 @@ public class CloudinaryService {
     public void deleteImage(String publicId) throws IOException {
         log.info("Deleting image with public_id: {}", publicId);
         
-        Map result = cloudinary.uploader().destroy(publicId, ObjectUtils.asMap("resource_type", "image"));
+        Map<String, Object> result = cloudinary.uploader().destroy(publicId, ObjectUtils.asMap("resource_type", "image"));
         log.info("Image deletion result: {}", result);
     }
 
@@ -108,7 +115,7 @@ public class CloudinaryService {
         }
 
         try {
-            Map searchResult;
+            Map<String, Object> searchResult;
             if (search != null && !search.trim().isEmpty()) {
                 // Use search API for complex queries
                 searchResult = cloudinary.search().expression((String) params.get("expression"))
@@ -137,7 +144,7 @@ public class CloudinaryService {
         log.info("Getting folders list");
         
         try {
-            Map result = cloudinary.api().rootFolders(ObjectUtils.asMap("max_results", 100));
+            Map<String, Object> result = cloudinary.api().rootFolders(ObjectUtils.asMap("max_results", 100));
             log.info("Found {} root folders", 
                     result.get("folders") != null ? 
                     ((java.util.List<?>) result.get("folders")).size() : 0);

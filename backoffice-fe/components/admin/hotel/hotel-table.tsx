@@ -9,6 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Button } from "@/components/ui/button"
 import { Search, MoreHorizontal, Eye, Edit, Trash2, Settings, Star } from "lucide-react"
 import type { Hotel, PaginatedResponse } from "@/types/api"
+import { mediaService } from "@/services/media-service"
 
 interface HotelTableProps {
   hotels: PaginatedResponse<Hotel> | null
@@ -41,6 +42,38 @@ export function HotelTable({
     return Array.from({ length: 5 }, (_, i) => (
       <Star key={i} className={`w-4 h-4 ${i < rating ? "text-yellow-400 fill-current" : "text-gray-300"}`} />
     ))
+  }
+
+  const renderHotelImage = (hotel: Hotel) => {
+    // Get the first image if available
+    const firstImagePublicId = hotel.images && hotel.images.length > 0 ? hotel.images[0] : null
+    
+    if (firstImagePublicId) {
+      // Use the media service to generate an optimized Cloudinary URL
+      // The mediaService expects the full path format /api/media/{publicId}
+      const imageUrl = mediaService.getOptimizedUrl(`/api/media/${firstImagePublicId}`, {
+        width: 64,
+        height: 40,
+        crop: 'fill',
+        quality: 'auto'
+      })
+      
+      return (
+        <img 
+          src={imageUrl} 
+          alt={hotel.name} 
+          className="w-16 h-10 object-cover rounded-md"
+          onError={(e) => {
+            // Fallback to placeholder if image fails to load
+            const target = e.target as HTMLImageElement
+            target.src = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='64' height='40' viewBox='0 0 64 40'%3E%3Crect width='64' height='40' fill='%23e5e7eb'/%3E%3C/svg%3E"
+          }}
+        />
+      )
+    }
+    
+    // Fallback placeholder
+    return <div className="bg-gray-200 border-2 border-dashed rounded-xl w-16 h-10" />
   }
 
   return (
@@ -112,7 +145,7 @@ export function HotelTable({
                   <TableRow key={hotel.id}>
                     <TableCell>
                       <div className="flex items-center space-x-3">
-                        <div className="bg-gray-200 border-2 border-dashed rounded-xl w-16 h-10" />
+                        {renderHotelImage(hotel)}
                         <div>
                           <div className="font-medium">{hotel.name}</div>
                           <div className="text-sm text-gray-500">ID: {hotel.id}</div>
