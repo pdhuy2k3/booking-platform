@@ -28,14 +28,23 @@ import { Label } from "@/components/ui/label"
 import { Plus, Search, Edit, Trash2, MapPin, Navigation } from "lucide-react"
 import { AdminLayout } from "@/components/admin/admin-layout"
 import { AirportService } from "@/services/airport-service"
+import { MediaSelector } from "@/components/ui/media-selector"
 import type { Airport, PaginatedResponse } from "@/types/api"
 import { toast } from "@/components/ui/use-toast"
+import { mediaService } from "@/services/media-service"
 
 interface AirportFormData {
   name: string
   code: string
   city: string
   country: string
+  timezone?: string
+}
+
+interface AirportFormState {
+  data: AirportFormData
+  images: string[]
+  errors: Partial<AirportFormData>
 }
 
 export default function AdminAirports() {
@@ -58,6 +67,8 @@ export default function AdminAirports() {
     city: "", 
     country: "" 
   })
+  const [formImages, setFormImages] = useState<string[]>([])
+  const [editingAirportImages, setEditingAirportImages] = useState<string[]>([])
   const [formErrors, setFormErrors] = useState<Partial<AirportFormData>>({})
   const [editingAirport, setEditingAirport] = useState<Airport | null>(null)
   const [deletingAirport, setDeletingAirport] = useState<Airport | null>(null)
@@ -120,12 +131,18 @@ export default function AdminAirports() {
     
     try {
       setSubmitting(true)
-      await AirportService.createAirport({
+      
+      // Combine basic airport data with selected images
+      const airportData = {
         name: formData.name.trim(),
         code: formData.code.trim().toUpperCase(),
         city: formData.city.trim(),
         country: formData.country.trim(),
-      })
+        timezone: formData.timezone?.trim() || undefined,
+        mediaPublicIds: formImages // Send image publicIds to backend
+      }
+      
+      await AirportService.createAirport(airportData)
       
       toast({
         title: "Thành công",
@@ -134,6 +151,7 @@ export default function AdminAirports() {
       
       setIsAddDialogOpen(false)
       setFormData({ name: "", code: "", city: "", country: "", timezone: "" })
+      setFormImages([])
       setFormErrors({})
       loadAirports()
     } catch (error: any) {
@@ -153,13 +171,18 @@ export default function AdminAirports() {
     
     try {
       setSubmitting(true)
-      await AirportService.updateAirport(editingAirport.id, {
+      
+      // Combine basic airport data with selected images
+      const airportData = {
         name: formData.name.trim(),
         code: formData.code.trim().toUpperCase(),
         city: formData.city.trim(),
         country: formData.country.trim(),
-        timezone: formData.timezone.trim() || undefined,
-      })
+        timezone: formData.timezone?.trim() || undefined,
+        mediaPublicIds: editingAirportImages // Send image publicIds to backend
+      }
+      
+      await AirportService.updateAirport(editingAirport.id, airportData)
       
       toast({
         title: "Thành công",
@@ -169,6 +192,7 @@ export default function AdminAirports() {
       setIsEditDialogOpen(false)
       setEditingAirport(null)
       setFormData({ name: "", code: "", city: "", country: "", timezone: "" })
+      setEditingAirportImages([])
       setFormErrors({})
       loadAirports()
     } catch (error: any) {
@@ -219,6 +243,8 @@ export default function AdminAirports() {
       country: airport.country,
       timezone: airport.timezone || "",
     })
+    // Load existing images if available
+    setEditingAirportImages(airport.images || [])
     setFormErrors({})
     setIsEditDialogOpen(true)
   }
@@ -230,6 +256,7 @@ export default function AdminAirports() {
 
   const resetAddForm = () => {
     setFormData({ name: "", code: "", city: "", country: "", timezone: "" })
+    setFormImages([])
     setFormErrors({})
   }
 
@@ -237,13 +264,44 @@ export default function AdminAirports() {
     setSearchTerm("")
     setCityFilter("")
     setCountryFilter("")
-    setCurrentPage(0)
   }
 
   const totalAirports = airports?.totalElements || 0
   const activeAirports = airports?.content.filter(a => a.isActive).length || 0
-  const uniqueCities = new Set(airports?.content.map(a => a.city).filter(Boolean)).size
-  const uniqueCountries = new Set(airports?.content.map(a => a.country).filter(Boolean)).size
+  const uniqueCities = new Set(airports?.content.map(a => a.city)).size || 0
+  const uniqueCountries = new Set(airports?.content.map(a => a.country)).size || 0
+
+  const renderAirportImage = (airport: Airport) => {
+    // Get the first image if available
+    const firstImagePublicId = airport.images && airport.images.length > 0 ? airport.images[0] : null
+    
+    if (firstImagePublicId) {
+      // Use the media service to generate an optimized Cloudinary URL
+      // The mediaService expects the full path format /api/media/{publicId}
+      const imageUrl = mediaService.getOptimizedUrl(`/api/media/${firstImagePublicId}`, {
+        width: 32,
+        height: 32,
+        crop: 'fill',
+        quality: 'auto'
+      })
+      
+      return (
+        <img 
+          src={imageUrl} 
+          alt={airport.name} 
+          className="w-8 h-8 object-cover rounded-md"
+          onError={(e) => {
+            // Fallback to placeholder if image fails to load
+            const target = e.target as HTMLImageElement
+            target.src = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='32' height='32' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' fill='%23e5e7eb'/%3E%3C/svg%3E"
+          }}
+        />
+      )
+    }
+    
+    // Fallback placeholder
+    return <div className="bg-gray-200 border-2 border-dashed rounded-md w-8 h-8" />
+  }
 
   return (
     <AdminLayout>
@@ -320,6 +378,16 @@ export default function AdminAirports() {
                   placeholder="Asia/Ho_Chi_Minh"
                   value={formData.timezone}
                   onChange={(e) => setFormData({ ...formData, timezone: e.target.value })}
+                />
+              </div>
+              <div className="col-span-2 space-y-2">
+                <Label>Hình ảnh sân bay</Label>
+                <MediaSelector
+                  value={formImages}
+                  onChange={setFormImages}
+                  folder="airports"
+                  maxSelection={5}
+                  allowUpload={true}
                 />
               </div>
             </div>
@@ -425,6 +493,7 @@ export default function AdminAirports() {
             <Table className="min-w-[800px]">
               <TableHeader>
                 <TableRow>
+                  <TableHead>Hình ảnh</TableHead>
                   <TableHead>Mã IATA</TableHead>
                   <TableHead>Tên sân bay</TableHead>
                   <TableHead>Thành phố</TableHead>
@@ -438,7 +507,7 @@ export default function AdminAirports() {
               <TableBody>
                 {loading ? (
                   <TableRow>
-                    <TableCell colSpan={8} className="text-center py-8">
+                    <TableCell colSpan={9} className="text-center py-8">
                       <div className="flex items-center justify-center">
                         <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div>
                         <span className="ml-2">Đang tải...</span>
@@ -447,13 +516,16 @@ export default function AdminAirports() {
                   </TableRow>
                 ) : airports?.content.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={8} className="text-center py-8 text-gray-500">
+                    <TableCell colSpan={9} className="text-center py-8 text-gray-500">
                       Không có dữ liệu
                     </TableCell>
                   </TableRow>
                 ) : (
                   airports?.content.map((airport) => (
                     <TableRow key={airport.id}>
+                      <TableCell>
+                        {renderAirportImage(airport)}
+                      </TableCell>
                       <TableCell className="font-medium">{airport.code}</TableCell>
                       <TableCell>{airport.name}</TableCell>
                       <TableCell>{airport.city}</TableCell>
@@ -551,6 +623,16 @@ export default function AdminAirports() {
                 placeholder="Asia/Ho_Chi_Minh"
                 value={formData.timezone}
                 onChange={(e) => setFormData({ ...formData, timezone: e.target.value })}
+              />
+            </div>
+            <div className="col-span-2 space-y-2">
+              <Label>Hình ảnh sân bay</Label>
+              <MediaSelector
+                value={editingAirportImages}
+                onChange={setEditingAirportImages}
+                folder="airports"
+                maxSelection={5}
+                allowUpload={true}
               />
             </div>
           </div>

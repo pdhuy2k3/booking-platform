@@ -49,7 +49,7 @@ export class AmenityService {
    * Create a new amenity
    */
   static async createAmenity(
-    amenity: Omit<Amenity, "id" | "createdAt" | "updatedAt">
+    amenity: Omit<Amenity, "id" | "createdAt" | "updatedAt"> & { images?: string[] }
   ): Promise<Amenity> {
     const response = await apiClient.post<{ amenity: Amenity }>(
       this.BASE_PATH,
@@ -63,7 +63,7 @@ export class AmenityService {
    */
   static async updateAmenity(
     id: number,
-    amenity: Partial<Amenity>
+    amenity: Partial<Amenity> & { images?: string[] }
   ): Promise<Amenity> {
     const response = await apiClient.put<{ amenity: Amenity }>(
       `${this.BASE_PATH}/${id}`,

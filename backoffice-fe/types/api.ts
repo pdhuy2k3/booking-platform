@@ -22,6 +22,8 @@ export interface Airline {
   isActive: boolean
   createdAt: string
   updatedAt: string
+  images?: string[]           // Display purposes - URLs from media service
+  mediaPublicIds?: string[]   // For creating/updating airlines - publicIds from MediaSelector
 }
 
 export interface Airport {
@@ -34,6 +36,8 @@ export interface Airport {
   isActive: boolean
   createdAt: string
   updatedAt: string
+  images?: string[]           // Display purposes - URLs from media service
+  mediaPublicIds?: string[]   // For creating/updating airports - publicIds from MediaSelector
 }
 
 export interface Flight {
@@ -49,6 +53,8 @@ export interface Flight {
   isActive: boolean
   createdAt: string
   updatedAt: string
+  images?: string[]           // Display purposes - URLs from media service
+  mediaPublicIds?: string[]   // For creating/updating flights - publicIds from MediaSelector
 }
 
 export interface Hotel {
@@ -65,7 +71,8 @@ export interface Hotel {
   averageRating?: number
   totalReviews?: number
   amenities?: Amenity[]
-  images?: string[]
+  images?: string[]           // Display purposes - URLs from media service
+  mediaPublicIds?: string[]   // For creating/updating hotels - publicIds from MediaSelector
   latitude?: number
   longitude?: number
   status?: string
@@ -83,6 +90,8 @@ export interface RoomType {
   description: string
   capacityAdults?: number
   basePrice?: number
+  images?: string[]           // Display purposes - URLs from media service
+  mediaPublicIds?: string[]   // For creating/updating room types - publicIds from MediaSelector
   createdAt?: string
   updatedAt?: string
 }
@@ -112,8 +121,8 @@ export interface Room {
   roomTypeId?: number | null  // For creating/updating rooms
   amenities?: Amenity[]
   amenityIds?: number[]       // For creating/updating rooms
-  images?: string[]
-  imageUrls?: string[]        // For creating/updating rooms
+  images?: string[]           // Display purposes - URLs from media service
+  mediaPublicIds?: string[]   // For creating/updating rooms - publicIds from MediaSelector
   createdAt?: string
   updatedAt?: string
 }

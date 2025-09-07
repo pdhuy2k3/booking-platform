@@ -1,6 +1,8 @@
 package com.pdh.hotel.controller;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.pdh.common.config.OpenApiResponses;
+import com.pdh.common.dto.response.ApiResponse;
 import com.pdh.hotel.dto.HotelBookingDetailsDto;
 import com.pdh.hotel.dto.response.AmenityResponseDto;
 import com.pdh.hotel.dto.response.RoomResponseDto;
@@ -10,6 +12,14 @@ import com.pdh.hotel.repository.RoomRepository;
 import com.pdh.hotel.service.AmenityService;
 import com.pdh.hotel.service.HotelService;
 import com.pdh.hotel.service.RoomService;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.ExampleObject;
+import io.swagger.v3.oas.annotations.media.Schema;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
@@ -35,11 +45,15 @@ import java.util.stream.Collectors;
 
 /**
  * Hotel Controller
- * Xử lý các API requests liên quan đến khách sạn
+ * 
+ * Handles all hotel-related API endpoints including search, details, and reservations.
+ * This controller provides both public APIs for storefront and internal APIs for booking integration.
  */
 @RestController
 @RequiredArgsConstructor
 @Slf4j
+@Tag(name = "Hotels", description = "Hotel management and search operations")
+@SecurityRequirement(name = "oauth2")
 public class HotelController {
 
     private final HotelRepository hotelRepository;
@@ -54,6 +68,15 @@ public class HotelController {
     /**
      * Health check endpoint
      */
+    @Operation(
+        summary = "Hotel service health check",
+        description = "Returns the health status of the hotel service",
+        tags = {"Monitoring"}
+    )
+    @ApiResponses(value = {
+        @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "Service is healthy",
+            content = @Content(schema = @Schema(implementation = Map.class)))
+    })
     @GetMapping("/backoffice/hotel/health")
     public ResponseEntity<Map<String, Object>> health() {
         log.info("Hotel service health check requested");
@@ -74,14 +97,32 @@ public class HotelController {
      * Search hotels for storefront
      * GET /hotels/storefront/search?destination=Ho Chi Minh City&checkInDate=2024-02-15&checkOutDate=2024-02-17&guests=2&rooms=1
      */
+    @Operation(
+        summary = "Search hotels",
+        description = "Search for hotels based on destination, dates, and guest requirements. Returns paginated results with availability and pricing information.",
+        tags = {"Public API", "Search"}
+    )
+    @ApiResponses(value = {
+        @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "Hotels found successfully",
+            content = @Content(schema = @Schema(implementation = Map.class))
+        ),
+        @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400", description = "Invalid search parameters")
+    })
     @GetMapping("/storefront/search")
     public ResponseEntity<Map<String, Object>> searchHotels(
+            @Parameter(description = "Destination city or location", required = true, example = "Ho Chi Minh City")
             @RequestParam String destination,
+            @Parameter(description = "Check-in date in YYYY-MM-DD format", required = true, example = "2024-02-15")
             @RequestParam String checkInDate,
+            @Parameter(description = "Check-out date in YYYY-MM-DD format", required = true, example = "2024-02-17")
             @RequestParam String checkOutDate,
+            @Parameter(description = "Number of guests", example = "2")
             @RequestParam(defaultValue = "2") int guests,
+            @Parameter(description = "Number of rooms", example = "1")
             @RequestParam(defaultValue = "1") int rooms,
+            @Parameter(description = "Page number (1-based)", example = "1")
             @RequestParam(defaultValue = "1") int page,
+            @Parameter(description = "Number of results per page", example = "20")
             @RequestParam(defaultValue = "20") int limit) {
 
         log.info("Hotel search request: destination={}, checkIn={}, checkOut={}, guests={}, rooms={}",
@@ -139,8 +180,16 @@ public class HotelController {
     /**
      * Get hotel details by ID for storefront
      */
+    @Operation(
+        summary = "Get hotel details",
+        description = "Retrieve detailed information about a specific hotel including rooms, amenities, and policies",
+        tags = {"Public API"}
+    )
+    @OpenApiResponses.StandardApiResponsesWithNotFound
     @GetMapping("/storefront/{hotelId}")
-    public ResponseEntity<Map<String, Object>> getStorefrontHotelDetails(@PathVariable Long hotelId) {
+    public ResponseEntity<Map<String, Object>> getStorefrontHotelDetails(
+            @Parameter(description = "Hotel ID", required = true, example = "1")
+            @PathVariable Long hotelId) {
         log.info("Hotel details request for ID: {}", hotelId);
 
         try {
@@ -160,10 +209,19 @@ public class HotelController {
     }
 
     /**
-     * Lấy thông tin chi tiết khách sạn
+     * Get hotel details for backoffice
      */
+    @Operation(
+        summary = "Get hotel details for backoffice",
+        description = "Retrieve hotel information for administrative purposes",
+        tags = {"Admin API"}
+    )
+    @SecurityRequirement(name = "oauth2", scopes = {"admin"})
+    @OpenApiResponses.StandardApiResponsesWithNotFound
     @GetMapping("/backoffice/{hotelId}")
-    public ResponseEntity<Long> getHotelDetails(@PathVariable Long hotelId) {
+    public ResponseEntity<Long> getHotelDetails(
+            @Parameter(description = "Hotel ID", required = true, example = "1")
+            @PathVariable Long hotelId) {
         log.info("Getting hotel details for ID: {}", hotelId);
 
         return ResponseEntity.ok(hotelId);
@@ -175,8 +233,23 @@ public class HotelController {
      * Reserve hotel for booking (called by Booking Service)
      * Enhanced to handle detailed product information
      */
+    @Operation(
+        summary = "Reserve hotel",
+        description = "Create a hotel reservation as part of the booking process. Supports both detailed product information and legacy mode.",
+        tags = {"Internal API", "Booking"}
+    )
+    @SecurityRequirement(name = "oauth2", scopes = {"admin", "internal"})
+    @ApiResponses(value = {
+        @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "Reservation created successfully",
+            content = @Content(schema = @Schema(implementation = Map.class))
+        ),
+        @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400", description = "Invalid reservation data"),
+        @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "500", description = "Reservation failed")
+    })
     @PostMapping("/reserve")
-    public ResponseEntity<Map<String, Object>> reserveHotel(@RequestBody Map<String, Object> request) {
+    public ResponseEntity<Map<String, Object>> reserveHotel(
+            @Parameter(description = "Reservation request containing booking details", required = true)
+            @RequestBody Map<String, Object> request) {
         log.info("Hotel reservation request: {}", request);
 
         try {
@@ -242,6 +315,13 @@ public class HotelController {
     /**
      * Cancel hotel reservation (compensation)
      */
+    @Operation(
+        summary = "Cancel hotel reservation",
+        description = "Cancel a hotel reservation as part of compensation logic in the booking saga",
+        tags = {"Internal API", "Booking"}
+    )
+    @SecurityRequirement(name = "oauth2", scopes = {"admin", "internal"})
+    @OpenApiResponses.StandardApiResponses
     @PostMapping("/cancel-reservation")
     public ResponseEntity<Map<String, Object>> cancelHotelReservation(@RequestBody Map<String, Object> request) {
         log.info("Hotel cancellation request: {}", request);
@@ -270,6 +350,13 @@ public class HotelController {
     /**
      * Confirm hotel reservation (final step)
      */
+    @Operation(
+        summary = "Confirm hotel reservation",
+        description = "Confirm a hotel reservation as the final step in the booking process",
+        tags = {"Internal API", "Booking"}
+    )
+    @SecurityRequirement(name = "oauth2", scopes = {"admin", "internal"})
+    @OpenApiResponses.StandardApiResponses
     @PostMapping("/confirm-reservation")
     public ResponseEntity<Map<String, Object>> confirmHotelReservation(@RequestBody Map<String, Object> request) {
         log.info("Hotel confirmation request: {}", request);

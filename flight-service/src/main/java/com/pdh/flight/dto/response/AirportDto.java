@@ -2,6 +2,7 @@ package com.pdh.flight.dto.response;
 
 import lombok.*;
 import java.time.LocalDateTime;
+import java.util.List;
 
 /**
  * DTO for airport data transfer
@@ -21,6 +22,11 @@ public class AirportDto {
     private String city;
     
     private String country;
+    
+    private Boolean isActive;
+    
+    // Images as publicIds - frontend can use these to generate URLs
+    private List<String> images;
     
     // Audit information
     private LocalDateTime createdAt;
