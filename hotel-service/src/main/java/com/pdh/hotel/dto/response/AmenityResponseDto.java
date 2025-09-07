@@ -4,6 +4,7 @@ import lombok.*;
 
 import java.time.LocalDateTime;
 import java.time.ZonedDateTime;
+import java.util.List;
 
 /**
  * DTO for returning amenity information
@@ -19,6 +20,9 @@ public class AmenityResponseDto {
     private String iconUrl;
     private Boolean isActive;
     private Integer displayOrder;
+    
+    // Images field for frontend MediaSelector compatibility
+    private List<String> images;
     
     // Audit fields
     private ZonedDateTime createdAt;

@@ -9,7 +9,15 @@ import com.pdh.booking.mapper.BookingDtoMapper;
 import com.pdh.booking.model.Booking;
 import com.pdh.booking.service.BookingService;
 import com.pdh.booking.repository.BookingRepository;
+import com.pdh.common.config.OpenApiResponses;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.Schema;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
+import io.swagger.v3.oas.annotations.tags.Tag;
 
 import java.util.Map;
 import java.util.Optional;
@@ -24,11 +32,15 @@ import jakarta.validation.Valid;
 
 /**
  * Simplified Booking Controller using direct REST communication
- * Replaces complex saga orchestration with synchronous processing
+ * 
+ * Handles all booking-related operations including creation, status tracking, and retrieval.
+ * Replaces complex saga orchestration with synchronous processing for better performance.
  */
 @RestController
 @RequiredArgsConstructor
 @Slf4j
+@Tag(name = "Bookings", description = "Booking management and orchestration operations")
+@SecurityRequirement(name = "oauth2")
 public class BookingController {
 
     private final BookingService bookingService;
@@ -39,8 +51,17 @@ public class BookingController {
     /**
      * Create a new booking using simplified direct REST communication
      */
+    @Operation(
+        summary = "Create booking (Admin)",
+        description = "Create a new booking for administrative purposes with full booking details",
+        tags = {"Admin API", "Booking Creation"}
+    )
+    @SecurityRequirement(name = "oauth2", scopes = {"admin"})
+    @OpenApiResponses.CreationApiResponses
     @PostMapping("/backoffice")
-    public ResponseEntity<BookingResponseDto> createBooking(@Valid @RequestBody CreateBookingRequestDto request) {
+    public ResponseEntity<BookingResponseDto> createBooking(
+            @Parameter(description = "Booking creation request", required = true)
+            @Valid @RequestBody CreateBookingRequestDto request) {
         try {
             log.info("Creating booking with type: {}", request.getBookingType());
 
@@ -68,8 +89,17 @@ public class BookingController {
     /**
      * Get booking by saga ID (Backoffice/Admin)
      */
+    @Operation(
+        summary = "Get booking by saga ID",
+        description = "Retrieve booking details using the saga ID for administrative purposes",
+        tags = {"Admin API"}
+    )
+    @SecurityRequirement(name = "oauth2", scopes = {"admin"})
+    @OpenApiResponses.StandardApiResponsesWithNotFound
     @GetMapping("/saga/{sagaId}")
-    public ResponseEntity<BookingResponseDto> getBookingBySagaId(@PathVariable String sagaId) {
+    public ResponseEntity<BookingResponseDto> getBookingBySagaId(
+            @Parameter(description = "Saga ID", required = true, example = "saga-12345")
+            @PathVariable String sagaId) {
         return bookingService.findBySagaId(sagaId)
                 .map(booking -> {
                     BookingResponseDto response = bookingDtoMapper.toResponseDto(booking);
@@ -83,8 +113,17 @@ public class BookingController {
     /**
      * Create a new booking using simplified direct REST communication (Storefront)
      */
+    @Operation(
+        summary = "Create booking (Customer)",
+        description = "Create a new booking from the customer storefront with product details",
+        tags = {"Public API", "Booking Creation"}
+    )
+    @SecurityRequirement(name = "oauth2", scopes = {"customer"})
+    @OpenApiResponses.CreationApiResponses
     @PostMapping("/storefront")
-    public ResponseEntity<StorefrontBookingResponseDto> createStorefrontBooking(@Valid @RequestBody StorefrontCreateBookingRequestDto request) {
+    public ResponseEntity<StorefrontBookingResponseDto> createStorefrontBooking(
+            @Parameter(description = "Storefront booking creation request", required = true)
+            @Valid @RequestBody StorefrontCreateBookingRequestDto request) {
         try {
             log.info("Creating storefront booking with type: {}", request.getBookingType());
 
@@ -120,8 +159,17 @@ public class BookingController {
     /**
      * Get booking by saga ID (Storefront)
      */
+    @Operation(
+        summary = "Get booking by saga ID (Customer)",
+        description = "Retrieve booking details using the saga ID for customer storefront",
+        tags = {"Public API"}
+    )
+    @SecurityRequirement(name = "oauth2", scopes = {"customer"})
+    @OpenApiResponses.StandardApiResponsesWithNotFound
     @GetMapping("/storefront/saga/{sagaId}")
-    public ResponseEntity<StorefrontBookingResponseDto> getStorefrontBookingBySagaId(@PathVariable String sagaId) {
+    public ResponseEntity<StorefrontBookingResponseDto> getStorefrontBookingBySagaId(
+            @Parameter(description = "Saga ID", required = true, example = "saga-12345")
+            @PathVariable String sagaId) {
         return bookingService.findBySagaId(sagaId)
                 .map(booking -> {
                     StorefrontBookingResponseDto response = bookingDtoMapper.toStorefrontResponseDto(booking);
@@ -138,8 +186,17 @@ public class BookingController {
      * Get booking status for polling (Storefront)
      * Used by frontend to check validation progress
      */
+    @Operation(
+        summary = "Get booking status",
+        description = "Poll booking status to track validation and processing progress",
+        tags = {"Public API", "Status Tracking"}
+    )
+    @SecurityRequirement(name = "oauth2", scopes = {"customer"})
+    @OpenApiResponses.StandardApiResponsesWithNotFound
     @GetMapping("/storefront/{bookingId}/status")
-    public ResponseEntity<BookingStatusResponseDto> getBookingStatus(@PathVariable UUID bookingId) {
+    public ResponseEntity<BookingStatusResponseDto> getBookingStatus(
+            @Parameter(description = "Booking ID", required = true, example = "123e4567-e89b-12d3-a456-426614174000")
+            @PathVariable UUID bookingId) {
         try {
             Optional<Booking> bookingOpt = bookingRepository.findById(bookingId);
 

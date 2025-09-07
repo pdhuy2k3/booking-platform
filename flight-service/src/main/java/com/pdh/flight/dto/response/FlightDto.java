@@ -3,6 +3,7 @@ package com.pdh.flight.dto.response;
 import lombok.*;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.List;
 
 /**
  * DTO for flight data transfer
@@ -25,11 +26,12 @@ public class FlightDto {
     
     private BigDecimal basePrice;
     
+    private Boolean isActive;
+    
     // Airline information
     private Long airlineId;
     private String airlineName;
     private String airlineIataCode;
-    private String airlineLogoUrl;
     
     // Departure airport information
     private Long departureAirportId;
@@ -45,6 +47,13 @@ public class FlightDto {
     private String arrivalAirportCity;
     private String arrivalAirportCountry;
     
+    // Flight scheduling and timing information
+    private List<FlightScheduleDto> schedules;
+    private List<FlightLegDto> legs;
+    
+    // Pricing information
+    private List<FlightFareDto> fares;
+    
     // Audit information
     private LocalDateTime createdAt;
     private String createdBy;
@@ -55,4 +64,10 @@ public class FlightDto {
     private Long totalSchedules;
     private Long activeSchedules;
     private Long totalBookings;
+    
+    // Media information fetched from media-service
+    private List<MediaInfo> images;
+    private MediaInfo primaryImage;
+    private Boolean hasMedia;
+    private Long mediaCount;
 }

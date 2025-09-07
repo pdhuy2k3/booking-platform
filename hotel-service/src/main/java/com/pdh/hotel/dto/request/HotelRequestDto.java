@@ -4,6 +4,7 @@ import jakarta.validation.constraints.*;
 import lombok.*;
 
 import java.math.BigDecimal;
+import java.util.List;
 
 /**
  * DTO for creating or updating hotel information
@@ -45,4 +46,9 @@ public class HotelRequestDto {
     @DecimalMin(value = "-180.0", message = "Invalid longitude")
     @DecimalMax(value = "180.0", message = "Invalid longitude")
     private BigDecimal longitude;
+    
+    /**
+     * List of media public IDs to associate with this hotel
+     */
+    private List<String> mediaPublicIds;
 }

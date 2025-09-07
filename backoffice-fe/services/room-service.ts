@@ -41,11 +41,18 @@ export class RoomService {
    */
   static async createRoom(
     hotelId: number,
-    room: Omit<Room, "id" | "hotelId" | "hotelName" | "createdAt" | "updatedAt">
+    room: Omit<Room, "id" | "hotelId" | "hotelName" | "createdAt" | "updatedAt" | "images">
   ): Promise<Room> {
+    // Prepare the room data, ensuring mediaPublicIds are sent instead of images
+    const roomData = {
+      ...room,
+      // Remove images field if present, use mediaPublicIds instead
+      images: undefined
+    }
+
     const response = await apiClient.post<{ room: Room }>(
       `${this.BASE_PATH}/backoffice/rooms/${hotelId}/rooms`,
-      room
+      roomData
     )
     return response.room
   }
@@ -57,9 +64,16 @@ export class RoomService {
     id: number,
     room: Partial<Room>
   ): Promise<Room> {
+    // Prepare the room data, ensuring mediaPublicIds are sent instead of images
+    const roomData = {
+      ...room,
+      // Remove images field if present, use mediaPublicIds instead
+      images: undefined
+    }
+
     const response = await apiClient.put<{ room: Room }>(
       `${this.BASE_PATH}/backoffice/rooms/${id}`,
-      room
+      roomData
     )
     return response.room
   }

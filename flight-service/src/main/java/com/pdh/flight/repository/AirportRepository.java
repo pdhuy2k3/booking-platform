@@ -31,40 +31,40 @@ public interface AirportRepository extends JpaRepository<Airport, Long> {
     Optional<Airport> findByIataCode(String iataCode);
 
     /**
-     * Find all active airports (not deleted)
+     * Find all active airports
      * @return List of active airports
      */
-    @Query("SELECT a FROM Airport a WHERE a.isDeleted = false")
+    @Query("SELECT a FROM Airport a WHERE a.isActive = true")
     List<Airport> findAllActive();
-
+    
     /**
      * Find airports by city (case insensitive)
      * @param city the city name
      * @return List of airports in the city
      */
     List<Airport> findByCityIgnoreCase(String city);
-
+    
     /**
      * Find airports by country (case insensitive)
      * @param country the country name
      * @return List of airports in the country
      */
     List<Airport> findByCountryIgnoreCase(String country);
-
+    
     /**
      * Find airports by name containing the given string (case insensitive)
      * @param name the name to search for
      * @return List of matching airports
      */
     List<Airport> findByNameContainingIgnoreCase(String name);
-
+    
     /**
      * Check if an airport exists by IATA code
      * @param iataCode the IATA code
      * @return true if exists, false otherwise
      */
     boolean existsByIataCodeIgnoreCase(String iataCode);
-
+    
     /**
      * Search airports by name, IATA code, or city (for autocomplete)
      * @param name search term for name
@@ -81,7 +81,7 @@ public interface AirportRepository extends JpaRepository<Airport, Long> {
      * @param pageable pagination information
      * @return Page of active airports
      */
-    @Query("SELECT a FROM Airport a WHERE a.isDeleted = false")
+    @Query("SELECT a FROM Airport a WHERE a.isActive = true")
     Page<Airport> findAllActive(Pageable pageable);
     
     /**
