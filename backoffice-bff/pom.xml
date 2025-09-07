@@ -40,6 +40,9 @@
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-actuator</artifactId>
         </dependency>
+        
+        <!-- OpenAPI Documentation for WebFlux -->
+
 
     </dependencies>
 

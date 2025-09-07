@@ -1,23 +1,28 @@
 package com.pdh.hotel.mapper;
 
+import com.pdh.hotel.client.MediaServiceClient;
 import com.pdh.hotel.dto.request.RoomRequestDto;
 import com.pdh.hotel.dto.response.RoomResponseDto;
+import com.pdh.hotel.dto.response.MediaInfo;
 import com.pdh.hotel.model.Room;
-import com.pdh.hotel.model.RoomImage;
-import org.springframework.beans.factory.annotation.Autowired;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
+import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 /**
  * Mapper for converting between Room entity and DTOs
  */
 @Component
+@RequiredArgsConstructor
+@Slf4j
 public class RoomMapper {
     
-    @Autowired
-    private AmenityMapper amenityMapper;
+    private final MediaServiceClient mediaServiceClient;
     
     /**
      * Convert RoomRequestDto to Room entity
@@ -57,13 +62,13 @@ public class RoomMapper {
     }
     
     /**
-     * Convert Room entity to RoomResponseDto
+     * Convert Room entity to RoomResponseDto with media information
      */
     public RoomResponseDto toResponseDto(Room room) {
         if (room == null) {
             return null;
         }
-        
+
         RoomResponseDto.RoomResponseDtoBuilder builder = RoomResponseDto.builder()
                 .id(room.getId())
                 .roomNumber(room.getRoomNumber())
@@ -75,13 +80,13 @@ public class RoomMapper {
                 .isAvailable(room.getIsAvailable())
                 .createdAt(room.getCreatedAt())
                 .updatedAt(room.getUpdatedAt());
-        
+
         // Add hotel information if available
         if (room.getHotel() != null) {
             builder.hotelId(room.getHotel().getHotelId())
                    .hotelName(room.getHotel().getName());
         }
-        
+
         // Add room type information if available
         if (room.getRoomType() != null) {
             builder.roomType(RoomResponseDto.RoomTypeDto.builder()
@@ -90,28 +95,187 @@ public class RoomMapper {
                     .description(room.getRoomType().getDescription())
                     .build());
         }
+
+        RoomResponseDto dto = builder.build();
         
-        // Add room images if available
-        if (room.getRoomImages() != null && !room.getRoomImages().isEmpty()) {
-            List<String> imageUrls = room.getRoomImages().stream()
-                    .map(RoomImage::getImageUrl)
-                    .collect(Collectors.toList());
-            builder.images(imageUrls);
+        // Fetch and set media information
+        setMediaInfo(dto, "ROOM", room.getId());
+
+        return dto;
+    }
+
+    /**
+     * Convert list of Room entities to list of RoomResponseDto with optimized media fetching
+     */
+    public List<RoomResponseDto> toResponseDtoList(List<Room> rooms) {
+        if (rooms == null || rooms.isEmpty()) {
+            return List.of();
         }
-        
-        return builder.build();
+
+        // First, convert entities to DTOs without media
+        List<RoomResponseDto> dtos = rooms.stream()
+                .map(room -> {
+                    RoomResponseDto.RoomResponseDtoBuilder builder = RoomResponseDto.builder()
+                            .id(room.getId())
+                            .roomNumber(room.getRoomNumber())
+                            .description(room.getDescription())
+                            .price(room.getPrice())
+                            .maxOccupancy(room.getMaxOccupancy())
+                            .bedType(room.getBedType())
+                            .roomSize(room.getRoomSize())
+                            .isAvailable(room.getIsAvailable())
+                            .createdAt(room.getCreatedAt())
+                            .updatedAt(room.getUpdatedAt());
+
+                    // Add hotel information if available
+                    if (room.getHotel() != null) {
+                        builder.hotelId(room.getHotel().getHotelId())
+                               .hotelName(room.getHotel().getName());
+                    }
+
+                    // Add room type information if available
+                    if (room.getRoomType() != null) {
+                        builder.roomType(RoomResponseDto.RoomTypeDto.builder()
+                                .id(room.getRoomType().getRoomTypeId())
+                                .name(room.getRoomType().getName())
+                                .description(room.getRoomType().getDescription())
+                                .build());
+                    }
+
+                    return builder.build();
+                })
+                .collect(Collectors.toList());
+
+        // Then, fetch media for all rooms in one batch call
+        List<Long> roomIds = rooms.stream()
+                .map(Room::getId)
+                .collect(Collectors.toList());
+
+        try {
+            Map<Long, List<Map<String, Object>>> mediaMap = mediaServiceClient.getMediaForEntities("ROOM", roomIds);
+            
+            // Set media information for each DTO
+            dtos.forEach(dto -> {
+                List<Map<String, Object>> mediaList = mediaMap.get(dto.getId());
+                setMediaFromList(dto, mediaList);
+            });
+        } catch (Exception e) {
+            log.error("Failed to fetch media for rooms: {}", e.getMessage());
+            // Set default values for all DTOs
+            dtos.forEach(dto -> setDefaultMediaValues(dto));
+        }
+
+        return dtos;
     }
     
     /**
-     * Convert list of Room entities to list of RoomResponseDto
+     * Helper method to fetch and set media information for a single room
      */
-    public List<RoomResponseDto> toResponseDtoList(List<Room> rooms) {
-        if (rooms == null) {
-            return null;
+    private void setMediaInfo(RoomResponseDto dto, String entityType, Long entityId) {
+        try {
+            List<Map<String, Object>> mediaList = mediaServiceClient.getMediaByEntity(entityType, entityId);
+            setMediaFromList(dto, mediaList);
+        } catch (Exception e) {
+            log.error("Failed to fetch media for {} {}: {}", entityType, entityId, e.getMessage());
+            setDefaultMediaValues(dto);
+        }
+    }
+    
+    /**
+     * Helper method to set media information from media list
+     */
+    private void setMediaFromList(RoomResponseDto dto, List<Map<String, Object>> mediaList) {
+        if (mediaList == null || mediaList.isEmpty()) {
+            setDefaultMediaValues(dto);
+            return;
         }
         
-        return rooms.stream()
-                .map(this::toResponseDto)
+        List<MediaInfo> mediaInfoList = mediaList.stream()
+                .map(this::convertToMediaInfo)
                 .collect(Collectors.toList());
+        
+        dto.setImages(mediaInfoList);
+        dto.setHasMedia(true);
+        dto.setMediaCount(mediaInfoList.size());
+        
+        // Find primary image
+        MediaInfo primaryImage = mediaInfoList.stream()
+                .filter(media -> Boolean.TRUE.equals(media.getIsPrimary()))
+                .findFirst()
+                .orElse(mediaInfoList.isEmpty() ? null : mediaInfoList.get(0));
+        
+        dto.setPrimaryImage(primaryImage);
+    }
+    
+    /**
+     * Helper method to set default media values when no media is found
+     */
+    private void setDefaultMediaValues(RoomResponseDto dto) {
+        dto.setImages(List.of());
+        dto.setPrimaryImage(null);
+        dto.setHasMedia(false);
+        dto.setMediaCount(0);
+    }
+    
+    /**
+     * Helper method to convert media map to MediaInfo object
+     */
+    private MediaInfo convertToMediaInfo(Map<String, Object> mediaMap) {
+        return MediaInfo.builder()
+                .id(safeLongConvert(mediaMap.get("id")))
+                .publicId(safeStringConvert(mediaMap.get("publicId")))
+                .url(safeStringConvert(mediaMap.get("url")))
+                .secureUrl(safeStringConvert(mediaMap.get("secureUrl")))
+                .altText(safeStringConvert(mediaMap.get("altText")))
+                .isPrimary(safeBooleanConvert(mediaMap.get("isPrimary")))
+                .displayOrder(safeIntegerConvert(mediaMap.get("displayOrder")))
+                .mediaType(safeStringConvert(mediaMap.get("mediaType")))
+                .resourceType(safeStringConvert(mediaMap.get("resourceType")))
+                .format(safeStringConvert(mediaMap.get("format")))
+                .fileSize(safeLongConvert(mediaMap.get("fileSize")))
+                .width(safeIntegerConvert(mediaMap.get("width")))
+                .height(safeIntegerConvert(mediaMap.get("height")))
+                .tags(safeStringConvert(mediaMap.get("tags")))
+                .createdAt(safeLocalDateTimeConvert(mediaMap.get("createdAt")))
+                .updatedAt(safeLocalDateTimeConvert(mediaMap.get("updatedAt")))
+                .build();
+    }
+    
+    // Helper methods for safe type conversion
+    private String safeStringConvert(Object value) {
+        return value != null ? value.toString() : null;
+    }
+    
+    private Long safeLongConvert(Object value) {
+        if (value == null) return null;
+        if (value instanceof Number) return ((Number) value).longValue();
+        try {
+            return Long.parseLong(value.toString());
+        } catch (NumberFormatException e) {
+            return null;
+        }
+    }
+    
+    private Integer safeIntegerConvert(Object value) {
+        if (value == null) return null;
+        if (value instanceof Number) return ((Number) value).intValue();
+        try {
+            return Integer.parseInt(value.toString());
+        } catch (NumberFormatException e) {
+            return null;
+        }
+    }
+    
+    private Boolean safeBooleanConvert(Object value) {
+        if (value == null) return null;
+        if (value instanceof Boolean) return (Boolean) value;
+        return Boolean.parseBoolean(value.toString());
+    }
+    
+    private LocalDateTime safeLocalDateTimeConvert(Object value) {
+        if (value == null) return null;
+        if (value instanceof LocalDateTime) return (LocalDateTime) value;
+        // Add more conversion logic if needed based on the actual format
+        return null;
     }
 }

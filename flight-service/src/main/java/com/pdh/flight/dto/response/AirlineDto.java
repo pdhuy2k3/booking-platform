@@ -2,6 +2,7 @@ package com.pdh.flight.dto.response;
 
 import lombok.*;
 import java.time.LocalDateTime;
+import java.util.List;
 
 /**
  * DTO for airline data transfer
@@ -18,7 +19,10 @@ public class AirlineDto {
     
     private String iataCode;
     
-    private String logoUrl;
+    private Boolean isActive;
+    
+    // Images as publicIds - frontend can use these to generate URLs
+    private List<String> images;
     
     // Audit information
     private LocalDateTime createdAt;

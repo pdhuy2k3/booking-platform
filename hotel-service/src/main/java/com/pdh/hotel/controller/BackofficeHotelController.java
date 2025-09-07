@@ -1,5 +1,7 @@
 package com.pdh.hotel.controller;
 
+import com.pdh.hotel.client.MediaServiceClient;
+import com.pdh.hotel.dto.request.HotelRequestDto;
 import com.pdh.hotel.service.BackofficeHotelService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -7,7 +9,9 @@ import org.springframework.ai.tool.annotation.Tool;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 
+import jakarta.validation.Valid;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -19,6 +23,7 @@ import java.util.Map;
 public class BackofficeHotelController {
 
     private final BackofficeHotelService backofficeHotelService;
+    private final MediaServiceClient mediaServiceClient;
 
     /**
      * Get all hotels with pagination and filtering for backoffice
@@ -70,10 +75,10 @@ public class BackofficeHotelController {
      * Create a new hotel
      */
     @PostMapping
-    public ResponseEntity<Map<String, Object>> createHotel(@RequestBody Map<String, Object> hotelData) {
-        log.info("Creating new hotel: {}", hotelData);
+    public ResponseEntity<Map<String, Object>> createHotel(@Valid @RequestBody HotelRequestDto hotelRequestDto) {
+        log.info("Creating new hotel: {}", hotelRequestDto);
         try {
-            Map<String, Object> response = backofficeHotelService.createHotel(hotelData);
+            Map<String, Object> response = backofficeHotelService.createHotel(hotelRequestDto);
             log.info("Hotel created successfully with response: {}", response);
             return ResponseEntity.status(HttpStatus.CREATED).body(response);
         } catch (Exception e) {
@@ -89,10 +94,10 @@ public class BackofficeHotelController {
      * Update an existing hotel
      */
     @PutMapping("/{id}")
-    public ResponseEntity<Map<String, Object>> updateHotel(@PathVariable Long id, @RequestBody Map<String, Object> hotelData) {
-        log.info("Updating hotel: ID={}, data={}", id, hotelData);
+    public ResponseEntity<Map<String, Object>> updateHotel(@PathVariable Long id, @Valid @RequestBody HotelRequestDto hotelRequestDto) {
+        log.info("Updating hotel: ID={}, data={}", id, hotelRequestDto);
         try {
-            Map<String, Object> response = backofficeHotelService.updateHotel(id, hotelData);
+            Map<String, Object> response = backofficeHotelService.updateHotel(id, hotelRequestDto);
             log.info("Hotel updated successfully with ID: {}", id);
             return ResponseEntity.ok(response);
         } catch (Exception e) {
@@ -146,4 +151,7 @@ public class BackofficeHotelController {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(errorResponse);
         }
     }
+
+
+
 }

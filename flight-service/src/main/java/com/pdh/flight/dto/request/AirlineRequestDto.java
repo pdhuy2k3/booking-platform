@@ -4,6 +4,8 @@ import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import jakarta.validation.constraints.*;
 import lombok.*;
 
+import java.util.List;
+
 /**
  * DTO for airline creation and updates
  */
@@ -23,8 +25,7 @@ public class AirlineRequestDto {
     @Pattern(regexp = "^[A-Z]{2}$", message = "IATA code must be 2 uppercase letters")
     private String code;
     
-    @Size(max = 500, message = "Logo URL cannot exceed 500 characters")
-    @Pattern(regexp = "^(https?://).*\\.(jpg|jpeg|png|gif|svg)$", 
-             message = "Logo URL must be a valid HTTP/HTTPS URL ending with jpg, jpeg, png, gif, or svg")
-    private String logoUrl;
+    // Media public IDs for airline images (logos, etc.)
+    // Contains list of publicIds that will be processed by the service layer
+    private List<String> mediaPublicIds;
 }

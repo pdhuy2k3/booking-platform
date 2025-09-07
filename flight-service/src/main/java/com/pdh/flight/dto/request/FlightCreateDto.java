@@ -3,6 +3,7 @@ package com.pdh.flight.dto.request;
 import jakarta.validation.constraints.*;
 import lombok.*;
 import java.math.BigDecimal;
+import java.util.List;
 
 /**
  * DTO for creating new flights
@@ -39,12 +40,16 @@ public class FlightCreateDto {
     
     @NotBlank(message = "Status is required")
     @Pattern(regexp = "^(ACTIVE|CANCELLED|DELAYED)$", message = "Status must be ACTIVE, CANCELLED, or DELAYED")
+    @Builder.Default
     private String status = "ACTIVE";
     
     @DecimalMin(value = "0.00", message = "Base price must be non-negative")
     @DecimalMax(value = "999999999.99", message = "Base price is too large")
     @Digits(integer = 9, fraction = 2, message = "Base price must have at most 9 integer digits and 2 decimal places")
     private BigDecimal basePrice;
+    
+    // Media public IDs for flight images
+    private List<String> mediaPublicIds;
     
     @AssertTrue(message = "Departure and arrival airports cannot be the same")
     private boolean isDifferentAirports() {

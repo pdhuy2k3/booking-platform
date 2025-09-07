@@ -4,12 +4,14 @@ interface AirlineCreateRequest {
   name: string
   code: string
   country?: string
+  images?: string[] // Array of publicIds from MediaSelector
 }
 
 interface AirlineUpdateRequest {
   name?: string
   code?: string
   country?: string
+  images?: string[] // Array of publicIds from MediaSelector
 }
 
 export class AirlineService {

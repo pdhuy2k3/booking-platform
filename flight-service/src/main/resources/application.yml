@@ -2,6 +2,60 @@ server:
   port: 8081
   servlet:
     context-path: /flights
+
+# OpenAPI Documentation Configuration
+springdoc:
+  api-docs:
+    path: /api/docs
+    enabled: true
+  swagger-ui:
+    path: /api/swagger-ui
+    enabled: true
+    operationsSorter: method
+    tagsSorter: alpha
+    try-it-out-enabled: true
+    oauth:
+      clientId: ${keycloak.client-id:bookingsmart-api}
+      realm: ${keycloak.realm:bookingsmart}
+      appName: ${spring.application.name}
+  show-actuator: true
+  group-configs:
+    - group: 'public'
+      display-name: 'Public API'
+      paths-to-match: '/storefront/**'
+    - group: 'admin'
+      display-name: 'Admin API'
+      paths-to-match: '/backoffice/**'
+    - group: 'internal'
+      display-name: 'Internal API'
+      paths-to-match: ['/reserve', '/cancel-reservation', '/confirm-reservation']
+    - group: 'monitoring'
+      display-name: 'Monitoring & Health'
+      paths-to-match: '**/health'
+
+# API Documentation Properties
+api:
+  info:
+    title: Flight Service API
+    description: Flight search and booking API for the BookingSmart platform
+    version: '@project.version@'
+    contact:
+      name: BookingSmart Flight Team
+      email: flight-team@bookingsmart.com
+    license:
+      name: MIT License
+      url: https://opensource.org/licenses/MIT
+    oauth2:
+      authorization-url: http://localhost:8080/realms/bookingsmart/protocol/openid-connect/auth
+      token-url: http://localhost:8080/realms/bookingsmart/protocol/openid-connect/token
+      refresh-url: http://localhost:8080/realms/bookingsmart/protocol/openid-connect/token
+      scopes:
+        admin: Administrative access to flight management
+        customer: Customer access to flight search and booking
+        partner: Partner access to flight integration endpoints
+        public: Public access to flight search and information
+        internal: Internal service-to-service communication
+
 logging:
   level:
     com.pdh.flight: DEBUG
@@ -23,19 +77,38 @@ spring:
   config:
     activate:
       on-profile: local
+  devtools:
+    restart:
+      enabled: true
+      poll-interval: 2000
+      quiet-period: 1000
+    livereload:
+      enabled: true
+      port: 35729
   datasource:
     url: jdbc:postgresql://localhost:5432/flight_db
     username: postgres
     password: p0stgr3s
     driver-class-name: org.postgresql.Driver
+    hikari:
+      maximum-pool-size: 5
+      minimum-idle: 2
+      connection-timeout: 20000
+      idle-timeout: 300000
+      leak-detection-threshold: 60000
   jpa:
     hibernate:
       ddl-auto: none
-    show-sql: true
+    show-sql: false
     properties:
       hibernate:
         dialect: org.hibernate.dialect.PostgreSQLDialect
         format_sql: true
+        jdbc:
+          lob:
+            non_contextual_creation: true
+        temp:
+          use_jdbc_metadata_defaults: false
   security:
     oauth2:
       resourceserver:
@@ -47,18 +120,37 @@ spring:
     default-schema: public
     change-log: classpath:db/changelog/db.changelog-master.yaml
   
-  # Kafka Configuration - Minimal, inherit từ BaseKafkaConfig
+  # Kafka Configuration - Optimized for local development
   kafka:
     bootstrap-servers: localhost:9092
     consumer:
-      group-id: flight-service
+      group-id: flight-service-local
+      auto-offset-reset: earliest
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      session-timeout-ms: 30000
+      heartbeat-interval-ms: 10000
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.apache.kafka.common.serialization.StringSerializer
+      acks: 1
+      retries: 3
+      batch-size: 16384
+      linger-ms: 5
+
 eureka:
   client:
     serviceUrl:
       defaultZone: http://localhost:8761/eureka
+    fetch-registry: true
+    register-with-eureka: true
+    initial-instance-info-replication-interval-seconds: 5
+    instance-info-replication-interval-seconds: 5
   instance:
     hostname: localhost
     prefer-ip-address: false
+    lease-renewal-interval-in-seconds: 5
+    lease-expiration-duration-in-seconds: 10
 
 ---
 
@@ -98,9 +190,15 @@ spring:
 eureka:
   client:
     serviceUrl:
-      defaultZone: ${EUREKA_URI}
+      defaultZone: ${EUREKA_URI:http://discovery-service:8761/eureka}
+    fetch-registry: true
+    register-with-eureka: true
+    initial-instance-info-replication-interval-seconds: 5
+    instance-info-replication-interval-seconds: 5
   instance:
     prefer-ip-address: true
+    lease-renewal-interval-in-seconds: 5
+    lease-expiration-duration-in-seconds: 10
 
 management:
   endpoints:

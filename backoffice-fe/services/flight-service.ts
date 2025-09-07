@@ -9,6 +9,7 @@ interface FlightCreateRequest {
   aircraftType?: string
   status?: string
   basePrice?: number
+  images?: string[] // Array of publicIds from MediaSelector
 }
 
 interface FlightUpdateRequest {
@@ -20,6 +21,7 @@ interface FlightUpdateRequest {
   aircraftType?: string
   status?: string
   basePrice?: number
+  images?: string[] // Array of publicIds from MediaSelector
 }
 
 interface FlightStatistics {

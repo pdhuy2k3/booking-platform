@@ -8,6 +8,7 @@ import lombok.EqualsAndHashCode;
 import lombok.NoArgsConstructor;
 
 import java.math.BigDecimal;
+import java.util.List;
 
 @Entity
 @Table(name = "flights")
@@ -49,4 +50,10 @@ public class Flight extends AbstractAuditEntity {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "arrival_airport_id", nullable = false)
     private Airport arrivalAirport;
+
+    @Column(name = "is_active", nullable = false)
+    private Boolean isActive = true;
+
+    // Images are managed through the unified Image entity with entityType = "FLIGHT" and entityId = flightId
+    // No direct JPA relationship - images are accessed via ImageService
 }
