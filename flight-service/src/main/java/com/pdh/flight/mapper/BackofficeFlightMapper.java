@@ -3,14 +3,12 @@ package com.pdh.flight.mapper;
 import com.pdh.flight.client.MediaServiceClient;
 import com.pdh.flight.dto.response.FlightDto;
 import com.pdh.flight.dto.response.FlightScheduleDto;
-import com.pdh.flight.dto.response.FlightLegDto;
 import com.pdh.flight.dto.response.FlightFareDto;
 import com.pdh.flight.dto.response.MediaInfo;
 import com.pdh.flight.model.Airline;
 import com.pdh.flight.model.Airport;
 import com.pdh.flight.model.Flight;
 import com.pdh.flight.service.FlightScheduleService;
-import com.pdh.flight.service.FlightLegService;
 import com.pdh.flight.service.FlightFareService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -33,7 +31,7 @@ public class BackofficeFlightMapper {
 
     private final MediaServiceClient mediaServiceClient;
     private final FlightScheduleService flightScheduleService;
-    private final FlightLegService flightLegService;
+
     private final FlightFareService flightFareService;
 
     /**
@@ -96,9 +94,7 @@ public class BackofficeFlightMapper {
                 List<FlightScheduleDto> schedules = flightScheduleService.getSchedulesByFlightId(flightId);
                 flightDto.setSchedules(schedules);
                 
-                // Fetch legs for this flight
-                List<FlightLegDto> legs = flightLegService.getLegsByFlightId(flightId);
-                flightDto.setLegs(legs);
+
                 
                 // Fetch fares for all schedules of this flight
                 if (!schedules.isEmpty()) {
@@ -121,7 +117,6 @@ public class BackofficeFlightMapper {
             } catch (Exception e) {
                 log.warn("Failed to fetch schedule/leg/fare data for flight {}: {}", flightId, e.getMessage());
                 flightDto.setSchedules(List.of());
-                flightDto.setLegs(List.of());
                 flightDto.setFares(List.of());
             }
         }
@@ -189,9 +184,7 @@ public class BackofficeFlightMapper {
             try {
                 // Batch fetch schedules for all flights
                 Map<Long, List<FlightScheduleDto>> scheduleMap = flightScheduleService.getSchedulesByFlightIds(flightIds);
-                
-                // Batch fetch legs for all flights
-                Map<Long, List<FlightLegDto>> legMap = flightLegService.getLegsByFlightIds(flightIds);
+
                 
                 // Collect all schedule IDs for fare fetching
                 List<UUID> allScheduleIds = scheduleMap.values().stream()
@@ -213,10 +206,7 @@ public class BackofficeFlightMapper {
                         // Set schedules
                         List<FlightScheduleDto> schedules = scheduleMap.getOrDefault(flightId, List.of());
                         flightDto.setSchedules(schedules);
-                        
-                        // Set legs
-                        List<FlightLegDto> legs = legMap.getOrDefault(flightId, List.of());
-                        flightDto.setLegs(legs);
+
                         
                         // Set fares for this flight's schedules
                         List<FlightFareDto> flightFares = schedules.stream()
@@ -324,7 +314,6 @@ public class BackofficeFlightMapper {
 
         // Initialize empty values (will be populated by batch operation)
         return builder.schedules(List.of())
-                     .legs(List.of())
                      .fares(List.of())
                      .images(List.of())
                      .hasMedia(false)

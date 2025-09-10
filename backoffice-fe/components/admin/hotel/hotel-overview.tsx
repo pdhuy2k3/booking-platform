@@ -219,7 +219,7 @@ export function HotelOverview({ hotel, formatPrice }: HotelOverviewProps) {
       )}
 
       {/* Images */}
-      {hotel.images && hotel.images.length > 0 && (
+      {hotel.media && hotel.media.length > 0 && (
         <Card>
           <CardHeader>
             <CardTitle className="text-lg">Hình ảnh khách sạn</CardTitle>
@@ -227,15 +227,15 @@ export function HotelOverview({ hotel, formatPrice }: HotelOverviewProps) {
           </CardHeader>
           <CardContent>
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-              {hotel.images.slice(0, 8).map((image, index) => (
+              {hotel.media.slice(0, 8).map((media, index) => (
                 <div key={index} className="aspect-video bg-gray-200 rounded-lg border-2 border-dashed border-gray-300 flex items-center justify-center">
                   <span className="text-xs text-gray-500">Hình {index + 1}</span>
                 </div>
               ))}
             </div>
-            {hotel.images.length > 8 && (
+            {hotel.media.length > 8 && (
               <p className="text-sm text-gray-500 mt-2">
-                và {hotel.images.length - 8} hình ảnh khác...
+                và {hotel.media.length - 8} hình ảnh khác...
               </p>
             )}
           </CardContent>

@@ -20,7 +20,6 @@ import java.util.UUID;
 public class FlightService {
 
     private final OutboxEventService eventPublisher;
-    private final FlightInventoryService flightInventoryService;
 
     @Transactional
     public void reserveFlight(UUID bookingId) {
@@ -37,16 +36,16 @@ public class FlightService {
 
         try {
             // Validate flight availability and reserve inventory
-            boolean inventoryReserved = flightInventoryService.reserveSeats(
-                Long.parseLong(flightDetails.getFlightId()),
-                flightDetails.getSeatClass(),
-                flightDetails.getPassengerCount(),
-                flightDetails.getDepartureDateTime().toLocalDate()
-            );
-
-            if (!inventoryReserved) {
-                throw new RuntimeException("Flight inventory not available for reservation");
-            }
+//            boolean inventoryReserved = flightInventoryService.reserveSeats(
+//                Long.parseLong(flightDetails.getFlightId()),
+//                flightDetails.getSeatClass(),
+//                flightDetails.getPassengerCount(),
+//                flightDetails.getDepartureDateTime().toLocalDate()
+//            );
+//
+//            if (!inventoryReserved) {
+//                throw new RuntimeException("Flight inventory not available for reservation");
+//            }
 
             // Create detailed flight reservation data for saga event
             FlightReservationData flightData = FlightReservationData.builder()
@@ -104,12 +103,12 @@ public class FlightService {
 
         try {
             // Release flight inventory
-            flightInventoryService.releaseSeats(
-                Long.parseLong(flightDetails.getFlightId()),
-                flightDetails.getSeatClass(),
-                flightDetails.getPassengerCount(),
-                flightDetails.getDepartureDateTime().toLocalDate()
-            );
+//            flightInventoryService.releaseSeats(
+//                Long.parseLong(flightDetails.getFlightId()),
+//                flightDetails.getSeatClass(),
+//                flightDetails.getPassengerCount(),
+//                flightDetails.getDepartureDateTime().toLocalDate()
+//            );
 
             // Create detailed cancellation event payload
             Map<String, Object> eventPayload = new HashMap<>();

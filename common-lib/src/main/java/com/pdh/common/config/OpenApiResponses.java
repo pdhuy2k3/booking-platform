@@ -10,6 +10,8 @@ import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
 
+import com.pdh.common.dto.response.PagedResponse;
+
 /**
  * Common OpenAPI response annotations for BookingSmart services
  */
@@ -131,7 +133,7 @@ public class OpenApiResponses {
     @Retention(RetentionPolicy.RUNTIME)
     @ApiResponses(value = {
             @ApiResponse(responseCode = "200", description = "List retrieved successfully",
-                    content = @Content(schema = @Schema(implementation = com.pdh.common.dto.response.PagedResponse.class))),
+                    content = @Content(schema = @Schema(implementation = PagedResponse.class))),
             @ApiResponse(responseCode = "400", description = "Bad request - invalid query parameters",
                     content = @Content(schema = @Schema(implementation = com.pdh.common.dto.response.ApiResponse.class))),
             @ApiResponse(responseCode = "401", description = "Unauthorized - authentication required",

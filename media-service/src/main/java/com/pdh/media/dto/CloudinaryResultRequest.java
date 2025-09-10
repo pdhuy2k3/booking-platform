@@ -1,6 +1,6 @@
 package com.pdh.media.dto;
 
-import com.pdh.media.enums.EntityType;
+
 import com.pdh.media.enums.MediaType;
 import lombok.AllArgsConstructor;
 import lombok.Data;
@@ -12,8 +12,6 @@ import java.util.UUID;
 @NoArgsConstructor
 @AllArgsConstructor
 public class CloudinaryResultRequest {
-    private UUID entityId;
-    private EntityType entityType;
     private MediaType mediaType;
     private String cloudinaryPublicId;
     private String mediaUrl;

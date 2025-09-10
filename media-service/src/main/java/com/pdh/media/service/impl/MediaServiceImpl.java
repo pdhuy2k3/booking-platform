@@ -17,7 +17,6 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.util.*;
-import java.util.stream.Collectors;
 
 /**
  * Implementation of MediaService
@@ -29,356 +28,216 @@ import java.util.stream.Collectors;
 public class MediaServiceImpl implements MediaService {
 
     private final MediaRepository mediaRepository;
-    private final CloudinaryService cloudinaryService;
     private final MediaMapper mediaMapper;
+    private final CloudinaryService cloudinaryService;
 
     @Override
-    public MediaDto uploadMedia(MultipartFile file, MediaUploadDto uploadDto) {
+    public MediaDto uploadMedia(MultipartFile file, String folder) {
         try {
-            // Build folder path
-            String folder = buildFolderPath(uploadDto);
+            log.info("Uploading media file: {} to folder: {}", file.getOriginalFilename(), folder);
             
             // Upload to Cloudinary
             Map<String, Object> uploadResult = cloudinaryService.uploadImage(file, folder);
             
-            // Create Media entity
-            Media media = buildMediaEntity(uploadResult, uploadDto, file);
+            // Extract Cloudinary response data
+            String publicId = (String) uploadResult.get("public_id");
+            String url = (String) uploadResult.get("url");
+            String secureUrl = (String) uploadResult.get("secure_url");
             
-            // Handle primary media logic
-            if (Boolean.TRUE.equals(uploadDto.getIsPrimary())) {
-                mediaRepository.clearPrimaryExcept(
-                    uploadDto.getEntityType(), 
-                    uploadDto.getEntityId(), 
-                    -1L // No media to exclude yet
-                );
-            }
+            // Create and save Media entity
+            Media media = Media.builder()
+                    .publicId(publicId)
+                    .url(url)
+                    .secureUrl(secureUrl)
+                    .mediaType("image")
+                    .isActive(true)
+                    .build();
             
-            // Save to database
-            media = mediaRepository.save(media);
+            Media savedMedia = mediaRepository.save(media);
+            log.info("Media saved with ID: {} and public ID: {}", savedMedia.getId(), savedMedia.getPublicId());
             
-            log.info("Media uploaded successfully - Entity: {}/{}, PublicId: {}", 
-                    uploadDto.getEntityType(), uploadDto.getEntityId(), media.getPublicId());
-            
-            return mediaMapper.toDto(media);
+            return mediaMapper.toDto(savedMedia);
             
         } catch (Exception e) {
-            log.error("Error uploading media for entity {}/{}: {}", 
-                    uploadDto.getEntityType(), uploadDto.getEntityId(), e.getMessage());
-            throw new RuntimeException("Failed to upload media", e);
+            log.error("Error uploading media file: {}", file.getOriginalFilename(), e);
+            throw new RuntimeException("Failed to upload media: " + e.getMessage(), e);
         }
     }
 
     @Override
-    public List<MediaDto> uploadMultipleMedia(List<MultipartFile> files, MediaUploadDto uploadDto) {
+    public List<MediaDto> uploadMultipleMedia(List<MultipartFile> files, String folder) {
+        log.info("Uploading {} media files to folder: {}", files.size(), folder);
+        
         List<MediaDto> uploadedMedia = new ArrayList<>();
         
-        for (int i = 0; i < files.size(); i++) {
-            MultipartFile file = files.get(i);
-            MediaUploadDto currentUploadDto = MediaUploadDto.builder()
-                    .entityType(uploadDto.getEntityType())
-                    .entityId(uploadDto.getEntityId())
-                    .mediaType(uploadDto.getMediaType())
-                    .altText(uploadDto.getAltText())
-                    .displayOrder(uploadDto.getDisplayOrder() != null ? uploadDto.getDisplayOrder() + i : i + 1)
-                    .isPrimary(i == 0 && uploadDto.getIsPrimary()) // Only first file can be primary
-                    .tags(uploadDto.getTags())
-                    .folder(uploadDto.getFolder())
-                    .metadata(uploadDto.getMetadata())
-                    .build();
-            
-            uploadedMedia.add(uploadMedia(file, currentUploadDto));
+        for (MultipartFile file : files) {
+            try {
+                MediaDto mediaDto = uploadMedia(file, folder);
+                uploadedMedia.add(mediaDto);
+            } catch (Exception e) {
+                log.error("Failed to upload file: {}", file.getOriginalFilename(), e);
+                // Continue with other files instead of failing completely
+            }
         }
         
+        log.info("Successfully uploaded {} out of {} files", uploadedMedia.size(), files.size());
         return uploadedMedia;
     }
 
     @Override
     @Transactional(readOnly = true)
-    public MediaDto getMediaById(Long id) {
-        Media media = mediaRepository.findById(id)
-                .orElseThrow(() -> new EntityNotFoundException("Media not found with id: " + id));
-        return mediaMapper.toDto(media);
+    public Optional<MediaDto> getMediaById(Long id) {
+        log.debug("Getting media by ID: {}", id);
+        return mediaRepository.findById(id)
+                .map(mediaMapper::toDto);
     }
 
     @Override
     @Transactional(readOnly = true)
-    public MediaDto getMediaByPublicId(String publicId) {
-        Media media = mediaRepository.findByPublicId(publicId)
-                .orElseThrow(() -> new EntityNotFoundException("Media not found with publicId: " + publicId));
-        return mediaMapper.toDto(media);
-    }
-
-    @Override
-    @Transactional(readOnly = true)
-    public List<MediaDto> getMediaByEntity(String entityType, Long entityId) {
-        List<Media> mediaList = mediaRepository.findActiveMediaByEntity(entityType, entityId);
-        return mediaMapper.toSimpleDtoList(mediaList);
-    }
-
-    @Override
-    @Transactional(readOnly = true)
-    public MediaDto getPrimaryMedia(String entityType, Long entityId) {
-        Optional<Media> media = mediaRepository.findPrimaryMedia(entityType, entityId);
-        return media.map(mediaMapper::toDto).orElse(null);
-    }
-
-    @Override
-    @Transactional(readOnly = true)
-    public List<MediaDto> getMediaByEntityAndType(String entityType, Long entityId, String mediaType) {
-        List<Media> mediaList = mediaRepository.findByEntityTypeAndEntityIdAndMediaTypeAndIsActiveOrderByDisplayOrder(
-                entityType, entityId, mediaType, true);
-        return mediaMapper.toSimpleDtoList(mediaList);
-    }
-
-    @Override
-    @Transactional(readOnly = true)
-    public Map<Long, List<MediaDto>> getMediaForEntities(String entityType, List<Long> entityIds) {
-        List<Media> mediaList = mediaRepository.findByEntityTypeAndEntityIds(entityType, entityIds);
-        
-        return mediaList.stream()
-                .collect(Collectors.groupingBy(
-                        Media::getEntityId,
-                        Collectors.mapping(mediaMapper::toSimpleDto, Collectors.toList())
-                ));
-    }
-
-    @Override
-    @Transactional(readOnly = true)
-    public Map<Long, MediaDto> getPrimaryMediaForEntities(String entityType, List<Long> entityIds) {
-        List<Media> mediaList = mediaRepository.findPrimaryMediaForEntities(entityType, entityIds);
-        
-        return mediaList.stream()
-                .collect(Collectors.toMap(
-                        Media::getEntityId,
-                        mediaMapper::toSimpleDto,
-                        (existing, replacement) -> existing // Keep first if duplicates
-                ));
-    }
-
-    @Override
-    public MediaDto updateMedia(Long id, MediaUploadDto updateDto) {
-        Media media = mediaRepository.findById(id)
-                .orElseThrow(() -> new EntityNotFoundException("Media not found with id: " + id));
-        
-        // Update fields
-        if (updateDto.getAltText() != null) {
-            media.setAltText(updateDto.getAltText());
-        }
-        if (updateDto.getDisplayOrder() != null) {
-            media.setDisplayOrder(updateDto.getDisplayOrder());
-        }
-        if (updateDto.getTags() != null) {
-            media.setTags(updateDto.getTags());
-        }
-        if (updateDto.getMetadata() != null) {
-            media.setMetadata(updateDto.getMetadata());
-        }
-        if (updateDto.getMediaType() != null) {
-            media.setMediaType(updateDto.getMediaType());
+    public List<MediaDto> getMediaByIds(List<Long> ids) {
+        log.debug("Getting media by IDs: {}", ids);
+        if (ids == null || ids.isEmpty()) {
+            return new ArrayList<>();
         }
         
-        media = mediaRepository.save(media);
-        return mediaMapper.toDto(media);
+        List<Media> mediaList = mediaRepository.findAllById(ids);
+        return mediaMapper.toDtoList(mediaList);
     }
 
     @Override
-    public MediaDto setPrimaryMedia(Long mediaId) {
-        Media media = mediaRepository.findById(mediaId)
-                .orElseThrow(() -> new EntityNotFoundException("Media not found with id: " + mediaId));
-        
-        // Clear other primary media for this entity
-        mediaRepository.clearPrimaryExcept(media.getEntityType(), media.getEntityId(), mediaId);
-        
-        // Set this media as primary
-        media.setIsPrimary(true);
-        media = mediaRepository.save(media);
-        
-        log.info("Media {} set as primary for entity {}/{}", 
-                mediaId, media.getEntityType(), media.getEntityId());
-        
-        return mediaMapper.toDto(media);
+    @Transactional(readOnly = true)
+    public Optional<MediaDto> getMediaByPublicId(String publicId) {
+        log.debug("Getting media by public ID: {}", publicId);
+        return mediaRepository.findByPublicId(publicId)
+                .map(mediaMapper::toDto);
     }
 
     @Override
-    public void updateDisplayOrder(Long mediaId, Integer displayOrder) {
-        mediaRepository.updateDisplayOrder(mediaId, displayOrder);
+    @Transactional(readOnly = true)
+    public Page<MediaDto> getAllMedia(Pageable pageable) {
+        log.debug("Getting all media with pagination: {}", pageable);
+        return mediaRepository.findAll(pageable)
+                .map(mediaMapper::toDto);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<MediaDto> getMediaByType(String mediaType) {
+        log.debug("Getting media by type: {}", mediaType);
+        List<Media> mediaList = mediaRepository.findByMediaType(mediaType);
+        return mediaMapper.toDtoList(mediaList);
     }
 
     @Override
     public void deleteMedia(Long id) {
-        Media media = mediaRepository.findById(id)
-                .orElseThrow(() -> new EntityNotFoundException("Media not found with id: " + id));
+        log.info("Deleting media with ID: {}", id);
         
-        // Delete from Cloudinary
-        try {
-            cloudinaryService.deleteImage(media.getPublicId());
-        } catch (Exception e) {
-            log.error("Error deleting media from Cloudinary: {}", e.getMessage());
+        Optional<Media> mediaOpt = mediaRepository.findById(id);
+        if (mediaOpt.isEmpty()) {
+            throw new EntityNotFoundException("Media not found with ID: " + id);
         }
         
-        // Soft delete from database
-        media.setIsActive(false);
-        mediaRepository.save(media);
+        Media media = mediaOpt.get();
         
-        log.info("Media {} deleted for entity {}/{}", 
-                id, media.getEntityType(), media.getEntityId());
+        try {
+            // Delete from Cloudinary
+            cloudinaryService.deleteImage(media.getPublicId());
+            log.info("Deleted media from Cloudinary: {}", media.getPublicId());
+        } catch (Exception e) {
+            log.warn("Failed to delete media from Cloudinary: {}", media.getPublicId(), e);
+            // Continue with database deletion even if Cloudinary fails
+        }
+        
+        // Delete from database
+        mediaRepository.deleteById(id);
+        log.info("Deleted media from database with ID: {}", id);
     }
 
     @Override
     public void deleteMediaByPublicId(String publicId) {
-        Media media = mediaRepository.findByPublicId(publicId)
-                .orElseThrow(() -> new EntityNotFoundException("Media not found with publicId: " + publicId));
+        log.info("Deleting media with public ID: {}", publicId);
         
+        Optional<Media> mediaOpt = mediaRepository.findByPublicId(publicId);
+        if (mediaOpt.isEmpty()) {
+            throw new EntityNotFoundException("Media not found with public ID: " + publicId);
+        }
+        
+        Media media = mediaOpt.get();
         deleteMedia(media.getId());
     }
 
     @Override
-    public void deleteMediaByEntity(String entityType, Long entityId) {
-        List<Media> mediaList = mediaRepository.findActiveMediaByEntity(entityType, entityId);
-        
-        // Delete from Cloudinary
-        for (Media media : mediaList) {
-            try {
-                cloudinaryService.deleteImage(media.getPublicId());
-            } catch (Exception e) {
-                log.error("Error deleting media {} from Cloudinary: {}", media.getPublicId(), e.getMessage());
-            }
+    @Transactional(readOnly = true)
+    public List<Long> convertPublicIdsToMediaIds(List<String> publicIds) {
+        if (publicIds == null || publicIds.isEmpty()) {
+            log.debug("No public IDs provided for conversion");
+            return List.of();
         }
         
-        // Soft delete all media for entity
-        mediaRepository.softDeleteByEntity(entityType, entityId);
+        log.debug("Converting {} public IDs to media IDs", publicIds.size());
+        List<Long> mediaIds = mediaRepository.findIdsByPublicIdIn(publicIds);
         
-        log.info("All media deleted for entity {}/{}", entityType, entityId);
-    }
-
-    @Override
-    @Transactional(readOnly = true)
-    public Page<MediaDto> searchByTag(String tag, Pageable pageable) {
-        Page<Media> mediaPage = mediaRepository.findByTag(tag, pageable);
-        return mediaPage.map(mediaMapper::toSimpleDto);
-    }
-
-    @Override
-    @Transactional(readOnly = true)
-    public Page<MediaDto> getMediaByEntityType(String entityType, Pageable pageable) {
-        Page<Media> mediaPage = mediaRepository.findByEntityTypeAndIsActive(entityType, true, pageable);
-        return mediaPage.map(mediaMapper::toSimpleDto);
-    }
-
-    @Override
-    @Transactional(readOnly = true)
-    public boolean hasMedia(String entityType, Long entityId) {
-        return mediaRepository.existsByEntityTypeAndEntityId(entityType, entityId);
-    }
-
-    @Override
-    @Transactional(readOnly = true)
-    public long countMedia(String entityType, Long entityId) {
-        return mediaRepository.countByEntityTypeAndEntityIdAndIsActive(entityType, entityId, true);
-    }
-
-    @Override
-    public void reorderMedia(String entityType, Long entityId, List<Long> mediaIds) {
-        for (int i = 0; i < mediaIds.size(); i++) {
-            mediaRepository.updateDisplayOrder(mediaIds.get(i), i + 1);
+        log.debug("Found {} media IDs for {} public IDs", mediaIds.size(), publicIds.size());
+        if (mediaIds.size() != publicIds.size()) {
+            log.warn("Some public IDs were not found in database. Expected: {}, Found: {}", 
+                    publicIds.size(), mediaIds.size());
         }
-        log.info("Media reordered for entity {}/{}", entityType, entityId);
+        
+        return mediaIds;
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<Long> getMediaIdsByPublicIds(List<String> publicIds) {
+        return convertPublicIdsToMediaIds(publicIds);
+    }
+
+    @Override
+    public MediaDto saveMediaMetadata(MediaUploadDto mediaUploadDto) {
+
+        
+        // This method is for saving metadata without file upload
+        // It would be used when media is already uploaded to Cloudinary
+        throw new UnsupportedOperationException("This method requires Cloudinary upload result data");
+    }
+
+    @Override
+    public MediaDto updateMedia(Long id, MediaDto mediaDto) {
+        log.info("Updating media with ID: {}", id);
+        
+        Media existingMedia = mediaRepository.findById(id)
+                .orElseThrow(() -> new EntityNotFoundException("Media not found with ID: " + id));
+        
+        // Update fields from DTO
+        mediaMapper.updateEntityFromDto(existingMedia, mediaDto);
+        
+        Media updatedMedia = mediaRepository.save(existingMedia);
+        log.info("Updated media with ID: {}", id);
+        
+        return mediaMapper.toDto(updatedMedia);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public boolean existsByPublicId(String publicId) {
+        log.debug("Checking if media exists with public ID: {}", publicId);
+        return mediaRepository.existsByPublicId(publicId);
     }
 
     /**
-     * Build folder path for Cloudinary
+     * Helper method to save media with Cloudinary upload result
      */
-    private String buildFolderPath(MediaUploadDto uploadDto) {
-        if (uploadDto.getFolder() != null && !uploadDto.getFolder().isEmpty()) {
-            return uploadDto.getFolder();
-        }
+    public MediaDto saveMediaWithUploadResult(Map<String, Object> uploadResult, MediaUploadDto uploadDto) {
+        String publicId = (String) uploadResult.get("public_id");
+        String url = (String) uploadResult.get("url");
+        String secureUrl = (String) uploadResult.get("secure_url");
         
-        // Default folder structure: entityType/entityId
-        return String.format("%s/%d", 
-                uploadDto.getEntityType().toLowerCase(), 
-                uploadDto.getEntityId());
-    }
-
-    /**
-     * Build Media entity from Cloudinary upload result
-     */
-    @SuppressWarnings("unchecked")
-    private Media buildMediaEntity(Map<String, Object> uploadResult, MediaUploadDto uploadDto, MultipartFile file) {
-        Media media = new Media();
+        Media media = mediaMapper.toEntity(uploadDto, publicId, url, secureUrl);
+        Media savedMedia = mediaRepository.save(media);
         
-        // Set Cloudinary data
-        media.setPublicId((String) uploadResult.get("public_id"));
-        media.setUrl((String) uploadResult.get("url"));
-        media.setSecureUrl((String) uploadResult.get("secure_url"));
-        media.setResourceType((String) uploadResult.getOrDefault("resource_type", "image"));
-        media.setFormat((String) uploadResult.get("format"));
-        media.setVersion(((Number) uploadResult.getOrDefault("version", 1L)).longValue());
-        media.setAssetId((String) uploadResult.get("asset_id"));
+        log.info("Saved media with upload result. Media ID: {}, Public ID: {}", 
+                savedMedia.getId(), savedMedia.getPublicId());
         
-        // Set file metadata
-        if (uploadResult.containsKey("bytes")) {
-            media.setFileSize(((Number) uploadResult.get("bytes")).longValue());
-        }
-        if (uploadResult.containsKey("width")) {
-            media.setWidth(((Number) uploadResult.get("width")).intValue());
-        }
-        if (uploadResult.containsKey("height")) {
-            media.setHeight(((Number) uploadResult.get("height")).intValue());
-        }
-        
-        // Set entity association
-        media.setEntityType(uploadDto.getEntityType());
-        media.setEntityId(uploadDto.getEntityId());
-        media.setMediaType(uploadDto.getMediaType() != null ? uploadDto.getMediaType() : "GALLERY");
-        
-        // Set additional metadata
-        media.setOriginalFilename(file.getOriginalFilename());
-        media.setFolder(buildFolderPath(uploadDto));
-        media.setAltText(uploadDto.getAltText());
-        media.setDisplayOrder(uploadDto.getDisplayOrder() != null ? uploadDto.getDisplayOrder() : 1);
-        media.setIsPrimary(Boolean.TRUE.equals(uploadDto.getIsPrimary()));
-        media.setIsActive(true);
-        media.setTags(uploadDto.getTags());
-        media.setMetadata(uploadDto.getMetadata());
-        
-        return media;
-    }
-
-    @Override
-    public List<MediaDto> associateMediaWithEntity(String entityType, Long entityId, List<String> publicIds) {
-        log.info("Associating {} media files with entity {}/{}", publicIds.size(), entityType, entityId);
-        
-        List<MediaDto> associatedMedia = new ArrayList<>();
-        
-        for (String publicId : publicIds) {
-            try {
-                // Find existing media by publicId
-                Media media = mediaRepository.findByPublicId(publicId)
-                    .orElseThrow(() -> new EntityNotFoundException("Media not found with publicId: " + publicId));
-                
-                // Check if media is active
-                if (!Boolean.TRUE.equals(media.getIsActive())) {
-                    log.warn("Media {} is not active, skipping association", publicId);
-                    continue;
-                }
-                
-                // Update entity association
-                media.setEntityType(entityType);
-                media.setEntityId(entityId);
-                
-                // Save the updated media
-                Media savedMedia = mediaRepository.save(media);
-                associatedMedia.add(mediaMapper.toDto(savedMedia));
-                
-                log.debug("Associated media {} with entity {}/{}", publicId, entityType, entityId);
-                
-            } catch (Exception e) {
-                log.error("Failed to associate media {} with entity {}/{}: {}", 
-                         publicId, entityType, entityId, e.getMessage());
-                // Continue with other media instead of failing entirely
-            }
-        }
-        
-        return associatedMedia;
+        return mediaMapper.toDto(savedMedia);
     }
 }

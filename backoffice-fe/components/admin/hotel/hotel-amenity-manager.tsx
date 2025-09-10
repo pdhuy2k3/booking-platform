@@ -42,7 +42,7 @@ export function HotelAmenityManager({
   const [hasChanges, setHasChanges] = useState(false)
 
   useEffect(() => {
-    const initialIds = hotelAmenities.map(a => a.id)
+    const initialIds = hotelAmenities?.map(a => a.id) || []
     setSelectedAmenities(initialIds)
   }, [hotelAmenities])
 
@@ -72,7 +72,7 @@ export function HotelAmenityManager({
   }
 
   const handleReset = () => {
-    const initialIds = hotelAmenities.map(a => a.id)
+    const initialIds = hotelAmenities?.map(a => a.id) || []
     setSelectedAmenities(initialIds)
     setHasChanges(false)
   }
@@ -154,7 +154,7 @@ export function HotelAmenityManager({
                 {selectedAmenities.length} đã chọn
               </Badge>
               <Badge variant="outline">
-                {allAmenities.length} tổng cộng
+                {allAmenities?.length || 0} tổng cộng
               </Badge>
             </div>
           </div>
@@ -165,7 +165,7 @@ export function HotelAmenityManager({
             <div className="mt-4">
               <ScrollArea className="h-[400px] w-full rounded-md border p-4">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {filteredAmenities.map(amenity => (
+                  {filteredAmenities?.map(amenity => (
                     <div
                       key={amenity.id}
                       className={`flex items-start space-x-3 p-3 rounded-lg border transition-all ${
@@ -195,7 +195,7 @@ export function HotelAmenityManager({
                     </div>
                   ))}
                 </div>
-                {filteredAmenities.length === 0 && (
+                {(!filteredAmenities || filteredAmenities.length === 0) && (
                   <div className="text-center py-8 text-gray-500">
                     Không tìm thấy tiện nghi nào
                   </div>
@@ -210,7 +210,7 @@ export function HotelAmenityManager({
               variant="outline"
               size="sm"
               onClick={() => {
-                setSelectedAmenities(allAmenities.filter(a => a.isActive).map(a => a.id))
+                setSelectedAmenities(allAmenities?.filter(a => a.isActive).map(a => a.id) || [])
                 setHasChanges(true)
               }}
             >
@@ -232,9 +232,9 @@ export function HotelAmenityManager({
               onClick={() => {
                 // Select first 5 active amenities as "basic"
                 const basicAmenities = allAmenities
-                  .filter(a => a.isActive)
-                  .slice(0, 5)
-                  .map(a => a.id)
+                  ?.filter(a => a.isActive)
+                  ?.slice(0, 5)
+                  ?.map(a => a.id) || []
                 setSelectedAmenities(basicAmenities)
                 setHasChanges(true)
               }}

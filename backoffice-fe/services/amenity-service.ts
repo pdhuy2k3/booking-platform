@@ -32,10 +32,15 @@ export class AmenityService {
    * Get all active amenities (no pagination)
    */
   static async getActiveAmenities(): Promise<Amenity[]> {
-    const response = await apiClient.get<{ amenities: Amenity[], total: number }>(
-      `${this.BASE_PATH}/active`
-    )
-    return response.amenities
+    try {
+      const response = await apiClient.get<{ amenities: Amenity[], total: number }>(
+        `${this.BASE_PATH}/active`
+      )
+      return response?.amenities || []
+    } catch (error) {
+      console.error("Error fetching active amenities:", error)
+      return []
+    }
   }
 
   /**

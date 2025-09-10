@@ -16,11 +16,6 @@ import lombok.NoArgsConstructor;
 @AllArgsConstructor
 public class MediaUploadDto {
     
-    @NotBlank(message = "Entity type is required")
-    private String entityType;
-    
-    @NotNull(message = "Entity ID is required")
-    private Long entityId;
     
     private String mediaType = "GALLERY";
     

@@ -1,5 +1,7 @@
 package com.pdh.hotel.dto.request;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import com.pdh.common.dto.response.MediaResponse;
 import jakarta.validation.constraints.*;
 import lombok.*;
 
@@ -13,6 +15,7 @@ import java.util.List;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
+@JsonIgnoreProperties(ignoreUnknown = true)
 public class RoomTypeRequestDto {
     
     @NotBlank(message = "Room type name is required")
@@ -33,7 +36,7 @@ public class RoomTypeRequestDto {
     private BigDecimal basePrice;
     
     /**
-     * List of media public IDs to associate with this room type
+     * List of complete media responses to associate with this room type
      */
-    private List<String> mediaPublicIds;
+    private List<MediaResponse> media;
 }

@@ -354,7 +354,7 @@ services:
   # Media Service - Temporarily disabled (not built in Maven)
 
   media-service:
-
+    image: phamduyhuyuit/bookingsmart-media-service:latest
     build:
       context: ./media-service
       dockerfile: Dockerfile

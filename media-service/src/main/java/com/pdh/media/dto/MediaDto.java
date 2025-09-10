@@ -22,8 +22,6 @@ public class MediaDto {
     private String publicId;
     private String url;
     private String secureUrl;
-    private String entityType;
-    private Long entityId;
     private String mediaType;
     private String resourceType;
     private String format;

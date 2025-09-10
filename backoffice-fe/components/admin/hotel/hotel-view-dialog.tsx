@@ -10,7 +10,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { Star, Settings } from "lucide-react"
-import type { Hotel } from "@/types/api"
+import type { Hotel, MediaResponse } from "@/types/api"
 import { mediaService } from "@/services/media-service"
 
 interface HotelViewDialogProps {
@@ -34,8 +34,8 @@ export function HotelViewDialog({
     ))
   }
 
-  const renderHotelImages = (images: string[] | undefined) => {
-    if (!images || images.length === 0) {
+  const renderHotelImages = (medias: MediaResponse[] | undefined) => {
+    if (!medias || medias.length === 0) {
       return (
         <div className="bg-gray-200 border-2 border-dashed rounded-xl w-full h-48 flex items-center justify-center">
           <span className="text-gray-500">Không có hình ảnh</span>
@@ -45,15 +45,10 @@ export function HotelViewDialog({
 
     return (
       <div className="grid grid-cols-2 gap-2">
-        {images.slice(0, 4).map((publicId, index) => {
+        {medias.slice(0, 4).map((media, index) => {
           // Use the media service to generate an optimized Cloudinary URL
           // The mediaService expects the full path format /api/media/{publicId}
-          const imageUrl = mediaService.getOptimizedUrl(`/api/media/${publicId}`, {
-            width: 200,
-            height: 150,
-            crop: 'fill',
-            quality: 'auto'
-          })
+          const imageUrl = media.secureUrl
 
           return (
             <img
@@ -68,10 +63,10 @@ export function HotelViewDialog({
             />
           )
         })}
-        {images.length > 4 && (
+        {medias.length > 4 && (
           <div className="relative">
             <div className="bg-gray-200 border-2 border-dashed rounded-xl w-full h-32 flex items-center justify-center">
-              <span className="text-gray-500">+{images.length - 4} ảnh nữa</span>
+              <span className="text-gray-500">+{medias.length - 4} ảnh nữa</span>
             </div>
           </div>
         )}
@@ -93,7 +88,7 @@ export function HotelViewDialog({
         <div className="space-y-4 py-4">
           <div className="grid grid-cols-2 gap-4">
             <div className="col-span-2">
-              {renderHotelImages(hotel.images)}
+              {renderHotelImages(hotel.media)}
             </div>
             <div>
               <Label className="text-sm text-gray-500">Tên khách sạn</Label>
