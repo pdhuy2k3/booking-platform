@@ -1,7 +1,7 @@
 package com.pdh.hotel.dto.response;
 
+import com.pdh.common.dto.response.MediaResponse;
 import lombok.*;
-
 import java.math.BigDecimal;
 import java.time.ZonedDateTime;
 import java.util.List;
@@ -33,8 +33,8 @@ public class RoomResponseDto {
     private List<AmenityResponseDto> amenities;
     
     // Media fields - retrieved from media-service
-    private List<MediaInfo> images;
-    private MediaInfo primaryImage;
+    private List<MediaResponse> media;
+    private MediaResponse primaryImage;
     private Boolean hasMedia;
     private Integer mediaCount;
     

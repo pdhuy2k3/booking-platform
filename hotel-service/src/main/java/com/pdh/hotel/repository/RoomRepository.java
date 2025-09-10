@@ -35,6 +35,21 @@ public interface RoomRepository extends JpaRepository<Room, Long> {
     Page<Room> findAvailableRoomsByHotelId(@Param("hotelId") Long hotelId, Pageable pageable);
 
     /**
+     * Find all rooms by hotel ID (including unavailable ones for backoffice)
+     * @param hotelId the hotel ID
+     * @param pageable pagination information
+     * @return Page of all rooms
+     */
+    @Query("""
+        SELECT r FROM Room r 
+        JOIN FETCH r.hotel h 
+        LEFT JOIN FETCH r.roomType rt 
+        WHERE h.hotelId = :hotelId 
+        AND (r.isDeleted IS NULL OR r.isDeleted = false)
+        """)
+    Page<Room> findByHotelId(@Param("hotelId") Long hotelId, Pageable pageable);
+
+    /**
      * Find rooms by hotel ID and price range
      * @param hotelId the hotel ID
      * @param minPrice minimum price

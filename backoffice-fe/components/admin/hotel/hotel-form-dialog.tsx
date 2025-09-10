@@ -13,6 +13,7 @@ import {
   DialogTitle
 } from '@/components/ui/dialog';
 import { MediaSelector } from "@/components/ui/media-selector"
+import type { MediaResponse } from "@/types/api"
 
 interface HotelFormData {
   name: string
@@ -21,6 +22,7 @@ interface HotelFormData {
   city: string
   country: string
   starRating: number
+  media?: MediaResponse[]
 }
 
 interface HotelFormDialogProps {
@@ -30,8 +32,10 @@ interface HotelFormDialogProps {
   description: string
   hotel: HotelFormData
   onHotelChange: (hotel: HotelFormData) => void
-  images: string[]
-  onImagesChange: (images: string[]) => void
+  media?: MediaResponse[]
+  onMediaChange?: (media: MediaResponse[]) => void
+  primaryImage?: string | null
+  onPrimaryImageChange?: (primaryImage: string | null) => void
   onSubmit: () => void
   submitLabel: string
 }
@@ -43,11 +47,16 @@ export function HotelFormDialog({
   description,
   hotel,
   onHotelChange,
-  images,
-  onImagesChange,
+  media = [],
+  onMediaChange,
+  primaryImage,
+  onPrimaryImageChange,
   onSubmit,
   submitLabel
 }: HotelFormDialogProps) {
+  // Extract image URLs from media for MediaSelector
+  const imageUrls = media?.map(m => m.url) || []
+  
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
 
@@ -123,11 +132,14 @@ export function HotelFormDialog({
           <div className="col-span-2 space-y-2">
             <Label>Hình ảnh khách sạn</Label>
             <MediaSelector
-              value={images}
-              onChange={onImagesChange}
+              value={media}
+              onMediaChange={onMediaChange}
+              onPrimaryChange={onPrimaryImageChange}
+              primaryImage={primaryImage}
               folder="hotels"
               maxSelection={5}
               allowUpload={true}
+              mode="publicIds"
             />
           </div>
         </div>

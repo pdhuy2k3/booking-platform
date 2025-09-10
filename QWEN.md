@@ -37,7 +37,7 @@ BookingSmart is a comprehensive travel booking platform built as a microservices
 - Maven
 - Docker
 - Nginx
-- N8N (Workflow Automation)
+
 
 ## Building and Running
 

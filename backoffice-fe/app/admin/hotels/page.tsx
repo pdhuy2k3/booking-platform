@@ -9,7 +9,7 @@ import { HotelStats } from "@/components/admin/hotel/hotel-stats"
 import { HotelTable } from "@/components/admin/hotel/hotel-table"
 import { HotelFormDialog } from "@/components/admin/hotel/hotel-form-dialog"
 import { HotelViewDialog } from "@/components/admin/hotel/hotel-view-dialog"
-import type { Hotel, PaginatedResponse } from "@/types/api"
+import type { Hotel, PaginatedResponse, MediaResponse } from "@/types/api"
 import { toast } from "sonner"
 import { useRouter } from "next/navigation"
 
@@ -50,8 +50,8 @@ export default function AdminHotels() {
   // Form data
   const [newHotel, setNewHotel] = useState<HotelFormData>(initialHotelForm)
   const [editHotelData, setEditHotelData] = useState<HotelFormData>(initialHotelForm)
-  const [newHotelImages, setNewHotelImages] = useState<string[]>([])
-  const [editingHotelImages, setEditingHotelImages] = useState<string[]>([])
+  const [newHotelMedia, setNewHotelMedia] = useState<MediaResponse[]>([])
+  const [editingHotelMedia, setEditingHotelMedia] = useState<MediaResponse[]>([])
 
   useEffect(() => {
     loadHotels()
@@ -80,14 +80,14 @@ export default function AdminHotels() {
     try {
       const hotelData = {
         ...newHotel,
-        mediaPublicIds: newHotelImages
+        media: newHotelMedia
       }
       
       await HotelService.createHotel(hotelData)
       toast.success("Khách sạn đã được tạo thành công")
       setIsAddDialogOpen(false)
       setNewHotel(initialHotelForm)
-      setNewHotelImages([])
+      setNewHotelMedia([])
       loadHotels()
     } catch (error) {
       console.error("Failed to create hotel:", error)
@@ -100,17 +100,13 @@ export default function AdminHotels() {
     setIsViewDialogOpen(true)
   }
 
-  const handleEditHotel = (hotel: Hotel) => {
+  const  handleEditHotel = async (hotel: Hotel) => {
+   
     setEditingHotel(hotel)
     setEditHotelData({
-      name: hotel.name,
-      description: hotel.description || "",
-      address: hotel.address,
-      city: hotel.city,
-      country: hotel.country || "Việt Nam",
-      starRating: hotel.starRating || 3,
+      ...hotel
     })
-    setEditingHotelImages(hotel.images || [])
+    setEditingHotelMedia(hotel.media || [])
     setIsEditDialogOpen(true)
   }
 
@@ -120,14 +116,14 @@ export default function AdminHotels() {
     try {
       const hotelData = {
         ...editHotelData,
-        mediaPublicIds: editingHotelImages
+        media: editingHotelMedia
       }
       
       await HotelService.updateHotel(editingHotel.id, hotelData)
       toast.success("Khách sạn đã được cập nhật thành công")
       setIsEditDialogOpen(false)
       setEditingHotel(null)
-      setEditingHotelImages([])
+      setEditingHotelMedia([])
       loadHotels()
     } catch (error) {
       console.error("Failed to update hotel:", error)
@@ -201,8 +197,8 @@ export default function AdminHotels() {
         description="Nhập thông tin khách sạn mới vào hệ thống"
         hotel={newHotel}
         onHotelChange={setNewHotel}
-        images={newHotelImages}
-        onImagesChange={setNewHotelImages}
+        media={newHotelMedia}
+        onMediaChange={setNewHotelMedia}
         onSubmit={handleCreateHotel}
         submitLabel="Thêm khách sạn"
       />
@@ -215,8 +211,8 @@ export default function AdminHotels() {
         description="Cập nhật thông tin khách sạn"
         hotel={editHotelData}
         onHotelChange={setEditHotelData}
-        images={editingHotelImages}
-        onImagesChange={setEditingHotelImages}
+        media={editingHotelMedia}
+        onMediaChange={setEditingHotelMedia}
         onSubmit={handleUpdateHotel}
         submitLabel="Cập nhật"
       />

@@ -54,6 +54,5 @@ public class Flight extends AbstractAuditEntity {
     @Column(name = "is_active", nullable = false)
     private Boolean isActive = true;
 
-    // Images are managed through the unified Image entity with entityType = "FLIGHT" and entityId = flightId
-    // No direct JPA relationship - images are accessed via ImageService
+
 }

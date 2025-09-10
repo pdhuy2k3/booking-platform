@@ -2,12 +2,11 @@ package com.pdh.hotel.model;
 
 import com.pdh.common.model.AbstractAuditEntity;
 import jakarta.persistence.*;
-import lombok.AllArgsConstructor;
-import lombok.Data;
-import lombok.EqualsAndHashCode;
-import lombok.NoArgsConstructor;
+import lombok.*;
 
 import java.math.BigDecimal;
+import java.util.ArrayList;
+import java.util.List;
 
 @Entity
 @Table(name = "hotels")
@@ -15,6 +14,7 @@ import java.math.BigDecimal;
 @EqualsAndHashCode(callSuper = false)
 @NoArgsConstructor
 @AllArgsConstructor
+
 public class Hotel extends AbstractAuditEntity {
     
     @Id
@@ -48,4 +48,6 @@ public class Hotel extends AbstractAuditEntity {
     
     @Column(name = "is_active", nullable = false)
     private Boolean isActive = true;
+    @OneToMany(mappedBy = "hotel", cascade = CascadeType.ALL, orphanRemoval = true)
+    private List<HotelImage> hotelImages;
 }

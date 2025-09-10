@@ -14,6 +14,16 @@ export interface PaginatedResponse<T> {
   last: boolean
 }
 
+export interface MediaResponse {
+  id: number
+  mediaId: number
+  publicId: string
+  url: string
+  secureUrl: string
+  isPrimary: boolean
+  displayOrder: number
+}
+
 export interface Airline {
   id: number
   name: string
@@ -22,8 +32,7 @@ export interface Airline {
   isActive: boolean
   createdAt: string
   updatedAt: string
-  images?: string[]           // Display purposes - URLs from media service
-  mediaPublicIds?: string[]   // For creating/updating airlines - publicIds from MediaSelector
+  media?: MediaResponse[]     // For creating/updating airlines - complete media info
 }
 
 export interface Airport {
@@ -36,8 +45,7 @@ export interface Airport {
   isActive: boolean
   createdAt: string
   updatedAt: string
-  images?: string[]           // Display purposes - URLs from media service
-  mediaPublicIds?: string[]   // For creating/updating airports - publicIds from MediaSelector
+  media?: MediaResponse[]     // For creating/updating airports - complete media info
 }
 
 export interface Flight {
@@ -53,8 +61,7 @@ export interface Flight {
   isActive: boolean
   createdAt: string
   updatedAt: string
-  images?: string[]           // Display purposes - URLs from media service
-  mediaPublicIds?: string[]   // For creating/updating flights - publicIds from MediaSelector
+  media?: MediaResponse[]     // For creating/updating flights - complete media info
 }
 
 export interface Hotel {
@@ -71,8 +78,7 @@ export interface Hotel {
   averageRating?: number
   totalReviews?: number
   amenities?: Amenity[]
-  images?: string[]           // Display purposes - URLs from media service
-  mediaPublicIds?: string[]   // For creating/updating hotels - publicIds from MediaSelector
+  media?: MediaResponse[]     // For creating/updating hotels - complete media info
   latitude?: number
   longitude?: number
   status?: string
@@ -90,8 +96,7 @@ export interface RoomType {
   description: string
   capacityAdults?: number
   basePrice?: number
-  images?: string[]           // Display purposes - URLs from media service
-  mediaPublicIds?: string[]   // For creating/updating room types - publicIds from MediaSelector
+  media?: MediaResponse[]     // For creating/updating room types - complete media info
   createdAt?: string
   updatedAt?: string
 }
@@ -121,8 +126,7 @@ export interface Room {
   roomTypeId?: number | null  // For creating/updating rooms
   amenities?: Amenity[]
   amenityIds?: number[]       // For creating/updating rooms
-  images?: string[]           // Display purposes - URLs from media service
-  mediaPublicIds?: string[]   // For creating/updating rooms - publicIds from MediaSelector
+  media?: MediaResponse[]     // For creating/updating rooms - complete media info
   createdAt?: string
   updatedAt?: string
 }
@@ -160,4 +164,25 @@ export interface Customer {
   status: "ACTIVE" | "INACTIVE" | "BANNED"
   createdAt: string
   lastLoginAt?: string
+}
+
+export interface FlightFare {
+  fareId: string
+  scheduleId: string
+  fareClass: "ECONOMY" | "PREMIUM_ECONOMY" | "BUSINESS" | "FIRST"
+  price: number
+  availableSeats: number
+}
+
+export interface FlightFareCreateRequest {
+  scheduleId: string
+  fareClass: "ECONOMY" | "PREMIUM_ECONOMY" | "BUSINESS" | "FIRST"
+  price: number
+  availableSeats: number
+}
+
+export interface FlightFareUpdateRequest {
+  fareClass?: "ECONOMY" | "PREMIUM_ECONOMY" | "BUSINESS" | "FIRST"
+  price?: number
+  availableSeats?: number
 }

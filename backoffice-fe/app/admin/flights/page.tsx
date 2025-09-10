@@ -699,6 +699,7 @@ export default function AdminFlights() {
                 <div className="space-y-2">
                   <Label htmlFor="flight-images">Hình ảnh chuyến bay</Label>
                   <MediaSelector
+                    value={newFlightImages}
                     onChange={setNewFlightImages}
                     maxSelection={10}
                     folder="flights"

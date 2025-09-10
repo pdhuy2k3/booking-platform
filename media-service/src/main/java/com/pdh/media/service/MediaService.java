@@ -2,13 +2,12 @@ package com.pdh.media.service;
 
 import com.pdh.media.dto.MediaDto;
 import com.pdh.media.dto.MediaUploadDto;
-import com.pdh.media.model.Media;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
-import java.util.Map;
+import java.util.Optional;
 
 /**
  * Service interface for Media management
@@ -16,67 +15,42 @@ import java.util.Map;
 public interface MediaService {
 
     /**
-     * Upload media file with entity association
+     * Upload a single media file
      */
-    MediaDto uploadMedia(MultipartFile file, MediaUploadDto uploadDto);
+    MediaDto uploadMedia(MultipartFile file, String folder);
 
     /**
-     * Upload multiple media files for an entity
+     * Upload multiple media files
      */
-    List<MediaDto> uploadMultipleMedia(List<MultipartFile> files, MediaUploadDto uploadDto);
+    List<MediaDto> uploadMultipleMedia(List<MultipartFile> files, String folder);
 
     /**
      * Get media by ID
      */
-    MediaDto getMediaById(Long id);
+    Optional<MediaDto> getMediaById(Long id);
+
+    /**
+     * Get multiple media by IDs
+     */
+    List<MediaDto> getMediaByIds(List<Long> ids);
 
     /**
      * Get media by public ID
      */
-    MediaDto getMediaByPublicId(String publicId);
+    Optional<MediaDto> getMediaByPublicId(String publicId);
 
     /**
-     * Get all media for an entity
+     * Get all media with pagination
      */
-    List<MediaDto> getMediaByEntity(String entityType, Long entityId);
+    Page<MediaDto> getAllMedia(Pageable pageable);
 
     /**
-     * Get primary media for an entity
+     * Get media by type
      */
-    MediaDto getPrimaryMedia(String entityType, Long entityId);
+    List<MediaDto> getMediaByType(String mediaType);
 
     /**
-     * Get media by entity and media type
-     */
-    List<MediaDto> getMediaByEntityAndType(String entityType, Long entityId, String mediaType);
-
-    /**
-     * Get media for multiple entities
-     */
-    Map<Long, List<MediaDto>> getMediaForEntities(String entityType, List<Long> entityIds);
-
-    /**
-     * Get primary media for multiple entities
-     */
-    Map<Long, MediaDto> getPrimaryMediaForEntities(String entityType, List<Long> entityIds);
-
-    /**
-     * Update media metadata
-     */
-    MediaDto updateMedia(Long id, MediaUploadDto updateDto);
-
-    /**
-     * Set media as primary for an entity
-     */
-    MediaDto setPrimaryMedia(Long mediaId);
-
-    /**
-     * Update media display order
-     */
-    void updateDisplayOrder(Long mediaId, Integer displayOrder);
-
-    /**
-     * Delete media (soft delete)
+     * Delete media by ID
      */
     void deleteMedia(Long id);
 
@@ -86,37 +60,28 @@ public interface MediaService {
     void deleteMediaByPublicId(String publicId);
 
     /**
-     * Delete all media for an entity
+     * Convert public IDs to media IDs
+     * This is the key method needed for the image handling system
      */
-    void deleteMediaByEntity(String entityType, Long entityId);
+    List<Long> convertPublicIdsToMediaIds(List<String> publicIds);
 
     /**
-     * Search media by tags
+     * Get media IDs by public IDs
      */
-    Page<MediaDto> searchByTag(String tag, Pageable pageable);
+    List<Long> getMediaIdsByPublicIds(List<String> publicIds);
 
     /**
-     * Get media by entity type with pagination
+     * Save media metadata after Cloudinary upload
      */
-    Page<MediaDto> getMediaByEntityType(String entityType, Pageable pageable);
+    MediaDto saveMediaMetadata(MediaUploadDto mediaUploadDto);
 
     /**
-     * Check if entity has media
+     * Update media metadata
      */
-    boolean hasMedia(String entityType, Long entityId);
+    MediaDto updateMedia(Long id, MediaDto mediaDto);
 
     /**
-     * Count media for entity
+     * Check if media exists by public ID
      */
-    long countMedia(String entityType, Long entityId);
-
-    /**
-     * Reorder media for an entity
-     */
-    void reorderMedia(String entityType, Long entityId, List<Long> mediaIds);
-
-    /**
-     * Associate existing media with an entity by public IDs
-     */
-    List<MediaDto> associateMediaWithEntity(String entityType, Long entityId, List<String> publicIds);
+    boolean existsByPublicId(String publicId);
 }

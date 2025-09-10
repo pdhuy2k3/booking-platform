@@ -105,6 +105,11 @@ const data = {
               url: "/admin/airports",
               icon: Navigation,
             },
+            {
+              title: "Giá vé",
+              url: "/admin/flights/flight-fares",
+              icon: CreditCard,
+            },
           ],
         },
         // Hotel parent menu with submenu
@@ -116,7 +121,7 @@ const data = {
           subItems: [
             {
               title: "Tiện nghi",
-              url: "/admin/amenities",
+              url: "/admin/hotels/amenities",
               icon: Sparkles,
             },
           ],

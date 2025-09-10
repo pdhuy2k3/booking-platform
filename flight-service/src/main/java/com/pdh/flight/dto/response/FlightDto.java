@@ -49,7 +49,6 @@ public class FlightDto {
     
     // Flight scheduling and timing information
     private List<FlightScheduleDto> schedules;
-    private List<FlightLegDto> legs;
     
     // Pricing information
     private List<FlightFareDto> fares;

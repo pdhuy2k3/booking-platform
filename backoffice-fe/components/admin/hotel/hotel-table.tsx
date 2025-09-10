@@ -46,17 +46,12 @@ export function HotelTable({
 
   const renderHotelImage = (hotel: Hotel) => {
     // Get the first image if available
-    const firstImagePublicId = hotel.images && hotel.images.length > 0 ? hotel.images[0] : null
+    const firstImage = hotel.media && hotel.media.length > 0 ? hotel.media[0] : null
     
-    if (firstImagePublicId) {
+    if (firstImage) {
       // Use the media service to generate an optimized Cloudinary URL
       // The mediaService expects the full path format /api/media/{publicId}
-      const imageUrl = mediaService.getOptimizedUrl(`/api/media/${firstImagePublicId}`, {
-        width: 64,
-        height: 40,
-        crop: 'fill',
-        quality: 'auto'
-      })
+      const imageUrl = firstImage.secureUrl
       
       return (
         <img 

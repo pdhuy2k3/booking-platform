@@ -1,4 +1,4 @@
-import { mockUserInfo } from "./mock-data"
+
 import { apiClient } from '@/lib/api-client';
 
 export interface UserInfo {

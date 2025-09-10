@@ -13,8 +13,8 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
-import { MediaSelector } from "@/components/ui/media-selector"
-import type { Room, RoomType, Amenity } from "@/types/api"
+import { MediaSelector } from "@/components/ui/media-selector";
+import type { Room, RoomType, Amenity, MediaResponse } from "@/types/api"
 
 interface RoomFormData {
   roomNumber: string
@@ -26,6 +26,7 @@ interface RoomFormData {
   isAvailable: boolean
   roomTypeId: number | null
   amenityIds: number[]
+  media?: MediaResponse[]
 }
 
 interface RoomFormDialogProps {
@@ -37,8 +38,8 @@ interface RoomFormDialogProps {
   onRoomChange: (room: RoomFormData) => void
   roomTypes: RoomType[]
   amenities: Amenity[]
-  images: string[]
-  onImagesChange: (images: string[]) => void
+  media?: MediaResponse[]
+  onMediaChange?: (media: MediaResponse[]) => void
   onSubmit: () => void
   submitLabel: string
   formatPrice: (price: number) => string
@@ -53,13 +54,16 @@ export function RoomFormDialog({
   onRoomChange,
   roomTypes,
   amenities,
-  images,
-  onImagesChange,
+  media = [],
+  onMediaChange,
   onSubmit,
   submitLabel,
   formatPrice
 }: RoomFormDialogProps) {
   const isFormValid = room.roomNumber.trim() && room.roomTypeId && room.price && room.price > 0
+  
+  // Extract image URLs from media for MediaSelector
+  const imageUrls = media?.map(m => m.url) || []
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
@@ -171,7 +175,7 @@ export function RoomFormDialog({
             <Label>Tiện nghi phòng</Label>
             <div className="border rounded-lg p-3 max-h-32 overflow-y-auto">
               <div className="grid grid-cols-2 gap-2">
-                {amenities.map((amenity) => (
+                              {Array.isArray(amenities) && amenities.map((amenity) => (
                   <div key={amenity.id} className="flex items-center space-x-2">
                     <Checkbox
                       id={`amenity-${amenity.id}`}
@@ -199,9 +203,9 @@ export function RoomFormDialog({
           <div className="col-span-2 space-y-2">
             <Label>Hình ảnh phòng</Label>
             <MediaSelector
-              value={images}
-              onChange={onImagesChange}
-              folder="rooms"
+              value={media}
+              onMediaChange={onMediaChange}
+              folder="hotels"
               maxSelection={5}
               allowUpload={true}
             />

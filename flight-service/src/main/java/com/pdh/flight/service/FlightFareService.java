@@ -2,6 +2,7 @@ package com.pdh.flight.service;
 
 import com.pdh.flight.dto.response.FlightFareDto;
 import com.pdh.flight.model.FlightFare;
+import com.pdh.flight.model.enums.FareClass;
 import com.pdh.flight.repository.FlightFareRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -67,7 +68,7 @@ public class FlightFareService {
      * @return FlightFareDto or null if not found
      */
     @Transactional(readOnly = true)
-    public FlightFareDto getFareByScheduleIdAndClass(UUID scheduleId, String fareClass) {
+    public FlightFareDto getFareByScheduleIdAndClass(UUID scheduleId, FareClass fareClass) {
         log.debug("Fetching fare for schedule ID: {} and class: {}", scheduleId, fareClass);
         
         FlightFare fare = flightFareRepository.findByScheduleIdAndFareClass(scheduleId, fareClass);
@@ -97,7 +98,7 @@ public class FlightFareService {
         return FlightFareDto.builder()
                 .fareId(fare.getFareId())
                 .scheduleId(fare.getScheduleId())
-                .fareClass(fare.getFareClass())
+
                 .price(fare.getPrice())
                 .availableSeats(fare.getAvailableSeats())
                 .build();

@@ -1,10 +1,11 @@
 package com.pdh.hotel.mapper;
 
-import com.pdh.hotel.client.MediaServiceClient;
+import com.pdh.common.dto.response.MediaResponse;
 import com.pdh.hotel.dto.request.RoomRequestDto;
 import com.pdh.hotel.dto.response.RoomResponseDto;
-import com.pdh.hotel.dto.response.MediaInfo;
 import com.pdh.hotel.model.Room;
+import com.pdh.hotel.model.RoomImage;
+import com.pdh.hotel.repository.RoomImageRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
@@ -22,7 +23,7 @@ import java.util.stream.Collectors;
 @Slf4j
 public class RoomMapper {
     
-    private final MediaServiceClient mediaServiceClient;
+    private final RoomImageRepository roomImageRepository;
     
     /**
      * Convert RoomRequestDto to Room entity
@@ -146,18 +147,12 @@ public class RoomMapper {
                 })
                 .collect(Collectors.toList());
 
-        // Then, fetch media for all rooms in one batch call
-        List<Long> roomIds = rooms.stream()
-                .map(Room::getId)
-                .collect(Collectors.toList());
-
+        // Then, fetch media for all rooms using room image associations
         try {
-            Map<Long, List<Map<String, Object>>> mediaMap = mediaServiceClient.getMediaForEntities("ROOM", roomIds);
-            
-            // Set media information for each DTO
+            // Get room-media associations and set media information
             dtos.forEach(dto -> {
-                List<Map<String, Object>> mediaList = mediaMap.get(dto.getId());
-                setMediaFromList(dto, mediaList);
+                List<RoomImage> roomImages = roomImageRepository.findByRoomId(dto.getId());
+                setMediaFromRoomImages(dto, roomImages);
             });
         } catch (Exception e) {
             log.error("Failed to fetch media for rooms: {}", e.getMessage());
@@ -173,37 +168,45 @@ public class RoomMapper {
      */
     private void setMediaInfo(RoomResponseDto dto, String entityType, Long entityId) {
         try {
-            List<Map<String, Object>> mediaList = mediaServiceClient.getMediaByEntity(entityType, entityId);
-            setMediaFromList(dto, mediaList);
+            List<RoomImage> roomImages = roomImageRepository.findByRoomId(entityId);
+            setMediaFromRoomImages(dto, roomImages);
         } catch (Exception e) {
             log.error("Failed to fetch media for {} {}: {}", entityType, entityId, e.getMessage());
             setDefaultMediaValues(dto);
         }
     }
-    
+
     /**
-     * Helper method to set media information from media list
+     * Helper method to set media information from room images
      */
-    private void setMediaFromList(RoomResponseDto dto, List<Map<String, Object>> mediaList) {
-        if (mediaList == null || mediaList.isEmpty()) {
+    private void setMediaFromRoomImages(RoomResponseDto dto, List<RoomImage> roomImages) {
+        if (roomImages == null || roomImages.isEmpty()) {
             setDefaultMediaValues(dto);
             return;
         }
         
-        List<MediaInfo> mediaInfoList = mediaList.stream()
-                .map(this::convertToMediaInfo)
+        // Create complete MediaResponse objects with all available data from RoomImage
+        List<MediaResponse> mediaResponseList = roomImages.stream()
+                .map(roomImage -> MediaResponse.builder()
+                        .id(roomImage.getMediaId())
+                        .mediaId(roomImage.getMediaId())
+                        .publicId(roomImage.getPublicId())
+                        .url(roomImage.getUrl())
+                        .secureUrl(roomImage.getUrl()) // For now, use the same URL for both
+                        .isPrimary(roomImage.isPrimary())
+                        .displayOrder(0) // Default display order
+                        .build())
                 .collect(Collectors.toList());
         
-        dto.setImages(mediaInfoList);
+        dto.setMedia(mediaResponseList);
         dto.setHasMedia(true);
-        dto.setMediaCount(mediaInfoList.size());
+        dto.setMediaCount(mediaResponseList.size());
         
-        // Find primary image
-        MediaInfo primaryImage = mediaInfoList.stream()
-                .filter(media -> Boolean.TRUE.equals(media.getIsPrimary()))
+        // Set first image as primary for now (or find actual primary if available)
+        MediaResponse primaryImage = mediaResponseList.stream()
+                .filter(MediaResponse::getIsPrimary)
                 .findFirst()
-                .orElse(mediaInfoList.isEmpty() ? null : mediaInfoList.get(0));
-        
+                .orElse(mediaResponseList.isEmpty() ? null : mediaResponseList.get(0));
         dto.setPrimaryImage(primaryImage);
     }
     
@@ -211,71 +214,11 @@ public class RoomMapper {
      * Helper method to set default media values when no media is found
      */
     private void setDefaultMediaValues(RoomResponseDto dto) {
-        dto.setImages(List.of());
+        dto.setMedia(List.of());
         dto.setPrimaryImage(null);
         dto.setHasMedia(false);
         dto.setMediaCount(0);
     }
     
-    /**
-     * Helper method to convert media map to MediaInfo object
-     */
-    private MediaInfo convertToMediaInfo(Map<String, Object> mediaMap) {
-        return MediaInfo.builder()
-                .id(safeLongConvert(mediaMap.get("id")))
-                .publicId(safeStringConvert(mediaMap.get("publicId")))
-                .url(safeStringConvert(mediaMap.get("url")))
-                .secureUrl(safeStringConvert(mediaMap.get("secureUrl")))
-                .altText(safeStringConvert(mediaMap.get("altText")))
-                .isPrimary(safeBooleanConvert(mediaMap.get("isPrimary")))
-                .displayOrder(safeIntegerConvert(mediaMap.get("displayOrder")))
-                .mediaType(safeStringConvert(mediaMap.get("mediaType")))
-                .resourceType(safeStringConvert(mediaMap.get("resourceType")))
-                .format(safeStringConvert(mediaMap.get("format")))
-                .fileSize(safeLongConvert(mediaMap.get("fileSize")))
-                .width(safeIntegerConvert(mediaMap.get("width")))
-                .height(safeIntegerConvert(mediaMap.get("height")))
-                .tags(safeStringConvert(mediaMap.get("tags")))
-                .createdAt(safeLocalDateTimeConvert(mediaMap.get("createdAt")))
-                .updatedAt(safeLocalDateTimeConvert(mediaMap.get("updatedAt")))
-                .build();
-    }
     
-    // Helper methods for safe type conversion
-    private String safeStringConvert(Object value) {
-        return value != null ? value.toString() : null;
-    }
-    
-    private Long safeLongConvert(Object value) {
-        if (value == null) return null;
-        if (value instanceof Number) return ((Number) value).longValue();
-        try {
-            return Long.parseLong(value.toString());
-        } catch (NumberFormatException e) {
-            return null;
-        }
-    }
-    
-    private Integer safeIntegerConvert(Object value) {
-        if (value == null) return null;
-        if (value instanceof Number) return ((Number) value).intValue();
-        try {
-            return Integer.parseInt(value.toString());
-        } catch (NumberFormatException e) {
-            return null;
-        }
-    }
-    
-    private Boolean safeBooleanConvert(Object value) {
-        if (value == null) return null;
-        if (value instanceof Boolean) return (Boolean) value;
-        return Boolean.parseBoolean(value.toString());
-    }
-    
-    private LocalDateTime safeLocalDateTimeConvert(Object value) {
-        if (value == null) return null;
-        if (value instanceof LocalDateTime) return (LocalDateTime) value;
-        // Add more conversion logic if needed based on the actual format
-        return null;
-    }
 }
