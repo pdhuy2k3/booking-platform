@@ -5,7 +5,7 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
-import java.time.LocalDateTime;
+import java.time.ZonedDateTime;
 import java.util.List;
 
 /**
@@ -48,8 +48,8 @@ public class FlightSearchResultDto {
      */
     private String departureTime; // HH:mm format for display
     private String arrivalTime;   // HH:mm format for display
-    private LocalDateTime departureDateTime; // Full datetime for processing
-    private LocalDateTime arrivalDateTime;   // Full datetime for processing
+    private ZonedDateTime departureDateTime; // Full datetime for processing
+    private ZonedDateTime arrivalDateTime;   // Full datetime for processing
     
     /**
      * Duration information

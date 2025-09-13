@@ -23,7 +23,7 @@ public class AirportRequestDto {
     @NotBlank(message = "IATA code is required")
     @Size(min = 3, max = 3, message = "IATA code must be exactly 3 characters")
     @Pattern(regexp = "^[A-Z]{3}$", message = "IATA code must be 3 uppercase letters")
-    private String code;
+    private String iataCode;
     
     @NotBlank(message = "City is required")
     @Size(max = 100, message = "City name cannot exceed 100 characters")

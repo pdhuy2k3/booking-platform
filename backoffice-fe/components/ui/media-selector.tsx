@@ -133,9 +133,9 @@ export function MediaSelector({
           setSelectedMedia(publicIds);
           
           // Create MediaResponse objects from DTOs
-          const mediaResponses = mediaDtos.map(dto => ({
-            id: dto.id,
-            mediaId: dto.id,
+          const mediaResponses = mediaDtos.map((dto, index) => ({
+            id: dto.id || index + 1,
+            mediaId: dto.mediaId || dto.id || index + 1,
             publicId: dto.publicId,
             url: dto.url,
             secureUrl: dto.secureUrl,
@@ -174,9 +174,9 @@ export function MediaSelector({
             setSelectedMedia(publicIds);
             
             // Create MediaResponse objects from DTOs
-            const mediaResponses = mediaDtos.map(dto => ({
-              id: dto.id,
-              mediaId: dto.id,
+            const mediaResponses = mediaDtos.map((dto, index) => ({
+              id: dto.id || index + 1,
+              mediaId: dto.mediaId || dto.id || index + 1,
               publicId: dto.publicId,
               url: dto.url,
               secureUrl: dto.secureUrl,

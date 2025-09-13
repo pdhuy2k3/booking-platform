@@ -46,9 +46,9 @@ api:
       name: MIT License
       url: https://opensource.org/licenses/MIT
     oauth2:
-      authorization-url: http://localhost:8080/realms/bookingsmart/protocol/openid-connect/auth
-      token-url: http://localhost:8080/realms/bookingsmart/protocol/openid-connect/token
-      refresh-url: http://localhost:8080/realms/bookingsmart/protocol/openid-connect/token
+      authorization-url: http://localhost:9090/realms/bookingsmart/protocol/openid-connect/auth
+      token-url: http://localhost:9090/realms/bookingsmart/protocol/openid-connect/token
+      refresh-url: http://localhost:9090/realms/bookingsmart/protocol/openid-connect/token
       scopes:
         admin: Administrative access to booking management
         customer: Customer access to booking creation and tracking
@@ -114,7 +114,7 @@ spring:
     change-log: classpath:db/changelog/db.changelog-master.yaml
   # Kafka Configuration - Optimized for local development
   kafka:
-    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+    bootstrap-servers: localhost:9092
     consumer:
       group-id: ${spring.application.name}-local
       auto-offset-reset: earliest
@@ -130,9 +130,9 @@ spring:
 
   data:
     redis:
-      host: ${REDIS_HOST:localhost}
-      port: ${REDIS_PORT:6379}
-      password: ${REDIS_PASSWORD:}
+      host: localhost
+      port: 6379
+      password:
       timeout: 2000ms
       lettuce:
         pool:

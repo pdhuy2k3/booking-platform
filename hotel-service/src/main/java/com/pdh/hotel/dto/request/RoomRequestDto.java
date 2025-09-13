@@ -52,4 +52,10 @@ public class RoomRequestDto {
     
     // List of complete media responses to associate with this room
     private List<MediaResponse> media;
+    
+    // Flag to indicate whether to inherit price from room type
+    private Boolean inheritPriceFromRoomType;
+    
+    // Flag to indicate whether to inherit media from room type
+    private Boolean inheritMediaFromRoomType;
 }

@@ -9,7 +9,7 @@ import { MediaSelector } from '@/components/ui/media-selector';
 import { toast } from 'sonner';
 
 export default function MediaPage() {
-  const [selectedFolder, setSelectedFolder] = useState('general');
+  const [selectedFolder, setSelectedFolder] = useState<'hotels' | 'rooms' | 'amenities' | 'room-types' | 'airlines' | 'airports' | 'flights' | 'general'>('general');
   const [selectedMedia, setSelectedMedia] = useState<string[]>([]);
 
   const folders = ['hotels', 'rooms', 'amenities', 'airlines', 'airports', 'flights', 'general'];
@@ -38,7 +38,7 @@ export default function MediaPage() {
             <div className="space-y-4">
               <div>
                 <Label htmlFor="folder">Select Folder</Label>
-                <Select value={selectedFolder} onValueChange={setSelectedFolder}>
+                <Select value={selectedFolder} onValueChange={(value) => setSelectedFolder(value as typeof selectedFolder)}>
                   <SelectTrigger>
                     <SelectValue placeholder="Select folder" />
                   </SelectTrigger>

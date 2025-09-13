@@ -3,26 +3,28 @@
 import { MessageSquare, Plane, Building2, User, LogOut, Settings, Calendar, CreditCard, ChevronUp } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useState } from "react"
+import { useRouter, usePathname } from "next/navigation"
 
 interface SidebarProps {
   currentView: string
-  onNavigate: (view: string) => void
 }
 
 const navigation = [
-  { name: "Chat", icon: MessageSquare, current: true },
-  { name: "Flights", icon: Plane, current: false },
-  { name: "Hotels", icon: Building2, current: false },
+  { name: "Chat", path: "/", icon: MessageSquare },
+  { name: "Flights", path: "/flights", icon: Plane },
+  { name: "Hotels", path: "/hotels", icon: Building2 },
 ]
 
-export function Sidebar({ currentView, onNavigate }: SidebarProps) {
+export function Sidebar({ currentView }: SidebarProps) {
   const [showUserMenu, setShowUserMenu] = useState(false)
+  const router = useRouter()
+  const pathname = usePathname()
 
   const userMenuOptions = [
-    { name: "Profile", icon: User, action: () => onNavigate("Profile") },
-    { name: "Booking History", icon: Calendar, action: () => onNavigate("BookingHistory") },
-    { name: "Payment", icon: CreditCard, action: () => onNavigate("Payment") },
-    { name: "Settings", icon: Settings, action: () => onNavigate("Settings") },
+    { name: "Profile", path: "/profile", icon: User, action: () => router.push("/profile") },
+    { name: "Bookings", path: "/bookings", icon: Calendar, action: () => router.push("/bookings") },
+    { name: "Payment", path: "/payment", icon: CreditCard, action: () => router.push("/payment") },
+    { name: "Settings", path: "/settings", icon: Settings, action: () => router.push("/settings") },
     { name: "Logout", icon: LogOut, action: () => console.log("Logout") },
   ]
 
@@ -65,10 +67,10 @@ export function Sidebar({ currentView, onNavigate }: SidebarProps) {
           {navigation.map((item) => (
             <button
               key={item.name}
-              onClick={() => onNavigate(item.name)}
+              onClick={() => router.push(item.path)}
               className={cn(
                 "w-full flex items-center px-3 py-2 text-sm font-medium rounded-lg transition-colors",
-                currentView === item.name
+                pathname === item.path
                   ? "bg-sidebar-primary text-sidebar-primary-foreground"
                   : "text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
               )}
@@ -106,18 +108,21 @@ export function Sidebar({ currentView, onNavigate }: SidebarProps) {
         {showUserMenu && (
           <div className="absolute bottom-full left-4 right-4 mb-2 bg-sidebar-accent border border-sidebar-border rounded-lg shadow-lg py-2 z-50">
             {userMenuOptions.map((option) => (
-              <button
-                key={option.name}
-                onClick={() => {
-                  option.action()
-                  setShowUserMenu(false)
-                }}
-                className="w-full flex items-center px-3 py-2 text-sm text-sidebar-foreground hover:bg-sidebar-primary hover:text-sidebar-primary-foreground transition-colors"
-              >
-                <option.icon className="mr-3 h-4 w-4" />
-                {option.name}
-              </button>
-            ))}
+                <button
+                  key={option.name}
+                  onClick={() => {
+                    option.action()
+                    setShowUserMenu(false)
+                  }}
+                  className={cn(
+                    "w-full flex items-center px-3 py-2 text-sm text-sidebar-foreground hover:bg-sidebar-primary hover:text-sidebar-primary-foreground transition-colors",
+                    option.path && pathname === option.path ? "bg-sidebar-primary text-sidebar-primary-foreground" : ""
+                  )}
+                >
+                  <option.icon className="mr-3 h-4 w-4" />
+                  {option.name}
+                </button>
+              ))}
           </div>
         )}
 

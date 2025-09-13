@@ -4,6 +4,7 @@ import com.pdh.common.dto.response.ApiResponse;
 import com.pdh.hotel.dto.request.RoomRequestDto;
 import com.pdh.hotel.dto.response.RoomListResponseDto;
 import com.pdh.hotel.dto.response.RoomSingleResponseDto;
+import com.pdh.hotel.dto.response.RoomTypeInheritanceDto;
 import com.pdh.hotel.service.BackofficeRoomService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -256,6 +257,31 @@ public class BackofficeRoomController {
             errorResponse.put("error", "Failed to get available rooms count");
             errorResponse.put("message", e.getMessage());
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(errorResponse);
+        }
+    }
+    
+    /**
+     * Get room type information for inheritance purposes
+     */
+    @GetMapping("/room-types/{id}/inheritance-info")
+    @Operation(summary = "Get room type inheritance info", description = "Retrieve room type information that can be inherited by rooms")
+    @ApiResponses({
+        @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "Successfully retrieved room type inheritance info"),
+        @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "Room type not found", content = @Content),
+        @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "500", description = "Internal server error")
+    })
+    public ResponseEntity<ApiResponse<RoomTypeInheritanceDto>> getRoomTypeInheritanceInfo(
+            @Parameter(description = "Room type ID", required = true)
+            @PathVariable Long id) {
+        log.info("Fetching room type inheritance info for ID: {}", id);
+        
+        try {
+            RoomTypeInheritanceDto response = backofficeRoomService.getRoomTypeInheritanceInfo(id);
+            return ResponseEntity.ok(ApiResponse.success(response));
+        } catch (Exception e) {
+            log.error("Error fetching room type inheritance info for ID: {}", id, e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .body(ApiResponse.error("Failed to fetch room type inheritance info: " + e.getMessage()));
         }
     }
 }

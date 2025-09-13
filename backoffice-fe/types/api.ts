@@ -24,21 +24,42 @@ export interface MediaResponse {
   displayOrder: number
 }
 
+export interface Aircraft {
+  aircraftId: number
+  model: string
+  manufacturer?: string
+  capacityEconomy?: number
+  capacityBusiness?: number
+  capacityFirst?: number
+  totalCapacity?: number
+  registrationNumber?: string
+  isActive: boolean
+  createdAt: string
+  updatedAt: string
+  media?: MediaResponse[]     // For creating/updating aircraft - complete media info
+}
+
 export interface Airline {
-  id: number
+  airlineId: number
   name: string
-  code: string
+  iataCode: string
   country?: string
   isActive: boolean
   createdAt: string
   updatedAt: string
-  media?: MediaResponse[]     // For creating/updating airlines - complete media info
+  createdBy?: string
+  updatedBy?: string
+  images?: string[]     // Array of image URLs/IDs from backend
+  totalFlights?: number
+  activeFlights?: number
+  totalRoutes?: number
+  status?: string
 }
 
 export interface Airport {
-  id: number
+  airportId: number
   name: string
-  code: string
+  iataCode: string
   city: string
   country: string
   timezone?: string
@@ -49,18 +70,43 @@ export interface Airport {
 }
 
 export interface Flight {
-  id: number
+  id?: number
+  flightId?: number
   flightNumber: string
-  airline: Airline
-  departureAirport: Airport
-  arrivalAirport: Airport
-  baseDurationMinutes?: number
+  airline?: Airline
+  airlineId?: number
+  airlineName?: string
+  airlineIataCode?: string
+  departureAirport?: Airport
+  departureAirportId?: number
+  departureAirportName?: string
+  departureAirportIataCode?: string
+  departureAirportCity?: string
+  departureAirportCountry?: string
+  arrivalAirport?: Airport
+  arrivalAirportId?: number
+  arrivalAirportName?: string
+  arrivalAirportIataCode?: string
+  arrivalAirportCity?: string
+  arrivalAirportCountry?: string
   aircraftType?: string
-  status: "ACTIVE" | "CANCELLED" | "DELAYED" | "ON_TIME"
-  basePrice?: number
-  isActive: boolean
-  createdAt: string
-  updatedAt: string
+  aircraft?: Aircraft
+  status?: "ACTIVE" | "CANCELLED" | "DELAYED" | "ON_TIME" | "SCHEDULED"
+  isActive?: boolean
+  createdAt?: string
+  updatedAt?: string
+  createdBy?: string
+  updatedBy?: string
+  // Note: schedules array intentionally omitted to prevent circular references
+  schedules?: FlightSchedule[]  // Only include when specifically needed
+  fares?: FlightFare[]
+  totalSchedules?: number
+  activeSchedules?: number
+  totalBookings?: number
+  images?: string[]
+  primaryImage?: string
+  hasMedia?: boolean
+  mediaCount?: number
   media?: MediaResponse[]     // For creating/updating flights - complete media info
 }
 
@@ -99,6 +145,17 @@ export interface RoomType {
   media?: MediaResponse[]     // For creating/updating room types - complete media info
   createdAt?: string
   updatedAt?: string
+}
+
+export interface RoomTypeInheritance {
+  id: number
+  name: string
+  description: string
+  basePrice?: number
+  media?: MediaResponse[]
+  primaryImage?: MediaResponse
+  hasMedia: boolean
+  mediaCount: number
 }
 
 export interface Amenity {
@@ -185,4 +242,61 @@ export interface FlightFareUpdateRequest {
   fareClass?: "ECONOMY" | "PREMIUM_ECONOMY" | "BUSINESS" | "FIRST"
   price?: number
   availableSeats?: number
+}
+
+export interface FlightFareCalculationRequest {
+  scheduleIds: string[]
+  fareClass: string
+  departureDate: string
+  passengerCount: number
+  basePrice?: number
+  aircraftType?: string
+}
+
+export interface FlightFareCalculationResult {
+  scheduleId: string
+  flightNumber: string
+  origin: string
+  destination: string
+  aircraftType: string
+  fareClass: string
+  calculatedPrice: number
+  availableSeats: number
+  currency: string
+  demandMultiplier: number
+  timeMultiplier: number
+  seasonalityMultiplier: number
+  fareClassMultiplier: number
+}
+
+export interface FlightSchedule {
+  scheduleId: string
+  flightId: number
+  departureTime: string
+  arrivalTime: string
+  aircraftType?: string
+  aircraftId?: number
+  status: "SCHEDULED" | "ACTIVE" | "DELAYED" | "CANCELLED" | "COMPLETED"
+  flight?: Flight
+  aircraft?: Aircraft
+  durationMinutes?: number
+  createdAt?: string
+  updatedAt?: string
+  createdBy?: string
+  updatedBy?: string
+}
+
+export interface FlightScheduleCreateRequest {
+  flightId: number
+  departureTime: string
+  arrivalTime: string
+  aircraftId: number
+  status?: "SCHEDULED" | "ACTIVE" | "DELAYED" | "CANCELLED" | "COMPLETED"
+}
+
+export interface FlightScheduleUpdateRequest {
+  departureTime?: string
+  arrivalTime?: string
+  aircraftId?: number
+  status?: "SCHEDULED" | "ACTIVE" | "DELAYED" | "CANCELLED" | "COMPLETED"
 }
