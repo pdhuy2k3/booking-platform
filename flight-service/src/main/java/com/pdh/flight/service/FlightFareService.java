@@ -2,12 +2,16 @@ package com.pdh.flight.service;
 
 import com.pdh.flight.dto.response.FlightFareDto;
 import com.pdh.flight.model.FlightFare;
+import com.pdh.flight.model.enums.FareClass;
 import com.pdh.flight.repository.FlightFareRepository;
+import com.pdh.flight.service.pricing.PricingService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -23,6 +27,7 @@ import java.util.stream.Collectors;
 public class FlightFareService {
     
     private final FlightFareRepository flightFareRepository;
+    private final PricingService pricingService;
     
     /**
      * Get all fares for a specific schedule
@@ -67,7 +72,7 @@ public class FlightFareService {
      * @return FlightFareDto or null if not found
      */
     @Transactional(readOnly = true)
-    public FlightFareDto getFareByScheduleIdAndClass(UUID scheduleId, String fareClass) {
+    public FlightFareDto getFareByScheduleIdAndClass(UUID scheduleId, FareClass fareClass) {
         log.debug("Fetching fare for schedule ID: {} and class: {}", scheduleId, fareClass);
         
         FlightFare fare = flightFareRepository.findByScheduleIdAndFareClass(scheduleId, fareClass);
@@ -91,13 +96,33 @@ public class FlightFareService {
     }
     
     /**
+     * Calculate dynamic price for a flight schedule
+     * 
+     * @param scheduleId The flight schedule ID
+     * @param fareClass The fare class
+     * @param passengerCount Number of passengers
+     * @return Calculated price
+     */
+    public BigDecimal calculatePrice(UUID scheduleId, FareClass fareClass, int passengerCount) {
+        // In a real implementation, you would fetch the actual schedule
+        // For now, we'll return the stored price or calculate a new one
+        FlightFareDto fare = getFareByScheduleIdAndClass(scheduleId, fareClass);
+        if (fare != null && fare.getPrice() != null) {
+            return fare.getPrice().multiply(BigDecimal.valueOf(passengerCount));
+        }
+        
+        // If no stored fare, calculate using pricing service
+        return pricingService.calculatePrice(null, fareClass, LocalDate.now(), LocalDate.now(), passengerCount);
+    }
+    
+    /**
      * Convert FlightFare entity to DTO
      */
     private FlightFareDto toDto(FlightFare fare) {
         return FlightFareDto.builder()
                 .fareId(fare.getFareId())
                 .scheduleId(fare.getScheduleId())
-                .fareClass(fare.getFareClass())
+                .fareClass(fare.getFareClass() != null ? fare.getFareClass().name() : null)
                 .price(fare.getPrice())
                 .availableSeats(fare.getAvailableSeats())
                 .build();

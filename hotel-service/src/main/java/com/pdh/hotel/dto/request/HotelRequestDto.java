@@ -1,5 +1,7 @@
 package com.pdh.hotel.dto.request;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import com.pdh.common.dto.response.MediaResponse;
 import jakarta.validation.constraints.*;
 import lombok.*;
 
@@ -13,6 +15,7 @@ import java.util.List;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
+@JsonIgnoreProperties(ignoreUnknown = true)
 public class HotelRequestDto {
     
     @NotBlank(message = "Hotel name is required")
@@ -48,7 +51,7 @@ public class HotelRequestDto {
     private BigDecimal longitude;
     
     /**
-     * List of media public IDs to associate with this hotel
+     * List of complete media responses to associate with this hotel
      */
-    private List<String> mediaPublicIds;
+    private List<MediaResponse> media;
 }

@@ -53,10 +53,9 @@ public class Room extends AbstractAuditEntity {
     @Column(name = "is_available")
     private Boolean isAvailable = true;
     
-    // One-to-Many relationships to avoid ManyToMany
     @OneToMany(mappedBy = "room", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
     private List<RoomAmenity> roomAmenities = new ArrayList<>();
     
-    // Images are now managed through the unified Image entity using ImageService
-    // No direct relationship needed - use ImageService.getImages("ROOM", roomId)
+    @OneToMany(mappedBy = "room", cascade = CascadeType.ALL, orphanRemoval = true)
+    private List<RoomImage> roomImages = new ArrayList<>();
 }

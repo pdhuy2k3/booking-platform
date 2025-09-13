@@ -100,16 +100,19 @@ function PartnerSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
           title: "Khách sạn của tôi",
           url: "/partner/hotels",
           icon: Hotel,
+          show: true,
         },
         {
           title: "Quản lý phòng",
           url: "/partner/rooms",
           icon: Bed,
+          show: true,
         },
         {
           title: "Đánh giá khách sạn",
           url: "/partner/hotel-reviews",
           icon: Star,
+          show: true,
         },
       )
     }
@@ -119,6 +122,7 @@ function PartnerSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
         title: "Chuyến bay của tôi",
         url: "/partner/flights",
         icon: Plane,
+        show: true,
       })
     }
 
@@ -127,6 +131,7 @@ function PartnerSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
         title: "Xe khách của tôi",
         url: "/partner/transport",
         icon: Bus,
+        show: true,
       })
     }
 
@@ -145,11 +150,13 @@ function PartnerSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
           title: "Đặt chỗ",
           url: "/partner/bookings",
           icon: Calendar,
+          show: true,
         },
         {
           title: "Khách hàng",
           url: "/partner/customers",
           icon: Users,
+          show: true,
         },
       ],
     })
@@ -162,6 +169,7 @@ function PartnerSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
         title: "Báo cáo",
         url: "/partner/reports",
         icon: FileText,
+        show: true,
       })
     }
 
@@ -170,6 +178,7 @@ function PartnerSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
         title: "Thanh toán",
         url: "/partner/payments",
         icon: CreditCard,
+        show: true,
       })
     }
 
@@ -188,11 +197,13 @@ function PartnerSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
           title: "Tin nhắn",
           url: "/partner/messages",
           icon: MessageSquare,
+          show: true,
         },
         {
           title: "Trợ giúp",
           url: "/partner/help",
           icon: HelpCircle,
+          show: true,
         },
       ],
     })

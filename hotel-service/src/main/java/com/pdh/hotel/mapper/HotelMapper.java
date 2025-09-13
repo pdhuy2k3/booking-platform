@@ -1,10 +1,11 @@
 package com.pdh.hotel.mapper;
 
-import com.pdh.hotel.client.MediaServiceClient;
 import com.pdh.hotel.dto.request.HotelRequestDto;
 import com.pdh.hotel.dto.response.HotelResponseDto;
 import com.pdh.hotel.dto.response.MediaInfo;
 import com.pdh.hotel.model.Hotel;
+import com.pdh.hotel.model.HotelImage;
+import com.pdh.hotel.repository.HotelImageRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
@@ -22,7 +23,7 @@ import java.util.stream.Collectors;
 @Slf4j
 public class HotelMapper {
     
-    private final MediaServiceClient mediaServiceClient;
+    private final HotelImageRepository hotelImageRepository;
     
     /**
      * Convert HotelRequestDto to Hotel entity
@@ -121,17 +122,11 @@ public class HotelMapper {
                 .collect(Collectors.toList());
         
         // Then, fetch media for all hotels in one batch call
-        List<Long> hotelIds = hotels.stream()
-                .map(Hotel::getHotelId)
-                .collect(Collectors.toList());
-        
         try {
-            Map<Long, List<Map<String, Object>>> mediaMap = mediaServiceClient.getMediaForEntities("HOTEL", hotelIds);
-            
-            // Set media information for each DTO
+            // Get hotel-media associations and set media information
             dtos.forEach(dto -> {
-                List<Map<String, Object>> mediaList = mediaMap.get(dto.getId());
-                setMediaFromList(dto, mediaList);
+                List<HotelImage> hotelImages = hotelImageRepository.findByHotelId(dto.getId());
+                setMediaFromHotelImages(dto, hotelImages);
             });
         } catch (Exception e) {
             log.error("Failed to fetch media for hotels: {}", e.getMessage());
@@ -147,12 +142,38 @@ public class HotelMapper {
      */
     private void setMediaInfo(HotelResponseDto dto, String entityType, Long entityId) {
         try {
-            List<Map<String, Object>> mediaList = mediaServiceClient.getMediaByEntity(entityType, entityId);
-            setMediaFromList(dto, mediaList);
+            List<HotelImage> hotelImages = hotelImageRepository.findByHotelId(entityId);
+            setMediaFromHotelImages(dto, hotelImages);
         } catch (Exception e) {
             log.error("Failed to fetch media for {} {}: {}", entityType, entityId, e.getMessage());
             setDefaultMediaValues(dto);
         }
+    }
+
+    /**
+     * Helper method to set media information from hotel images
+     */
+    private void setMediaFromHotelImages(HotelResponseDto dto, List<HotelImage> hotelImages) {
+        if (hotelImages == null || hotelImages.isEmpty()) {
+            setDefaultMediaValues(dto);
+            return;
+        }
+        
+        // For now, create basic MediaInfo objects with just mediaId
+        // This will need to be enhanced to fetch full media details from media service
+        List<MediaInfo> mediaInfoList = hotelImages.stream()
+                .map(hotelImage -> MediaInfo.builder()
+                        .id(hotelImage.getMediaId())
+                        .build())
+                .collect(Collectors.toList());
+        
+        dto.setImages(mediaInfoList);
+        dto.setHasMedia(true);
+        dto.setMediaCount(mediaInfoList.size());
+        
+        // Set first image as primary for now
+        MediaInfo primaryImage = mediaInfoList.isEmpty() ? null : mediaInfoList.get(0);
+        dto.setPrimaryImage(primaryImage);
     }
     
     /**

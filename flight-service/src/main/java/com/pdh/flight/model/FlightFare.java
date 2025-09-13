@@ -1,6 +1,7 @@
 package com.pdh.flight.model;
 
 import com.pdh.common.model.AbstractAuditEntity;
+import com.pdh.flight.model.enums.FareClass;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Data;
@@ -26,8 +27,9 @@ public class FlightFare extends AbstractAuditEntity {
     @Column(name = "schedule_id", nullable = false)
     private UUID scheduleId;
 
-    @Column(name = "fare_class", nullable = false, length = 50)
-    private String fareClass;
+    @Column(name = "fare_class", nullable = false)
+    @Enumerated(EnumType.STRING)
+    private FareClass fareClass;
 
     @Column(name = "price", nullable = false, precision = 10, scale = 2)
     private BigDecimal price;

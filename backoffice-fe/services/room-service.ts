@@ -1,8 +1,8 @@
-import type { Room, PaginatedResponse } from "@/types/api"
+import type { Room, PaginatedResponse, MediaResponse, ApiResponse } from "@/types/api"
 import { apiClient } from "@/lib/api-client"
 
 export class RoomService {
-  private static readonly BASE_PATH = "/api/hotels"
+  private static readonly BASE_PATH = "/api/hotels/backoffice"
 
   /**
    * Get all rooms for a hotel with pagination
@@ -24,16 +24,35 @@ export class RoomService {
     if (params?.sortDirection) queryParams.append('sortDirection', params.sortDirection)
     
     const queryString = queryParams.toString()
-    const url = `${this.BASE_PATH}/backoffice/rooms/${hotelId}/rooms${queryString ? `?${queryString}` : ''}`
+    const url = `${this.BASE_PATH}/rooms/${hotelId}/rooms${queryString ? `?${queryString}` : ''}`
     
-    return await apiClient.get<PaginatedResponse<Room>>(url)
+    const response = await apiClient.get<ApiResponse<{
+      rooms: Room[]
+      totalElements: number
+      totalPages: number
+      size: number
+      number: number
+      first: boolean
+      last: boolean
+    }>>(url)
+    
+    return {
+      content: response?.data?.rooms || [],
+      totalElements: response?.data?.totalElements || 0,
+      totalPages: response?.data?.totalPages || 0,
+      size: response?.data?.size || 0,
+      number: response?.data?.number || 0,
+      first: response?.data?.first || false,
+      last: response?.data?.last || false
+    }
   }
 
   /**
    * Get room details by ID
    */
   static async getRoom(id: number): Promise<Room> {
-    return await apiClient.get<Room>(`${this.BASE_PATH}/backoffice/rooms/${id}`)
+    const response = await apiClient.get<ApiResponse<{ room: Room }>>(`${this.BASE_PATH}/rooms/${id}`)
+    return response.data.room
   }
 
   /**
@@ -41,20 +60,24 @@ export class RoomService {
    */
   static async createRoom(
     hotelId: number,
-    room: Omit<Room, "id" | "hotelId" | "hotelName" | "createdAt" | "updatedAt" | "images">
+    room: Omit<Room, "id" | "hotelId" | "hotelName" | "createdAt" | "updatedAt"> & { 
+      media?: MediaResponse[];
+      inheritPriceFromRoomType?: boolean;
+      inheritMediaFromRoomType?: boolean;
+    }
   ): Promise<Room> {
-    // Prepare the room data, ensuring mediaPublicIds are sent instead of images
+    // Prepare the room data, ensuring media is sent instead of images
     const roomData = {
       ...room,
-      // Remove images field if present, use mediaPublicIds instead
+      // Remove images field if present, use media instead
       images: undefined
     }
 
-    const response = await apiClient.post<{ room: Room }>(
-      `${this.BASE_PATH}/backoffice/rooms/${hotelId}/rooms`,
+    const response = await apiClient.post<ApiResponse<{ room: Room; message: string }>>(
+      `${this.BASE_PATH}/rooms/${hotelId}/rooms`,
       roomData
     )
-    return response.room
+    return response.data.room
   }
 
   /**
@@ -62,27 +85,31 @@ export class RoomService {
    */
   static async updateRoom(
     id: number,
-    room: Partial<Room>
+    room: Partial<Room> & { 
+      media?: MediaResponse[];
+      inheritPriceFromRoomType?: boolean;
+      inheritMediaFromRoomType?: boolean;
+    }
   ): Promise<Room> {
-    // Prepare the room data, ensuring mediaPublicIds are sent instead of images
+    // Prepare the room data, ensuring media is sent instead of images
     const roomData = {
       ...room,
-      // Remove images field if present, use mediaPublicIds instead
+      // Remove images field if present, use media instead
       images: undefined
     }
 
-    const response = await apiClient.put<{ room: Room }>(
-      `${this.BASE_PATH}/backoffice/rooms/${id}`,
+    const response = await apiClient.put<ApiResponse<{ room: Room; message: string }>>(
+      `${this.BASE_PATH}/rooms/${id}`,
       roomData
     )
-    return response.room
+    return response.data.room
   }
 
   /**
    * Delete a room
    */
   static async deleteRoom(id: number): Promise<void> {
-    await apiClient.delete(`${this.BASE_PATH}/backoffice/rooms/${id}`)
+    await apiClient.delete(`${this.BASE_PATH}/rooms/${id}`)
   }
 
   /**
@@ -92,11 +119,11 @@ export class RoomService {
     id: number,
     isAvailable: boolean
   ): Promise<Room> {
-    const response = await apiClient.patch<{ room: Room }>(
-      `${this.BASE_PATH}/backoffice/rooms/${id}/availability?isAvailable=${isAvailable}`,
+    const response = await apiClient.patch<ApiResponse<{ room: Room; message: string }>>(
+      `${this.BASE_PATH}/rooms/${id}/availability?isAvailable=${isAvailable}`,
       {}
     )
-    return response.room
+    return response.data.room
   }
 
   /**
@@ -107,7 +134,7 @@ export class RoomService {
     isAvailable: boolean
   ): Promise<void> {
     await apiClient.patch(
-      `${this.BASE_PATH}/backoffice/rooms/bulk-availability`,
+      `${this.BASE_PATH}/rooms/bulk-availability`,
       {
         roomIds,
         isAvailable
@@ -120,7 +147,7 @@ export class RoomService {
    */
   static async getAvailableRoomsCount(hotelId: number): Promise<number> {
     const response = await apiClient.get<{ availableRooms: number }>(
-      `${this.BASE_PATH}/backoffice/hotels/${hotelId}/rooms/count`
+      `${this.BASE_PATH}/hotels/${hotelId}/rooms/count`
     )
     return response.availableRooms
   }

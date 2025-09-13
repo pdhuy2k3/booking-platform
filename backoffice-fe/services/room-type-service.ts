@@ -1,4 +1,4 @@
-import type { RoomType } from "@/types/api"
+import type { RoomType, RoomTypeInheritance, MediaResponse, ApiResponse } from "@/types/api"
 import { apiClient } from "@/lib/api-client"
 
 export class RoomTypeService {
@@ -8,20 +8,48 @@ export class RoomTypeService {
    * Get all room types for a hotel
    */
   static async getRoomTypesByHotel(hotelId: number): Promise<RoomType[]> {
-    const response = await apiClient.get<{ roomTypes: RoomType[] }>(
-      `${this.BASE_PATH}/room-types/${hotelId}/hotel`
-    )
-    return response.roomTypes
+    try {
+      const response = await apiClient.get<ApiResponse<{
+        roomTypes: RoomType[];
+        total: number;
+      }>>(
+        `${this.BASE_PATH}/room-types/${hotelId}/hotel`
+      )
+      return response?.data?.roomTypes || []
+    } catch (error) {
+      console.error("Error fetching room types:", error)
+      return []
+    }
   }
 
   /**
    * Get room type details by ID
    */
   static async getRoomType(id: number): Promise<RoomType> {
-    const response = await apiClient.get<{ roomType: RoomType }>(
-      `${this.BASE_PATH}/room-types/${id}`
-    )
-    return response.roomType
+    try {
+      const response = await apiClient.get<ApiResponse<{ roomType: RoomType }>>(
+        `${this.BASE_PATH}/room-types/${id}`
+      )
+      return response?.data?.roomType || ({} as RoomType)
+    } catch (error) {
+      console.error("Error fetching room type:", error)
+      return {} as RoomType
+    }
+  }
+
+  /**
+   * Get room type inheritance information by ID
+   */
+  static async getRoomTypeInheritance(id: number): Promise<RoomTypeInheritance> {
+    try {
+      const response = await apiClient.get<ApiResponse<RoomTypeInheritance>>(
+        `${this.BASE_PATH}/room-types/${id}/inheritance-info`
+      )
+      return response?.data || ({} as RoomTypeInheritance)
+    } catch (error) {
+      console.error("Error fetching room type inheritance info:", error)
+      return {} as RoomTypeInheritance
+    }
   }
 
   /**
@@ -31,10 +59,15 @@ export class RoomTypeService {
     hotelId: number, 
     guestCount: number
   ): Promise<RoomType[]> {
-    const response = await apiClient.get<{ roomTypes: RoomType[] }>(
-      `${this.BASE_PATH}/room-types/${hotelId}/suitable?guestCount=${guestCount}`
-    )
-    return response.roomTypes
+    try {
+      const response = await apiClient.get<ApiResponse<{ roomTypes: RoomType[] }>>(
+        `${this.BASE_PATH}/room-types/${hotelId}/suitable?guestCount=${guestCount}`
+      )
+      return response?.data?.roomTypes || []
+    } catch (error) {
+      console.error("Error fetching suitable room types:", error)
+      return []
+    }
   }
 
   /**
@@ -42,13 +75,18 @@ export class RoomTypeService {
    */
   static async createRoomType(
     hotelId: number,
-    roomType: Omit<RoomType, "id" | "createdAt" | "updatedAt">
+    roomType: Omit<RoomType, "id" | "createdAt" | "updatedAt"> & { media?: MediaResponse[] }
   ): Promise<RoomType> {
-    const response = await apiClient.post<{ roomType: RoomType }>(
-      `${this.BASE_PATH}/room-types/${hotelId}`,
-      roomType
-    )
-    return response.roomType
+    try {
+      const response = await apiClient.post<ApiResponse<{ roomType: RoomType }>>(
+        `${this.BASE_PATH}/room-types/${hotelId}`,
+        roomType
+      )
+      return response?.data?.roomType || ({} as RoomType)
+    } catch (error) {
+      console.error("Error creating room type:", error)
+      return {} as RoomType
+    }
   }
 
   /**
@@ -56,13 +94,18 @@ export class RoomTypeService {
    */
   static async updateRoomType(
     id: number,
-    roomType: Partial<RoomType>
+    roomType: Partial<RoomType> & { media?: MediaResponse[] }
   ): Promise<RoomType> {
-    const response = await apiClient.put<{ roomType: RoomType }>(
-      `${this.BASE_PATH}/room-types/${id}`,
-      roomType
-    )
-    return response.roomType
+    try {
+      const response = await apiClient.put<ApiResponse<{ roomType: RoomType }>>(
+        `${this.BASE_PATH}/room-types/${id}`,
+        roomType
+      )
+      return response?.data?.roomType || ({} as RoomType)
+    } catch (error) {
+      console.error("Error updating room type:", error)
+      return {} as RoomType
+    }
   }
 
   /**

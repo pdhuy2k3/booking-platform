@@ -1,6 +1,9 @@
 package com.pdh.flight.repository;
 
 import com.pdh.flight.model.FlightFare;
+import com.pdh.flight.model.enums.FareClass;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -42,7 +45,7 @@ public interface FlightFareRepository extends JpaRepository<FlightFare, UUID> {
      * @return FlightFare record or null
      */
     @Query("SELECT ff FROM FlightFare ff WHERE ff.scheduleId = :scheduleId AND ff.fareClass = :fareClass AND ff.isDeleted = false")
-    FlightFare findByScheduleIdAndFareClass(@Param("scheduleId") UUID scheduleId, @Param("fareClass") String fareClass);
+    FlightFare findByScheduleIdAndFareClass(@Param("scheduleId") UUID scheduleId, @Param("fareClass") FareClass fareClass);
     
     /**
      * Find all fares for flights with available seats
@@ -52,4 +55,33 @@ public interface FlightFareRepository extends JpaRepository<FlightFare, UUID> {
      */
     @Query("SELECT ff FROM FlightFare ff WHERE ff.scheduleId IN :scheduleIds AND ff.availableSeats > 0 AND ff.isDeleted = false ORDER BY ff.scheduleId, ff.price")
     List<FlightFare> findAvailableFaresByScheduleIds(@Param("scheduleIds") List<UUID> scheduleIds);
+    
+    // Additional methods for backoffice management
+    
+    /**
+     * Find all active flight fares with pagination
+     */
+    Page<FlightFare> findByIsDeletedFalse(Pageable pageable);
+    
+    /**
+     * Find flight fares by schedule ID with pagination
+     */
+    Page<FlightFare> findByScheduleIdAndIsDeletedFalse(UUID scheduleId, Pageable pageable);
+    
+    /**
+     * Find flight fares by fare class with pagination
+     */
+    Page<FlightFare> findByFareClassAndIsDeletedFalse(FareClass fareClass, Pageable pageable);
+    
+    /**
+     * Find flight fares by schedule ID and fare class with pagination
+     */
+    Page<FlightFare> findByScheduleIdAndFareClassAndIsDeletedFalse(UUID scheduleId, FareClass fareClass, Pageable pageable);
+    
+    /**
+     * Count statistics methods
+     */
+    long countByIsDeletedFalse();
+    
+    long countByFareClassAndIsDeletedFalse(FareClass fareClass);
 }

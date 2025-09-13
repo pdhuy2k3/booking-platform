@@ -1,4 +1,4 @@
-import type { Hotel, PaginatedResponse } from "@/types/api"
+import type { Hotel, PaginatedResponse, MediaResponse } from "@/types/api"
 import { apiClient } from "@/lib/api-client"
 
 export class HotelService {
@@ -29,14 +29,14 @@ export class HotelService {
 
   }
 
-  static async createHotel(hotel: Omit<Hotel, "id" | "createdAt" | "updatedAt" | "availableRooms" | "minPrice"> & { mediaPublicIds?: string[] }): Promise<Hotel> {
+  static async createHotel(hotel: Omit<Hotel, "id" | "createdAt" | "updatedAt" | "availableRooms" | "minPrice"> & { media?: MediaResponse[] }): Promise<Hotel> {
     // Remove images field if it exists and prepare data for backend
     const { images, ...hotelData } = hotel as any
     
     return await apiClient.post<Hotel>(this.BASE_PATH, hotelData)
   }
 
-  static async updateHotel(id: number, hotel: Partial<Hotel> & { mediaPublicIds?: string[] }): Promise<Hotel> {
+  static async updateHotel(id: number, hotel: Partial<Hotel> & { media?: MediaResponse[] }): Promise<Hotel> {
     // Remove images field if it exists and prepare data for backend
     const { images, ...hotelData } = hotel as any
     

@@ -14,12 +14,13 @@ import { RoomTypeService } from "@/services/room-type-service"
 import { HotelAmenityManager } from "@/components/admin/hotel/hotel-amenity-manager"
 import { HotelStatistics } from "@/components/admin/hotel/hotel-statistics"
 import { RoomTypeManager } from "@/components/admin/hotel/room-type-manager"
-import { MediaSelector } from "@/components/ui/media-selector"
+import { MediaSelector } from "@/components/ui/media-selector";
 import { HotelHeader } from "@/components/admin/hotel/hotel-header"
 import { HotelOverview } from "@/components/admin/hotel/hotel-overview"
 import { RoomManagement } from "@/components/admin/hotel/room-management"
 import { RoomFormDialog } from "@/components/admin/hotel/room-form-dialog"
-import type { Hotel, Room, Amenity, RoomType } from "@/types/api"
+import type { Hotel, Room, Amenity, RoomType, MediaResponse } from "@/types/api"
+import { formatMediaForDisplay } from "@/lib/media-utils"
 import { toast } from "sonner"
 
 interface RoomFormData {
@@ -32,6 +33,8 @@ interface RoomFormData {
   isAvailable: boolean
   roomTypeId: number | null
   amenityIds: number[]
+  inheritPriceFromRoomType?: boolean
+  inheritMediaFromRoomType?: boolean
 }
 
 const initialRoomForm: RoomFormData = {
@@ -44,6 +47,8 @@ const initialRoomForm: RoomFormData = {
   isAvailable: true,
   roomTypeId: null,
   amenityIds: [],
+  inheritPriceFromRoomType: false,
+  inheritMediaFromRoomType: false,
 }
 
 export default function HotelDetails() {
@@ -65,7 +70,7 @@ export default function HotelDetails() {
   const [roomTypes, setRoomTypes] = useState<RoomType[]>([])
   const [loading, setLoading] = useState(true)
   const [activeTab, setActiveTab] = useState("overview")
-  const [hotelImages, setHotelImages] = useState<string[]>([])
+  const [hotelImages, setHotelImages] = useState<MediaResponse[]>([])
 
   // Dialog states
   const [isAddRoomDialogOpen, setIsAddRoomDialogOpen] = useState(false)
@@ -74,8 +79,8 @@ export default function HotelDetails() {
 
   // Form data
   const [newRoom, setNewRoom] = useState<RoomFormData>(initialRoomForm)
-  const [newRoomImages, setNewRoomImages] = useState<string[]>([])
-  const [editingRoomImages, setEditingRoomImages] = useState<string[]>([])
+  const [newRoomMedia, setNewRoomMedia] = useState<MediaResponse[]>([])
+  const [editingRoomMedia, setEditingRoomMedia] = useState<MediaResponse[]>([])
 
   useEffect(() => {
     if (hotelId) {
@@ -98,19 +103,19 @@ export default function HotelDetails() {
         page: 0,
         size: 100
       })
-      setRooms(roomsData.content)
+      setRooms(roomsData?.content || [])
       
       // Load available amenities
       const amenitiesData = await AmenityService.getActiveAmenities()
-      setAmenities(amenitiesData)
+      setAmenities(amenitiesData || [])
       
       // Load room types for this hotel
       const roomTypesData = await RoomTypeService.getRoomTypesByHotel(hotelId)
-      setRoomTypes(roomTypesData)
+      setRoomTypes(roomTypesData || [])
       
       // Set hotel images if available
-      if (hotelData.images) {
-        setHotelImages(hotelData.images)
+      if (hotelData.media) {
+        setHotelImages(hotelData.media)
       }
       
     } catch (error) {
@@ -141,14 +146,14 @@ export default function HotelDetails() {
     try {
       const roomData = {
         ...newRoom,
-        mediaPublicIds: newRoomImages
+        media: newRoomMedia
       }
       
       await RoomService.createRoom(hotelId, roomData)
       toast.success("Phòng đã được tạo thành công")
       setIsAddRoomDialogOpen(false)
       setNewRoom(initialRoomForm)
-      setNewRoomImages([])
+      setNewRoomMedia([])
       loadHotelDetails()
     } catch (error) {
       console.error("Failed to create room:", error)
@@ -156,12 +161,23 @@ export default function HotelDetails() {
     }
   }
 
-  const handleEditRoom = (room: Room) => {
+  const handleEditRoom = async (room: Room) => {
+    // Determine if room is inheriting price from room type
+    const roomType = roomTypes.find(rt => rt.id === (room.roomTypeId || room.roomType?.id))
+    const isInheritingPrice = roomType?.basePrice ? room.price === roomType.basePrice : false
+    
     setSelectedRoom({
       ...room,
-      amenityIds: room.amenities?.map(a => a.id) || []
+      amenityIds: Array.isArray(room.amenities) ? room.amenities.map(a => a.id) : []
     })
-    setEditingRoomImages(room.images || [])
+    
+    // Set media for editing
+    if (room.media) {
+      setEditingRoomMedia(room.media)
+    } else {
+      setEditingRoomMedia([])
+    }
+
     setIsEditRoomDialogOpen(true)
   }
 
@@ -185,13 +201,13 @@ export default function HotelDetails() {
       const updateData = {
         ...selectedRoom,
         roomTypeId: selectedRoom.roomTypeId || selectedRoom.roomType?.id,
-        mediaPublicIds: editingRoomImages
+        media: editingRoomMedia  // Use editingRoomMedia directly
       }
       await RoomService.updateRoom(selectedRoom.id, updateData)
       toast.success("Phòng đã được cập nhật thành công")
       setIsEditRoomDialogOpen(false)
       setSelectedRoom(null)
-      setEditingRoomImages([])
+      setEditingRoomMedia([])
       loadHotelDetails()
     } catch (error) {
       console.error("Failed to update room:", error)
@@ -236,12 +252,12 @@ export default function HotelDetails() {
     }
   }
 
-  const handleUpdateHotelImages = async (imageIds: string[]) => {
+  const handleUpdateHotelImages = async (media: MediaResponse[]) => {
     if (!hotelId) return
 
     try {
-      await HotelService.updateHotel(hotelId, { images: imageIds })
-      setHotelImages(imageIds)
+      await HotelService.updateHotel(hotelId, {  media })
+      setHotelImages(media)
       toast.success("Hình ảnh khách sạn đã được cập nhật")
       await loadHotelDetails()
     } catch (error) {
@@ -321,19 +337,23 @@ export default function HotelDetails() {
         </TabsContent>
 
         <TabsContent value="room-types">
-          <RoomTypeManager
-            hotelId={hotelId}
-            onRoomTypesChange={loadHotelDetails}
-          />
+          {hotelId && (
+            <RoomTypeManager
+              hotelId={hotelId}
+              onRoomTypesChange={loadHotelDetails}
+            />
+          )}
         </TabsContent>
 
         <TabsContent value="amenities">
-          <HotelAmenityManager
-            hotelId={hotelId}
-            hotelAmenities={hotel.amenities || []}
-            allAmenities={amenities}
-            onUpdate={handleUpdateHotelAmenities}
-          />
+          {hotelId && (
+            <HotelAmenityManager
+              hotelId={hotelId}
+              hotelAmenities={hotel.amenities || []}
+              allAmenities={amenities}
+              onUpdate={handleUpdateHotelAmenities}
+            />
+          )}
         </TabsContent>
 
         <TabsContent value="media">
@@ -346,7 +366,7 @@ export default function HotelDetails() {
               <MediaSelector
                 folder="hotels"
                 value={hotelImages}
-                onChange={handleUpdateHotelImages}
+                onMediaChange={handleUpdateHotelImages}
                 maxSelection={10}
                 allowUpload={true}
               />
@@ -369,8 +389,8 @@ export default function HotelDetails() {
         onRoomChange={setNewRoom}
         roomTypes={roomTypes}
         amenities={amenities}
-        images={newRoomImages}
-        onImagesChange={setNewRoomImages}
+        media={newRoomMedia}
+        onMediaChange={setNewRoomMedia}
         onSubmit={handleCreateRoom}
         submitLabel="Thêm phòng"
         formatPrice={formatPrice}
@@ -383,25 +403,46 @@ export default function HotelDetails() {
           onClose={() => setIsEditRoomDialogOpen(false)}
           title="Chỉnh sửa phòng"
           description="Cập nhật thông tin phòng"
-          room={{
-            roomNumber: selectedRoom.roomNumber,
-            description: selectedRoom.description,
-            price: selectedRoom.price,
-            maxOccupancy: selectedRoom.maxOccupancy,
-            bedType: selectedRoom.bedType,
-            roomSize: selectedRoom.roomSize,
-            isAvailable: selectedRoom.isAvailable,
-            roomTypeId: selectedRoom.roomTypeId || selectedRoom.roomType?.id || null,
-            amenityIds: selectedRoom.amenityIds || []
+          room={(() => {
+            // Determine inheritance status
+            const roomType = roomTypes.find(rt => rt.id === (selectedRoom.roomTypeId || selectedRoom.roomType?.id))
+            const isInheritingPrice = roomType?.basePrice ? selectedRoom.price === roomType.basePrice : false
+            
+            // For media inheritance, we'll check if room has no media but room type has media
+            // This is a reasonable heuristic since media inheritance is more obvious
+            const isInheritingMedia = (!selectedRoom.media || selectedRoom.media.length === 0) && 
+                                    roomType?.media && roomType.media.length > 0
+            
+            return {
+              roomNumber: selectedRoom.roomNumber,
+              description: selectedRoom.description,
+              price: selectedRoom.price,
+              maxOccupancy: selectedRoom.maxOccupancy,
+              bedType: selectedRoom.bedType,
+              roomSize: selectedRoom.roomSize,
+              isAvailable: selectedRoom.isAvailable,
+              roomTypeId: selectedRoom.roomTypeId || selectedRoom.roomType?.id || null,
+              amenityIds: selectedRoom.amenityIds || [],
+              inheritPriceFromRoomType: isInheritingPrice,
+              inheritMediaFromRoomType: isInheritingMedia,
+              media: editingRoomMedia
+            }
+          })()}
+          onRoomChange={(updatedRoom) => {
+            // Update selectedRoom with the new data
+            setSelectedRoom({
+              ...selectedRoom,
+              ...updatedRoom
+            })
+            // Also update editingRoomMedia if media was changed
+            if (updatedRoom.media) {
+              setEditingRoomMedia(updatedRoom.media)
+            }
           }}
-          onRoomChange={(updatedRoom) => setSelectedRoom({
-            ...selectedRoom,
-            ...updatedRoom
-          })}
           roomTypes={roomTypes}
           amenities={amenities}
-          images={editingRoomImages}
-          onImagesChange={setEditingRoomImages}
+          media={editingRoomMedia}
+          onMediaChange={setEditingRoomMedia}
           onSubmit={handleUpdateRoom}
           submitLabel="Cập nhật"
           formatPrice={formatPrice}

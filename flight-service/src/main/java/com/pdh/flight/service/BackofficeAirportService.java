@@ -105,8 +105,8 @@ public class BackofficeAirportService {
         log.info("Creating new airport: {}", requestDto.getName());
         
         // Validate IATA code uniqueness
-        if (airportRepository.existsByIataCodeIgnoreCase(requestDto.getCode())) {
-            throw new IllegalArgumentException("IATA code already exists: " + requestDto.getCode());
+        if (airportRepository.existsByIataCodeIgnoreCase(requestDto.getIataCode())) {
+            throw new IllegalArgumentException("IATA code already exists: " + requestDto.getIataCode());
         }
         
         // Create new airport using mapper
@@ -140,8 +140,8 @@ public class BackofficeAirportService {
             .orElseThrow(() -> new EntityNotFoundException("Airport not found with ID: " + id));
         
         // Check if IATA code is unique (exclude current airport)
-        if (StringUtils.hasText(requestDto.getCode())) {
-            String upperIataCode = requestDto.getCode().toUpperCase();
+        if (StringUtils.hasText(requestDto.getIataCode())) {
+            String upperIataCode = requestDto.getIataCode().toUpperCase();
             if (!upperIataCode.equals(airport.getIataCode()) && 
                 airportRepository.existsByIataCodeIgnoreCase(upperIataCode)) {
                 throw new IllegalArgumentException("IATA code already exists: " + upperIataCode);

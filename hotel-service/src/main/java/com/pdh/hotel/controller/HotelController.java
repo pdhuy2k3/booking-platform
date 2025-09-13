@@ -2,7 +2,6 @@ package com.pdh.hotel.controller;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.pdh.common.config.OpenApiResponses;
-import com.pdh.common.dto.response.ApiResponse;
 import com.pdh.hotel.dto.HotelBookingDetailsDto;
 import com.pdh.hotel.dto.response.AmenityResponseDto;
 import com.pdh.hotel.dto.response.RoomResponseDto;
@@ -15,7 +14,6 @@ import com.pdh.hotel.service.RoomService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.media.Content;
-import io.swagger.v3.oas.annotations.media.ExampleObject;
 import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
@@ -23,10 +21,6 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
-import org.springframework.ai.tool.ToolCallbackProvider;
-import org.springframework.ai.tool.annotation.Tool;
-import org.springframework.ai.tool.method.MethodToolCallbackProvider;
-import org.springframework.context.annotation.Bean;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;

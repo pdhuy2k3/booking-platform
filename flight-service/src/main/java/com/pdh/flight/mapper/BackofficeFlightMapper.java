@@ -3,14 +3,12 @@ package com.pdh.flight.mapper;
 import com.pdh.flight.client.MediaServiceClient;
 import com.pdh.flight.dto.response.FlightDto;
 import com.pdh.flight.dto.response.FlightScheduleDto;
-import com.pdh.flight.dto.response.FlightLegDto;
 import com.pdh.flight.dto.response.FlightFareDto;
 import com.pdh.flight.dto.response.MediaInfo;
 import com.pdh.flight.model.Airline;
 import com.pdh.flight.model.Airport;
 import com.pdh.flight.model.Flight;
 import com.pdh.flight.service.FlightScheduleService;
-import com.pdh.flight.service.FlightLegService;
 import com.pdh.flight.service.FlightFareService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -33,11 +31,11 @@ public class BackofficeFlightMapper {
 
     private final MediaServiceClient mediaServiceClient;
     private final FlightScheduleService flightScheduleService;
-    private final FlightLegService flightLegService;
+
     private final FlightFareService flightFareService;
 
     /**
-     * Convert Flight entity to FlightDto with media information
+     * Convert Flight entity to FlightDto with media information (includes schedules - use with caution for circular refs)
      */
     public FlightDto toDto(Flight flight) {
         if (flight == null) {
@@ -96,9 +94,7 @@ public class BackofficeFlightMapper {
                 List<FlightScheduleDto> schedules = flightScheduleService.getSchedulesByFlightId(flightId);
                 flightDto.setSchedules(schedules);
                 
-                // Fetch legs for this flight
-                List<FlightLegDto> legs = flightLegService.getLegsByFlightId(flightId);
-                flightDto.setLegs(legs);
+
                 
                 // Fetch fares for all schedules of this flight
                 if (!schedules.isEmpty()) {
@@ -121,11 +117,74 @@ public class BackofficeFlightMapper {
             } catch (Exception e) {
                 log.warn("Failed to fetch schedule/leg/fare data for flight {}: {}", flightId, e.getMessage());
                 flightDto.setSchedules(List.of());
-                flightDto.setLegs(List.of());
                 flightDto.setFares(List.of());
             }
         }
         
+        return addMediaInformation(flightDto, flight);
+    }
+
+    /**
+     * Convert Flight entity to lightweight FlightDto WITHOUT schedules (prevents circular references)
+     */
+    public FlightDto toLightweightDto(Flight flight) {
+        if (flight == null) {
+            return null;
+        }
+
+        FlightDto.FlightDtoBuilder builder = FlightDto.builder()
+                .flightId(flight.getFlightId())
+                .flightNumber(flight.getFlightNumber())
+                .baseDurationMinutes(flight.getBaseDurationMinutes())
+                .aircraftType(flight.getAircraftType())
+                .status(flight.getStatus())
+                .basePrice(flight.getBasePrice())
+                .isActive(flight.getIsActive())
+                .createdAt(convertToLocalDateTime(flight.getCreatedAt()))
+                .updatedAt(convertToLocalDateTime(flight.getUpdatedAt()))
+                .createdBy(flight.getCreatedBy())
+                .updatedBy(flight.getUpdatedBy());
+
+        // Map airline information
+        if (flight.getAirline() != null) {
+            Airline airline = flight.getAirline();
+            builder.airlineId(airline.getAirlineId())
+                   .airlineName(airline.getName())
+                   .airlineIataCode(airline.getIataCode());
+        }
+
+        // Map departure airport information
+        if (flight.getDepartureAirport() != null) {
+            Airport departure = flight.getDepartureAirport();
+            builder.departureAirportId(departure.getAirportId())
+                   .departureAirportName(departure.getName())
+                   .departureAirportIataCode(departure.getIataCode())
+                   .departureAirportCity(departure.getCity())
+                   .departureAirportCountry(departure.getCountry());
+        }
+
+        // Map arrival airport information
+        if (flight.getArrivalAirport() != null) {
+            Airport arrival = flight.getArrivalAirport();
+            builder.arrivalAirportId(arrival.getAirportId())
+                   .arrivalAirportName(arrival.getName())
+                   .arrivalAirportIataCode(arrival.getIataCode())
+                   .arrivalAirportCity(arrival.getCity())
+                   .arrivalAirportCountry(arrival.getCountry());
+        }
+
+        // Initialize empty collections to prevent null references
+        FlightDto flightDto = builder.schedules(List.of())
+                                    .fares(List.of())
+                                    .build();
+        
+        return addMediaInformation(flightDto, flight);
+    }
+    
+    /**
+     * Add media information to a FlightDto
+     */
+    private FlightDto addMediaInformation(FlightDto flightDto, Flight flight) {
         // Always fetch and include media information
         if (flight.getFlightId() != null) {
             try {
@@ -166,7 +225,21 @@ public class BackofficeFlightMapper {
     }
 
     /**
-     * Convert list of Flight entities to FlightDto list with batch media fetching
+     * Convert list of Flight entities to lightweight FlightDto list (no schedules to avoid circular refs)
+     */
+    public List<FlightDto> toLightweightDtoList(List<Flight> flights) {
+        if (flights == null || flights.isEmpty()) {
+            return List.of();
+        }
+
+        // Convert entities to lightweight DTOs without schedules/fares (to avoid circular references)
+        return flights.stream()
+                .map(this::toLightweightDto)
+                .collect(Collectors.toList());
+    }
+
+    /**
+     * Convert list of Flight entities to FlightDto list with batch media fetching (includes schedules - avoid for schedule contexts)
      */
     public List<FlightDto> toDtoList(List<Flight> flights) {
         if (flights == null || flights.isEmpty()) {
@@ -189,9 +262,7 @@ public class BackofficeFlightMapper {
             try {
                 // Batch fetch schedules for all flights
                 Map<Long, List<FlightScheduleDto>> scheduleMap = flightScheduleService.getSchedulesByFlightIds(flightIds);
-                
-                // Batch fetch legs for all flights
-                Map<Long, List<FlightLegDto>> legMap = flightLegService.getLegsByFlightIds(flightIds);
+
                 
                 // Collect all schedule IDs for fare fetching
                 List<UUID> allScheduleIds = scheduleMap.values().stream()
@@ -213,10 +284,7 @@ public class BackofficeFlightMapper {
                         // Set schedules
                         List<FlightScheduleDto> schedules = scheduleMap.getOrDefault(flightId, List.of());
                         flightDto.setSchedules(schedules);
-                        
-                        // Set legs
-                        List<FlightLegDto> legs = legMap.getOrDefault(flightId, List.of());
-                        flightDto.setLegs(legs);
+
                         
                         // Set fares for this flight's schedules
                         List<FlightFareDto> flightFares = schedules.stream()
@@ -324,7 +392,6 @@ public class BackofficeFlightMapper {
 
         // Initialize empty values (will be populated by batch operation)
         return builder.schedules(List.of())
-                     .legs(List.of())
                      .fares(List.of())
                      .images(List.of())
                      .hasMedia(false)

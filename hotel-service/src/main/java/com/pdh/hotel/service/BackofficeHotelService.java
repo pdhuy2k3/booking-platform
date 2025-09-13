@@ -1,7 +1,6 @@
 package com.pdh.hotel.service;
 
-import com.pdh.hotel.client.MediaServiceClient;
-import com.pdh.hotel.constant.ImageTypes;
+import com.pdh.common.dto.response.MediaResponse;
 import com.pdh.hotel.dto.request.HotelRequestDto;
 import com.pdh.hotel.model.Amenity;
 import com.pdh.hotel.model.Hotel;
@@ -24,7 +23,6 @@ import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
 import java.util.*;
 import java.util.stream.Collectors;
-import java.time.ZonedDateTime;
 
 @Service
 @RequiredArgsConstructor
@@ -36,7 +34,7 @@ public class BackofficeHotelService {
     private final RoomRepository roomRepository;
     private final AmenityRepository amenityRepository;
     private final HotelAmenityRepository hotelAmenityRepository;
-    private final MediaServiceClient mediaServiceClient;
+    private final ImageService imageService;
 
     @Transactional(readOnly = true)
     public Map<String, Object> getAllHotels(int page, int size, String search, String city, String status) {
@@ -101,10 +99,10 @@ public class BackofficeHotelService {
         Hotel savedHotel = hotelRepository.save(hotel);
         
         // Handle media association if provided
-        if (hotelRequestDto.getMediaPublicIds() != null && !hotelRequestDto.getMediaPublicIds().isEmpty()) {
+        if (hotelRequestDto.getMedia() != null && !hotelRequestDto.getMedia().isEmpty()) {
             try {
-                mediaServiceClient.associateMediaWithEntity("HOTEL", savedHotel.getHotelId(), hotelRequestDto.getMediaPublicIds());
-                log.info("Associated {} media items with hotel ID: {}", hotelRequestDto.getMediaPublicIds().size(), savedHotel.getHotelId());
+                imageService.updateHotelImagesWithMediaResponse(savedHotel.getHotelId(), hotelRequestDto.getMedia());
+                log.info("Associated {} media items with hotel ID: {}", hotelRequestDto.getMedia().size(), savedHotel.getHotelId());
             } catch (Exception e) {
                 log.error("Error associating media with hotel {}: {}", savedHotel.getHotelId(), e.getMessage());
                 // Don't fail the hotel creation if media association fails
@@ -131,14 +129,10 @@ public class BackofficeHotelService {
         Hotel updatedHotel = hotelRepository.save(hotel);
         
         // Handle media association if provided
-        if (hotelRequestDto.getMediaPublicIds() != null && !hotelRequestDto.getMediaPublicIds().isEmpty()) {
+        if (hotelRequestDto.getMedia() != null) {
             try {
-                // First, delete existing media associations
-                mediaServiceClient.deleteMediaByEntity("HOTEL", id);
-                
-                // Then associate new media
-                mediaServiceClient.associateMediaWithEntity("HOTEL", id, hotelRequestDto.getMediaPublicIds());
-                log.info("Updated {} media items for hotel ID: {}", hotelRequestDto.getMediaPublicIds().size(), id);
+                imageService.updateHotelImagesWithMediaResponse(id, hotelRequestDto.getMedia());
+                log.info("Updated {} media items for hotel ID: {}", hotelRequestDto.getMedia().size(), id);
             } catch (Exception e) {
                 log.error("Error updating media for hotel {}: {}", id, e.getMessage());
                 // Don't fail the hotel update if media association fails
@@ -180,37 +174,6 @@ public class BackofficeHotelService {
         return response;
     }
 
-    /**
-     * Process hotel images by replacing existing active images with new ones
-     * @param hotelId The hotel ID
-     * @param imagePublicIds List of publicIds from frontend MediaSelector
-     */
-    private void processHotelImages(Long hotelId, List<String> imagePublicIds) {
-        log.info("Processing {} images for hotel ID: {}", 
-                imagePublicIds != null ? imagePublicIds.size() : 0, hotelId);
-        
-        // First, delete all existing images for this hotel
-        try {
-            mediaServiceClient.deleteMediaByEntity(ImageTypes.ENTITY_TYPE_HOTEL, hotelId);
-            log.info("Deleted existing images for hotel ID: {}", hotelId);
-        } catch (Exception e) {
-            log.error("Error deleting existing images for hotel {}: {}", hotelId, e.getMessage());
-        }
-        
-        if (imagePublicIds == null || imagePublicIds.isEmpty()) {
-            log.info("No new images to process for hotel ID: {}", hotelId);
-            return;
-        }
-        
-        // Note: The new media service approach requires actual file uploads
-        // This method is for compatibility with existing frontend that passes publicIds
-        // In a real scenario, you would upload the actual files through MediaServiceClient
-        
-        log.warn("processHotelImages called with publicIds - this is legacy behavior.");
-        log.warn("For new implementations, use MediaServiceClient.uploadMedia() with actual files.");
-        log.info("Processed {} images for hotel ID: {}", imagePublicIds != null ? imagePublicIds.size() : 0, hotelId);
-    }
-
     // === Helper mapping methods ===
     private Map<String, Object> convertHotelToResponse(Hotel hotel) {
         Map<String, Object> response = new HashMap<>();
@@ -238,11 +201,14 @@ public class BackofficeHotelService {
             response.put("amenities", Collections.emptyList());
         }
 
-        // Get images via MediaServiceClient - return publicIds for frontend MediaSelector compatibility
-        List<Map<String, Object>> imageData = mediaServiceClient.getMediaByEntity(ImageTypes.ENTITY_TYPE_HOTEL, hotel.getHotelId());
-        List<String> imagePublicIds = imageData.stream()
-            .map(img -> (String) img.get("publicId"))
-            .filter(Objects::nonNull)
+        // Get images via ImageService - return complete media responses for frontend
+        List<MediaResponse> mediaResponses = imageService.getHotelMedia(hotel.getHotelId());
+        response.put("media", mediaResponses);
+        
+        // Also provide images field for backward compatibility (media IDs as strings)
+        List<Long> mediaIds = imageService.getHotelMediaIds(hotel.getHotelId());
+        List<String> imagePublicIds = mediaIds.stream()
+            .map(String::valueOf)
             .collect(Collectors.toList());
         response.put("images", imagePublicIds);
 

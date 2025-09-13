@@ -7,9 +7,8 @@ import { Suspense } from "react"
 import "./globals.css"
 
 export const metadata: Metadata = {
-  title: "TravelAI - Smart Travel Booking",
+  title: "Smart Travel Booking",
   description: "AI-powered travel booking platform for flights and hotels",
-  generator: "v0.app",
 }
 
 export default function RootLayout({

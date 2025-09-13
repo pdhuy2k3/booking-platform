@@ -24,104 +24,54 @@ public interface MediaRepository extends JpaRepository<Media, Long> {
     Optional<Media> findByPublicId(String publicId);
 
     /**
-     * Find all media for a specific entity
+     * Find media by type
      */
-    @Query("""
-    SELECT m FROM Media m 
-    WHERE m.entityType = :entityType 
-      AND m.entityId = :entityId 
-      AND m.isActive = :isActive 
-    ORDER BY m.displayOrder
-""")
-    List<Media> findByEntityTypeAndEntityIdAndIsActiveOrderByDisplayOrder(
-            String entityType, Long entityId, Boolean isActive);
+    List<Media> findByMediaType(String mediaType);
 
     /**
-     * Find all active media for a specific entity
+     * Find media by type with pagination
      */
-    default List<Media> findActiveMediaByEntity(String entityType, Long entityId) {
-        return findByEntityTypeAndEntityIdAndIsActiveOrderByDisplayOrder(entityType, entityId, true);
-    }
+    Page<Media> findByMediaType(String mediaType, Pageable pageable);
 
     /**
-     * Find primary media for a specific entity
+     * Find active media
      */
-    Optional<Media> findFirstByEntityTypeAndEntityIdAndIsPrimaryAndIsActive(
-            String entityType, Long entityId, Boolean isPrimary, Boolean isActive);
+    List<Media> findByIsActiveTrue();
 
     /**
-     * Find primary media for a specific entity (active only)
+     * Find active media with pagination
      */
-    default Optional<Media> findPrimaryMedia(String entityType, Long entityId) {
-        return findFirstByEntityTypeAndEntityIdAndIsPrimaryAndIsActive(entityType, entityId, true, true);
-    }
+    Page<Media> findByIsActiveTrue(Pageable pageable);
 
     /**
-     * Find media by entity type and media type
+     * Check if media exists by public ID
      */
-    List<Media> findByEntityTypeAndEntityIdAndMediaTypeAndIsActiveOrderByDisplayOrder(
-            String entityType, Long entityId, String mediaType, Boolean isActive);
+    boolean existsByPublicId(String publicId);
 
     /**
-     * Find all media for multiple entities
+     * Find media IDs by public IDs
      */
-    @Query("SELECT m FROM Media m WHERE m.entityType = :entityType AND m.entityId IN :entityIds AND m.isActive = true ORDER BY m.entityId, m.displayOrder")
-    List<Media> findByEntityTypeAndEntityIds(@Param("entityType") String entityType, 
-                                              @Param("entityIds") List<Long> entityIds);
+    @Query("SELECT m.id FROM Media m WHERE m.publicId IN :publicIds")
+    List<Long> findIdsByPublicIdIn(@Param("publicIds") List<String> publicIds);
 
     /**
-     * Find primary media for multiple entities
+     * Find media by public IDs
      */
-    @Query("SELECT m FROM Media m WHERE m.entityType = :entityType AND m.entityId IN :entityIds AND m.isPrimary = true AND m.isActive = true")
-    List<Media> findPrimaryMediaForEntities(@Param("entityType") String entityType, 
-                                            @Param("entityIds") List<Long> entityIds);
+    List<Media> findByPublicIdIn(List<String> publicIds);
 
     /**
-     * Check if media exists for an entity
-     */
-    boolean existsByEntityTypeAndEntityId(String entityType, Long entityId);
-
-    /**
-     * Count media for an entity
-     */
-    long countByEntityTypeAndEntityIdAndIsActive(String entityType, Long entityId, Boolean isActive);
-
-    /**
-     * Delete all media for an entity (soft delete by setting isActive = false)
+     * Delete by public ID
      */
     @Modifying
-    @Query("UPDATE Media m SET m.isActive = false WHERE m.entityType = :entityType AND m.entityId = :entityId")
-    void softDeleteByEntity(@Param("entityType") String entityType, @Param("entityId") Long entityId);
+    @Query("DELETE FROM Media m WHERE m.publicId = :publicId")
+    void deleteByPublicId(@Param("publicId") String publicId);
 
     /**
-     * Update primary status for all media of an entity
+     * Update media as inactive
      */
     @Modifying
-    @Query("UPDATE Media m SET m.isPrimary = false WHERE m.entityType = :entityType AND m.entityId = :entityId AND m.id != :excludeId")
-    void clearPrimaryExcept(@Param("entityType") String entityType, 
-                            @Param("entityId") Long entityId, 
-                            @Param("excludeId") Long excludeId);
+    @Query("UPDATE Media m SET m.isActive = false WHERE m.id = :id")
+    void markAsInactive(@Param("id") Long id);
 
-    /**
-     * Find media by tags
-     */
-    @Query("SELECT m FROM Media m WHERE m.isActive = true AND m.tags LIKE %:tag%")
-    Page<Media> findByTag(@Param("tag") String tag, Pageable pageable);
-
-    /**
-     * Find media by entity type with pagination
-     */
-    Page<Media> findByEntityTypeAndIsActive(String entityType, Boolean isActive, Pageable pageable);
-
-    /**
-     * Update display order for media
-     */
-    @Modifying
-    @Query("UPDATE Media m SET m.displayOrder = :displayOrder WHERE m.id = :id")
-    void updateDisplayOrder(@Param("id") Long id, @Param("displayOrder") Integer displayOrder);
-
-    /**
-     * Find media by folder
-     */
-    List<Media> findByFolderStartingWithAndIsActive(String folderPrefix, Boolean isActive);
+  
 }

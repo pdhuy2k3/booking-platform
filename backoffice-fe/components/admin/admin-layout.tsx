@@ -97,13 +97,28 @@ const data = {
           subItems: [
             {
               title: "Hãng hàng không",
-              url: "/admin/airlines",
+              url: "/admin/flights/airlines",
               icon: Building,
             },
             {
               title: "Sân bay",
-              url: "/admin/airports",
+              url: "/admin/flights/airports",
               icon: Navigation,
+            },
+            {
+              title: "Máy bay",
+              url: "/admin/flights/aircraft",
+              icon: Plane,
+            },
+            {
+              title: "Lịch trình",
+              url: "/admin/flights/schedules",
+              icon: Calendar,
+            },
+            {
+              title: "Giá vé",
+              url: "/admin/flights/flight-fares",
+              icon: CreditCard,
             },
           ],
         },
@@ -116,7 +131,7 @@ const data = {
           subItems: [
             {
               title: "Tiện nghi",
-              url: "/admin/amenities",
+              url: "/admin/hotels/amenities",
               icon: Sparkles,
             },
           ],
@@ -342,11 +357,11 @@ function UserDropdown() {
           className="data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground"
         >
           <Avatar className="h-8 w-8 rounded-lg">
-            <AvatarImage src="/placeholder.svg?height=32&width=32" alt={user?.username || "Admin"} />
-            <AvatarFallback className="rounded-lg">{user?.username?.charAt(0).toUpperCase() || "A"}</AvatarFallback>
+            <AvatarImage src="/placeholder.svg?height=32&width=32" alt={user?.name || "Admin"} />
+            <AvatarFallback className="rounded-lg">{user?.name?.charAt(0).toUpperCase() || "A"}</AvatarFallback>
           </Avatar>
           <div className="grid flex-1 text-left text-sm leading-tight">
-            <span className="truncate font-semibold">{user?.username || "Admin User"}</span>
+            <span className="truncate font-semibold">{user?.name || "Admin User"}</span>
             <span className="truncate text-xs">{user?.email || "admin@bookingsmart.vn"}</span>
           </div>
         </SidebarMenuButton>
@@ -389,6 +404,9 @@ function getBreadcrumbs(pathname: string) {
     flights: "Chuyến bay",
     airlines: "Hãng hàng không",
     airports: "Sân bay",
+    aircraft: "Máy bay",
+    schedules: "Lịch trình",
+    "flight-fares": "Giá vé",
     hotels: "Khách sạn",
     bookings: "Đặt chỗ",
     customers: "Khách hàng",

@@ -16,10 +16,11 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog"
-import { MediaSelector } from "@/components/ui/media-selector"
+import { MediaSelector } from "@/components/ui/media-selector";
+import { formatMediaForDisplay } from "@/lib/media-utils"
 import { Plus, Search, MoreHorizontal, Edit, Trash2, Users, DollarSign } from "lucide-react"
 import { RoomTypeService } from "@/services/room-type-service"
-import type { RoomType } from "@/types/api"
+import type { RoomType, MediaResponse } from "@/types/api"
 import { toast } from "sonner"
 
 interface RoomTypeManagerProps {
@@ -40,8 +41,8 @@ export function RoomTypeManager({ hotelId, onRoomTypesChange }: RoomTypeManagerP
     capacityAdults: 2,
     basePrice: 0,
   })
-  const [newRoomTypeImages, setNewRoomTypeImages] = useState<string[]>([])
-  const [editingRoomTypeImages, setEditingRoomTypeImages] = useState<string[]>([])
+  const [newRoomTypeMedia, setNewRoomTypeMedia] = useState<MediaResponse[]>([])
+  const [editingRoomTypeMedia, setEditingRoomTypeMedia] = useState<MediaResponse[]>([])
 
   useEffect(() => {
     loadRoomTypes()
@@ -78,7 +79,7 @@ export function RoomTypeManager({ hotelId, onRoomTypesChange }: RoomTypeManagerP
     try {
       const roomTypeData = {
         ...newRoomType,
-        mediaPublicIds: newRoomTypeImages
+        media: newRoomTypeMedia
       }
       await RoomTypeService.createRoomType(hotelId, roomTypeData)
       toast.success("Loại phòng đã được tạo thành công")
@@ -89,7 +90,7 @@ export function RoomTypeManager({ hotelId, onRoomTypesChange }: RoomTypeManagerP
         capacityAdults: 2,
         basePrice: 0,
       })
-      setNewRoomTypeImages([])
+      setNewRoomTypeMedia([])
       loadRoomTypes()
       onRoomTypesChange?.()
     } catch (error: any) {
@@ -98,9 +99,14 @@ export function RoomTypeManager({ hotelId, onRoomTypesChange }: RoomTypeManagerP
     }
   }
 
-  const handleEditRoomType = (roomType: RoomType) => {
+  const handleEditRoomType = async (roomType: RoomType) => {
     setSelectedRoomType(roomType)
-    setEditingRoomTypeImages(roomType.images || [])
+    
+    // Set media for editing
+    if (roomType.media) {
+      setEditingRoomTypeMedia(roomType.media)
+    }
+    
     setIsEditDialogOpen(true)
   }
 
@@ -124,13 +130,13 @@ export function RoomTypeManager({ hotelId, onRoomTypesChange }: RoomTypeManagerP
     try {
       const roomTypeData = {
         ...selectedRoomType,
-        mediaPublicIds: editingRoomTypeImages
+        media: editingRoomTypeMedia
       }
       await RoomTypeService.updateRoomType(selectedRoomType.id, roomTypeData)
       toast.success("Loại phòng đã được cập nhật thành công")
       setIsEditDialogOpen(false)
       setSelectedRoomType(null)
-      setEditingRoomTypeImages([])
+      setEditingRoomTypeMedia([])
       loadRoomTypes()
       onRoomTypesChange?.()
     } catch (error: any) {
@@ -238,17 +244,20 @@ export function RoomTypeManager({ hotelId, onRoomTypesChange }: RoomTypeManagerP
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="roomtype-images">Hình ảnh loại phòng</Label>
+                  <Label htmlFor="roomtype-images">Hình ảnh loại phòng</Label>
                   <MediaSelector
-                    onChange={setNewRoomTypeImages}
+                    value={newRoomTypeMedia}
+                    onMediaChange={setNewRoomTypeMedia}
                     maxSelection={10}
-                    folder="room-types"
+                    folder="hotels"
+                    allowUpload={true}
                   />
                 </div>
               </div>
               <div className="flex justify-end space-x-2">
                 <Button variant="outline" onClick={() => {
                   setIsCreateDialogOpen(false)
-                  setNewRoomTypeImages([])
+                  setNewRoomTypeMedia([])
                 }}>
                   Hủy
                 </Button>
@@ -394,11 +403,13 @@ export function RoomTypeManager({ hotelId, onRoomTypesChange }: RoomTypeManagerP
               </div>
               <div className="space-y-2">
                 <Label htmlFor="edit-roomtype-images">Hình ảnh loại phòng</Label>
+                <Label htmlFor="edit-roomtype-images">Hình ảnh loại phòng</Label>
                 <MediaSelector
-                  value={editingRoomTypeImages}
-                  onChange={setEditingRoomTypeImages}
+                  value={editingRoomTypeMedia}
+                  onMediaChange={setEditingRoomTypeMedia}
                   maxSelection={10}
-                  folder="room-types"
+                  folder="hotels"
+                  allowUpload={true}
                 />
               </div>
             </div>
@@ -406,7 +417,7 @@ export function RoomTypeManager({ hotelId, onRoomTypesChange }: RoomTypeManagerP
           <div className="flex justify-end space-x-2">
             <Button variant="outline" onClick={() => {
               setIsEditDialogOpen(false)
-              setEditingRoomTypeImages([])
+              setEditingRoomTypeMedia([])
             }}>
               Hủy
             </Button>

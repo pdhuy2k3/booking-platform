@@ -35,11 +35,18 @@ public class FlightSchedule extends AbstractAuditEntity {
     @Column(name = "aircraft_type", length = 100)
     private String aircraftType;
 
+    @Column(name = "aircraft_id")
+    private Long aircraftId;
+
     @Column(name = "status", length = 50)
     private String status;
 
-    // Reference entity
+    // Reference entities   
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "flight_id", insertable = false, updatable = false)
     private Flight flight;
+    
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "aircraft_id", insertable = false, updatable = false)
+    private Aircraft aircraft;
 }

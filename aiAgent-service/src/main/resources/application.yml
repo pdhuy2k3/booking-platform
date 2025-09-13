@@ -96,10 +96,11 @@ spring:
     openai:
       api-key: ${GEMINI_API_KEY}
       chat:
-        base-url: https://generativelanguage.googleapis.com
-        completions-path: /v1beta2/openai/chat/completions
+        base-url: https://generativelanguage.googleapis.com/v1beta/openai/
+        api-key: ${GEMINI_API_KEY}
+        
         options:
-          model: gemini-2.5-flash
+          model: gemini-2.0-flash
     mcp:
       client:
         enabled: true

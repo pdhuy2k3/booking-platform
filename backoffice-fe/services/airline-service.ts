@@ -1,17 +1,18 @@
-import type { Airline, PaginatedResponse } from "@/types/api"
+import type { Airline, PaginatedResponse, ApiResponse } from "@/types/api"
+import { apiClient } from "@/lib/api-client"
 
 interface AirlineCreateRequest {
   name: string
-  code: string
+  iataCode: string
   country?: string
-  images?: string[] // Array of publicIds from MediaSelector
+  mediaPublicIds?: string[] // Array of publicIds from MediaSelector
 }
 
 interface AirlineUpdateRequest {
   name?: string
-  code?: string
+  iataCode?: string
   country?: string
-  images?: string[] // Array of publicIds from MediaSelector
+  mediaPublicIds?: string[] // Array of publicIds from MediaSelector
 }
 
 export class AirlineService {
@@ -35,19 +36,18 @@ export class AirlineService {
       if (params?.country) searchParams.append("country", params.country)
 
       const url = `${this.BASE_PATH}${searchParams.toString() ? `?${searchParams.toString()}` : ""}`
-      const response = await fetch(url, {
-        method: "GET",
-        headers: {
-          "Content-Type": "application/json",
-        },
-      })
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}))
-        throw new Error(errorData.message || `HTTP error! status: ${response.status}`)
+      const response: ApiResponse<any> = await apiClient.get(url)
+      
+      // Transform only the pagination structure to match PaginatedResponse
+      return {
+        content: response.data?.content || [],
+        totalElements: response.data?.totalElements || 0,
+        totalPages: response.data?.totalPages || 0,
+        size: response.data?.pageSize || 0,
+        number: response.data?.currentPage || 0,
+        first: !response.data?.hasPrevious,
+        last: !response.data?.hasNext,
       }
-
-      return await response.json()
     } catch (error) {
       console.error("Error fetching airlines:", error)
       throw error
@@ -59,19 +59,8 @@ export class AirlineService {
    */
   static async getActiveAirlines(): Promise<Airline[]> {
     try {
-      const response = await fetch(`${this.BASE_PATH}/active`, {
-        method: "GET",
-        headers: {
-          "Content-Type": "application/json",
-        },
-      })
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}))
-        throw new Error(errorData.message || `HTTP error! status: ${response.status}`)
-      }
-
-      return await response.json()
+      const response: ApiResponse<Airline[]> = await apiClient.get(`${this.BASE_PATH}/active`)
+      return response.data || []
     } catch (error) {
       console.error("Error fetching active airlines:", error)
       throw error
@@ -83,19 +72,8 @@ export class AirlineService {
    */
   static async getAirline(id: string | number): Promise<Airline> {
     try {
-      const response = await fetch(`${this.BASE_PATH}/${id}`, {
-        method: "GET",
-        headers: {
-          "Content-Type": "application/json",
-        },
-      })
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}))
-        throw new Error(errorData.message || `HTTP error! status: ${response.status}`)
-      }
-
-      return await response.json()
+      const response: ApiResponse<Airline> = await apiClient.get(`${this.BASE_PATH}/${id}`)
+      return response.data
     } catch (error) {
       console.error(`Error fetching airline ${id}:`, error)
       throw error
@@ -107,20 +85,8 @@ export class AirlineService {
    */
   static async createAirline(airline: AirlineCreateRequest): Promise<Airline> {
     try {
-      const response = await fetch(this.BASE_PATH, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(airline),
-      })
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}))
-        throw new Error(errorData.message || `HTTP error! status: ${response.status}`)
-      }
-
-      return await response.json()
+      const response: ApiResponse<Airline> = await apiClient.post(this.BASE_PATH, airline)
+      return response.data
     } catch (error) {
       console.error("Error creating airline:", error)
       throw error
@@ -132,20 +98,8 @@ export class AirlineService {
    */
   static async updateAirline(id: string | number, airline: AirlineUpdateRequest): Promise<Airline> {
     try {
-      const response = await fetch(`${this.BASE_PATH}/${id}`, {
-        method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(airline),
-      })
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}))
-        throw new Error(errorData.message || `HTTP error! status: ${response.status}`)
-      }
-
-      return await response.json()
+      const response: ApiResponse<Airline> = await apiClient.put(`${this.BASE_PATH}/${id}`, airline)
+      return response.data
     } catch (error) {
       console.error(`Error updating airline ${id}:`, error)
       throw error
@@ -157,17 +111,7 @@ export class AirlineService {
    */
   static async deleteAirline(id: string | number): Promise<void> {
     try {
-      const response = await fetch(`${this.BASE_PATH}/${id}`, {
-        method: "DELETE",
-        headers: {
-          "Content-Type": "application/json",
-        },
-      })
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}))
-        throw new Error(errorData.message || `HTTP error! status: ${response.status}`)
-      }
+      await apiClient.delete(`${this.BASE_PATH}/${id}`)
     } catch (error) {
       console.error(`Error deleting airline ${id}:`, error)
       throw error

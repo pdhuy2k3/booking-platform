@@ -1,12 +1,14 @@
-import { mockUserInfo } from "./mock-data"
+
 import { apiClient } from '@/lib/api-client';
 
 export interface UserInfo {
   sub: string
-  username: string
+  name: string
   email: string
   roles: string[]
   permissions: string[]
+  partnerType?: "HOTEL" | "FLIGHT" | "TRANSPORT" | "ALL" // Loại đối tác
+  partnerServices?: string[] // Các dịch vụ được phép quản lý
 }
 
 export class AuthClient {

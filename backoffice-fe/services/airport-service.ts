@@ -1,8 +1,9 @@
-import type { Airport, PaginatedResponse } from "@/types/api"
+import type { Airport, PaginatedResponse, ApiResponse } from "@/types/api"
+import { apiClient } from "@/lib/api-client"
 
 interface AirportCreateRequest {
   name: string
-  code: string
+  iataCode: string
   city: string
   country: string
   timezone?: string
@@ -11,7 +12,7 @@ interface AirportCreateRequest {
 
 interface AirportUpdateRequest {
   name?: string
-  code?: string
+  iataCode?: string
   city?: string
   country?: string
   timezone?: string
@@ -41,19 +42,32 @@ export class AirportService {
       if (params?.country) searchParams.append("country", params.country)
 
       const url = `${this.BASE_PATH}${searchParams.toString() ? `?${searchParams.toString()}` : ""}`
-      const response = await fetch(url, {
-        method: "GET",
-        headers: {
-          "Content-Type": "application/json",
-        },
-      })
+      const response: ApiResponse<any> = await apiClient.get(url)
+      
+      // Transform backend data to match frontend Airport interface
+      const transformedContent = response.data?.content?.map((airport: any) => ({
+        airportId: airport.airportId,
+        name: airport.name,
+        iataCode: airport.iataCode,
+        city: airport.city,
+        country: airport.country,
+        timezone: airport.timezone,
+        isActive: airport.isActive,
+        createdAt: airport.createdAt,
+        updatedAt: airport.updatedAt,
+        media: airport.media
+      })) || [];
 
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}))
-        throw new Error(errorData.message || `HTTP error! status: ${response.status}`)
+      // Transform only the pagination structure to match PaginatedResponse
+      return {
+        content: transformedContent,
+        totalElements: response.data?.totalElements || 0,
+        totalPages: response.data?.totalPages || 0,
+        size: response.data?.pageSize || 0,
+        number: response.data?.currentPage || 0,
+        first: !response.data?.hasPrevious,
+        last: !response.data?.hasNext,
       }
-
-      return await response.json()
     } catch (error) {
       console.error("Error fetching airports:", error)
       throw error
@@ -65,19 +79,8 @@ export class AirportService {
    */
   static async getActiveAirports(): Promise<Airport[]> {
     try {
-      const response = await fetch(`${this.BASE_PATH}/active`, {
-        method: "GET",
-        headers: {
-          "Content-Type": "application/json",
-        },
-      })
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}))
-        throw new Error(errorData.message || `HTTP error! status: ${response.status}`)
-      }
-
-      return await response.json()
+      const response: ApiResponse<Airport[]> = await apiClient.get(`${this.BASE_PATH}/active`)
+      return response.data || []
     } catch (error) {
       console.error("Error fetching active airports:", error)
       throw error
@@ -89,19 +92,8 @@ export class AirportService {
    */
   static async getAirport(id: string | number): Promise<Airport> {
     try {
-      const response = await fetch(`${this.BASE_PATH}/${id}`, {
-        method: "GET",
-        headers: {
-          "Content-Type": "application/json",
-        },
-      })
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}))
-        throw new Error(errorData.message || `HTTP error! status: ${response.status}`)
-      }
-
-      return await response.json()
+      const response: ApiResponse<Airport> = await apiClient.get(`${this.BASE_PATH}/${id}`)
+      return response.data
     } catch (error) {
       console.error(`Error fetching airport ${id}:`, error)
       throw error
@@ -113,20 +105,8 @@ export class AirportService {
    */
   static async createAirport(airport: AirportCreateRequest): Promise<Airport> {
     try {
-      const response = await fetch(this.BASE_PATH, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(airport),
-      })
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}))
-        throw new Error(errorData.message || `HTTP error! status: ${response.status}`)
-      }
-
-      return await response.json()
+      const response: ApiResponse<Airport> = await apiClient.post(this.BASE_PATH, airport)
+      return response.data
     } catch (error) {
       console.error("Error creating airport:", error)
       throw error
@@ -138,20 +118,8 @@ export class AirportService {
    */
   static async updateAirport(id: string | number, airport: AirportUpdateRequest): Promise<Airport> {
     try {
-      const response = await fetch(`${this.BASE_PATH}/${id}`, {
-        method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(airport),
-      })
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}))
-        throw new Error(errorData.message || `HTTP error! status: ${response.status}`)
-      }
-
-      return await response.json()
+      const response: ApiResponse<Airport> = await apiClient.put(`${this.BASE_PATH}/${id}`, airport)
+      return response.data
     } catch (error) {
       console.error(`Error updating airport ${id}:`, error)
       throw error
@@ -163,17 +131,7 @@ export class AirportService {
    */
   static async deleteAirport(id: string | number): Promise<void> {
     try {
-      const response = await fetch(`${this.BASE_PATH}/${id}`, {
-        method: "DELETE",
-        headers: {
-          "Content-Type": "application/json",
-        },
-      })
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}))
-        throw new Error(errorData.message || `HTTP error! status: ${response.status}`)
-      }
+      await apiClient.delete(`${this.BASE_PATH}/${id}`)
     } catch (error) {
       console.error(`Error deleting airport ${id}:`, error)
       throw error

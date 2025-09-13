@@ -1,5 +1,6 @@
 "use client"
 
+import { useState, useEffect, useCallback } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -12,12 +13,20 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import {
-  InfiniteScrollSelect,
-  InfiniteScrollSelectContent,
-  InfiniteScrollSelectItem,
-  InfiniteScrollSelectTrigger,
-  InfiniteScrollSelectValue,
-} from "@/components/ui/infinite-scroll-select"
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover"
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+} from "@/components/ui/command"
+import { Check, ChevronsUpDown } from "lucide-react"
+import { cn } from "@/lib/utils"
+import { AirportService } from "@/services/airport-service"
 import type { Airline, Airport } from "@/types/api"
 
 interface FlightFormData {
@@ -26,8 +35,6 @@ interface FlightFormData {
   departureAirportId: string
   arrivalAirportId: string
   aircraftType: string
-  basePrice: string
-  baseDurationMinutes: string
   status: string
   isActive: boolean
 }
@@ -45,17 +52,12 @@ interface FlightFormDialogProps {
   submitting: boolean
   onSubmit: () => void
   submitLabel: string
-  // Infinite scroll handlers
+  // Search handlers
   onAirlineSearch: (term: string) => void
   onAirportSearch: (term: string) => void
-  onLoadMoreAirlines: () => void
-  onLoadMoreAirports: () => void
-  hasMoreAirlines: boolean
-  hasMoreAirports: boolean
-  loadingMoreAirlines: boolean
-  loadingMoreAirports: boolean
-  airlineSearchTerm: string
-  airportSearchTerm: string
+  // Optional: separate handlers for departure and arrival airports
+  onDepartureAirportSearch?: (term: string) => void
+  onArrivalAirportSearch?: (term: string) => void
 }
 
 export function FlightFormDialog({
@@ -73,15 +75,118 @@ export function FlightFormDialog({
   submitLabel,
   onAirlineSearch,
   onAirportSearch,
-  onLoadMoreAirlines,
-  onLoadMoreAirports,
-  hasMoreAirlines,
-  hasMoreAirports,
-  loadingMoreAirlines,
-  loadingMoreAirports,
-  airlineSearchTerm,
-  airportSearchTerm
+  onDepartureAirportSearch,
+  onArrivalAirportSearch
 }: FlightFormDialogProps) {
+  // States for combobox open/close
+  const [airlineOpen, setAirlineOpen] = useState(false);
+  const [departureAirportOpen, setDepartureAirportOpen] = useState(false);
+  const [arrivalAirportOpen, setArrivalAirportOpen] = useState(false);
+  
+  // Local state for airports with separate search terms
+  const [departureAirports, setDepartureAirports] = useState<Airport[]>([]);
+  const [arrivalAirports, setArrivalAirports] = useState<Airport[]>([]);
+  const [loadingDepartureAirports, setLoadingDepartureAirports] = useState(false);
+  const [loadingArrivalAirports, setLoadingArrivalAirports] = useState(false);
+  const [departureSearchTerm, setDepartureSearchTerm] = useState('');
+  const [arrivalSearchTerm, setArrivalSearchTerm] = useState('');
+
+  // Load airports when dialog opens
+  useEffect(() => {
+    if (isOpen) {
+      loadInitialAirports();
+    }
+  }, [isOpen]);
+
+  // Load initial airports (20 items)
+  const loadInitialAirports = useCallback(async () => {
+    try {
+      setLoadingDepartureAirports(true);
+      setLoadingArrivalAirports(true);
+      
+      const data = await AirportService.getAirports({
+        page: 0,
+        size: 20,
+        search: undefined
+      });
+      
+      console.log("Loaded airports data:", data);
+      console.log("Airports content:", data.content);
+      
+      setDepartureAirports(data.content);
+      setArrivalAirports(data.content);
+    } catch (error) {
+      console.error("Failed to load airports:", error);
+      setDepartureAirports([]);
+      setArrivalAirports([]);
+    } finally {
+      setLoadingDepartureAirports(false);
+      setLoadingArrivalAirports(false);
+    }
+  }, []);
+
+  // Debounced search for departure airports
+  const searchDepartureAirports = useCallback(async (searchTerm: string) => {
+    setDepartureSearchTerm(searchTerm);
+    setLoadingDepartureAirports(true);
+    
+    try {
+      const data = await AirportService.getAirports({
+        page: 0,
+        size: 20,
+        search: searchTerm || undefined
+      });
+      console.log("Search departure airports result:", data);
+      setDepartureAirports(data.content);
+    } catch (error) {
+      console.error("Failed to search departure airports:", error);
+      setDepartureAirports([]);
+    } finally {
+      setLoadingDepartureAirports(false);
+    }
+  }, []);
+
+  // Debounced search for arrival airports
+  const searchArrivalAirports = useCallback(async (searchTerm: string) => {
+    setArrivalSearchTerm(searchTerm);
+    setLoadingArrivalAirports(true);
+    
+    try {
+      const data = await AirportService.getAirports({
+        page: 0,
+        size: 20,
+        search: searchTerm || undefined
+      });
+      console.log("Search arrival airports result:", data);
+      setArrivalAirports(data.content);
+    } catch (error) {
+      console.error("Failed to search arrival airports:", error);
+      setArrivalAirports([]);
+    } finally {
+      setLoadingArrivalAirports(false);
+    }
+  }, []);
+
+  // Debounce function
+  const debounce = useCallback((func: Function, delay: number) => {
+    let timeoutId: NodeJS.Timeout;
+    return (...args: any[]) => {
+      clearTimeout(timeoutId);
+      timeoutId = setTimeout(() => func.apply(null, args), delay);
+    };
+  }, []);
+
+  // Create debounced search functions
+  const debouncedSearchDeparture = useCallback(
+    debounce(searchDepartureAirports, 300),
+    [searchDepartureAirports, debounce]
+  );
+
+  const debouncedSearchArrival = useCallback(
+    debounce(searchArrivalAirports, 300),
+    [searchArrivalAirports, debounce]
+  );
+
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="sm:max-w-[600px]">
@@ -116,89 +221,165 @@ export function FlightFormDialog({
             </div>
             <div className="space-y-2">
               <Label htmlFor="airline">Hãng hàng không *</Label>
-              <InfiniteScrollSelect value={form.airlineId} onValueChange={(value) => onFormChange({...form, airlineId: value})}>
-                <InfiniteScrollSelectTrigger>
-                  <InfiniteScrollSelectValue placeholder="Chọn hãng hàng không" />
-                </InfiniteScrollSelectTrigger>
-                <InfiniteScrollSelectContent
-                  searchPlaceholder="Tìm hãng hàng không..."
-                  onSearchChange={onAirlineSearch}
-                  onLoadMore={onLoadMoreAirlines}
-                  hasMore={hasMoreAirlines}
-                  loading={loadingMoreAirlines}
-                  searchValue={airlineSearchTerm}
-                >
-                  {airlines.map((airline) => (
-                    <InfiniteScrollSelectItem key={airline.id} value={airline.id.toString()}>
-                      {airline.name} ({airline.code})
-                    </InfiniteScrollSelectItem>
-                  ))}
-                </InfiniteScrollSelectContent>
-              </InfiniteScrollSelect>
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="basePrice">Giá cơ bản (VND)</Label>
-              <Input
-                id="basePrice"
-                type="number"
-                placeholder="2500000"
-                value={form.basePrice}
-                onChange={(e) => onFormChange({...form, basePrice: e.target.value})}
-              />
+              <Popover open={airlineOpen} onOpenChange={setAirlineOpen}>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    role="combobox"
+                    aria-expanded={airlineOpen}
+                    className="w-full justify-between"
+                  >
+                    {form.airlineId
+                      ? (() => {
+                          const airline = airlines.find(a => a.airlineId?.toString() === form.airlineId);
+                          return airline ? `${airline.name} (${airline.iataCode})` : "Chọn hãng hàng không";
+                        })()
+                      : "Chọn hãng hàng không"}
+                    <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-full p-0">
+                  <Command>
+                    <CommandInput 
+                      placeholder="Tìm hãng hàng không..." 
+                      onValueChange={onAirlineSearch} 
+                    />
+                    <CommandEmpty>Không tìm thấy hãng hàng không.</CommandEmpty>
+                    <CommandGroup className="max-h-[200px] overflow-y-auto">
+                      {airlines
+                        .filter(airline => airline.airlineId != null)
+                        .map((airline) => (
+                          <CommandItem
+                            key={airline.airlineId}
+                            value={`${airline.name} ${airline.iataCode}`}
+                            onSelect={() => {
+                              onFormChange({ ...form, airlineId: airline.airlineId!.toString() });
+                              setAirlineOpen(false);
+                            }}
+                          >
+                            <Check
+                              className={cn(
+                                "mr-2 h-4 w-4",
+                                form.airlineId === airline.airlineId?.toString() ? "opacity-100" : "opacity-0"
+                              )}
+                            />
+                            {airline.name} ({airline.iataCode})
+                          </CommandItem>
+                        ))}
+                    </CommandGroup>
+                  </Command>
+                </PopoverContent>
+              </Popover>
             </div>
             <div className="space-y-2">
               <Label htmlFor="departureAirport">Sân bay đi *</Label>
-              <InfiniteScrollSelect value={form.departureAirportId} onValueChange={(value) => onFormChange({...form, departureAirportId: value})}>
-                <InfiniteScrollSelectTrigger>
-                  <InfiniteScrollSelectValue placeholder="Chọn sân bay đi" />
-                </InfiniteScrollSelectTrigger>
-                <InfiniteScrollSelectContent
-                  searchPlaceholder="Tìm sân bay đi..."
-                  onSearchChange={onAirportSearch}
-                  onLoadMore={onLoadMoreAirports}
-                  hasMore={hasMoreAirports}
-                  loading={loadingMoreAirports}
-                  searchValue={airportSearchTerm}
-                >
-                  {airports.map((airport) => (
-                    <InfiniteScrollSelectItem key={airport.id} value={airport.id.toString()}>
-                      {airport.code} - {airport.name}
-                    </InfiniteScrollSelectItem>
-                  ))}
-                </InfiniteScrollSelectContent>
-              </InfiniteScrollSelect>
+              <Popover open={departureAirportOpen} onOpenChange={setDepartureAirportOpen}>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    role="combobox"
+                    aria-expanded={departureAirportOpen}
+                    className="w-full justify-between"
+                  >
+                    {form.departureAirportId
+                      ? (() => {
+                          const airport = departureAirports.find(a => a.airportId?.toString() === form.departureAirportId);
+                          return airport ? `${airport.iataCode} - ${airport.name}` : "Chọn sân bay đi";
+                        })()
+                      : "Chọn sân bay đi"}
+                    <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-full p-0">
+                  <Command>
+                    <CommandInput 
+                      placeholder="Tìm sân bay đi..." 
+                      onValueChange={debouncedSearchDeparture}
+                      value={departureSearchTerm}
+                    />
+                    <CommandEmpty>
+                      {loadingDepartureAirports ? "Đang tải..." : "Không tìm thấy sân bay đi."}
+                    </CommandEmpty>
+                    <CommandGroup className="max-h-[200px] overflow-y-auto">
+                      {departureAirports
+                        .filter(airport => airport.airportId != null)
+                        .map((airport) => (
+                          <CommandItem
+                            key={airport.airportId}
+                            value={`${airport.iataCode} ${airport.name}`}
+                            onSelect={() => {
+                              onFormChange({ ...form, departureAirportId: airport.airportId!.toString() });
+                              setDepartureAirportOpen(false);
+                            }}
+                          >
+                            <Check
+                              className={cn(
+                                "mr-2 h-4 w-4",
+                                form.departureAirportId === airport.airportId?.toString() ? "opacity-100" : "opacity-0"
+                              )}
+                            />
+                            {airport.iataCode} - {airport.name}
+                          </CommandItem>
+                        ))}
+                    </CommandGroup>
+                  </Command>
+                </PopoverContent>
+              </Popover>
             </div>
             <div className="space-y-2">
               <Label htmlFor="arrivalAirport">Sân bay đến *</Label>
-              <InfiniteScrollSelect value={form.arrivalAirportId} onValueChange={(value) => onFormChange({...form, arrivalAirportId: value})}>
-                <InfiniteScrollSelectTrigger>
-                  <InfiniteScrollSelectValue placeholder="Chọn sân bay đến" />
-                </InfiniteScrollSelectTrigger>
-                <InfiniteScrollSelectContent
-                  searchPlaceholder="Tìm sân bay đến..."
-                  onSearchChange={onAirportSearch}
-                  onLoadMore={onLoadMoreAirports}
-                  hasMore={hasMoreAirports}
-                  loading={loadingMoreAirports}
-                  searchValue={airportSearchTerm}
-                >
-                  {airports.map((airport) => (
-                    <InfiniteScrollSelectItem key={airport.id} value={airport.id.toString()}>
-                      {airport.code} - {airport.name}
-                    </InfiniteScrollSelectItem>
-                  ))}
-                </InfiniteScrollSelectContent>
-              </InfiniteScrollSelect>
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="baseDuration">Thời gian bay (phút)</Label>
-              <Input
-                id="baseDuration"
-                type="number"
-                placeholder="120"
-                value={form.baseDurationMinutes}
-                onChange={(e) => onFormChange({...form, baseDurationMinutes: e.target.value})}
-              />
+              <Popover open={arrivalAirportOpen} onOpenChange={setArrivalAirportOpen}>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    role="combobox"
+                    aria-expanded={arrivalAirportOpen}
+                    className="w-full justify-between"
+                  >
+                    {form.arrivalAirportId
+                      ? (() => {
+                          const airport = arrivalAirports.find(a => a.airportId?.toString() === form.arrivalAirportId);
+                          return airport ? `${airport.iataCode} - ${airport.name}` : "Chọn sân bay đến";
+                        })()
+                      : "Chọn sân bay đến"}
+                    <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-full p-0">
+                  <Command>
+                    <CommandInput 
+                      placeholder="Tìm sân bay đến..." 
+                      onValueChange={debouncedSearchArrival}
+                      value={arrivalSearchTerm}
+                    />
+                    <CommandEmpty>
+                      {loadingArrivalAirports ? "Đang tải..." : "Không tìm thấy sân bay đến."}
+                    </CommandEmpty>
+                    <CommandGroup className="max-h-[200px] overflow-y-auto">
+                      {arrivalAirports
+                        .filter(airport => airport.airportId != null)
+                        .map((airport) => (
+                          <CommandItem
+                            key={airport.airportId}
+                            value={`${airport.iataCode} ${airport.name}`}
+                            onSelect={() => {
+                              onFormChange({ ...form, arrivalAirportId: airport.airportId!.toString() });
+                              setArrivalAirportOpen(false);
+                            }}
+                          >
+                            <Check
+                              className={cn(
+                                "mr-2 h-4 w-4",
+                                form.arrivalAirportId === airport.airportId?.toString() ? "opacity-100" : "opacity-0"
+                              )}
+                            />
+                            {airport.iataCode} - {airport.name}
+                          </CommandItem>
+                        ))}
+                    </CommandGroup>
+                  </Command>
+                </PopoverContent>
+              </Popover>
             </div>
             <div className="space-y-2">
               <Label htmlFor="status">Trạng thái chuyến bay</Label>
@@ -208,7 +389,6 @@ export function FlightFormDialog({
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="ACTIVE">Hoạt động</SelectItem>
-                  <SelectItem value="ON_TIME">Đúng giờ</SelectItem>
                   <SelectItem value="DELAYED">Tạm hoãn</SelectItem>
                   <SelectItem value="CANCELLED">Đã hủy</SelectItem>
                 </SelectContent>
