@@ -10,6 +10,8 @@ export interface MediaUploadResponse {
 }
 
 export interface SimpleMediaItem {
+  id?: number; // Optional ID for database records
+  mediaId?: number; // Media ID for database records
   publicId: string;
   url: string;
   secureUrl: string;
@@ -198,7 +200,7 @@ class MediaService {
   /**
    * Get all media from Cloudinary directly (fallback)
    */
-  async getAllMediaFromCloudinary(page = 0, size = 20): Promise<{ items: SimpleMediaItem[], total: number, totalPages: number }> {
+  async getAllMediaFromCloudinary(page = 0, size = 20, folder?: string): Promise<{ items: SimpleMediaItem[], total: number, totalPages: number }> {
     try {
       const response = await apiClient.get('/api/media/management/cloudinary', {
         params: { 
@@ -227,7 +229,7 @@ class MediaService {
       console.error('Error fetching from Cloudinary:', error);
       // Return demo data as final fallback - only hotel and flight related
       const hotelAndFlightFolders = ['hotels', 'rooms', 'amenities', 'room-types', 'airlines', 'airports', 'flights'];
-      const demoFolder = hotelAndFlightFolders.includes(folder) ? folder : 'hotels';
+      const demoFolder = folder && hotelAndFlightFolders.includes(folder) ? folder : 'hotels';
       return {
         items: [{
           id: 1, // Demo ID

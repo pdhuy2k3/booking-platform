@@ -1,12 +1,15 @@
 
 server:
-  port: 8080
+  port: 9080
 spring:
   profiles:
     active: local
   application:
     name: BACKOFFICE-BFF
-
+logging:
+  level:
+    "[com.pdh.backoffice]": DEBUG
+    "[org.springframework.security]": DEBUG
 
 ---
 spring:
@@ -19,7 +22,7 @@ spring:
         registration:
           api-client:
             client-id: backoffice-bff
-            client-secret: qhW4NC8pgPLdJDTd57sry5ON1fHK1d8i
+            client-secret: HvSjC1OSQXzDthr9ROecBZaRxA0CHHw6
             scope: profile, email, openid, roles
             provider: keycloak
         provider:
@@ -33,12 +36,54 @@ spring:
   cloud:
     gateway:
       routes:
-        - id: api
-          uri: http://api.bookingsmart.local
+        - id: flight-service
+          uri: lb://FLIGHT-SERVICE
           predicates:
-            - Path=/api/**
+            - Path=/api/flights/**
           filters:
-            - RewritePath=/api/(?<segment>.*), /$\{segment}
+            - StripPrefix=1
+            - TokenRelay=
+        - id: hotel-service
+          uri: lb://HOTEL-SERVICE
+          predicates:
+            - Path=/api/hotels/**
+          filters:
+            - StripPrefix=1
+            - TokenRelay=
+        - id: booking-service
+          uri: lb://BOOKING-SERVICE
+          predicates:
+            - Path=/api/bookings/**, /api/availability/**
+          filters:
+            - StripPrefix=1
+            - TokenRelay=
+        - id: customer-service
+          uri: lb://CUSTOMER-SERVICE
+          predicates:
+            - Path=/api/customers/**
+          filters:
+            - StripPrefix=1
+            - TokenRelay=
+        - id: payment-service
+          uri: lb://PAYMENT-SERVICE
+          predicates:
+            - Path=/api/payments/**
+          filters:
+            - StripPrefix=1
+            - TokenRelay=
+        - id: notification-service
+          uri: lb://NOTIFICATION-SERVICE
+          predicates:
+            - Path=/api/notifications/**
+          filters:
+            - StripPrefix=1
+            - TokenRelay=
+        - id: media-service
+          uri: lb://MEDIA-SERVICE
+          predicates:
+            - Path=/api/media/**
+          filters:
+            - StripPrefix=1
             - TokenRelay=
         # Administrative routes
         - id: eureka-web-start

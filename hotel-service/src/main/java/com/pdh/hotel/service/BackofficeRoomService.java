@@ -2,6 +2,7 @@ package com.pdh.hotel.service;
 
 import com.pdh.common.dto.response.MediaResponse;
 import com.pdh.hotel.dto.request.RoomRequestDto;
+import com.pdh.hotel.dto.response.RoomTypeInheritanceDto;
 import com.pdh.hotel.dto.response.RoomResponseDto;
 import com.pdh.hotel.dto.response.RoomListResponseDto;
 import com.pdh.hotel.dto.response.RoomSingleResponseDto;
@@ -140,7 +141,14 @@ public class BackofficeRoomService {
         room.setHotel(hotel);
         room.setRoomType(roomType);
         room.setDescription(roomRequestDto.getDescription());
-        room.setPrice(roomRequestDto.getPrice());
+        
+        // Set price - inherit from room type if requested, otherwise use provided price
+        if (Boolean.TRUE.equals(roomRequestDto.getInheritPriceFromRoomType()) && roomType.getBasePrice() != null) {
+            room.setPrice(roomType.getBasePrice());
+        } else {
+            room.setPrice(roomRequestDto.getPrice());
+        }
+        
         room.setMaxOccupancy(roomRequestDto.getMaxOccupancy());
         room.setBedType(roomRequestDto.getBedType());
         room.setRoomSize(roomRequestDto.getRoomSize());
@@ -154,10 +162,19 @@ public class BackofficeRoomService {
         }
         
         // Handle media associations
-        if (roomRequestDto.getMedia() != null && !roomRequestDto.getMedia().isEmpty()) {
+        List<MediaResponse> mediaToAssociate = null;
+        if (Boolean.TRUE.equals(roomRequestDto.getInheritMediaFromRoomType())) {
+            // Inherit media from room type
+            mediaToAssociate = imageService.getRoomTypeMedia(roomType.getRoomTypeId());
+        } else if (roomRequestDto.getMedia() != null) {
+            // Use provided media
+            mediaToAssociate = roomRequestDto.getMedia();
+        }
+        
+        if (mediaToAssociate != null && !mediaToAssociate.isEmpty()) {
             try {
-                imageService.updateRoomImagesWithMediaResponse(savedRoom.getId(), roomRequestDto.getMedia());
-                log.info("Associated {} media items with room ID: {}", roomRequestDto.getMedia().size(), savedRoom.getId());
+                imageService.updateRoomImagesWithMediaResponse(savedRoom.getId(), mediaToAssociate);
+                log.info("Associated {} media items with room ID: {}", mediaToAssociate.size(), savedRoom.getId());
             } catch (Exception e) {
                 log.error("Error associating media with room {}: {}", savedRoom.getId(), e.getMessage());
             }
@@ -185,7 +202,14 @@ public class BackofficeRoomService {
         room.setHotel(hotel);
         room.setRoomType(roomType);
         room.setDescription(roomRequestDto.getDescription());
-        room.setPrice(roomRequestDto.getPrice());
+        
+        // Set price - inherit from room type if requested, otherwise use provided price
+        if (Boolean.TRUE.equals(roomRequestDto.getInheritPriceFromRoomType()) && roomType.getBasePrice() != null) {
+            room.setPrice(roomType.getBasePrice());
+        } else {
+            room.setPrice(roomRequestDto.getPrice());
+        }
+        
         room.setMaxOccupancy(roomRequestDto.getMaxOccupancy());
         room.setBedType(roomRequestDto.getBedType());
         room.setRoomSize(roomRequestDto.getRoomSize());
@@ -199,10 +223,19 @@ public class BackofficeRoomService {
         }
         
         // Handle media associations
-        if (roomRequestDto.getMedia() != null && !roomRequestDto.getMedia().isEmpty()) {
+        List<MediaResponse> mediaToAssociate = null;
+        if (Boolean.TRUE.equals(roomRequestDto.getInheritMediaFromRoomType())) {
+            // Inherit media from room type
+            mediaToAssociate = imageService.getRoomTypeMedia(roomType.getRoomTypeId());
+        } else if (roomRequestDto.getMedia() != null) {
+            // Use provided media
+            mediaToAssociate = roomRequestDto.getMedia();
+        }
+        
+        if (mediaToAssociate != null && !mediaToAssociate.isEmpty()) {
             try {
-                imageService.updateRoomImagesWithMediaResponse(savedRoom.getId(), roomRequestDto.getMedia());
-                log.info("Associated {} media items with room ID: {}", roomRequestDto.getMedia().size(), savedRoom.getId());
+                imageService.updateRoomImagesWithMediaResponse(savedRoom.getId(), mediaToAssociate);
+                log.info("Associated {} media items with room ID: {}", mediaToAssociate.size(), savedRoom.getId());
             } catch (Exception e) {
                 log.error("Error associating media with room {}: {}", savedRoom.getId(), e.getMessage());
             }
@@ -237,9 +270,15 @@ public class BackofficeRoomService {
         if (roomRequestDto.getDescription() != null) {
             room.setDescription(roomRequestDto.getDescription());
         }
-        if (roomRequestDto.getPrice() != null) {
+        
+        // Set price - inherit from room type if requested, otherwise use provided price
+        if (Boolean.TRUE.equals(roomRequestDto.getInheritPriceFromRoomType()) && room.getRoomType() != null && 
+            room.getRoomType().getBasePrice() != null) {
+            room.setPrice(room.getRoomType().getBasePrice());
+        } else if (roomRequestDto.getPrice() != null) {
             room.setPrice(roomRequestDto.getPrice());
         }
+        
         if (roomRequestDto.getMaxOccupancy() != null) {
             room.setMaxOccupancy(roomRequestDto.getMaxOccupancy());
         }
@@ -261,10 +300,19 @@ public class BackofficeRoomService {
         }
         
         // Handle media associations
-        if (roomRequestDto.getMedia() != null) {
+        List<MediaResponse> mediaToAssociate = null;
+        if (Boolean.TRUE.equals(roomRequestDto.getInheritMediaFromRoomType()) && room.getRoomType() != null) {
+            // Inherit media from room type
+            mediaToAssociate = imageService.getRoomTypeMedia(room.getRoomType().getRoomTypeId());
+        } else if (roomRequestDto.getMedia() != null) {
+            // Use provided media
+            mediaToAssociate = roomRequestDto.getMedia();
+        }
+        
+        if (mediaToAssociate != null) {
             try {
-                imageService.updateRoomImagesWithMediaResponse(id, roomRequestDto.getMedia());
-                log.info("Updated {} media items for room ID: {}", roomRequestDto.getMedia().size(), id);
+                imageService.updateRoomImagesWithMediaResponse(id, mediaToAssociate);
+                log.info("Updated {} media items for room ID: {}", mediaToAssociate.size(), id);
             } catch (Exception e) {
                 log.error("Error updating media for room {}: {}", id, e.getMessage());
             }
@@ -296,9 +344,15 @@ public class BackofficeRoomService {
         if (roomRequestDto.getDescription() != null) {
             room.setDescription(roomRequestDto.getDescription());
         }
-        if (roomRequestDto.getPrice() != null) {
+        
+        // Set price - inherit from room type if requested, otherwise use provided price
+        if (Boolean.TRUE.equals(roomRequestDto.getInheritPriceFromRoomType()) && room.getRoomType() != null && 
+            room.getRoomType().getBasePrice() != null) {
+            room.setPrice(room.getRoomType().getBasePrice());
+        } else if (roomRequestDto.getPrice() != null) {
             room.setPrice(roomRequestDto.getPrice());
         }
+        
         if (roomRequestDto.getMaxOccupancy() != null) {
             room.setMaxOccupancy(roomRequestDto.getMaxOccupancy());
         }
@@ -320,10 +374,19 @@ public class BackofficeRoomService {
         }
         
         // Handle media associations
-        if (roomRequestDto.getMedia() != null) {
+        List<MediaResponse> mediaToAssociate = null;
+        if (Boolean.TRUE.equals(roomRequestDto.getInheritMediaFromRoomType()) && room.getRoomType() != null) {
+            // Inherit media from room type
+            mediaToAssociate = imageService.getRoomTypeMedia(room.getRoomType().getRoomTypeId());
+        } else if (roomRequestDto.getMedia() != null) {
+            // Use provided media
+            mediaToAssociate = roomRequestDto.getMedia();
+        }
+        
+        if (mediaToAssociate != null) {
             try {
-                imageService.updateRoomImagesWithMediaResponse(id, roomRequestDto.getMedia());
-                log.info("Updated {} media items for room ID: {}", roomRequestDto.getMedia().size(), id);
+                imageService.updateRoomImagesWithMediaResponse(id, mediaToAssociate);
+                log.info("Updated {} media items for room ID: {}", mediaToAssociate.size(), id);
             } catch (Exception e) {
                 log.error("Error updating media for room {}: {}", id, e.getMessage());
             }
@@ -412,6 +475,35 @@ public class BackofficeRoomService {
     @Transactional(readOnly = true)
     public long getAvailableRoomsCount(Long hotelId) {
         return roomRepository.countAvailableRoomsByHotelId(hotelId);
+    }
+
+    /**
+     * Get room type information for inheritance purposes
+     */
+    @Transactional(readOnly = true)
+    public RoomTypeInheritanceDto getRoomTypeInheritanceInfo(Long roomTypeId) {
+        log.info("Fetching room type inheritance info for room type ID: {}", roomTypeId);
+        
+        RoomType roomType = roomTypeRepository.findById(roomTypeId)
+            .orElseThrow(() -> new EntityNotFoundException("Room type not found with ID: " + roomTypeId));
+        
+        // Get media information
+        List<MediaResponse> media = imageService.getRoomTypeMedia(roomTypeId);
+        MediaResponse primaryImage = media.stream()
+            .filter(MediaResponse::getIsPrimary)
+            .findFirst()
+            .orElse(media.isEmpty() ? null : media.get(0));
+        
+        return RoomTypeInheritanceDto.builder()
+            .id(roomType.getRoomTypeId())
+            .name(roomType.getName())
+            .description(roomType.getDescription())
+            .basePrice(roomType.getBasePrice())
+            .media(media)
+            .primaryImage(primaryImage)
+            .hasMedia(!media.isEmpty())
+            .mediaCount(media.size())
+            .build();
     }
 
     /**

@@ -35,7 +35,7 @@ public class BackofficeFlightMapper {
     private final FlightFareService flightFareService;
 
     /**
-     * Convert Flight entity to FlightDto with media information
+     * Convert Flight entity to FlightDto with media information (includes schedules - use with caution for circular refs)
      */
     public FlightDto toDto(Flight flight) {
         if (flight == null) {
@@ -121,6 +121,70 @@ public class BackofficeFlightMapper {
             }
         }
         
+        return addMediaInformation(flightDto, flight);
+    }
+
+    /**
+     * Convert Flight entity to lightweight FlightDto WITHOUT schedules (prevents circular references)
+     */
+    public FlightDto toLightweightDto(Flight flight) {
+        if (flight == null) {
+            return null;
+        }
+
+        FlightDto.FlightDtoBuilder builder = FlightDto.builder()
+                .flightId(flight.getFlightId())
+                .flightNumber(flight.getFlightNumber())
+                .baseDurationMinutes(flight.getBaseDurationMinutes())
+                .aircraftType(flight.getAircraftType())
+                .status(flight.getStatus())
+                .basePrice(flight.getBasePrice())
+                .isActive(flight.getIsActive())
+                .createdAt(convertToLocalDateTime(flight.getCreatedAt()))
+                .updatedAt(convertToLocalDateTime(flight.getUpdatedAt()))
+                .createdBy(flight.getCreatedBy())
+                .updatedBy(flight.getUpdatedBy());
+
+        // Map airline information
+        if (flight.getAirline() != null) {
+            Airline airline = flight.getAirline();
+            builder.airlineId(airline.getAirlineId())
+                   .airlineName(airline.getName())
+                   .airlineIataCode(airline.getIataCode());
+        }
+
+        // Map departure airport information
+        if (flight.getDepartureAirport() != null) {
+            Airport departure = flight.getDepartureAirport();
+            builder.departureAirportId(departure.getAirportId())
+                   .departureAirportName(departure.getName())
+                   .departureAirportIataCode(departure.getIataCode())
+                   .departureAirportCity(departure.getCity())
+                   .departureAirportCountry(departure.getCountry());
+        }
+
+        // Map arrival airport information
+        if (flight.getArrivalAirport() != null) {
+            Airport arrival = flight.getArrivalAirport();
+            builder.arrivalAirportId(arrival.getAirportId())
+                   .arrivalAirportName(arrival.getName())
+                   .arrivalAirportIataCode(arrival.getIataCode())
+                   .arrivalAirportCity(arrival.getCity())
+                   .arrivalAirportCountry(arrival.getCountry());
+        }
+
+        // Initialize empty collections to prevent null references
+        FlightDto flightDto = builder.schedules(List.of())
+                                    .fares(List.of())
+                                    .build();
+        
+        return addMediaInformation(flightDto, flight);
+    }
+    
+    /**
+     * Add media information to a FlightDto
+     */
+    private FlightDto addMediaInformation(FlightDto flightDto, Flight flight) {
         // Always fetch and include media information
         if (flight.getFlightId() != null) {
             try {
@@ -161,7 +225,21 @@ public class BackofficeFlightMapper {
     }
 
     /**
-     * Convert list of Flight entities to FlightDto list with batch media fetching
+     * Convert list of Flight entities to lightweight FlightDto list (no schedules to avoid circular refs)
+     */
+    public List<FlightDto> toLightweightDtoList(List<Flight> flights) {
+        if (flights == null || flights.isEmpty()) {
+            return List.of();
+        }
+
+        // Convert entities to lightweight DTOs without schedules/fares (to avoid circular references)
+        return flights.stream()
+                .map(this::toLightweightDto)
+                .collect(Collectors.toList());
+    }
+
+    /**
+     * Convert list of Flight entities to FlightDto list with batch media fetching (includes schedules - avoid for schedule contexts)
      */
     public List<FlightDto> toDtoList(List<Flight> flights) {
         if (flights == null || flights.isEmpty()) {

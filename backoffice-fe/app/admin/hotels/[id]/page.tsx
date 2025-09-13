@@ -33,6 +33,8 @@ interface RoomFormData {
   isAvailable: boolean
   roomTypeId: number | null
   amenityIds: number[]
+  inheritPriceFromRoomType?: boolean
+  inheritMediaFromRoomType?: boolean
 }
 
 const initialRoomForm: RoomFormData = {
@@ -45,6 +47,8 @@ const initialRoomForm: RoomFormData = {
   isAvailable: true,
   roomTypeId: null,
   amenityIds: [],
+  inheritPriceFromRoomType: false,
+  inheritMediaFromRoomType: false,
 }
 
 export default function HotelDetails() {
@@ -158,6 +162,10 @@ export default function HotelDetails() {
   }
 
   const handleEditRoom = async (room: Room) => {
+    // Determine if room is inheriting price from room type
+    const roomType = roomTypes.find(rt => rt.id === (room.roomTypeId || room.roomType?.id))
+    const isInheritingPrice = roomType?.basePrice ? room.price === roomType.basePrice : false
+    
     setSelectedRoom({
       ...room,
       amenityIds: Array.isArray(room.amenities) ? room.amenities.map(a => a.id) : []
@@ -166,6 +174,8 @@ export default function HotelDetails() {
     // Set media for editing
     if (room.media) {
       setEditingRoomMedia(room.media)
+    } else {
+      setEditingRoomMedia([])
     }
 
     setIsEditRoomDialogOpen(true)
@@ -191,7 +201,7 @@ export default function HotelDetails() {
       const updateData = {
         ...selectedRoom,
         roomTypeId: selectedRoom.roomTypeId || selectedRoom.roomType?.id,
-        media: editingRoomMedia
+        media: editingRoomMedia  // Use editingRoomMedia directly
       }
       await RoomService.updateRoom(selectedRoom.id, updateData)
       toast.success("Phòng đã được cập nhật thành công")
@@ -327,19 +337,23 @@ export default function HotelDetails() {
         </TabsContent>
 
         <TabsContent value="room-types">
-          <RoomTypeManager
-            hotelId={hotelId}
-            onRoomTypesChange={loadHotelDetails}
-          />
+          {hotelId && (
+            <RoomTypeManager
+              hotelId={hotelId}
+              onRoomTypesChange={loadHotelDetails}
+            />
+          )}
         </TabsContent>
 
         <TabsContent value="amenities">
-          <HotelAmenityManager
-            hotelId={hotelId}
-            hotelAmenities={hotel.amenities || []}
-            allAmenities={amenities}
-            onUpdate={handleUpdateHotelAmenities}
-          />
+          {hotelId && (
+            <HotelAmenityManager
+              hotelId={hotelId}
+              hotelAmenities={hotel.amenities || []}
+              allAmenities={amenities}
+              onUpdate={handleUpdateHotelAmenities}
+            />
+          )}
         </TabsContent>
 
         <TabsContent value="media">
@@ -351,7 +365,7 @@ export default function HotelDetails() {
             <CardContent>
               <MediaSelector
                 folder="hotels"
-                media={hotelImages}
+                value={hotelImages}
                 onMediaChange={handleUpdateHotelImages}
                 maxSelection={10}
                 allowUpload={true}
@@ -389,21 +403,42 @@ export default function HotelDetails() {
           onClose={() => setIsEditRoomDialogOpen(false)}
           title="Chỉnh sửa phòng"
           description="Cập nhật thông tin phòng"
-          room={{
-            roomNumber: selectedRoom.roomNumber,
-            description: selectedRoom.description,
-            price: selectedRoom.price,
-            maxOccupancy: selectedRoom.maxOccupancy,
-            bedType: selectedRoom.bedType,
-            roomSize: selectedRoom.roomSize,
-            isAvailable: selectedRoom.isAvailable,
-            roomTypeId: selectedRoom.roomTypeId || selectedRoom.roomType?.id || null,
-            amenityIds: selectedRoom.amenityIds || []
+          room={(() => {
+            // Determine inheritance status
+            const roomType = roomTypes.find(rt => rt.id === (selectedRoom.roomTypeId || selectedRoom.roomType?.id))
+            const isInheritingPrice = roomType?.basePrice ? selectedRoom.price === roomType.basePrice : false
+            
+            // For media inheritance, we'll check if room has no media but room type has media
+            // This is a reasonable heuristic since media inheritance is more obvious
+            const isInheritingMedia = (!selectedRoom.media || selectedRoom.media.length === 0) && 
+                                    roomType?.media && roomType.media.length > 0
+            
+            return {
+              roomNumber: selectedRoom.roomNumber,
+              description: selectedRoom.description,
+              price: selectedRoom.price,
+              maxOccupancy: selectedRoom.maxOccupancy,
+              bedType: selectedRoom.bedType,
+              roomSize: selectedRoom.roomSize,
+              isAvailable: selectedRoom.isAvailable,
+              roomTypeId: selectedRoom.roomTypeId || selectedRoom.roomType?.id || null,
+              amenityIds: selectedRoom.amenityIds || [],
+              inheritPriceFromRoomType: isInheritingPrice,
+              inheritMediaFromRoomType: isInheritingMedia,
+              media: editingRoomMedia
+            }
+          })()}
+          onRoomChange={(updatedRoom) => {
+            // Update selectedRoom with the new data
+            setSelectedRoom({
+              ...selectedRoom,
+              ...updatedRoom
+            })
+            // Also update editingRoomMedia if media was changed
+            if (updatedRoom.media) {
+              setEditingRoomMedia(updatedRoom.media)
+            }
           }}
-          onRoomChange={(updatedRoom) => setSelectedRoom({
-            ...selectedRoom,
-            ...updatedRoom
-          })}
           roomTypes={roomTypes}
           amenities={amenities}
           media={editingRoomMedia}

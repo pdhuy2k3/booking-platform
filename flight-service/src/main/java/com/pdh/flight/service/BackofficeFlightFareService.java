@@ -2,11 +2,22 @@ package com.pdh.flight.service;
 
 import com.pdh.flight.dto.request.FlightFareCreateDto;
 import com.pdh.flight.dto.request.FlightFareUpdateDto;
+import com.pdh.flight.dto.request.FlightFareCalculationRequestDto;
+import com.pdh.flight.dto.request.BulkFlightFareRequestDto;
+import com.pdh.flight.dto.request.FareClassMultiplierConfigDto;
+import com.pdh.flight.dto.request.PricingStrategyConfigDto;
 import com.pdh.flight.dto.response.FlightFareDto;
+import com.pdh.flight.dto.response.FlightFareCalculationResultDto;
+import com.pdh.flight.dto.response.FareClassMultiplierConfigResponseDto;
+import com.pdh.flight.dto.response.PricingStrategyConfigResponseDto;
 import com.pdh.flight.model.FlightFare;
+import com.pdh.flight.model.FlightSchedule;
 import com.pdh.flight.model.enums.FareClass;
 import com.pdh.flight.repository.FlightFareRepository;
 import com.pdh.flight.repository.FlightScheduleRepository;
+import com.pdh.flight.service.pricing.PricingService;
+import com.pdh.flight.service.pricing.FareClassMultiplierConfigService;
+import com.pdh.flight.service.pricing.PricingStrategyConfigService;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -18,6 +29,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
+import java.math.BigDecimal;
 import java.time.ZonedDateTime;
 import java.util.*;
 
@@ -32,6 +44,9 @@ public class BackofficeFlightFareService {
 
     private final FlightFareRepository flightFareRepository;
     private final FlightScheduleRepository flightScheduleRepository;
+    private final PricingService pricingService;
+    private final FareClassMultiplierConfigService fareClassMultiplierConfigService;
+    private final PricingStrategyConfigService pricingStrategyConfigService;
 
     /**
      * Get all flight fares with pagination and filtering
@@ -248,6 +263,235 @@ public class BackofficeFlightFareService {
         stats.put("premiumEconomyFares", premiumEconomyFares);
         
         return stats;
+    }
+
+    /**
+     * Calculate suggested flight fares based on pricing algorithm
+     */
+    @Transactional(readOnly = true)
+    public List<FlightFareCalculationResultDto> calculateFlightFares(FlightFareCalculationRequestDto calculationRequest) {
+        log.info("Calculating flight fares for {} schedules", calculationRequest.getScheduleIds().size());
+        
+        List<FlightFareCalculationResultDto> results = new ArrayList<>();
+        
+        // Get flight schedules
+        List<FlightSchedule> schedules = flightScheduleRepository.findAllById(calculationRequest.getScheduleIds());
+        
+        // Convert fare class string to enum
+        FareClass fareClass;
+        try {
+            fareClass = FareClass.valueOf(calculationRequest.getFareClass().toUpperCase());
+        } catch (IllegalArgumentException e) {
+            throw new IllegalArgumentException("Invalid fare class: " + calculationRequest.getFareClass());
+        }
+        
+        // Calculate price for each schedule
+        for (FlightSchedule schedule : schedules) {
+            try {
+                // Get calculated price from pricing service
+                BigDecimal calculatedPrice = pricingService.calculatePrice(
+                        schedule, 
+                        fareClass, 
+                        java.time.LocalDate.now(), 
+                        calculationRequest.getDepartureDate(), 
+                        calculationRequest.getPassengerCount() != null ? calculationRequest.getPassengerCount() : 1
+                );
+                
+                // Create result DTO
+                FlightFareCalculationResultDto result = FlightFareCalculationResultDto.builder()
+                        .scheduleId(schedule.getScheduleId())
+                        .flightNumber(schedule.getFlight() != null ? schedule.getFlight().getFlightNumber() : "Unknown")
+                        .origin(schedule.getFlight() != null && schedule.getFlight().getDepartureAirport() != null ? 
+                                schedule.getFlight().getDepartureAirport().getIataCode() : "")
+                        .destination(schedule.getFlight() != null && schedule.getFlight().getArrivalAirport() != null ? 
+                                schedule.getFlight().getArrivalAirport().getIataCode() : "")
+                        .aircraftType(schedule.getAircraftType())
+                        .fareClass(fareClass.name())
+                        .calculatedPrice(calculatedPrice)
+                        .availableSeats(100) // Default value, would be based on aircraft capacity in real implementation
+                        .currency("VND")
+                        .build();
+                
+                results.add(result);
+            } catch (Exception e) {
+                log.error("Error calculating price for schedule: {}", schedule.getScheduleId(), e);
+                // Add error result
+                FlightFareCalculationResultDto errorResult = FlightFareCalculationResultDto.builder()
+                        .scheduleId(schedule.getScheduleId())
+                        .flightNumber(schedule.getFlight() != null ? schedule.getFlight().getFlightNumber() : "Unknown")
+                        .origin("ERROR")
+                        .destination("ERROR")
+                        .aircraftType(schedule.getAircraftType())
+                        .fareClass(fareClass.name())
+                        .calculatedPrice(BigDecimal.ZERO)
+                        .availableSeats(0)
+                        .currency("VND")
+                        .build();
+                results.add(errorResult);
+            }
+        }
+        
+        return results;
+    }
+
+    /**
+     * Create flight fares in bulk
+     */
+    public Map<String, Object> createFlightFaresBulk(BulkFlightFareRequestDto bulkRequest) {
+        log.info("Creating flight fares in bulk for {} schedules", bulkRequest.getScheduleIds().size());
+        
+        int successCount = 0;
+        int errorCount = 0;
+        List<String> errors = new ArrayList<>();
+        
+        // Convert fare class string to enum
+        FareClass fareClass;
+        try {
+            fareClass = FareClass.valueOf(bulkRequest.getFareClass().toUpperCase());
+        } catch (IllegalArgumentException e) {
+            throw new IllegalArgumentException("Invalid fare class: " + bulkRequest.getFareClass());
+        }
+        
+        // Process each schedule
+        for (UUID scheduleId : bulkRequest.getScheduleIds()) {
+            try {
+                // Check if schedule exists
+                if (!flightScheduleRepository.existsById(scheduleId)) {
+                    errors.add("Schedule not found: " + scheduleId);
+                    errorCount++;
+                    continue;
+                }
+                
+                // Check if fare already exists (unless override is requested)
+                FlightFare existingFare = flightFareRepository.findByScheduleIdAndFareClass(scheduleId, fareClass);
+                if (existingFare != null && !existingFare.isDeleted() && 
+                    (bulkRequest.getOverrideExisting() == null || !bulkRequest.getOverrideExisting())) {
+                    errors.add("Fare already exists for schedule " + scheduleId + " and fare class " + bulkRequest.getFareClass());
+                    errorCount++;
+                    continue;
+                }
+                
+                FlightFare flightFare;
+                if (existingFare != null && !existingFare.isDeleted()) {
+                    // Update existing fare
+                    flightFare = existingFare;
+                    flightFare.setPrice(bulkRequest.getPrice());
+                    flightFare.setAvailableSeats(bulkRequest.getAvailableSeats());
+                } else {
+                    // Create new fare
+                    flightFare = new FlightFare();
+                    flightFare.setScheduleId(scheduleId);
+                    flightFare.setFareClass(fareClass);
+                    flightFare.setPrice(bulkRequest.getPrice());
+                    flightFare.setAvailableSeats(bulkRequest.getAvailableSeats());
+                }
+                
+                flightFareRepository.save(flightFare);
+                successCount++;
+                
+            } catch (Exception e) {
+                log.error("Error processing fare for schedule: {}", scheduleId, e);
+                errors.add("Error for schedule " + scheduleId + ": " + e.getMessage());
+                errorCount++;
+            }
+        }
+        
+        Map<String, Object> response = new HashMap<>();
+        response.put("successCount", successCount);
+        response.put("errorCount", errorCount);
+        response.put("totalProcessed", bulkRequest.getScheduleIds().size());
+        response.put("errors", errors);
+        
+        log.info("Bulk fare creation completed: {} success, {} errors", successCount, errorCount);
+        return response;
+    }
+
+    /**
+     * Update flight fare availability (seats)
+     */
+    public FlightFareDto updateFlightFareAvailability(UUID id, Integer availableSeats) {
+        log.info("Updating flight fare availability: ID={}, seats={}", id, availableSeats);
+        
+        FlightFare flightFare = flightFareRepository.findById(id)
+                .orElseThrow(() -> new EntityNotFoundException("Flight fare not found with ID: " + id));
+        
+        if (flightFare.isDeleted()) {
+            throw new EntityNotFoundException("Flight fare not found with ID: " + id);
+        }
+        
+        flightFare.setAvailableSeats(availableSeats);
+        FlightFare updatedFare = flightFareRepository.save(flightFare);
+        
+        log.info("Flight fare availability updated successfully with ID: {}", id);
+        return toDto(updatedFare);
+    }
+
+    /**
+     * Get all fare class multipliers
+     */
+    @Transactional(readOnly = true)
+    public List<FareClassMultiplierConfigResponseDto> getFareClassMultipliers() {
+        log.info("Fetching all fare class multipliers");
+        return fareClassMultiplierConfigService.getAllMultipliers();
+    }
+
+    /**
+     * Update fare class multiplier
+     */
+    public FareClassMultiplierConfigResponseDto updateFareClassMultiplier(FareClassMultiplierConfigDto configDto) {
+        log.info("Updating fare class multiplier for: {}", configDto.getFareClass());
+        return fareClassMultiplierConfigService.updateMultiplier(configDto);
+    }
+
+    /**
+     * Get fare class multiplier by fare class
+     */
+    @Transactional(readOnly = true)
+    public FareClassMultiplierConfigResponseDto getFareClassMultiplier(String fareClass) {
+        log.info("Fetching fare class multiplier for: {}", fareClass);
+        return fareClassMultiplierConfigService.getMultiplierConfig(fareClass);
+    }
+
+    /**
+     * Get all pricing strategies
+     */
+    @Transactional(readOnly = true)
+    public List<PricingStrategyConfigResponseDto> getPricingStrategies() {
+        log.info("Fetching all pricing strategies");
+        return pricingStrategyConfigService.getAllStrategies();
+    }
+
+    /**
+     * Get pricing strategy by ID
+     */
+    @Transactional(readOnly = true)
+    public PricingStrategyConfigResponseDto getPricingStrategy(Long strategyId) {
+        log.info("Fetching pricing strategy: {}", strategyId);
+        return pricingStrategyConfigService.getStrategyById(strategyId);
+    }
+
+    /**
+     * Create or update pricing strategy
+     */
+    public PricingStrategyConfigResponseDto savePricingStrategy(PricingStrategyConfigDto strategyDto) {
+        log.info("Saving pricing strategy: {}", strategyDto.getStrategyName());
+        return pricingStrategyConfigService.saveStrategy(strategyDto);
+    }
+
+    /**
+     * Delete pricing strategy
+     */
+    public boolean deletePricingStrategy(Long strategyId) {
+        log.info("Deleting pricing strategy: {}", strategyId);
+        return pricingStrategyConfigService.deleteStrategy(strategyId);
+    }
+
+    /**
+     * Set active pricing strategy
+     */
+    public PricingStrategyConfigResponseDto activatePricingStrategy(Long strategyId) {
+        log.info("Activating pricing strategy: {}", strategyId);
+        return pricingStrategyConfigService.setActiveStrategy(strategyId);
     }
 
     /**

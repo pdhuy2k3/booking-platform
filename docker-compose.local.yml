@@ -1,6 +1,3 @@
-# Local Development Infrastructure
-# This compose file only runs infrastructure services, allowing microservices to run locally for faster development
-version: '3.8'
 
 services:
   # PostgreSQL Database
@@ -101,19 +98,7 @@ services:
     networks:
       - booking-local-network
 
-  # Eureka Discovery Service
-  discovery-service:
-    build:
-      context: ./discovery-service
-      dockerfile: Dockerfile
-    container_name: bookingsmart-discovery-local
-    ports:
-      - "8761:8761"
-    environment:
-      - SPRING_PROFILES_ACTIVE=local
-      - SERVER_PORT=8761
-    networks:
-      - booking-local-network
+
 
   # Debezium Connect for CDC (Optional for local development)
   connect:

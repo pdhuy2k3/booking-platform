@@ -189,8 +189,8 @@ public class AirportMapper {
             airport.setName(requestDto.getName());
         }
         
-        if (StringUtils.hasText(requestDto.getCode())) {
-            airport.setIataCode(requestDto.getCode().toUpperCase());
+        if (StringUtils.hasText(requestDto.getIataCode())) {
+            airport.setIataCode(requestDto.getIataCode().toUpperCase());
         }
         
         if (StringUtils.hasText(requestDto.getCity())) {
@@ -212,7 +212,7 @@ public class AirportMapper {
         
         Airport airport = new Airport();
         airport.setName(requestDto.getName());
-        airport.setIataCode(requestDto.getCode().toUpperCase());
+        airport.setIataCode(requestDto.getIataCode().toUpperCase());
         airport.setCity(requestDto.getCity());
         airport.setCountry(requestDto.getCountry());
         airport.setIsActive(true);

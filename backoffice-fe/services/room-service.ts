@@ -60,7 +60,11 @@ export class RoomService {
    */
   static async createRoom(
     hotelId: number,
-    room: Omit<Room, "id" | "hotelId" | "hotelName" | "createdAt" | "updatedAt"> & { media?: MediaResponse[] }
+    room: Omit<Room, "id" | "hotelId" | "hotelName" | "createdAt" | "updatedAt"> & { 
+      media?: MediaResponse[];
+      inheritPriceFromRoomType?: boolean;
+      inheritMediaFromRoomType?: boolean;
+    }
   ): Promise<Room> {
     // Prepare the room data, ensuring media is sent instead of images
     const roomData = {
@@ -81,7 +85,11 @@ export class RoomService {
    */
   static async updateRoom(
     id: number,
-    room: Partial<Room> & { media?: MediaResponse[] }
+    room: Partial<Room> & { 
+      media?: MediaResponse[];
+      inheritPriceFromRoomType?: boolean;
+      inheritMediaFromRoomType?: boolean;
+    }
   ): Promise<Room> {
     // Prepare the room data, ensuring media is sent instead of images
     const roomData = {

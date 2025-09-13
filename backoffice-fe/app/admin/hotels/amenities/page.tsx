@@ -112,7 +112,7 @@ export default function AdminAmenities() {
       displayOrder: amenity.displayOrder,
     })
     // Load existing images if available
-    setEditingAmenityImages(amenity.images || [])
+    setEditingAmenityImages([])
     setIsEditDialogOpen(true)
   }
 
@@ -385,7 +385,7 @@ export default function AdminAmenities() {
                   <TableHead className="w-12">
                     <input
                       type="checkbox"
-                      checked={amenities?.content.length > 0 && selectedAmenities.length === amenities?.content.length}
+                      checked={amenities?.content && amenities.content.length > 0 && selectedAmenities.length === amenities.content.length}
                       onChange={toggleSelectAll}
                       className="rounded border-gray-300"
                     />

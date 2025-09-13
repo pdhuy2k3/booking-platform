@@ -51,6 +51,10 @@ public class Flight extends AbstractAuditEntity {
     @JoinColumn(name = "arrival_airport_id", nullable = false)
     private Airport arrivalAirport;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "aircraft_id")
+    private Aircraft aircraft;
+
     @Column(name = "is_active", nullable = false)
     private Boolean isActive = true;
 

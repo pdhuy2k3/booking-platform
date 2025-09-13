@@ -3,23 +3,37 @@
 import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog"
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
-import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Search, MoreHorizontal, Eye, Edit, Plus, Trash2, DollarSign, Plane } from "lucide-react"
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+} from "@/components/ui/command"
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover"
+import { Search, MoreHorizontal, Eye, Edit, Plus, Trash2, DollarSign, Plane, Check, ChevronsUpDown } from "lucide-react"
+import { cn } from "@/lib/utils"
 import { AdminLayout } from "@/components/admin/admin-layout"
 import { FlightFareService } from "@/services/flight-fare.service"
+import { FlightScheduleService } from "@/services/flight-schedule-service"
+import { FlightFareFormDialog } from "@/components/admin/flight/fare-form-dialog"
 import { useToast } from "@/hooks/use-toast"
-import type { FlightFare, PaginatedResponse, FlightFareCreateRequest, FlightFareUpdateRequest } from "@/types/api"
+import type { FlightFare, FlightSchedule, PaginatedResponse, FlightFareCreateRequest, FlightFareUpdateRequest } from "@/types/api"
 
 export default function AdminFlightFares() {
   const [flightFares, setFlightFares] = useState<PaginatedResponse<FlightFare> | null>(null)
+  const [flightSchedules, setFlightSchedules] = useState<FlightSchedule[]>([])
   const [loading, setLoading] = useState(true)
+  const [loadingSchedules, setLoadingSchedules] = useState(false)
   const [scheduleIdFilter, setScheduleIdFilter] = useState("")
   const [fareClassFilter, setFareClassFilter] = useState("")
   const [createDialogOpen, setCreateDialogOpen] = useState(false)
@@ -27,8 +41,10 @@ export default function AdminFlightFares() {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [selectedFare, setSelectedFare] = useState<FlightFare | null>(null)
   const [currentPage, setCurrentPage] = useState(0)
+  const [filterScheduleComboOpen, setFilterScheduleComboOpen] = useState(false)
+  const [fareClassComboOpen, setFareClassComboOpen] = useState(false)
 
-  // Form states
+  // Form states for legacy compatibility
   const [formData, setFormData] = useState<FlightFareCreateRequest>({
     scheduleId: "",
     fareClass: "ECONOMY",
@@ -39,9 +55,55 @@ export default function AdminFlightFares() {
 
   const { toast } = useToast()
 
+  // Helper function to get suggested seat count based on schedule and fare class
+  const getSuggestedSeatCount = (scheduleId: string, fareClass: string): number => {
+    const schedule = flightSchedules.find(s => s.scheduleId === scheduleId)
+    if (!schedule?.aircraft) return 0
+    
+    const aircraft = schedule.aircraft
+    switch (fareClass) {
+      case 'FIRST':
+        return aircraft.capacityFirst || 0
+      case 'BUSINESS':
+        return aircraft.capacityBusiness || 0
+      case 'PREMIUM_ECONOMY':
+        return Math.floor((aircraft.capacityEconomy || 0) * 0.3) // 30% of economy
+      case 'ECONOMY':
+        return aircraft.capacityEconomy || 0
+      default:
+        return 0
+    }
+  }
+
   useEffect(() => {
     loadFlightFares()
   }, [scheduleIdFilter, fareClassFilter, currentPage])
+
+  useEffect(() => {
+    loadFlightSchedules()
+  }, [])
+
+
+  const loadFlightSchedules = async () => {
+    try {
+      setLoadingSchedules(true)
+      const data = await FlightScheduleService.getFlightSchedules({
+        page: 0,
+        size: 100, // Get first 100 schedules for dropdown
+        status: "SCHEDULED" // Only show scheduled flights for fare creation
+      })
+      setFlightSchedules(data.content)
+    } catch (error) {
+      console.error("Failed to load flight schedules:", error)
+      toast({
+        title: "Lỗi",
+        description: "Không thể tải danh sách lịch trình chuyến bay",
+        variant: "destructive",
+      })
+    } finally {
+      setLoadingSchedules(false)
+    }
+  }
 
   const loadFlightFares = async () => {
     try {
@@ -65,26 +127,6 @@ export default function AdminFlightFares() {
     }
   }
 
-  const handleCreateFare = async (e: React.FormEvent) => {
-    e.preventDefault()
-    try {
-      await FlightFareService.createFlightFare(formData)
-      toast({
-        title: "Thành công",
-        description: "Đã tạo giá vé thành công",
-      })
-      setCreateDialogOpen(false)
-      resetForm()
-      loadFlightFares()
-    } catch (error) {
-      toast({
-        title: "Lỗi",
-        description: "Không thể tạo giá vé",
-        variant: "destructive",
-      })
-    }
-  }
-
   const handleEditFare = (fare: FlightFare) => {
     setSelectedFare(fare)
     setEditFormData({
@@ -93,28 +135,6 @@ export default function AdminFlightFares() {
       availableSeats: fare.availableSeats,
     })
     setEditDialogOpen(true)
-  }
-
-  const handleUpdateFare = async (e: React.FormEvent) => {
-    e.preventDefault()
-    if (!selectedFare) return
-
-    try {
-      await FlightFareService.updateFlightFare(selectedFare.fareId, editFormData)
-      toast({
-        title: "Thành công",
-        description: "Đã cập nhật giá vé thành công",
-      })
-      setEditDialogOpen(false)
-      setSelectedFare(null)
-      loadFlightFares()
-    } catch (error) {
-      toast({
-        title: "Lỗi",
-        description: "Không thể cập nhật giá vé",
-        variant: "destructive",
-      })
-    }
   }
 
   const handleDeleteFare = (fare: FlightFare) => {
@@ -243,27 +263,193 @@ export default function AdminFlightFares() {
           <CardContent>
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center space-x-2">
-                <div className="relative">
-                  <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
-                  <Input
-                    placeholder="Mã lịch trình..."
-                    value={scheduleIdFilter}
-                    onChange={(e) => setScheduleIdFilter(e.target.value)}
-                    className="pl-8 w-[200px]"
-                  />
+                <div className="space-y-2">
+                  <Popover open={filterScheduleComboOpen} onOpenChange={setFilterScheduleComboOpen}>
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant="outline"
+                        role="combobox"
+                        aria-expanded={filterScheduleComboOpen}
+                        className="w-[300px] justify-between"
+                      >
+                        {scheduleIdFilter
+                          ? (() => {
+                              const schedule = flightSchedules.find(s => s.scheduleId === scheduleIdFilter);
+                              return schedule ? (
+                                <div className="flex flex-col text-left">
+                                  <span className="font-medium">
+                                    {schedule.flight?.flightNumber || `Flight ${schedule.flightId}`}
+                                  </span>
+                                  <span className="text-sm text-muted-foreground">
+                                    {schedule.flight ? (
+                                      `${schedule.flight.departureAirport?.iataCode} → ${schedule.flight.arrivalAirport?.iataCode}`
+                                    ) : (
+                                      `Schedule ${schedule.scheduleId.slice(0, 8)}...`
+                                    )}
+                                    {" • "}
+                                    {FlightScheduleService.formatScheduleTime(schedule.departureTime)}
+                                  </span>
+                                </div>
+                              ) : "Chọn lịch trình chuyến bay";
+                            })()
+                          : "Chọn lịch trình chuyến bay"}
+                        <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-[300px] p-0">
+                      <Command>
+                        <CommandInput placeholder="Tìm kiếm lịch trình..." />
+                        <CommandEmpty>Không tìm thấy lịch trình.</CommandEmpty>
+                        <CommandGroup>
+                          {flightSchedules.map((schedule) => (
+                            <CommandItem
+                              key={schedule.scheduleId}
+                              value={`${schedule.flight?.flightNumber} ${schedule.flight?.departureAirport?.iataCode} ${schedule.flight?.arrivalAirport?.iataCode} ${schedule.scheduleId}`}
+                              onSelect={() => {
+                                setScheduleIdFilter(schedule.scheduleId);
+                                setFilterScheduleComboOpen(false);
+                              }}
+                            >
+                              <Check
+                                className={cn(
+                                  "mr-2 h-4 w-4",
+                                  scheduleIdFilter === schedule.scheduleId ? "opacity-100" : "opacity-0"
+                                )}
+                              />
+                              <div className="flex flex-col text-left">
+                                <span className="font-medium">
+                                  {schedule.flight?.flightNumber || `Flight ${schedule.flightId}`}
+                                </span>
+                                <span className="text-sm text-muted-foreground">
+                                  {schedule.flight ? (
+                                    `${schedule.flight.departureAirport?.iataCode} → ${schedule.flight.arrivalAirport?.iataCode}`
+                                  ) : (
+                                    `Schedule ${schedule.scheduleId.slice(0, 8)}...`
+                                  )}
+                                  {" • "}
+                                  {FlightScheduleService.formatScheduleTime(schedule.departureTime)}
+                                </span>
+                              </div>
+                            </CommandItem>
+                          ))}
+                        </CommandGroup>
+                      </Command>
+                    </PopoverContent>
+                  </Popover>
+                  {scheduleIdFilter && (
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      onClick={() => setScheduleIdFilter("")}
+                      className="w-full"
+                    >
+                      Hiển thị tất cả lịch trình
+                    </Button>
+                  )}
                 </div>
-                <Select value={fareClassFilter} onValueChange={setFareClassFilter}>
-                  <SelectTrigger className="w-[200px]">
-                    <SelectValue placeholder="Chọn hạng ghế" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="">Tất cả hạng ghế</SelectItem>
-                    <SelectItem value="ECONOMY">Phổ thông</SelectItem>
-                    <SelectItem value="PREMIUM_ECONOMY">Phổ thông đặc biệt</SelectItem>
-                    <SelectItem value="BUSINESS">Thương gia</SelectItem>
-                    <SelectItem value="FIRST">Hạng nhất</SelectItem>
-                  </SelectContent>
-                </Select>
+                <div className="space-y-2">
+                  <Popover open={fareClassComboOpen} onOpenChange={setFareClassComboOpen}>
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant="outline"
+                        role="combobox"
+                        aria-expanded={fareClassComboOpen}
+                        className="w-[200px] justify-between"
+                      >
+                        {fareClassFilter
+                          ? (() => {
+                              const classNames = {
+                                "ECONOMY": "Phổ thông",
+                                "PREMIUM_ECONOMY": "Phổ thông đặc biệt",
+                                "BUSINESS": "Thương gia",
+                                "FIRST": "Hạng nhất"
+                              };
+                              return classNames[fareClassFilter as keyof typeof classNames] || fareClassFilter;
+                            })()
+                          : "Chọn hạng ghế"}
+                        <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-[200px] p-0">
+                      <Command>
+                        <CommandInput placeholder="Tìm kiếm hạng ghế..." />
+                        <CommandEmpty>Không tìm thấy hạng ghế.</CommandEmpty>
+                        <CommandGroup>
+                          <CommandItem
+                            value="economy phổ thông"
+                            onSelect={() => {
+                              setFareClassFilter("ECONOMY");
+                              setFareClassComboOpen(false);
+                            }}
+                          >
+                            <Check
+                              className={cn(
+                                "mr-2 h-4 w-4",
+                                fareClassFilter === "ECONOMY" ? "opacity-100" : "opacity-0"
+                              )}
+                            />
+                            Phổ thông
+                          </CommandItem>
+                          <CommandItem
+                            value="premium economy phổ thông đặc biệt"
+                            onSelect={() => {
+                              setFareClassFilter("PREMIUM_ECONOMY");
+                              setFareClassComboOpen(false);
+                            }}
+                          >
+                            <Check
+                              className={cn(
+                                "mr-2 h-4 w-4",
+                                fareClassFilter === "PREMIUM_ECONOMY" ? "opacity-100" : "opacity-0"
+                              )}
+                            />
+                            Phổ thông đặc biệt
+                          </CommandItem>
+                          <CommandItem
+                            value="business thương gia"
+                            onSelect={() => {
+                              setFareClassFilter("BUSINESS");
+                              setFareClassComboOpen(false);
+                            }}
+                          >
+                            <Check
+                              className={cn(
+                                "mr-2 h-4 w-4",
+                                fareClassFilter === "BUSINESS" ? "opacity-100" : "opacity-0"
+                              )}
+                            />
+                            Thương gia
+                          </CommandItem>
+                          <CommandItem
+                            value="first hạng nhất"
+                            onSelect={() => {
+                              setFareClassFilter("FIRST");
+                              setFareClassComboOpen(false);
+                            }}
+                          >
+                            <Check
+                              className={cn(
+                                "mr-2 h-4 w-4",
+                                fareClassFilter === "FIRST" ? "opacity-100" : "opacity-0"
+                              )}
+                            />
+                            Hạng nhất
+                          </CommandItem>
+                        </CommandGroup>
+                      </Command>
+                    </PopoverContent>
+                  </Popover>
+                  {fareClassFilter && (
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      onClick={() => setFareClassFilter("")}
+                      className="w-full"
+                    >
+                      Hiển thị tất cả hạng ghế
+                    </Button>
+                  )}
+                </div>
               </div>
               <Button
                 onClick={() => setCreateDialogOpen(true)}
@@ -280,7 +466,8 @@ export default function AdminFlightFares() {
                 <TableHeader>
                   <TableRow>
                     <TableHead>Mã giá vé</TableHead>
-                    <TableHead>Mã lịch trình</TableHead>
+                    <TableHead>Chuyến bay</TableHead>
+                    <TableHead>Lịch trình</TableHead>
                     <TableHead>Hạng ghế</TableHead>
                     <TableHead>Giá vé</TableHead>
                     <TableHead>Ghế trống</TableHead>
@@ -290,26 +477,57 @@ export default function AdminFlightFares() {
                 <TableBody>
                   {loading ? (
                     <TableRow>
-                      <TableCell colSpan={6} className="text-center">
+                      <TableCell colSpan={7} className="text-center">
                         Đang tải...
                       </TableCell>
                     </TableRow>
                   ) : flightFares?.content?.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={6} className="text-center">
+                      <TableCell colSpan={7} className="text-center">
                         Không có dữ liệu
                       </TableCell>
                     </TableRow>
                   ) : (
-                    flightFares?.content?.map((fare) => (
-                      <TableRow key={fare.fareId}>
-                        <TableCell className="font-medium">{fare.fareId}</TableCell>
-                        <TableCell>{fare.scheduleId}</TableCell>
-                        <TableCell>{getFareClassBadge(fare.fareClass)}</TableCell>
-                        <TableCell className="font-semibold text-green-600">
-                          {formatPrice(fare.price)}
-                        </TableCell>
-                        <TableCell>{fare.availableSeats}</TableCell>
+                    flightFares?.content?.map((fare) => {
+                      const schedule = flightSchedules.find(s => s.scheduleId === fare.scheduleId)
+                      return (
+                        <TableRow key={fare.fareId}>
+                          <TableCell className="font-medium">{fare.fareId.slice(0, 8)}...</TableCell>
+                          <TableCell>
+                            {schedule?.flight ? (
+                              <div className="flex flex-col">
+                                <span className="font-medium">{schedule.flight.flightNumber}</span>
+                                <span className="text-sm text-muted-foreground">
+                                  {schedule.flight.airlineName || 'N/A'}
+                                </span>
+                              </div>
+                            ) : (
+                              <span className="text-muted-foreground">-</span>
+                            )}
+                          </TableCell>
+                          <TableCell>
+                            {schedule ? (
+                              <div className="flex flex-col">
+                                <span className="text-sm">
+                                  {schedule.flight ? (
+                                    `${schedule.flight.departureAirport?.iataCode} → ${schedule.flight.arrivalAirport?.iataCode}`
+                                  ) : (
+                                    `Schedule ${schedule.scheduleId.slice(0, 8)}...`
+                                  )}
+                                </span>
+                                <span className="text-xs text-muted-foreground">
+                                  {FlightScheduleService.formatScheduleTime(schedule.departureTime)}
+                                </span>
+                              </div>
+                            ) : (
+                              <span className="text-muted-foreground">{fare.scheduleId.slice(0, 8)}...</span>
+                            )}
+                          </TableCell>
+                          <TableCell>{getFareClassBadge(fare.fareClass)}</TableCell>
+                          <TableCell className="font-semibold text-green-600">
+                            {formatPrice(fare.price)}
+                          </TableCell>
+                          <TableCell>{fare.availableSeats}</TableCell>
                         <TableCell>
                           <DropdownMenu>
                             <DropdownMenuTrigger asChild>
@@ -333,7 +551,8 @@ export default function AdminFlightFares() {
                           </DropdownMenu>
                         </TableCell>
                       </TableRow>
-                    ))
+                      )
+                    })
                   )}
                 </TableBody>
               </Table>
@@ -368,159 +587,35 @@ export default function AdminFlightFares() {
       </div>
 
       {/* Create Flight Fare Dialog */}
-      <Dialog open={createDialogOpen} onOpenChange={setCreateDialogOpen}>
-        <DialogContent className="sm:max-w-[425px]">
-          <DialogHeader>
-            <DialogTitle>Thêm giá vé mới</DialogTitle>
-            <DialogDescription>
-              Tạo giá vé mới cho chuyến bay
-            </DialogDescription>
-          </DialogHeader>
-          <form onSubmit={handleCreateFare} className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="scheduleId">Mã lịch trình</Label>
-              <Input
-                id="scheduleId"
-                value={formData.scheduleId}
-                onChange={(e) => setFormData({ ...formData, scheduleId: e.target.value })}
-                placeholder="Nhập mã lịch trình"
-                required
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="fareClass">Hạng ghế</Label>
-              <Select
-                value={formData.fareClass}
-                onValueChange={(value: any) => setFormData({ ...formData, fareClass: value })}
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="ECONOMY">Phổ thông</SelectItem>
-                  <SelectItem value="PREMIUM_ECONOMY">Phổ thông đặc biệt</SelectItem>
-                  <SelectItem value="BUSINESS">Thương gia</SelectItem>
-                  <SelectItem value="FIRST">Hạng nhất</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="price">Giá vé (VND)</Label>
-              <Input
-                id="price"
-                type="number"
-                value={formData.price}
-                onChange={(e) => setFormData({ ...formData, price: Number(e.target.value) })}
-                placeholder="Nhập giá vé"
-                min="0"
-                required
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="availableSeats">Số ghế trống</Label>
-              <Input
-                id="availableSeats"
-                type="number"
-                value={formData.availableSeats}
-                onChange={(e) => setFormData({ ...formData, availableSeats: Number(e.target.value) })}
-                placeholder="Nhập số ghế trống"
-                min="0"
-                required
-              />
-            </div>
-
-            <div className="flex justify-end space-x-2">
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => {
-                  setCreateDialogOpen(false)
-                  resetForm()
-                }}
-              >
-                Hủy
-              </Button>
-              <Button type="submit" className="bg-blue-600 hover:bg-blue-700">
-                Tạo giá vé
-              </Button>
-            </div>
-          </form>
-        </DialogContent>
-      </Dialog>
+      <FlightFareFormDialog
+        isOpen={createDialogOpen}
+        onClose={() => {
+          setCreateDialogOpen(false)
+          resetForm()
+        }}
+        flightSchedules={flightSchedules}
+        onSuccess={() => {
+          setCreateDialogOpen(false)
+          resetForm()
+          loadFlightFares()
+        }}
+      />
 
       {/* Edit Flight Fare Dialog */}
-      <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
-        <DialogContent className="sm:max-w-[425px]">
-          <DialogHeader>
-            <DialogTitle>Chỉnh sửa giá vé</DialogTitle>
-            <DialogDescription>
-              Cập nhật thông tin giá vé
-            </DialogDescription>
-          </DialogHeader>
-          <form onSubmit={handleUpdateFare} className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="edit-fareClass">Hạng ghế</Label>
-              <Select
-                value={editFormData.fareClass}
-                onValueChange={(value: any) => setEditFormData({ ...editFormData, fareClass: value })}
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="ECONOMY">Phổ thông</SelectItem>
-                  <SelectItem value="PREMIUM_ECONOMY">Phổ thông đặc biệt</SelectItem>
-                  <SelectItem value="BUSINESS">Thương gia</SelectItem>
-                  <SelectItem value="FIRST">Hạng nhất</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="edit-price">Giá vé (VND)</Label>
-              <Input
-                id="edit-price"
-                type="number"
-                value={editFormData.price || 0}
-                onChange={(e) => setEditFormData({ ...editFormData, price: Number(e.target.value) })}
-                placeholder="Nhập giá vé"
-                min="0"
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="edit-availableSeats">Số ghế trống</Label>
-              <Input
-                id="edit-availableSeats"
-                type="number"
-                value={editFormData.availableSeats || 0}
-                onChange={(e) => setEditFormData({ ...editFormData, availableSeats: Number(e.target.value) })}
-                placeholder="Nhập số ghế trống"
-                min="0"
-              />
-            </div>
-
-            <div className="flex justify-end space-x-2">
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => {
-                  setEditDialogOpen(false)
-                  setSelectedFare(null)
-                }}
-              >
-                Hủy
-              </Button>
-              <Button type="submit" className="bg-blue-600 hover:bg-blue-700">
-                Cập nhật
-              </Button>
-            </div>
-          </form>
-        </DialogContent>
-      </Dialog>
+      <FlightFareFormDialog
+        isOpen={editDialogOpen}
+        onClose={() => {
+          setEditDialogOpen(false)
+          setSelectedFare(null)
+        }}
+        flightSchedules={flightSchedules}
+        initialData={selectedFare || undefined}
+        onSuccess={() => {
+          setEditDialogOpen(false)
+          setSelectedFare(null)
+          loadFlightFares()
+        }}
+      />
 
       {/* Delete Confirmation Dialog */}
       <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>

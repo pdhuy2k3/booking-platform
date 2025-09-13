@@ -53,13 +53,13 @@ export function AdminFormDialog({
 }: AdminFormDialogProps) {
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-[500px]">
-        <DialogHeader>
+      <DialogContent className="sm:max-w-[500px] max-h-[90vh] flex flex-col">
+        <DialogHeader className="flex-shrink-0">
           <DialogTitle>{title}</DialogTitle>
           {description && <DialogDescription>{description}</DialogDescription>}
         </DialogHeader>
         
-        <div className="space-y-4 py-4">
+        <div className="flex-1 overflow-y-auto space-y-4 py-4">
           {/* Regular form fields */}
           {fields.map((field) => (
             <div key={field.name} className={`space-y-2 ${field.className || ''}`}>
@@ -96,16 +96,19 @@ export function AdminFormDialog({
           ))}
         </div>
 
-        <div className="flex justify-end space-x-2">
-          <Button variant="outline" onClick={onClose} disabled={isSubmitting}>
-            Hủy
-          </Button>
-          <Button 
-            onClick={onSubmit} 
-            disabled={isSubmitting || !canSubmit}
-          >
-            {isSubmitting ? "Đang xử lý..." : submitLabel}
-          </Button>
+        {/* Footer */}
+        <div className="flex-shrink-0 border-t pt-4 mt-4">
+          <div className="flex justify-end space-x-2">
+            <Button variant="outline" onClick={onClose} disabled={isSubmitting}>
+              Hủy
+            </Button>
+            <Button 
+              onClick={onSubmit} 
+              disabled={isSubmitting || !canSubmit}
+            >
+              {isSubmitting ? "Đang xử lý..." : submitLabel}
+            </Button>
+          </div>
         </div>
       </DialogContent>
     </Dialog>

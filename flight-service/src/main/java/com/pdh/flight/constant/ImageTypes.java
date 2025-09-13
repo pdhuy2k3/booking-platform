@@ -13,6 +13,7 @@ public final class ImageTypes {
     public static final String ENTITY_TYPE_AIRLINE = "AIRLINE";
     public static final String ENTITY_TYPE_AIRPORT = "AIRPORT";
     public static final String ENTITY_TYPE_FLIGHT = "FLIGHT";
+    public static final String ENTITY_TYPE_AIRCRAFT = "AIRCRAFT";
 
     // Airline Image Types
     public static final String AIRLINE_LOGO = "LOGO";
@@ -44,6 +45,13 @@ public final class ImageTypes {
     public static final String FLIGHT_BUSINESS_CLASS = "BUSINESS_CLASS";
     public static final String FLIGHT_ECONOMY_CLASS = "ECONOMY_CLASS";
     public static final String FLIGHT_OTHER = "OTHER";
+
+    // Aircraft Image Types
+    public static final String AIRCRAFT_EXTERIOR = "EXTERIOR";
+    public static final String AIRCRAFT_COCKPIT = "COCKPIT";
+    public static final String AIRCRAFT_CABIN = "CABIN";
+    public static final String AIRCRAFT_SEAT = "SEAT";
+    public static final String AIRCRAFT_OTHER = "OTHER";
 
     // Common Image Types
     public static final String PRIMARY = "PRIMARY";

@@ -3,13 +3,16 @@ package com.pdh.flight.controller;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.pdh.common.config.OpenApiResponses;
 import com.pdh.flight.dto.FlightBookingDetailsDto;
+import com.pdh.flight.dto.response.FlightSearchResultDto;
 import com.pdh.flight.model.Flight;
 import com.pdh.flight.model.Airport;
 import com.pdh.flight.model.Airline;
+import com.pdh.flight.model.enums.FareClass;
 import com.pdh.flight.repository.FlightRepository;
 import com.pdh.flight.repository.AirportRepository;
 import com.pdh.flight.repository.AirlineRepository;
 import com.pdh.flight.service.FlightService;
+import com.pdh.flight.service.FlightSearchService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.media.Content;
@@ -52,6 +55,7 @@ public class FlightController {
     private final AirportRepository airportRepository;
     private final AirlineRepository airlineRepository;
     private final FlightService flightService;
+    private final FlightSearchService flightSearchService;
     private final ObjectMapper objectMapper;
 
 
@@ -98,15 +102,21 @@ public class FlightController {
             // Parse date
             LocalDate depDate = LocalDate.parse(departureDate);
 
+            // Parse fare class
+            FareClass fareClass = FareClass.valueOf(seatClass);
+
             // Create pageable
             Pageable pageable = PageRequest.of(page - 1, limit);
 
-            // Search flights using repository
-            Page<Flight> flightPage = flightRepository.findFlightsByRoute(origin, destination, depDate, pageable);
+            // Search flights using the new service with integrated pricing
+            Page<FlightSearchResultDto> flightPage = flightSearchService.searchFlights(
+                    origin, destination, depDate, 
+                    returnDate != null ? LocalDate.parse(returnDate) : null,
+                    passengers, fareClass, pageable);
 
             // Convert to response format
             List<Map<String, Object>> flights = flightPage.getContent().stream()
-                .map(this::convertFlightToResponse)
+                .map(this::convertSearchResultToResponse)
                 .collect(Collectors.toList());
 
             Map<String, Object> response = Map.of(
@@ -390,6 +400,28 @@ public class FlightController {
     // === HELPER METHODS ===
 
     /**
+     * Convert FlightSearchResultDto to response format
+     */
+    private Map<String, Object> convertSearchResultToResponse(FlightSearchResultDto result) {
+        Map<String, Object> response = new HashMap<>();
+        response.put("flightId", result.getFlightId());
+        response.put("airline", result.getAirline());
+        response.put("flightNumber", result.getFlightNumber());
+        response.put("origin", result.getOrigin());
+        response.put("destination", result.getDestination());
+        response.put("departureTime", result.getDepartureTime());
+        response.put("arrivalTime", result.getArrivalTime());
+        response.put("duration", result.getDuration());
+        response.put("price", result.getPrice());
+        response.put("currency", result.getCurrency());
+        response.put("formattedPrice", result.getFormattedPrice());
+        response.put("seatClass", result.getSeatClass());
+        response.put("availableSeats", result.getAvailableSeats());
+        response.put("aircraft", result.getAircraft());
+        return response;
+    }
+
+    /**
      * Convert Flight entity to response format
      */
     private Map<String, Object> convertFlightToResponse(Flight flight) {
@@ -402,10 +434,10 @@ public class FlightController {
         response.put("departureTime", "08:00"); // Mock time - in production, get from schedule
         response.put("arrivalTime", "10:30");   // Mock time - in production, calculate from departure + duration
         response.put("duration", formatDuration(flight.getBaseDurationMinutes()));
-        response.put("price", generateMockPrice()); // Mock price - in production, get from pricing service
+        response.put("price", 2500000); // Default price - in production, get from pricing service
         response.put("currency", "VND");
-        response.put("seatClass", "ECONOMY"); // Mock - in production, this would be a parameter
-        response.put("availableSeats", generateMockAvailableSeats()); // Mock - in production, get from inventory
+        response.put("seatClass", "ECONOMY");
+        response.put("availableSeats", 100); // Default - in production, get from inventory
         return response;
     }
 //

@@ -1,64 +1,59 @@
 "use client"
 
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Building } from "lucide-react"
 import type { Airline, PaginatedResponse } from "@/types/api"
 
 interface AirlineStatsProps {
-  airlines: PaginatedResponse<Airline> | null
+  data: PaginatedResponse<Airline> | null
 }
 
-export function AirlineStats({ airlines }: AirlineStatsProps) {
-  const totalAirlines = airlines?.totalElements || 0
-  const activeAirlines = airlines?.content.filter(a => a.isActive).length || 0
+export function AirlineStats({ data }: AirlineStatsProps) {
+  const totalAirlines = data?.totalElements || 0
+  const activeAirlines = data?.content?.filter(a => a.isActive).length || 0
+  const inactiveAirlines = totalAirlines - activeAirlines
+
+  const stats = [
+    {
+      title: "Tổng hãng hàng không",
+      value: totalAirlines,
+      description: "Tất cả hãng hàng không",
+      icon: <Building className="h-4 w-4 text-muted-foreground" />
+    },
+    {
+      title: "Đang hoạt động",
+      value: activeAirlines,
+      description: "Hãng đang hoạt động",
+      icon: <Building className="h-4 w-4 text-muted-foreground" />
+    },
+    {
+      title: "Tạm ngừng",
+      value: inactiveAirlines,
+      description: "Hãng tạm ngừng",
+      icon: <Building className="h-4 w-4 text-muted-foreground" />
+    },
+    {
+      title: "Tỷ lệ hoạt động",
+      value: totalAirlines > 0 ? `${Math.round((activeAirlines / totalAirlines) * 100)}%` : "0%",
+      description: "Phần trăm hãng hoạt động",
+      icon: <Building className="h-4 w-4 text-muted-foreground" />
+    }
+  ]
 
   return (
     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 lg:gap-6 mb-6">
-      <Card>
-        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-          <CardTitle className="text-sm font-medium">Tổng hãng hàng không</CardTitle>
-          <Building className="h-4 w-4 text-muted-foreground" />
-        </CardHeader>
-        <CardContent>
-          <div className="text-2xl font-bold">{totalAirlines}</div>
-          <p className="text-xs text-muted-foreground">Tất cả hãng hàng không</p>
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-          <CardTitle className="text-sm font-medium">Đang hoạt động</CardTitle>
-          <Building className="h-4 w-4 text-muted-foreground" />
-        </CardHeader>
-        <CardContent>
-          <div className="text-2xl font-bold">{activeAirlines}</div>
-          <p className="text-xs text-muted-foreground">Hãng đang hoạt động</p>
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-          <CardTitle className="text-sm font-medium">Tạm ngừng</CardTitle>
-          <Building className="h-4 w-4 text-muted-foreground" />
-        </CardHeader>
-        <CardContent>
-          <div className="text-2xl font-bold">{totalAirlines - activeAirlines}</div>
-          <p className="text-xs text-muted-foreground">Hãng tạm ngừng</p>
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-          <CardTitle className="text-sm font-medium">Tỷ lệ hoạt động</CardTitle>
-          <Building className="h-4 w-4 text-muted-foreground" />
-        </CardHeader>
-        <CardContent>
-          <div className="text-2xl font-bold">
-            {totalAirlines ? Math.round((activeAirlines / totalAirlines) * 100) : 0}%
-          </div>
-          <p className="text-xs text-muted-foreground">Hãng đang hoạt động</p>
-        </CardContent>
-      </Card>
+      {stats.map((stat, index) => (
+        <Card key={index}>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">{stat.title}</CardTitle>
+            {stat.icon}
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{stat.value}</div>
+            <p className="text-xs text-muted-foreground">{stat.description}</p>
+          </CardContent>
+        </Card>
+      ))}
     </div>
   )
 }

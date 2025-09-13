@@ -1,4 +1,4 @@
-import type { RoomType, MediaResponse, ApiResponse } from "@/types/api"
+import type { RoomType, RoomTypeInheritance, MediaResponse, ApiResponse } from "@/types/api"
 import { apiClient } from "@/lib/api-client"
 
 export class RoomTypeService {
@@ -34,6 +34,21 @@ export class RoomTypeService {
     } catch (error) {
       console.error("Error fetching room type:", error)
       return {} as RoomType
+    }
+  }
+
+  /**
+   * Get room type inheritance information by ID
+   */
+  static async getRoomTypeInheritance(id: number): Promise<RoomTypeInheritance> {
+    try {
+      const response = await apiClient.get<ApiResponse<RoomTypeInheritance>>(
+        `${this.BASE_PATH}/room-types/${id}/inheritance-info`
+      )
+      return response?.data || ({} as RoomTypeInheritance)
+    } catch (error) {
+      console.error("Error fetching room type inheritance info:", error)
+      return {} as RoomTypeInheritance
     }
   }
 
