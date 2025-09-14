@@ -177,21 +177,18 @@ services:
       - API_URL=https://api-bookingsmart.huypd.dev
     networks:
       - booking-network
-#  storefront-fe:
-#    profiles:
-#      - app
-#    build:
-#      context: ./storefront-fe
-#      dockerfile: Dockerfile
-#      args:
-#        - NEXT_PUBLIC_BFF_BASE_URL=${API_URL}
-#    image: phamduyhuyuit/bookingsmart-storefront-fe:latest
-#    environment:
-#      - NODE_ENV=production
-#      - NEXT_PUBLIC_BFF_BASE_URL=${API_URL}
-#    networks:
-#      - booking-network
-#    restart: unless-stopped
+  storefront-fe:
+    build:
+      context: ./storefront-fe
+      dockerfile: Dockerfile
+      args:
+        - NEXT_PUBLIC_BFF_BASE_URL=${API_URL}
+    image: phamduyhuyuit/bookingsmart-storefront-fe:latest
+    environment:
+      - NODE_ENV=production
+    networks:
+      - booking-network
+    restart: unless-stopped
 
   # Backoffice Frontend
   backoffice-fe:
