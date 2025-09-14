@@ -7,6 +7,20 @@ spring:
   application:
     name: STOREFRONT-GATEWAY
 
+  security:
+    oauth2:
+      client:
+        registration:
+          storefront-client:
+            client-id: storefront-bff
+            client-secret: ${KEYCLOAK_CLIENT_SECRET_STOREFRONT_BFF:wYUpnvBO9kXw9Aa7M1fU9DakJQ5XNIvx}
+            scope: profile, email, openid, roles
+            provider: keycloak
+            authorization-grant-type: authorization_code
+        provider:
+          keycloak:
+            issuer-uri: http://localhost:9090/realms/BookingSmart
+
 ---
 spring:
   config:
@@ -22,6 +36,7 @@ spring:
             - Path=/api/hotels/**
           filters:
             - StripPrefix=2
+            - TokenRelay=
 
         - id: flight-service
           uri: http://localhost:8083
@@ -29,6 +44,7 @@ spring:
             - Path=/api/flights/**
           filters:
             - StripPrefix=2
+            - TokenRelay=
 
         - id: booking-service
           uri: http://localhost:8084
@@ -36,6 +52,7 @@ spring:
             - Path=/api/bookings/**
           filters:
             - StripPrefix=2
+            - TokenRelay=
 
         - id: customer-service
           uri: http://localhost:8085
@@ -43,8 +60,10 @@ spring:
             - Path=/api/customers/**
           filters:
             - StripPrefix=2
+            - TokenRelay=
 
       default-filters:
+        - TokenRelay=
         - SaveSession
 
 eureka:
@@ -61,6 +80,21 @@ spring:
     activate:
       on-profile: docker
 
+  security:
+    oauth2:
+      client:
+        registration:
+          storefront-client:
+            client-name: Storefront
+            client-id: storefront-bff
+            client-secret: ${KEYCLOAK_CLIENT_SECRET_STOREFRONT_BFF}
+            scope: profile, email, openid, roles
+            provider: keycloak
+            authorization-grant-type: authorization_code
+        provider:
+          keycloak:
+            issuer-uri: ${JWT_ISSUER_URI}
+
   cloud:
     gateway:
       routes:
@@ -70,6 +104,7 @@ spring:
             - Path=/api/hotels/**
           filters:
             - StripPrefix=2
+            - TokenRelay=
 
         - id: flight-service
           uri: lb://FLIGHT-SERVICE
@@ -77,6 +112,7 @@ spring:
             - Path=/api/flights/**
           filters:
             - StripPrefix=2
+            - TokenRelay=
 
         - id: booking-service
           uri: lb://BOOKING-SERVICE
@@ -84,6 +120,7 @@ spring:
             - Path=/api/bookings/**
           filters:
             - StripPrefix=2
+            - TokenRelay=
 
         - id: customer-service
           uri: lb://CUSTOMER-SERVICE
@@ -91,6 +128,7 @@ spring:
             - Path=/api/customers/**
           filters:
             - StripPrefix=2
+            - TokenRelay=
 
         - id: frontend-fallback
           uri: http://storefront-fe:3000
@@ -98,6 +136,7 @@ spring:
             - Path=/**
 
       default-filters:
+        - TokenRelay=
         - SaveSession
 
 eureka:
@@ -120,3 +159,4 @@ logging:
   level:
     "[com.pdh.storefront]": DEBUG
     "[org.springframework.cloud.gateway]": DEBUG
+    "[org.springframework.security]": DEBUG
