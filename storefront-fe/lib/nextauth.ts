@@ -3,6 +3,13 @@ import KeycloakProvider from "next-auth/providers/keycloak"
 import { type JWT } from "next-auth/jwt"
 import { type Session } from "next-auth"
 
+// Extend the Session type to include accessToken
+declare module "next-auth" {
+  interface Session {
+    accessToken?: string
+  }
+}
+
 export const authOptions: NextAuthOptions = {
   providers: [
     KeycloakProvider({

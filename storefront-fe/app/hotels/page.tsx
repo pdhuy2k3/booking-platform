@@ -439,7 +439,7 @@ export default function HotelsPage() {
                         <p className="text-muted-foreground mb-4">{hotel.description}</p>
 
                         <div className="flex flex-wrap gap-2 mb-4">
-                          {hotel.amenities.map((amenity) => (
+                          {hotel.amenities.map((amenity: string) => (
                             <Badge key={amenity} variant="secondary" className="text-xs">
                               {amenity}
                             </Badge>
