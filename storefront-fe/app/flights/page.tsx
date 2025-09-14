@@ -1,7 +1,7 @@
 "use client"
 
-import { useState } from "react"
-import { useRouter } from "next/navigation"
+import { useEffect, useMemo, useState } from "react"
+import { useRouter, useSearchParams } from "next/navigation"
 import { Search, Filter, Plane, Clock, Star, MapPin, Calendar, Users } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -11,6 +11,7 @@ import { Slider } from "@/components/ui/slider"
 import { flightService } from "@/modules/flight/service"
 import type { FareClass } from "@/modules/flight/type"
 import { format } from "date-fns"
+import { FlightCardSkeleton } from "@/modules/flight/component/FlightCardSkeleton"
 
 export default function FlightsPage() {
   const router = useRouter()
@@ -19,6 +20,7 @@ export default function FlightsPage() {
   const [selectedAirlines, setSelectedAirlines] = useState<string[]>([])
 
   // Search form state
+  const searchParams = useSearchParams()
   const [origin, setOrigin] = useState("")
   const [destination, setDestination] = useState("")
   const [departDate, setDepartDate] = useState("") // YYYY-MM-DD
@@ -36,6 +38,14 @@ export default function FlightsPage() {
 
   const [flightResults, setFlightResults] = useState<any[]>([])
 
+  // Defaults for initial auto-search (can be overridden via env)
+  const DEFAULT_ORIGIN = process.env.NEXT_PUBLIC_DEFAULT_ORIGIN || "NYC"
+  const DEFAULT_DESTINATION = process.env.NEXT_PUBLIC_DEFAULT_DESTINATION || "LAX"
+  const DEFAULT_DEPARTURE_DAYS_AHEAD = parseInt(
+    process.env.NEXT_PUBLIC_DEFAULT_DEPARTURE_DAYS_AHEAD || "7",
+    10,
+  )
+
   const toggleAirline = (airline: string) => {
     setSelectedAirlines((prev) => (prev.includes(airline) ? prev.filter((a) => a !== airline) : [...prev, airline]))
   }
@@ -44,10 +54,24 @@ export default function FlightsPage() {
     router.push(`/flights/${encodeURIComponent(flight.id)}`)
   }
 
-  async function handleSearch() {
+  function pushQuery(nextPage: number) {
+    const params = new URLSearchParams()
+    if (origin) params.set("origin", origin)
+    if (destination) params.set("destination", destination)
+    if (departDate) params.set("departureDate", departDate)
+    if (returnDate) params.set("returnDate", returnDate)
+    if (passengers) params.set("passengers", passengers)
+    if (seatClass) params.set("seatClass", seatClass)
+    params.set("page", String(nextPage))
+    params.set("limit", String(limit))
+    router.replace(`/flights?${params.toString()}`)
+  }
+
+  async function handleSearch(nextPage?: number) {
     setLoading(true)
     setError(null)
     try {
+      const usePage = nextPage ?? page
       const res = await flightService.search({
         origin,
         destination,
@@ -55,7 +79,7 @@ export default function FlightsPage() {
         returnDate: returnDate || undefined,
         passengers: parseInt(passengers || "1", 10) || 1,
         seatClass,
-        page,
+        page: usePage,
         limit,
       })
       const ui = (res.flights || []).map((f) => ({
@@ -80,6 +104,26 @@ export default function FlightsPage() {
       }))
       setFlightResults(ui)
       setHasMore(Boolean(res.hasMore))
+      setPage(usePage)
+      pushQuery(usePage)
+      // Persist last successful search to restore on first load
+      try {
+        localStorage.setItem(
+          "flight:lastSearch",
+          JSON.stringify({
+            origin,
+            destination,
+            departDate,
+            returnDate,
+            passengers,
+            seatClass,
+            page: usePage,
+            limit,
+          }),
+        )
+      } catch {
+        // ignore storage errors
+      }
     } catch (e: any) {
       setError(e?.message || "Failed to load flights")
     } finally {
@@ -89,18 +133,84 @@ export default function FlightsPage() {
 
   function nextPage() {
     if (hasMore) {
-      setPage((p) => p + 1)
-      // Trigger search with updated page
-      void handleSearch()
+      const p = page + 1
+      void handleSearch(p)
     }
   }
 
   function prevPage() {
     if (page > 1) {
-      setPage((p) => p - 1)
-      void handleSearch()
+      const p = page - 1
+      void handleSearch(p)
     }
   }
+
+  // Initialize from query
+  useEffect(() => {
+    if (!searchParams) return
+    const o = searchParams.get("origin") || ""
+    const d = searchParams.get("destination") || ""
+    const dep = searchParams.get("departureDate") || ""
+    const ret = searchParams.get("returnDate") || ""
+    const pas = searchParams.get("passengers") || "1"
+    const cls = (searchParams.get("seatClass") as FareClass) || "ECONOMY"
+    const pg = parseInt(searchParams.get("page") || "1", 10)
+    setOrigin(o)
+    setDestination(d)
+    setDepartDate(dep)
+    setReturnDate(ret)
+    setPassengers(pas)
+    setSeatClass(cls)
+    setPage(isNaN(pg) ? 1 : pg)
+    if (o && d && dep) {
+      void handleSearch(isNaN(pg) ? 1 : pg)
+      return
+    }
+
+    // No query provided: try last search from localStorage
+    try {
+      const raw = localStorage.getItem("flight:lastSearch")
+      if (raw) {
+        const last = JSON.parse(raw) as {
+          origin: string
+          destination: string
+          departDate: string
+          returnDate?: string
+          passengers: string
+          seatClass: FareClass
+          page?: number
+        }
+        if (last?.origin && last?.destination && last?.departDate) {
+          setOrigin(last.origin)
+          setDestination(last.destination)
+          setDepartDate(last.departDate)
+          setReturnDate(last.returnDate || "")
+          setPassengers(last.passengers || "1")
+          setSeatClass(last.seatClass || "ECONOMY")
+          setPage(last.page && last.page > 0 ? last.page : 1)
+          // Defer to ensure state is applied
+          setTimeout(() => void handleSearch(last.page && last.page > 0 ? last.page : 1), 0)
+          return
+        }
+      }
+    } catch {
+      // ignore storage errors
+    }
+
+    // Fallback to sensible defaults and auto-search
+    const today = new Date()
+    const depart = new Date(today.getFullYear(), today.getMonth(), today.getDate() + DEFAULT_DEPARTURE_DAYS_AHEAD)
+    const depStr = format(depart, "yyyy-MM-dd")
+    setOrigin(DEFAULT_ORIGIN)
+    setDestination(DEFAULT_DESTINATION)
+    setDepartDate(depStr)
+    setReturnDate("")
+    setPassengers("1")
+    setSeatClass("ECONOMY")
+    setPage(1)
+    setTimeout(() => void handleSearch(1), 0)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   return (
     <div className="w-full h-full">
@@ -180,7 +290,7 @@ export default function FlightsPage() {
                 </Select>
               </div>
               <div className="flex items-end">
-                <Button className="w-full" onClick={handleSearch} disabled={loading}>
+                <Button className="w-full" onClick={() => handleSearch()} disabled={loading}>
                   <Search className="h-4 w-4 mr-2" />
                   {loading ? "Searching..." : "Search Flights"}
                 </Button>
@@ -292,6 +402,13 @@ export default function FlightsPage() {
                   </Button>
                 </div>
               </div>
+              {loading && (
+                <div className="space-y-3">
+                  {Array.from({ length: 3 }).map((_, i) => (
+                    <FlightCardSkeleton key={i} />
+                  ))}
+                </div>
+              )}
               {error && (
                 <Card>
                   <CardContent className="p-4 text-sm text-destructive-foreground">{error}</CardContent>

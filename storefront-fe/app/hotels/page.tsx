@@ -1,7 +1,8 @@
 "use client"
 
-import { useState } from "react"
-import { useRouter } from "next/navigation"
+import { useEffect, useState } from "react"
+import { useRouter, useSearchParams } from "next/navigation"
+import { HotelCardSkeleton } from "@/modules/hotel/component/HotelCardSkeleton"
 import { Search, Filter, Building2, MapPin, Calendar, Users, Star, Wifi, Car, Coffee, Dumbbell } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -13,6 +14,7 @@ import { hotelService } from "@/modules/hotel/service"
 
 export default function HotelsPage() {
   const router = useRouter()
+  const searchParams = useSearchParams()
   const [priceRange, setPriceRange] = useState([0, 500])
   const [selectedAmenities, setSelectedAmenities] = useState<string[]>([])
   const [selectedRatings, setSelectedRatings] = useState<number[]>([])
@@ -22,6 +24,18 @@ export default function HotelsPage() {
   const [limit] = useState(20)
   const [hasMore, setHasMore] = useState(false)
   const [results, setResults] = useState<any[]>([])
+
+  // Defaults for initial auto-search (configurable via env)
+  const DEFAULT_DESTINATION = process.env.NEXT_PUBLIC_DEFAULT_HOTEL_DESTINATION || "New York"
+  const DEFAULT_CHECKIN_DAYS_AHEAD = parseInt(
+    process.env.NEXT_PUBLIC_DEFAULT_HOTEL_CHECKIN_DAYS_AHEAD || "7",
+    10,
+  )
+  const DEFAULT_STAY_NIGHTS = parseInt(
+    process.env.NEXT_PUBLIC_DEFAULT_HOTEL_STAY_NIGHTS || "2",
+    10,
+  )
+  const DEFAULT_GUESTS = process.env.NEXT_PUBLIC_DEFAULT_HOTEL_GUESTS || "2-1"
 
   const amenities = [
     { name: "Free WiFi", icon: Wifi },
@@ -50,10 +64,22 @@ export default function HotelsPage() {
     router.push(`/hotels/${encodeURIComponent(hotel.id)}`)
   }
 
-  async function handleSearch() {
+  function pushQuery(nextPage: number) {
+    const params = new URLSearchParams()
+    if (destination) params.set("destination", destination)
+    if (checkInDate) params.set("checkInDate", checkInDate)
+    if (checkOutDate) params.set("checkOutDate", checkOutDate)
+    if (guests) params.set("guests", guests)
+    params.set("page", String(nextPage))
+    params.set("limit", String(limit))
+    router.replace(`/hotels?${params.toString()}`)
+  }
+
+  async function handleSearch(nextPage?: number) {
     setLoading(true)
     setError(null)
     try {
+      const usePage = nextPage ?? page
       const [g, r] = guests.split("-")
       const res = await hotelService.search({
         destination,
@@ -61,7 +87,7 @@ export default function HotelsPage() {
         checkOutDate,
         guests: parseInt(g || "2", 10),
         rooms: parseInt(r || "1", 10),
-        page,
+        page: usePage,
         limit,
       })
       const ui = (res.hotels || []).map((h) => ({
@@ -78,6 +104,17 @@ export default function HotelsPage() {
       }))
       setResults(ui)
       setHasMore(Boolean(res.hasMore))
+      setPage(usePage)
+      pushQuery(usePage)
+      // Persist last successful search
+      try {
+        localStorage.setItem(
+          "hotel:lastSearch",
+          JSON.stringify({ destination, checkInDate, checkOutDate, guests, page: usePage, limit }),
+        )
+      } catch {
+        // ignore storage errors
+      }
     } catch (e: any) {
       setError(e?.message || "Failed to load hotels")
     } finally {
@@ -87,17 +124,78 @@ export default function HotelsPage() {
 
   function nextPage() {
     if (hasMore) {
-      setPage((p) => p + 1)
-      void handleSearch()
+      const p = page + 1
+      void handleSearch(p)
     }
   }
 
   function prevPage() {
     if (page > 1) {
-      setPage((p) => p - 1)
-      void handleSearch()
+      const p = page - 1
+      void handleSearch(p)
     }
   }
+
+  // Initialize from query, then localStorage, else defaults
+  useEffect(() => {
+    if (!searchParams) return
+    const d = searchParams.get("destination") || ""
+    const ci = searchParams.get("checkInDate") || ""
+    const co = searchParams.get("checkOutDate") || ""
+    const g = searchParams.get("guests") || DEFAULT_GUESTS
+    const pg = parseInt(searchParams.get("page") || "1", 10)
+    setDestination(d)
+    setCheckInDate(ci)
+    setCheckOutDate(co)
+    setGuests(g)
+    setPage(isNaN(pg) ? 1 : pg)
+    if (d && ci && co) {
+      void handleSearch(isNaN(pg) ? 1 : pg)
+      return
+    }
+
+    // Try last search
+    try {
+      const raw = localStorage.getItem("hotel:lastSearch")
+      if (raw) {
+        const last = JSON.parse(raw) as {
+          destination: string
+          checkInDate: string
+          checkOutDate: string
+          guests: string
+          page?: number
+        }
+        if (last?.destination && last?.checkInDate && last?.checkOutDate) {
+          setDestination(last.destination)
+          setCheckInDate(last.checkInDate)
+          setCheckOutDate(last.checkOutDate)
+          setGuests(last.guests || DEFAULT_GUESTS)
+          setPage(last.page && last.page > 0 ? last.page : 1)
+          setTimeout(() => void handleSearch(last.page && last.page > 0 ? last.page : 1), 0)
+          return
+        }
+      }
+    } catch {
+      // ignore storage errors
+    }
+
+    // Fallback defaults and auto-search
+    const today = new Date()
+    const checkIn = new Date(today.getFullYear(), today.getMonth(), today.getDate() + DEFAULT_CHECKIN_DAYS_AHEAD)
+    const checkOut = new Date(
+      checkIn.getFullYear(),
+      checkIn.getMonth(),
+      checkIn.getDate() + Math.max(1, DEFAULT_STAY_NIGHTS),
+    )
+    const toYmd = (dt: Date) => `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, "0")}-${String(dt.getDate()).padStart(2, "0")}`
+    setDestination(DEFAULT_DESTINATION)
+    setCheckInDate(toYmd(checkIn))
+    setCheckOutDate(toYmd(checkOut))
+    setGuests(DEFAULT_GUESTS)
+    setPage(1)
+    setTimeout(() => void handleSearch(1), 0)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   return (
     <div className="w-full h-full">
@@ -156,7 +254,7 @@ export default function HotelsPage() {
               </div>
             </div>
             <div className="flex justify-end">
-              <Button className="w-full md:w-auto" onClick={handleSearch} disabled={loading}>
+              <Button className="w-full md:w-auto" onClick={() => handleSearch()} disabled={loading}>
                 <Search className="h-4 w-4 mr-2" />
                 {loading ? "Searching..." : "Search Hotels"}
               </Button>
@@ -276,6 +374,13 @@ export default function HotelsPage() {
             </div>
 
             <div className="space-y-6">
+              {loading && (
+                <div className="space-y-3">
+                  {Array.from({ length: 3 }).map((_, i) => (
+                    <HotelCardSkeleton key={i} />
+                  ))}
+                </div>
+              )}
               {error && (
                 <Card>
                   <CardContent className="p-4 text-sm text-destructive-foreground">{error}</CardContent>
