@@ -24,6 +24,9 @@ export type FlightSearchParams = {
   returnDate?: string // YYYY-MM-DD
   passengers?: number
   seatClass?: FareClass
+  sortBy?: string
+  airlineId?: number
+  departureAirportId?: number
   page?: number // 1-based
   limit?: number
 }

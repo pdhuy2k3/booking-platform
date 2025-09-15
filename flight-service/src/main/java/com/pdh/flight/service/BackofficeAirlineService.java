@@ -145,6 +145,47 @@ public class BackofficeAirlineService {
     }
 
     /**
+     * Search airlines for storefront autocomplete
+     */
+    @Transactional(readOnly = true)
+    public List<AirlineDto> searchAirlinesForStorefront(String query) {
+        log.info("Searching airlines for storefront: query={}", query);
+        
+        if (!StringUtils.hasText(query) || query.trim().length() < 2) {
+            return new ArrayList<>();
+        }
+
+        List<Airline> airlines = airlineRepository.findAll();
+        
+        return airlines.stream()
+                .filter(airline -> airline.getName().toLowerCase().contains(query.toLowerCase()) ||
+                                   airline.getIataCode().toLowerCase().contains(query.toLowerCase()))
+                .limit(10)
+                .map(airlineMapper::toDto)
+                .collect(Collectors.toList());
+    }
+
+    /**
+     * Get popular airlines for storefront
+     */
+    @Transactional(readOnly = true)
+    public List<AirlineDto> getPopularAirlines() {
+        log.info("Fetching popular airlines for storefront");
+        
+        // For now, return all active airlines
+        // In production, this would be based on booking statistics
+        List<Airline> airlines = airlineRepository.findAll();
+        
+        // Limit to top 10 popular airlines
+        return airlineMapper.toDtoList(
+            airlines.stream()
+                .filter(Airline::getIsActive)
+                .limit(10)
+                .collect(Collectors.toList())
+        );
+    }
+
+    /**
      * Search airlines for autocomplete functionality
      */
     public List<Map<String, Object>> searchAirlines(String query) {

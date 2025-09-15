@@ -39,7 +39,7 @@ public class FlightSearchService {
     private final PricingService pricingService;
     
     /**
-     * Search flights with pricing information
+     * Search flights with pricing information (backward compatibility)
      * 
      * @param origin Origin airport IATA code
      * @param destination Destination airport IATA code
@@ -54,15 +54,62 @@ public class FlightSearchService {
             String origin, String destination, LocalDate departureDate,
             LocalDate returnDate, int passengers, FareClass fareClass,
             Pageable pageable) {
+        return searchFlights(origin, destination, departureDate, returnDate, passengers, fareClass, pageable, "price", null, null);
+    }
+    
+    /**
+     * Search flights with pricing information
+     * 
+     * @param origin Origin airport IATA code
+     * @param destination Destination airport IATA code
+     * @param departureDate Departure date
+     * @param returnDate Return date (optional)
+     * @param passengers Number of passengers
+     * @param fareClass Fare class
+     * @param pageable Pageable object for pagination
+     * @param sortBy Sort by criteria (price, duration, departure, arrival)
+     * @return Page of FlightSearchResultDto with pricing
+     */
+    public Page<FlightSearchResultDto> searchFlights(
+            String origin, String destination, LocalDate departureDate,
+            LocalDate returnDate, int passengers, FareClass fareClass,
+            Pageable pageable, String sortBy) {
+        return searchFlights(origin, destination, departureDate, returnDate, passengers, fareClass, pageable, sortBy, null, null);
+    }
+    
+    /**
+     * Search flights with pricing information and filters
+     * 
+     * @param origin Origin airport IATA code
+     * @param destination Destination airport IATA code
+     * @param departureDate Departure date
+     * @param returnDate Return date (optional)
+     * @param passengers Number of passengers
+     * @param fareClass Fare class
+     * @param pageable Pageable object for pagination
+     * @param sortBy Sort by criteria (price, duration, departure, arrival)
+     * @param airlineId Filter by airline ID
+     * @param departureAirportId Filter by departure airport ID
+     * @return Page of FlightSearchResultDto with pricing
+     */
+    public Page<FlightSearchResultDto> searchFlights(
+            String origin, String destination, LocalDate departureDate,
+            LocalDate returnDate, int passengers, FareClass fareClass,
+            Pageable pageable, String sortBy, Long airlineId, Long departureAirportId) {
         
-        log.info("Searching flights: origin={}, destination={}, departureDate={}, passengers={}, fareClass={}",
-                origin, destination, departureDate, passengers, fareClass);
+        log.info("Searching flights: origin={}, destination={}, departureDate={}, passengers={}, fareClass={}, sortBy={}, airlineId={}, departureAirportId={}",
+                origin, destination, departureDate, passengers, fareClass, sortBy, airlineId, departureAirportId);
         
         try {
-            // Search for flights
-            Page<Flight> flightPage = flightRepository.findFlightsByRoute(origin, destination, departureDate, pageable);
+            // Search for flights based on sort criteria and filters
+            Page<Flight> flightPage;
+            if ("departure".equals(sortBy)) {
+                flightPage = flightRepository.findFlightsByRouteOrderByDepartureTime(origin, destination, departureDate, pageable);
+            } else {
+                flightPage = flightRepository.findFlightsByRoute(origin, destination, departureDate, pageable);
+            }
             
-            // Get schedules for these flights
+            // Get schedules for these flights on the specific departure date
             List<Long> flightIds = flightPage.getContent().stream()
                     .map(Flight::getFlightId)
                     .collect(Collectors.toList());

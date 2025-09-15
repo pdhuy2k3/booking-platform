@@ -5,8 +5,13 @@ spring:
   profiles:
     active: local
   application:
-    name: STOREFRONT-GATEWAY
+    name: STOREFRONT-BFF
 
+---
+spring:
+  config:
+    activate:
+      on-profile: local
   security:
     oauth2:
       client:
@@ -16,54 +21,28 @@ spring:
             client-secret: ${KEYCLOAK_CLIENT_SECRET_STOREFRONT_BFF:wYUpnvBO9kXw9Aa7M1fU9DakJQ5XNIvx}
             scope: profile, email, openid, roles
             provider: keycloak
-            authorization-grant-type: authorization_code
         provider:
           keycloak:
             issuer-uri: http://localhost:9090/realms/BookingSmart
-
----
-spring:
-  config:
-    activate:
-      on-profile: local
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+    consumer:
+      group-id: storefront-bff-group
 
   cloud:
     gateway:
       routes:
-        - id: hotel-service
-          uri: http://localhost:8082
+        - id: api
+          uri: http://api.bookingsmart.local
           predicates:
-            - Path=/api/hotels/**
+            - Path=/api/**
           filters:
-            - StripPrefix=2
+            - RewritePath=/api/(?<segment>.*), /$\{segment}
             - TokenRelay=
 
-        - id: flight-service
-          uri: http://localhost:8083
-          predicates:
-            - Path=/api/flights/**
-          filters:
-            - StripPrefix=2
-            - TokenRelay=
-
-        - id: booking-service
-          uri: http://localhost:8084
-          predicates:
-            - Path=/api/bookings/**
-          filters:
-            - StripPrefix=2
-            - TokenRelay=
-
-        - id: customer-service
-          uri: http://localhost:8085
-          predicates:
-            - Path=/api/customers/**
-          filters:
-            - StripPrefix=2
-            - TokenRelay=
+        # Frontend fallback route - redirect to storefront domain
 
       default-filters:
-        - TokenRelay=
         - SaveSession
 
 eureka:
@@ -75,11 +54,11 @@ eureka:
     prefer-ip-address: false
 
 ---
+
 spring:
   config:
     activate:
       on-profile: docker
-
   security:
     oauth2:
       client:
@@ -90,54 +69,37 @@ spring:
             client-secret: ${KEYCLOAK_CLIENT_SECRET_STOREFRONT_BFF}
             scope: profile, email, openid, roles
             provider: keycloak
-            authorization-grant-type: authorization_code
         provider:
           keycloak:
             issuer-uri: ${JWT_ISSUER_URI}
-
   cloud:
     gateway:
-      routes:
-        - id: hotel-service
-          uri: lb://HOTEL-SERVICE
-          predicates:
-            - Path=/api/hotels/**
-          filters:
-            - StripPrefix=2
-            - TokenRelay=
-
-        - id: flight-service
-          uri: lb://FLIGHT-SERVICE
-          predicates:
-            - Path=/api/flights/**
-          filters:
-            - StripPrefix=2
-            - TokenRelay=
-
-        - id: booking-service
-          uri: lb://BOOKING-SERVICE
-          predicates:
-            - Path=/api/bookings/**
-          filters:
-            - StripPrefix=2
-            - TokenRelay=
-
-        - id: customer-service
-          uri: lb://CUSTOMER-SERVICE
-          predicates:
-            - Path=/api/customers/**
-          filters:
-            - StripPrefix=2
-            - TokenRelay=
-
-        - id: frontend-fallback
-          uri: http://storefront-fe:3000
-          predicates:
-            - Path=/**
-
-      default-filters:
-        - TokenRelay=
-        - SaveSession
+      server:
+        webflux:
+          routes:
+            - id: sse
+              uri: ${API_URL}
+              predicates:
+                - Path=/mcp/**
+              filters:
+                - RewritePath=/mcp/(?<segment>.*), /$\{segment}
+                - TokenRelay=
+                - SetResponseHeader=Cache-Control, no-cache, no-transform
+                - AddResponseHeader=Connection, keep-alive
+            - id: api
+              uri: ${API_URL}
+              predicates:
+                - Path=/api/**
+              filters:
+                - RewritePath=/api/(?<segment>.*), /$\{segment}
+                - TokenRelay=
+            # Default frontend route (lowest priority)
+            - id: frontend-fallback
+              uri: http://storefront-fe:3000
+              predicates:
+                - Path=/**
+          default-filters:
+            - SaveSession
 
 eureka:
   client:
@@ -158,5 +120,4 @@ management:
 logging:
   level:
     "[com.pdh.storefront]": DEBUG
-    "[org.springframework.cloud.gateway]": DEBUG
     "[org.springframework.security]": DEBUG

@@ -34,19 +34,21 @@ public class WebSecurityConfig {
     @Bean
     public SecurityWebFilterChain securityFilterChain(ServerHttpSecurity http) throws Exception {
         http.authorizeExchange(authorizationManagerRequestMatcherRegistry -> {
-            // As an API Gateway, we authenticate users but let backend services handle authorization
-            authorizationManagerRequestMatcherRegistry
-                    .anyExchange().permitAll(); // Permit all requests to flow through, auth handled by backend
-        })
+                    authorizationManagerRequestMatcherRegistry
+                            .pathMatchers("/profiles/**","/dashboards/**").authenticated()
+                            .anyExchange().permitAll();
+                })
                 .oauth2Login(Customizer.withDefaults())
                 .httpBasic(ServerHttpSecurity.HttpBasicSpec::disable)
                 .formLogin(ServerHttpSecurity.FormLoginSpec::disable)
                 .csrf(ServerHttpSecurity.CsrfSpec::disable)
+
                 .logout(logout -> logout
                         .logoutSuccessHandler(oidcLogoutSuccessHandler()));
-
         return http.build();
     }
+
+
 
     private ServerLogoutSuccessHandler oidcLogoutSuccessHandler() {
         OidcClientInitiatedServerLogoutSuccessHandler oidcLogoutSuccessHandler =
@@ -55,7 +57,7 @@ public class WebSecurityConfig {
 
         return oidcLogoutSuccessHandler;
     }
-    
+
     @Bean
     public GrantedAuthoritiesMapper userAuthoritiesMapperForKeycloak() {
         return authorities -> {
@@ -87,7 +89,7 @@ public class WebSecurityConfig {
 
     Collection<GrantedAuthority> generateAuthoritiesFromClaim(Collection<String> roles) {
         return roles.stream()
-            .map(role -> new SimpleGrantedAuthority("ROLE_" + role))
-            .collect(Collectors.toList());
+                .map(role -> new SimpleGrantedAuthority("ROLE_" + role))
+                .collect(Collectors.toList());
     }
 }

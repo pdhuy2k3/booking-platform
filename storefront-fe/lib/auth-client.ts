@@ -1,5 +1,4 @@
 
-import { apiClient } from '@/lib/api-client';
 export interface UserInfo {
   sub: string
   name: string

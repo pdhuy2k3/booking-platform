@@ -20,15 +20,61 @@ public interface FlightRepository extends JpaRepository<Flight, Long> {
      * Find flights by route (origin and destination airports)
      */
     @Query("""
-        SELECT f FROM Flight f
+        SELECT DISTINCT f FROM Flight f
         JOIN FETCH f.airline
         JOIN FETCH f.departureAirport da
         JOIN FETCH f.arrivalAirport aa
+        JOIN FlightSchedule fs ON fs.flightId = f.flightId
         WHERE da.iataCode = :origin
         AND aa.iataCode = :destination
+        AND DATE(fs.departureTime) = :departureDate
         ORDER BY f.flightNumber
         """)
     Page<Flight> findFlightsByRoute(
+        @Param("origin") String origin,
+        @Param("destination") String destination,
+        @Param("departureDate") LocalDate departureDate,
+        Pageable pageable
+    );
+
+    /**
+     * Find flights by route with filters for airlines and airports
+     */
+    @Query("""
+        SELECT DISTINCT f FROM Flight f
+        JOIN FETCH f.airline
+        JOIN FETCH f.departureAirport da
+        JOIN FETCH f.arrivalAirport aa
+        JOIN FlightSchedule fs ON fs.flightId = f.flightId
+        WHERE (:origin IS NULL OR da.iataCode = :origin)
+        AND (:destination IS NULL OR aa.iataCode = :destination)
+        AND (:departureDate IS NULL OR DATE(fs.departureTime) = :departureDate)
+        AND (:airlineId IS NULL OR f.airline.airlineId = :airlineId)
+        ORDER BY f.flightNumber
+        """)
+    Page<Flight> findFlightsByRouteWithFilters(
+        @Param("origin") String origin,
+        @Param("destination") String destination,
+        @Param("departureDate") LocalDate departureDate,
+        @Param("airlineId") Long airlineId,
+        Pageable pageable
+    );
+
+    /**
+     * Find flights by route sorted by departure time
+     */
+    @Query("""
+        SELECT DISTINCT f FROM Flight f
+        JOIN FETCH f.airline
+        JOIN FETCH f.departureAirport da
+        JOIN FETCH f.arrivalAirport aa
+        JOIN FlightSchedule fs ON fs.flightId = f.flightId
+        WHERE da.iataCode = :origin
+        AND aa.iataCode = :destination
+        AND DATE(fs.departureTime) = :departureDate
+        ORDER BY fs.departureTime
+        """)
+    Page<Flight> findFlightsByRouteOrderByDepartureTime(
         @Param("origin") String origin,
         @Param("destination") String destination,
         @Param("departureDate") LocalDate departureDate,

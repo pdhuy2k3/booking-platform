@@ -54,12 +54,29 @@ public interface AirlineRepository extends JpaRepository<Airline, Long> {
     boolean existsByIataCodeIgnoreCase(String iataCode);
     
     /**
+     * Find airline by ID and active status
+     * @param id the airline ID
+     * @param isActive the active status
+     * @return Optional containing the airline if found
+     */
+    Optional<Airline> findByAirlineIdAndIsActive(Long id, Boolean isActive);
+    
+    /**
      * Find active airlines with pagination
      * @param pageable pagination information
      * @return Page of active airlines
      */
-    @Query("SELECT a FROM Airline a WHERE a.isActive = true")
-    Page<Airline> findAllActive(Pageable pageable);
+    Page<Airline> findByIsActiveTrue(Pageable pageable);
+    
+    /**
+     * Search airlines by name or IATA code (for autocomplete)
+     * @param name search term for name
+     * @param iataCode search term for IATA code
+     * @param pageable pagination information
+     * @return Page of matching airlines
+     */
+    Page<Airline> findByNameContainingIgnoreCaseOrIataCodeContainingIgnoreCase(
+        String name, String iataCode, Pageable pageable);
     
     /**
      * Find airlines by name containing the given string with pagination

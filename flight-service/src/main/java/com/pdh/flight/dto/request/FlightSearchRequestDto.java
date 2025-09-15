@@ -79,6 +79,16 @@ public class FlightSearchRequestDto {
     private String airlines;
     
     /**
+     * Origin airport filter (comma-separated IATA codes)
+     */
+    private String originAirports;
+    
+    /**
+     * Destination airport filter (comma-separated IATA codes)
+     */
+    private String destinationAirports;
+    
+    /**
      * Maximum number of stops
      */
     private Integer maxStops;

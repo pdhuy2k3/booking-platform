@@ -131,30 +131,32 @@ spring:
             issuer-uri: ${JWT_ISSUER_URI}
   cloud:
     gateway:
-      routes:
-        - id: sse
-          uri: ${API_URL}
-          predicates:
-            - Path=/mcp/**
-          filters:
-            - RewritePath=/mcp/(?<segment>.*), /$\{segment}
-            - TokenRelay=
-            - SetResponseHeader=Cache-Control, no-cache, no-transform
-            - AddResponseHeader=Connection, keep-alive
-        - id: api
-          uri: ${API_URL}
-          predicates:
-            - Path=/api/**
-          filters:
-            - RewritePath=/api/(?<segment>.*), /$\{segment}
-            - TokenRelay=
-        # Default frontend route (lowest priority)
-        - id: frontend-fallback
-          uri: http://backoffice-fe:3001
-          predicates:
-            - Path=/**
-      default-filters:
-        - SaveSession
+      server:
+        webflux:
+          routes:
+            - id: sse
+              uri: ${API_URL}
+              predicates:
+                - Path=/mcp/**
+              filters:
+                - RewritePath=/mcp/(?<segment>.*), /$\{segment}
+                - TokenRelay=
+                - SetResponseHeader=Cache-Control, no-cache, no-transform
+                - AddResponseHeader=Connection, keep-alive
+            - id: api
+              uri: ${API_URL}
+              predicates:
+                - Path=/api/**
+              filters:
+                - RewritePath=/api/(?<segment>.*), /$\{segment}
+                - TokenRelay=
+            # Default frontend route (lowest priority)
+            - id: frontend-fallback
+              uri: http://backoffice-fe:3001
+              predicates:
+                - Path=/**
+          default-filters:
+            - SaveSession
 
 eureka:
   client:

@@ -13,6 +13,7 @@ import com.pdh.flight.repository.AirportRepository;
 import com.pdh.flight.repository.AirlineRepository;
 import com.pdh.flight.service.FlightService;
 import com.pdh.flight.service.FlightSearchService;
+import com.pdh.flight.service.CityDataService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.media.Content;
@@ -57,9 +58,8 @@ public class FlightController {
     private final FlightService flightService;
     private final FlightSearchService flightSearchService;
     private final ObjectMapper objectMapper;
+    private final CityDataService cityDataService;
 
-
-    // === STOREFRONT API ENDPOINTS ===
 
     /**
      * Search flights for storefront
@@ -90,6 +90,12 @@ public class FlightController {
             @RequestParam(defaultValue = "1") int passengers,
             @Parameter(description = "Seat class", example = "ECONOMY")
             @RequestParam(defaultValue = "ECONOMY") String seatClass,
+            @Parameter(description = "Sort by criteria (price, duration, departure, arrival)", example = "departure")
+            @RequestParam(defaultValue = "departure") String sortBy,
+            @Parameter(description = "Filter by airline ID", example = "1")
+            @RequestParam(required = false) Long airlineId,
+            @Parameter(description = "Filter by departure airport ID", example = "1")
+            @RequestParam(required = false) Long departureAirportId,
             @Parameter(description = "Page number (1-based)", example = "1")
             @RequestParam(defaultValue = "1") int page,
             @Parameter(description = "Number of results per page", example = "20")
@@ -99,20 +105,107 @@ public class FlightController {
                 origin, destination, departureDate, passengers, seatClass);
 
         try {
+            // Validate required parameters
+            if (origin == null || origin.trim().isEmpty()) {
+                Map<String, Object> errorResponse = Map.of(
+                    "error", "Validation failed",
+                    "message", "Origin airport is required",
+                    "flights", List.of(),
+                    "totalCount", 0,
+                    "page", page,
+                    "limit", limit,
+                    "hasMore", false
+                );
+                return ResponseEntity.badRequest().body(errorResponse);
+            }
+
+            if (destination == null || destination.trim().isEmpty()) {
+                Map<String, Object> errorResponse = Map.of(
+                    "error", "Validation failed",
+                    "message", "Destination airport is required",
+                    "flights", List.of(),
+                    "totalCount", 0,
+                    "page", page,
+                    "limit", limit,
+                    "hasMore", false
+                );
+                return ResponseEntity.badRequest().body(errorResponse);
+            }
+
+            if (departureDate == null || departureDate.trim().isEmpty()) {
+                Map<String, Object> errorResponse = Map.of(
+                    "error", "Validation failed",
+                    "message", "Departure date is required",
+                    "flights", List.of(),
+                    "totalCount", 0,
+                    "page", page,
+                    "limit", limit,
+                    "hasMore", false
+                );
+                return ResponseEntity.badRequest().body(errorResponse);
+            }
+
             // Parse date
-            LocalDate depDate = LocalDate.parse(departureDate);
+            LocalDate depDate;
+            try {
+                depDate = LocalDate.parse(departureDate);
+            } catch (Exception e) {
+                Map<String, Object> errorResponse = Map.of(
+                    "error", "Validation failed",
+                    "message", "Invalid departure date format. Expected YYYY-MM-DD",
+                    "flights", List.of(),
+                    "totalCount", 0,
+                    "page", page,
+                    "limit", limit,
+                    "hasMore", false
+                );
+                return ResponseEntity.badRequest().body(errorResponse);
+            }
 
             // Parse fare class
-            FareClass fareClass = FareClass.valueOf(seatClass);
+            FareClass fareClass;
+            try {
+                fareClass = FareClass.valueOf(seatClass);
+            } catch (Exception e) {
+                Map<String, Object> errorResponse = Map.of(
+                    "error", "Validation failed",
+                    "message", "Invalid seat class. Valid values are: ECONOMY, BUSINESS, FIRST",
+                    "flights", List.of(),
+                    "totalCount", 0,
+                    "page", page,
+                    "limit", limit,
+                    "hasMore", false
+                );
+                return ResponseEntity.badRequest().body(errorResponse);
+            }
 
             // Create pageable
             Pageable pageable = PageRequest.of(page - 1, limit);
 
+            // Parse return date if provided
+            LocalDate retDate = null;
+            if (returnDate != null && !returnDate.trim().isEmpty()) {
+                try {
+                    retDate = LocalDate.parse(returnDate);
+                } catch (Exception e) {
+                    Map<String, Object> errorResponse = Map.of(
+                        "error", "Validation failed",
+                        "message", "Invalid return date format. Expected YYYY-MM-DD",
+                        "flights", List.of(),
+                        "totalCount", 0,
+                        "page", page,
+                        "limit", limit,
+                        "hasMore", false
+                    );
+                    return ResponseEntity.badRequest().body(errorResponse);
+                }
+            }
+
             // Search flights using the new service with integrated pricing
             Page<FlightSearchResultDto> flightPage = flightSearchService.searchFlights(
                     origin, destination, depDate, 
-                    returnDate != null ? LocalDate.parse(returnDate) : null,
-                    passengers, fareClass, pageable);
+                    retDate,
+                    passengers, fareClass, pageable, sortBy, airlineId, departureAirportId);
 
             // Convert to response format
             List<Map<String, Object>> flights = flightPage.getContent().stream()
@@ -153,6 +246,66 @@ public class FlightController {
         }
     }
 
+
+    @Operation(
+        summary = "Get initial flight data",
+        description = "Get initial flight data for storefront when user hasn't performed a search yet. Returns popular routes and default flight information.",
+        tags = {"Public API"}
+    )
+    @ApiResponses(value = {
+        @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "Initial flight data retrieved successfully",
+            content = @Content(schema = @Schema(implementation = Map.class))
+        )
+    })
+    @GetMapping("/storefront/flights")
+    public ResponseEntity<Map<String, Object>> getFlights(
+            @Parameter(description = "Page number (0-based)", example = "0")
+            @RequestParam(defaultValue = "0") int page,
+            @Parameter(description = "Number of results per page", example = "20")
+            @RequestParam(defaultValue = "20") int limit) {
+        
+        log.info("Initial flight data request: page={}, limit={}", page, limit);
+        
+        try {
+            // Create pageable for flights
+            Pageable pageable = PageRequest.of(page, limit);
+            
+            // Get all flights (without search filters) for initial display
+            Page<Flight> flightPage = flightRepository.findAll(pageable);
+            
+            // Convert flights to response format
+            List<Map<String, Object>> flights = flightPage.getContent().stream()
+                .map(this::convertFlightToResponse)
+                .collect(Collectors.toList());
+            
+            // Get popular destinations
+            List<Map<String, Object>> popularDestinations = getPopularDestinationsData();
+            
+            // Get origin and destination data from external API
+            List<Map<String, Object>> origins = getOriginData();
+            List<Map<String, Object>> destinations = getDestinationData();
+            
+            Map<String, Object> response = Map.of(
+                "flights", flights,
+                "popularDestinations", popularDestinations,
+                "origins", origins,
+                "destinations", destinations,
+                "totalCount", flightPage.getTotalElements(),
+                "page", page,
+                "limit", limit,
+                "hasMore", flightPage.hasNext()
+            );
+            
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            log.error("Error getting initial flight data", e);
+            Map<String, Object> errorResponse = Map.of(
+                "error", "Failed to retrieve initial flight data",
+                "message", e.getMessage()
+            );
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(errorResponse);
+        }
+    }
     /**
      * Get flight details by ID for storefront
      */
@@ -240,24 +393,6 @@ public class FlightController {
         }
     }
 
-    /**
-     * Get flight details for backoffice
-     */
-    @Operation(
-        summary = "Get flight details for backoffice",
-        description = "Retrieve flight information for administrative purposes",
-        tags = {"Admin API"}
-    )
-    @SecurityRequirement(name = "oauth2", scopes = {"admin"})
-    @OpenApiResponses.StandardApiResponsesWithNotFound
-    @GetMapping("/backoffice/flight/{flightId}")
-    public ResponseEntity<Long> getFlightDetails(
-            @Parameter(description = "Flight ID", required = true, example = "1")
-            @PathVariable Long flightId) {
-        log.info("Getting flight details for ID: {}", flightId);
-        
-        return ResponseEntity.ok(flightId);
-    }
 
     // === BOOKING INTEGRATION ENDPOINTS ===
     
@@ -355,17 +490,10 @@ public class FlightController {
     @OpenApiResponses.StandardApiResponses
     @PostMapping("/cancel-reservation")
     public ResponseEntity<Map<String, Object>> cancelFlightReservation(@RequestBody Map<String, Object> request) {
-        log.info("Flight cancellation request: {}", request);
-        
-        String bookingId = (String) request.get("bookingId");
-        String sagaId = (String) request.get("sagaId");
-        String reason = (String) request.get("reason");
+
         
         // TODO
-        // 1. Find and cancel the reservation
-        // 2. Free up the seats
-        // 3. Update reservation status
-        
+
 
         return ResponseEntity.ok(Map.of());
     }
@@ -383,21 +511,67 @@ public class FlightController {
     @PostMapping("/confirm-reservation")
     public ResponseEntity<Map<String, Object>> confirmFlightReservation(@RequestBody Map<String, Object> request) {
         log.info("Flight confirmation request: {}", request);
-        
-        String bookingId = (String) request.get("bookingId");
-        String sagaId = (String) request.get("sagaId");
-        String confirmationNumber = (String) request.get("confirmationNumber");
-        
-        // Mock implementation - in real scenario, this would:
-        // 1. Convert temporary reservation to confirmed booking
-        // 2. Generate tickets
-        // 3. Send confirmation to customer
+        // TODO
+
         
 
         return ResponseEntity.ok(Map.of());
     }
 
     // === HELPER METHODS ===
+
+    /**
+     * Get popular destinations data
+     */
+    private List<Map<String, Object>> getPopularDestinationsData() {
+        // For now, return static popular destinations
+        // In production, this would be based on booking statistics
+        return List.of(
+            Map.of(
+                "code", "SGN",
+                "name", "Tan Son Nhat International Airport",
+                "city", "Ho Chi Minh City",
+                "country", "Vietnam",
+                "image", "/destinations/hcmc.jpg",
+                "averagePrice", 2200000,
+                "currency", "VND"
+            ),
+            Map.of(
+                "code", "DAD",
+                "name", "Da Nang International Airport",
+                "city", "Da Nang",
+                "country", "Vietnam",
+                "image", "/destinations/danang.jpg",
+                "averagePrice", 1800000,
+                "currency", "VND"
+            ),
+            Map.of(
+                "code", "HAN",
+                "name", "Noi Bai International Airport",
+                "city", "Hanoi",
+                "country", "Vietnam",
+                "image", "/destinations/hanoi.jpg",
+                "averagePrice", 2500000,
+                "currency", "VND"
+            )
+        );
+    }
+
+    /**
+     * Get origin data from external API
+     */
+    private List<Map<String, Object>> getOriginData() {
+        // In production, this calls the tinhthanhpho.com API
+        return cityDataService.getAllProvincesAndCities();
+    }
+
+    /**
+     * Get destination data from external API
+     */
+    private List<Map<String, Object>> getDestinationData() {
+        // In production, this calls the tinhthanhpho.com API
+        return cityDataService.getAllProvincesAndCities();
+    }
 
     /**
      * Convert FlightSearchResultDto to response format

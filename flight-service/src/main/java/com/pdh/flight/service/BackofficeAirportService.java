@@ -195,7 +195,45 @@ public class BackofficeAirportService {
     }
 
     /**
-     * Search airports for autocomplete
+     * Search airports for storefront autocomplete
+     */
+    @Transactional(readOnly = true)
+    public List<AirportDto> searchAirportsForStorefront(String query) {
+        log.info("Searching airports for storefront: query={}", query);
+        
+        if (!StringUtils.hasText(query) || query.length() < 2) {
+            return Collections.emptyList();
+        }
+        
+        // Limit results for autocomplete
+        Pageable pageable = PageRequest.of(0, 10);
+        Page<Airport> airports = airportRepository.findByNameContainingIgnoreCaseOrIataCodeContainingIgnoreCaseOrCityContainingIgnoreCase(
+            query, query, query, pageable);
+        
+        return airportMapper.toDtoList(airports.getContent());
+    }
+
+    /**
+     * Get popular airports for storefront
+     */
+    @Transactional(readOnly = true)
+    public List<AirportDto> getPopularAirports() {
+        log.info("Fetching popular airports for storefront");
+        
+        // For now, return all active airports
+        // In production, this would be based on booking statistics
+        List<Airport> airports = airportRepository.findAllActive();
+        
+        // Limit to top 10 popular airports
+        return airportMapper.toDtoList(
+            airports.stream()
+                .limit(10)
+                .collect(Collectors.toList())
+        );
+    }
+
+    /**
+     * Search airports for autocomplete functionality
      */
     @Transactional(readOnly = true)
     public List<Map<String, Object>> searchAirports(String query) {
