@@ -1,4 +1,18 @@
-export type ID = string
+// Import common types
+import type {
+  ID,
+  DestinationSearchResult,
+  SearchResponse,
+  ErrorResponse
+} from '../../../types/common'
+
+// Re-export common types
+export type {
+  ID,
+  DestinationSearchResult,
+  SearchResponse,
+  ErrorResponse
+}
 
 export type HotelSearchParams = {
   destination: string
@@ -10,18 +24,26 @@ export type HotelSearchParams = {
   limit?: number
 }
 
+// Matches HotelController.convertHotelToResponse fields
 export type HotelSearchResult = {
-  id: string
+  hotelId: string
   name: string
-  address?: string
-  city?: string
-  country?: string
-  starRating?: number
-  description?: string
-  minPrice?: number
-  currency?: string
-  availableRooms?: number
-  mediaIds?: number[]
+  address: string
+  city: string
+  rating: number
+  pricePerNight: number
+  currency: string
+  availableRooms: Array<{
+    roomId: string
+    roomType: string
+    capacity: number
+    pricePerNight: number
+    amenities: string[]
+    available: boolean
+  }>
+  amenities: string[]
+  images: string[]
+  primaryImage?: string
 }
 
 export type HotelSearchResponse = {
@@ -31,20 +53,85 @@ export type HotelSearchResponse = {
   limit: number
   hasMore: boolean
   filters?: Record<string, unknown>
+  // Optional fields for initial data
+  popularDestinations?: Array<{
+    code: string
+    name: string
+    country: string
+    image: string
+    averagePrice: number
+    currency: string
+    hotelCount: number
+  }>
+  cities?: Array<{
+    code: string
+    name: string
+    type: string
+    country: string
+  }>
+}
+
+// Initial hotel data response from /hotels/storefront/hotels
+export type InitialHotelData = {
+  hotels: HotelSearchResult[]
+  popularDestinations: Array<{
+    code: string
+    name: string
+    country: string
+    image: string
+    averagePrice: number
+    currency: string
+    hotelCount: number
+  }>
+  cities: Array<{
+    code: string
+    name: string
+    type: string
+    country: string
+  }>
+  totalCount: number
+  page: number
+  limit: number
+  hasMore: boolean
 }
 
 export type HotelDetails = {
-  id: number | string
+  hotelId: string
   name: string
   address: string
   city: string
   country: string
+  rating: number
   starRating: number
   description: string
-  isActive: boolean
-  availableRooms: number
-  minPrice: number
-  currency?: string
-  amenities?: string[]
-  mediaIds?: number[]
+  pricePerNight: number
+  currency: string
+  availableRooms: Array<{
+    roomId: string
+    roomType: string
+    capacity: number
+    pricePerNight: number
+    amenities: string[]
+    available: boolean
+  }>
+  roomTypes: Array<{
+    id: string
+    name: string
+    description?: string
+    capacityAdults?: number
+    basePrice: number
+    features: string[]
+    image: string
+  }>
+  amenities: string[]
+  images: string[]
+  primaryImage?: string
+  checkInTime: string
+  checkOutTime: string
+  policies: {
+    cancellation: string
+    children: string
+    pets: string
+    smoking: string
+  }
 }

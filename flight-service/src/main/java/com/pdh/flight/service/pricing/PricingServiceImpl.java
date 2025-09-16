@@ -2,14 +2,11 @@ package com.pdh.flight.service.pricing;
 
 import com.pdh.flight.dto.response.FlightFareDto;
 import com.pdh.flight.model.Flight;
-import com.pdh.flight.model.FlightFare;
 import com.pdh.flight.model.FlightSchedule;
 import com.pdh.flight.model.enums.FareClass;
-import com.pdh.flight.repository.FlightFareRepository;
-import com.pdh.flight.repository.FlightRepository;
-import com.pdh.flight.repository.FlightScheduleRepository;
-import lombok.RequiredArgsConstructor;
+import com.pdh.flight.service.FlightFareService;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
@@ -18,20 +15,22 @@ import java.time.DayOfWeek;
 import java.time.LocalDate;
 import java.time.temporal.ChronoUnit;
 import java.util.*;
-import java.util.stream.Collectors;
 
 /**
  * Implementation of the pricing service for flight fare calculations
  */
 @Service
-@RequiredArgsConstructor
 @Slf4j
 public class PricingServiceImpl implements PricingService {
     
-    private final FlightFareRepository flightFareRepository;
-    private final FlightRepository flightRepository;
-    private final FlightScheduleRepository flightScheduleRepository;
+    private final FlightFareService flightFareService;
     private final FareClassMultiplierConfigService fareClassMultiplierConfigService;
+    
+    public PricingServiceImpl(@Lazy FlightFareService flightFareService, 
+                            FareClassMultiplierConfigService fareClassMultiplierConfigService) {
+        this.flightFareService = flightFareService;
+        this.fareClassMultiplierConfigService = fareClassMultiplierConfigService;
+    }
     
     // Configuration constants
     private static final double BASE_PRICE_FACTOR = 1.0;
@@ -91,53 +90,21 @@ public class PricingServiceImpl implements PricingService {
     
     @Override
     public FlightFareDto getBestFare(UUID scheduleId, FareClass fareClass) {
-        // Directly query the repository instead of using FlightFareService
-        FlightFare fare = flightFareRepository.findByScheduleIdAndFareClass(scheduleId, fareClass);
-        if (fare != null && !fare.isDeleted() && fare.getAvailableSeats() > 0) {
-            return FlightFareDto.builder()
-                .fareId(fare.getFareId())
-                .scheduleId(fare.getScheduleId())
-                .fareClass(fare.getFareClass() != null ? fare.getFareClass().name() : null)
-                .price(fare.getPrice())
-                .availableSeats(fare.getAvailableSeats())
-                .build();
-        }
-        return null;
+        return flightFareService.getFareByScheduleIdAndClass(scheduleId, fareClass);
     }
     
     @Override
     public List<FlightFareDto> getAvailableFares(UUID scheduleId) {
-        // Directly query the repository instead of using FlightFareService
-        List<FlightFare> fares = flightFareRepository.findByScheduleId(scheduleId);
+        // Get all fares and filter for available ones
+        List<FlightFareDto> fares = flightFareService.getFaresByScheduleId(scheduleId);
         return fares.stream()
-            .filter(fare -> !fare.isDeleted() && fare.getAvailableSeats() > 0)
-            .map(fare -> FlightFareDto.builder()
-                .fareId(fare.getFareId())
-                .scheduleId(fare.getScheduleId())
-                .fareClass(fare.getFareClass() != null ? fare.getFareClass().name() : null)
-                .price(fare.getPrice())
-                .availableSeats(fare.getAvailableSeats())
-                .build())
-            .collect(Collectors.toList());
+            .filter(fare -> fare.getAvailableSeats() > 0)
+            .toList();
     }
     
     @Override
     public Map<UUID, List<FlightFareDto>> getFaresForSchedules(List<UUID> scheduleIds) {
-        // Directly query the repository instead of using FlightFareService
-        List<FlightFare> fares = flightFareRepository.findByScheduleIdIn(scheduleIds);
-        return fares.stream()
-            .filter(fare -> !fare.isDeleted() && fare.getAvailableSeats() > 0)
-            .collect(Collectors.groupingBy(
-                FlightFare::getScheduleId,
-                Collectors.mapping(fare -> FlightFareDto.builder()
-                    .fareId(fare.getFareId())
-                    .scheduleId(fare.getScheduleId())
-                    .fareClass(fare.getFareClass() != null ? fare.getFareClass().name() : null)
-                    .price(fare.getPrice())
-                    .availableSeats(fare.getAvailableSeats())
-                    .build(), 
-                Collectors.toList())
-            ));
+        return flightFareService.getFaresByScheduleIds(scheduleIds);
     }
     
     @Override

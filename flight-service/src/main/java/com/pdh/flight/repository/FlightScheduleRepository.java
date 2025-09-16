@@ -50,8 +50,8 @@ public interface FlightScheduleRepository extends JpaRepository<FlightSchedule, 
     @Query("SELECT fs FROM FlightSchedule fs WHERE fs.flightId IN :flightIds AND fs.departureTime BETWEEN :startTime AND :endTime AND fs.isDeleted = false ORDER BY fs.flightId, fs.departureTime")
     List<FlightSchedule> findByFlightIdInAndDepartureTimeBetween(
         @Param("flightIds") List<Long> flightIds,
-        @Param("startTime") LocalDateTime startTime,
-        @Param("endTime") LocalDateTime endTime
+        @Param("startTime") ZonedDateTime startTime,
+        @Param("endTime") ZonedDateTime endTime
     );
     
     /**

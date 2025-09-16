@@ -5,7 +5,6 @@ import com.pdh.flight.dto.response.FlightSearchResultDto;
 import com.pdh.flight.model.Flight;
 import com.pdh.flight.model.FlightSchedule;
 import com.pdh.flight.model.Aircraft;
-import com.pdh.flight.model.Airport;
 import com.pdh.flight.model.enums.FareClass;
 import com.pdh.flight.repository.FlightRepository;
 import com.pdh.flight.repository.FlightScheduleRepository;
@@ -19,8 +18,9 @@ import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
-import java.time.LocalDateTime;
 import java.time.LocalTime;
+import java.time.ZoneId;
+import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
 import java.util.stream.Collectors;
@@ -35,53 +35,14 @@ public class FlightSearchService {
     
     private final FlightRepository flightRepository;
     private final FlightScheduleRepository flightScheduleRepository;
-    private final FlightFareService flightFareService;
     private final PricingService pricingService;
+    private final FlightSearchSpecificationService flightSearchSpecificationService;
     
     /**
-     * Search flights with pricing information (backward compatibility)
+     * Search flights with pricing information and filters using JPA Specifications
      * 
-     * @param origin Origin airport IATA code
-     * @param destination Destination airport IATA code
-     * @param departureDate Departure date
-     * @param returnDate Return date (optional)
-     * @param passengers Number of passengers
-     * @param fareClass Fare class
-     * @param pageable Pageable object for pagination
-     * @return Page of FlightSearchResultDto with pricing
-     */
-    public Page<FlightSearchResultDto> searchFlights(
-            String origin, String destination, LocalDate departureDate,
-            LocalDate returnDate, int passengers, FareClass fareClass,
-            Pageable pageable) {
-        return searchFlights(origin, destination, departureDate, returnDate, passengers, fareClass, pageable, "price", null, null);
-    }
-    
-    /**
-     * Search flights with pricing information
-     * 
-     * @param origin Origin airport IATA code
-     * @param destination Destination airport IATA code
-     * @param departureDate Departure date
-     * @param returnDate Return date (optional)
-     * @param passengers Number of passengers
-     * @param fareClass Fare class
-     * @param pageable Pageable object for pagination
-     * @param sortBy Sort by criteria (price, duration, departure, arrival)
-     * @return Page of FlightSearchResultDto with pricing
-     */
-    public Page<FlightSearchResultDto> searchFlights(
-            String origin, String destination, LocalDate departureDate,
-            LocalDate returnDate, int passengers, FareClass fareClass,
-            Pageable pageable, String sortBy) {
-        return searchFlights(origin, destination, departureDate, returnDate, passengers, fareClass, pageable, sortBy, null, null);
-    }
-    
-    /**
-     * Search flights with pricing information and filters
-     * 
-     * @param origin Origin airport IATA code
-     * @param destination Destination airport IATA code
+     * @param origin Origin airport IATA code, city name, or country
+     * @param destination Destination airport IATA code, city name, or country
      * @param departureDate Departure date
      * @param returnDate Return date (optional)
      * @param passengers Number of passengers
@@ -101,25 +62,39 @@ public class FlightSearchService {
                 origin, destination, departureDate, passengers, fareClass, sortBy, airlineId, departureAirportId);
         
         try {
-            // Search for flights based on sort criteria and filters
-            Page<Flight> flightPage;
-            if ("departure".equals(sortBy)) {
-                flightPage = flightRepository.findFlightsByRouteOrderByDepartureTime(origin, destination, departureDate, pageable);
-            } else {
-                flightPage = flightRepository.findFlightsByRoute(origin, destination, departureDate, pageable);
+            // Build search criteria for JPA Specifications
+            FlightSearchSpecificationService.FlightSearchCriteria criteria = new FlightSearchSpecificationService.FlightSearchCriteria();
+            criteria.setOrigin(origin);
+            criteria.setDestination(destination);
+            
+            // Set date range
+            if (departureDate != null) {
+                criteria.setStartDate(departureDate.atStartOfDay());
+                if (returnDate != null) {
+                    criteria.setEndDate(returnDate.atTime(23, 59, 59));
+                } else {
+                    criteria.setEndDate(departureDate.atTime(23, 59, 59));
+                }
             }
+            
+            // Search flights using JPA Specifications
+            Page<Flight> flightPage = flightSearchSpecificationService.searchFlights(criteria, pageable);
             
             // Get schedules for these flights on the specific departure date
             List<Long> flightIds = flightPage.getContent().stream()
                     .map(Flight::getFlightId)
                     .collect(Collectors.toList());
             
+            // Convert LocalDateTime to ZonedDateTime for repository call
+            ZonedDateTime startTime = departureDate != null ? 
+                departureDate.atStartOfDay().atZone(ZoneId.of("UTC")) : 
+                LocalDate.now().atStartOfDay().atZone(ZoneId.of("UTC"));
+            ZonedDateTime endTime = departureDate != null ? 
+                departureDate.atTime(LocalTime.MAX).atZone(ZoneId.of("UTC")) : 
+                LocalDate.now().atTime(LocalTime.MAX).atZone(ZoneId.of("UTC"));
+            
             List<FlightSchedule> schedules = flightScheduleRepository
-                    .findByFlightIdInAndDepartureTimeBetween(
-                            flightIds,
-                            departureDate.atStartOfDay(),
-                            departureDate.atTime(LocalTime.MAX)
-                    );
+                    .findByFlightIdInAndDepartureTimeBetween(flightIds, startTime, endTime);
             
             // Get schedule IDs for fare lookup
             List<UUID> scheduleIds = schedules.stream()

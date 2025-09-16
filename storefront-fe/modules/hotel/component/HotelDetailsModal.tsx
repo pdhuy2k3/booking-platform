@@ -1,62 +1,114 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { X, MapPin, Star, Wifi, Car, Coffee, Dumbbell, Building2, Calendar, Check } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Separator } from "@/components/ui/separator"
-
-interface Hotel {
-  id: number
-  name: string
-  image: string
-  location: string
-  rating: number
-  reviews: number
-  price: number
-  originalPrice: number
-  amenities: string[]
-  description: string
-}
+import { hotelService } from "../service"
+import type { HotelDetails } from "../type"
 
 interface HotelDetailsModalProps {
-  hotel: Hotel | null
+  hotelId: string | null
   isOpen: boolean
   onClose: () => void
 }
 
-export default function HotelDetailsModal({ hotel, isOpen, onClose }: HotelDetailsModalProps) {
+export default function HotelDetailsModal({ hotelId, isOpen, onClose }: HotelDetailsModalProps) {
   const [selectedRoom, setSelectedRoom] = useState("standard")
+  const [hotel, setHotel] = useState<HotelDetails | null>(null)
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
-  if (!isOpen || !hotel) return null
+  // Fetch hotel details when modal opens and hotelId is provided
+  useEffect(() => {
+    if (isOpen && hotelId) {
+      setLoading(true)
+      setError(null)
+      hotelService.get(hotelId)
+        .then((hotelData) => {
+          setHotel(hotelData)
+        })
+        .catch((err) => {
+          setError(err.message || "Failed to load hotel details")
+        })
+        .finally(() => {
+          setLoading(false)
+        })
+    } else {
+      setHotel(null)
+    }
+  }, [isOpen, hotelId])
 
-  const roomTypes = [
-    {
-      id: "standard",
-      name: "Standard Room",
-      price: hotel.price,
-      originalPrice: hotel.originalPrice,
-      features: ["Queen bed", "City view", "25 sqm", "Free WiFi"],
-      image: "/placeholder.svg?height=200&width=300",
-    },
-    {
-      id: "deluxe",
-      name: "Deluxe Room",
-      price: hotel.price + 50,
-      originalPrice: hotel.originalPrice + 70,
-      features: ["King bed", "Balcony", "35 sqm", "Mini bar", "Free WiFi"],
-      image: "/placeholder.svg?height=200&width=300",
-    },
-    {
-      id: "suite",
-      name: "Executive Suite",
-      price: hotel.price + 120,
-      originalPrice: hotel.originalPrice + 150,
-      features: ["King bed", "Separate living area", "50 sqm", "City view", "Mini bar", "Free WiFi"],
-      image: "/placeholder.svg?height=200&width=300",
-    },
-  ]
+  if (!isOpen || !hotelId) return null
+
+  if (loading) {
+    return (
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
+        <div className="relative w-[90%] h-[90%] bg-background rounded-lg shadow-2xl overflow-hidden">
+          <div className="flex items-center justify-center h-full">
+            <div className="text-center">
+              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
+              <p className="text-muted-foreground">Loading hotel details...</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  if (error || !hotel) {
+    return (
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
+        <div className="relative w-[90%] h-[90%] bg-background rounded-lg shadow-2xl overflow-hidden">
+          <div className="flex items-center justify-center h-full">
+            <div className="text-center">
+              <p className="text-destructive mb-4">{error || "Hotel not found"}</p>
+              <Button onClick={onClose}>Close</Button>
+            </div>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  // Use real room types from API response, fallback to mock data if not available
+  const roomTypes = hotel.roomTypes && hotel.roomTypes.length > 0 
+    ? hotel.roomTypes.map((roomType: any) => ({
+        id: roomType.id,
+        name: roomType.name,
+        price: roomType.basePrice,
+        originalPrice: Math.round(roomType.basePrice * 1.2),
+        features: roomType.features || ["Queen bed", "City view", "25 sqm", "Free WiFi"],
+        image: roomType.image || hotel.images?.[0] || "/placeholder.svg?height=200&width=300",
+      }))
+    : [
+        {
+          id: "standard",
+          name: "Standard Room",
+          price: hotel.pricePerNight,
+          originalPrice: Math.round(hotel.pricePerNight * 1.2),
+          features: ["Queen bed", "City view", "25 sqm", "Free WiFi"],
+          image: hotel.images?.[0] || "/placeholder.svg?height=200&width=300",
+        },
+        {
+          id: "deluxe",
+          name: "Deluxe Room",
+          price: hotel.pricePerNight + 500000,
+          originalPrice: Math.round((hotel.pricePerNight + 500000) * 1.2),
+          features: ["King bed", "Balcony", "35 sqm", "Mini bar", "Free WiFi"],
+          image: hotel.images?.[1] || hotel.images?.[0] || "/placeholder.svg?height=200&width=300",
+        },
+        {
+          id: "suite",
+          name: "Executive Suite",
+          price: hotel.pricePerNight + 1200000,
+          originalPrice: Math.round((hotel.pricePerNight + 1200000) * 1.2),
+          features: ["King bed", "Separate living area", "50 sqm", "City view", "Mini bar", "Free WiFi"],
+          image: hotel.images?.[2] || hotel.images?.[0] || "/placeholder.svg?height=200&width=300",
+        },
+      ]
 
   const amenityIcons: { [key: string]: any } = {
     "Free WiFi": Wifi,
@@ -84,12 +136,12 @@ export default function HotelDetailsModal({ hotel, isOpen, onClose }: HotelDetai
         <div className="h-full overflow-y-auto">
           {/* Header Image */}
           <div className="relative h-64 md:h-80">
-            <img src={hotel.image || "/placeholder.svg"} alt={hotel.name} className="w-full h-full object-cover" />
+            <img src={hotel.primaryImage || hotel.images?.[0] || "/placeholder.svg"} alt={hotel.name} className="w-full h-full object-cover" />
             <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/60 to-transparent p-6">
               <h1 className="text-3xl font-bold text-white mb-2">{hotel.name}</h1>
               <div className="flex items-center space-x-2 text-white/90">
                 <MapPin className="h-4 w-4" />
-                <span>{hotel.location}</span>
+                <span>{hotel.city}, {hotel.country}</span>
               </div>
             </div>
           </div>
@@ -110,7 +162,7 @@ export default function HotelDetailsModal({ hotel, isOpen, onClose }: HotelDetai
                       ))}
                     </div>
                     <span className="text-lg font-semibold">{hotel.rating}</span>
-                    <span className="text-muted-foreground">({hotel.reviews} reviews)</span>
+                    <span className="text-muted-foreground">(0 reviews)</span>
                   </div>
                   <Badge variant="secondary" className="text-sm">
                     Excellent
@@ -173,7 +225,7 @@ export default function HotelDetailsModal({ hotel, isOpen, onClose }: HotelDetai
                                 </div>
                               </div>
                               <div className="flex flex-wrap gap-2">
-                                {room.features.map((feature) => (
+                                {room.features.map((feature: string) => (
                                   <Badge key={feature} variant="outline" className="text-xs">
                                     {feature}
                                   </Badge>

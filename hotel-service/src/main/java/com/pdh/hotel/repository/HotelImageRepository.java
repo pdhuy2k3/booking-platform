@@ -46,4 +46,10 @@ public interface HotelImageRepository extends JpaRepository<HotelImage, Long> {
      */
     @Query("SELECT COUNT(hi) > 0 FROM HotelImage hi WHERE hi.hotel.hotelId = :hotelId AND hi.mediaId = :mediaId")
     boolean existsByHotelIdAndMediaId(@Param("hotelId") Long hotelId, @Param("mediaId") Long mediaId);
+
+    /**
+     * Find primary image for a specific hotel
+     */
+    @Query("SELECT hi FROM HotelImage hi WHERE hi.hotel.hotelId = :hotelId AND hi.isPrimary = true")
+    HotelImage findPrimaryImageByHotelId(@Param("hotelId") Long hotelId);
 }

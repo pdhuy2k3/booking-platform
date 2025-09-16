@@ -22,7 +22,7 @@ spring:
         registration:
           api-client:
             client-id: backoffice-bff
-            client-secret: HvSjC1OSQXzDthr9ROecBZaRxA0CHHw6
+            client-secret: NUD4C2okshg6D8ttBfNoe9S5OAX3EaUD
             scope: profile, email, openid, roles
             provider: keycloak
         provider:

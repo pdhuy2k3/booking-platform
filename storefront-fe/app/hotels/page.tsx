@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { HotelCardSkeleton } from "@/modules/hotel/component/HotelCardSkeleton"
+import { HotelCard } from "@/modules/hotel/component/HotelCard"
 import { Search, Filter, Building2, MapPin, Calendar, Users, Star, Wifi, Car, Coffee, Dumbbell } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -11,11 +12,15 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Slider } from "@/components/ui/slider"
 import { hotelService } from "@/modules/hotel/service"
+import type { InitialHotelData } from "@/modules/hotel/type"
+import HotelDetailsModal from "@/modules/hotel/component/HotelDetailsModal"
+import { HotelDestinationModal } from "@/modules/hotel/component/HotelDestinationModal"
+import { formatPrice } from "@/lib/currency"
 
 export default function HotelsPage() {
   const router = useRouter()
   const searchParams = useSearchParams()
-  const [priceRange, setPriceRange] = useState([0, 500])
+  const [priceRange, setPriceRange] = useState([0, 5000000])
   const [selectedAmenities, setSelectedAmenities] = useState<string[]>([])
   const [selectedRatings, setSelectedRatings] = useState<number[]>([])
   const [loading, setLoading] = useState(false)
@@ -24,9 +29,13 @@ export default function HotelsPage() {
   const [limit] = useState(20)
   const [hasMore, setHasMore] = useState(false)
   const [results, setResults] = useState<any[]>([])
+  const [initialData, setInitialData] = useState<InitialHotelData | null>(null)
+  const [selectedHotelId, setSelectedHotelId] = useState<string | null>(null)
+  const [isModalOpen, setIsModalOpen] = useState(false)
+  const [isDestinationModalOpen, setIsDestinationModalOpen] = useState(false)
 
   // Defaults for initial auto-search (configurable via env)
-  const DEFAULT_DESTINATION = process.env.NEXT_PUBLIC_DEFAULT_HOTEL_DESTINATION || "New York"
+  const DEFAULT_DESTINATION = process.env.NEXT_PUBLIC_DEFAULT_HOTEL_DESTINATION || "Ho Chi Minh City"
   const DEFAULT_CHECKIN_DAYS_AHEAD = parseInt(
     process.env.NEXT_PUBLIC_DEFAULT_HOTEL_CHECKIN_DAYS_AHEAD || "7",
     10,
@@ -38,11 +47,11 @@ export default function HotelsPage() {
   const DEFAULT_GUESTS = process.env.NEXT_PUBLIC_DEFAULT_HOTEL_GUESTS || "2-1"
 
   const amenities = [
-    { name: "Free WiFi", icon: Wifi },
-    { name: "Parking", icon: Car },
-    { name: "Restaurant", icon: Coffee },
-    { name: "Fitness Center", icon: Dumbbell },
-    { name: "Pool", icon: Building2 },
+    { name: "WiFi miễn phí", icon: Wifi },
+    { name: "Bãi đỗ xe", icon: Car },
+    { name: "Nhà hàng", icon: Coffee },
+    { name: "Phòng gym", icon: Dumbbell },
+    { name: "Hồ bơi", icon: Building2 },
     { name: "Spa", icon: Building2 },
   ]
 
@@ -61,7 +70,55 @@ export default function HotelsPage() {
   }
 
   const handleViewDetails = (hotel: any) => {
-    router.push(`/hotels/${encodeURIComponent(hotel.id)}`)
+    setSelectedHotelId(hotel.id)
+    setIsModalOpen(true)
+  }
+
+  const handleCloseModal = () => {
+    setIsModalOpen(false)
+    setSelectedHotelId(null)
+  }
+
+  const handleDestinationSelect = (destination: any) => {
+    setDestination(destination.name)
+  }
+
+  async function loadInitialData() {
+    setLoading(true)
+    setError(null)
+    try {
+      // Call search endpoint without any search parameters to get initial data
+      const res = await hotelService.search({
+        destination: "",
+        checkInDate: "",
+        checkOutDate: "",
+        guests: 2,
+        rooms: 1,
+        page: 1,
+        limit,
+      })
+      setInitialData(res as InitialHotelData)
+      
+      // Convert initial hotels to UI format
+      const ui = (res.hotels || []).map((h) => ({
+        id: h.hotelId,
+        name: h.name,
+        image: h.primaryImage || h.images?.[0] || "/placeholder.svg",
+        location: `${h.city || ""}${h.city ? ", " : ""}Vietnam`,
+        rating: h.rating || 0,
+        reviews: 0,
+        price: h.pricePerNight || 0,
+        originalPrice: Math.round((h.pricePerNight || 0) * 1.2),
+        amenities: h.amenities || [],
+        description: "",
+      }))
+      setResults(ui)
+      setHasMore(Boolean(res.hasMore))
+    } catch (e: any) {
+      setError(e?.message || "Failed to load initial hotel data")
+    } finally {
+      setLoading(false)
+    }
   }
 
   function pushQuery(nextPage: number) {
@@ -91,16 +148,16 @@ export default function HotelsPage() {
         limit,
       })
       const ui = (res.hotels || []).map((h) => ({
-        id: h.id,
+        id: h.hotelId,
         name: h.name,
-        image: "/placeholder.svg",
-        location: `${h.city || ""}${h.city ? ", " : ""}${h.country || ""}`,
-        rating: h.starRating || 0,
+        image: h.primaryImage || h.images?.[0] || "/placeholder.svg",
+        location: `${h.city || ""}${h.city ? ", " : ""}Vietnam`,
+        rating: h.rating || 0,
         reviews: 0,
-        price: h.minPrice || 0,
-        originalPrice: Math.round((h.minPrice || 0) * 1.2),
-        amenities: [],
-        description: h.description || "",
+        price: h.pricePerNight || 0,
+        originalPrice: Math.round((h.pricePerNight || 0) * 1.2),
+        amenities: h.amenities || [],
+        description: "",
       }))
       setResults(ui)
       setHasMore(Boolean(res.hasMore))
@@ -144,17 +201,21 @@ export default function HotelsPage() {
     const co = searchParams.get("checkOutDate") || ""
     const g = searchParams.get("guests") || DEFAULT_GUESTS
     const pg = parseInt(searchParams.get("page") || "1", 10)
-    setDestination(d)
-    setCheckInDate(ci)
-    setCheckOutDate(co)
-    setGuests(g)
-    setPage(isNaN(pg) ? 1 : pg)
-    if (d && ci && co) {
+    
+    // Check if we have search parameters
+    const hasSearchParams = d && ci && co
+    
+    if (hasSearchParams) {
+      setDestination(d)
+      setCheckInDate(ci)
+      setCheckOutDate(co)
+      setGuests(g)
+      setPage(isNaN(pg) ? 1 : pg)
       void handleSearch(isNaN(pg) ? 1 : pg)
       return
     }
 
-    // Try last search
+    // No search parameters: try last search from localStorage
     try {
       const raw = localStorage.getItem("hotel:lastSearch")
       if (raw) {
@@ -179,21 +240,17 @@ export default function HotelsPage() {
       // ignore storage errors
     }
 
-    // Fallback defaults and auto-search
-    const today = new Date()
-    const checkIn = new Date(today.getFullYear(), today.getMonth(), today.getDate() + DEFAULT_CHECKIN_DAYS_AHEAD)
-    const checkOut = new Date(
-      checkIn.getFullYear(),
-      checkIn.getMonth(),
-      checkIn.getDate() + Math.max(1, DEFAULT_STAY_NIGHTS),
-    )
-    const toYmd = (dt: Date) => `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, "0")}-${String(dt.getDate()).padStart(2, "0")}`
-    setDestination(DEFAULT_DESTINATION)
-    setCheckInDate(toYmd(checkIn))
-    setCheckOutDate(toYmd(checkOut))
-    setGuests(DEFAULT_GUESTS)
-    setPage(1)
-    setTimeout(() => void handleSearch(1), 0)
+    // No search parameters and no saved search: load initial data
+    void loadInitialData()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  // Load initial data on first mount if no search results are available
+  useEffect(() => {
+    // Load initial data if we don't have any hotel results and we're not currently loading
+    if (results.length === 0 && !loading && !initialData) {
+      void loadInitialData()
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
@@ -201,8 +258,8 @@ export default function HotelsPage() {
     <div className="w-full h-full">
       <div className="max-w-7xl mx-auto p-6 pb-20">
         <div className="mb-8">
-          <h1 className="text-3xl font-bold text-foreground mb-2">Search Hotels</h1>
-          <p className="text-muted-foreground">Discover the perfect accommodation for your stay</p>
+          <h1 className="text-3xl font-bold text-foreground mb-2">Tìm kiếm khách sạn</h1>
+          <p className="text-muted-foreground">Khám phá chỗ ở hoàn hảo cho chuyến đi của bạn</p>
         </div>
 
         {/* Search Form */}
@@ -210,45 +267,52 @@ export default function HotelsPage() {
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Building2 className="h-5 w-5" />
-              Hotel Search
+              Tìm kiếm khách sạn
             </CardTitle>
           </CardHeader>
           <CardContent>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
               <div className="space-y-2">
-                <label className="text-sm font-medium">Destination</label>
-                <div className="relative">
-                  <MapPin className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-                  <Input placeholder="City or hotel name" className="pl-10" value={destination} onChange={(e) => setDestination(e.target.value)} />
-                </div>
+                <label className="text-sm font-medium">Điểm đến</label>
+                <Button
+                  variant="outline"
+                  className="w-full justify-start text-left font-normal"
+                  onClick={() => setIsDestinationModalOpen(true)}
+                >
+                  {destination ? (
+                    <span className="truncate">{destination}</span>
+                  ) : (
+                    <span className="text-muted-foreground">Tên thành phố hoặc khách sạn</span>
+                  )}
+                </Button>
               </div>
               <div className="space-y-2">
-                <label className="text-sm font-medium">Check-in</label>
+                <label className="text-sm font-medium">Nhận phòng</label>
                 <div className="relative">
                   <Calendar className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
                   <Input type="date" className="pl-10" value={checkInDate} onChange={(e) => setCheckInDate(e.target.value)} />
                 </div>
               </div>
               <div className="space-y-2">
-                <label className="text-sm font-medium">Check-out</label>
+                <label className="text-sm font-medium">Trả phòng</label>
                 <div className="relative">
                   <Calendar className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
                   <Input type="date" className="pl-10" value={checkOutDate} onChange={(e) => setCheckOutDate(e.target.value)} />
                 </div>
               </div>
               <div className="space-y-2">
-                <label className="text-sm font-medium">Guests</label>
+                <label className="text-sm font-medium">Khách</label>
                 <Select value={guests} onValueChange={setGuests}>
                   <SelectTrigger>
                     <Users className="h-4 w-4 mr-2" />
-                    <SelectValue placeholder="2 Guests, 1 Room" />
+                    <SelectValue placeholder="2 Khách, 1 Phòng" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="1-1">1 Guest, 1 Room</SelectItem>
-                    <SelectItem value="2-1">2 Guests, 1 Room</SelectItem>
-                    <SelectItem value="3-1">3 Guests, 1 Room</SelectItem>
-                    <SelectItem value="4-1">4 Guests, 1 Room</SelectItem>
-                    <SelectItem value="2-2">2 Guests, 2 Rooms</SelectItem>
+                    <SelectItem value="1-1">1 Khách, 1 Phòng</SelectItem>
+                    <SelectItem value="2-1">2 Khách, 1 Phòng</SelectItem>
+                    <SelectItem value="3-1">3 Khách, 1 Phòng</SelectItem>
+                    <SelectItem value="4-1">4 Khách, 1 Phòng</SelectItem>
+                    <SelectItem value="2-2">2 Khách, 2 Phòng</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -256,7 +320,7 @@ export default function HotelsPage() {
             <div className="flex justify-end">
               <Button className="w-full md:w-auto" onClick={() => handleSearch()} disabled={loading}>
                 <Search className="h-4 w-4 mr-2" />
-                {loading ? "Searching..." : "Search Hotels"}
+                {loading ? "Đang tìm kiếm..." : "Tìm khách sạn"}
               </Button>
             </div>
           </CardContent>
@@ -269,23 +333,23 @@ export default function HotelsPage() {
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <Filter className="h-5 w-5" />
-                  Filters
+                  Bộ lọc
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-6">
                 {/* Price Range */}
                 <div>
-                  <label className="text-sm font-medium mb-3 block">Price per night</label>
-                  <Slider value={priceRange} onValueChange={setPriceRange} max={500} step={25} className="mb-2" />
+                  <label className="text-sm font-medium mb-3 block">Giá mỗi đêm (VND)</label>
+                  <Slider value={priceRange} onValueChange={setPriceRange} max={5000000} step={100000} className="mb-2" />
                   <div className="flex justify-between text-sm text-muted-foreground">
-                    <span>${priceRange[0]}</span>
-                    <span>${priceRange[1]}</span>
+                    <span>{formatPrice(priceRange[0])}</span>
+                    <span>{formatPrice(priceRange[1])}</span>
                   </div>
                 </div>
 
                 {/* Star Rating */}
                 <div>
-                  <label className="text-sm font-medium mb-3 block">Star Rating</label>
+                  <label className="text-sm font-medium mb-3 block">Xếp hạng sao</label>
                   <div className="space-y-2">
                     {[5, 4, 3, 2, 1].map((rating) => (
                       <label key={rating} className="flex items-center space-x-2 cursor-pointer">
@@ -300,7 +364,7 @@ export default function HotelsPage() {
                             <Star key={i} className="h-4 w-4 fill-yellow-400 text-yellow-400" />
                           ))}
                           <span className="text-sm ml-1">
-                            {rating} Star{rating > 1 ? "s" : ""}
+                            {rating} Sao
                           </span>
                         </div>
                       </label>
@@ -310,7 +374,7 @@ export default function HotelsPage() {
 
                 {/* Amenities */}
                 <div>
-                  <label className="text-sm font-medium mb-3 block">Amenities</label>
+                  <label className="text-sm font-medium mb-3 block">Tiện nghi</label>
                   <div className="space-y-2">
                     {amenities.map((amenity) => (
                       <label key={amenity.name} className="flex items-center space-x-2 cursor-pointer">
@@ -329,23 +393,23 @@ export default function HotelsPage() {
 
                 {/* Property Type */}
                 <div>
-                  <label className="text-sm font-medium mb-3 block">Property Type</label>
+                  <label className="text-sm font-medium mb-3 block">Loại chỗ ở</label>
                   <div className="space-y-2">
                     <label className="flex items-center space-x-2 cursor-pointer">
                       <input type="checkbox" className="rounded border-gray-300" />
-                      <span className="text-sm">Hotel</span>
+                      <span className="text-sm">Khách sạn</span>
                     </label>
                     <label className="flex items-center space-x-2 cursor-pointer">
                       <input type="checkbox" className="rounded border-gray-300" />
-                      <span className="text-sm">Resort</span>
+                      <span className="text-sm">Khu nghỉ dưỡng</span>
                     </label>
                     <label className="flex items-center space-x-2 cursor-pointer">
                       <input type="checkbox" className="rounded border-gray-300" />
-                      <span className="text-sm">Apartment</span>
+                      <span className="text-sm">Căn hộ</span>
                     </label>
                     <label className="flex items-center space-x-2 cursor-pointer">
                       <input type="checkbox" className="rounded border-gray-300" />
-                      <span className="text-sm">Villa</span>
+                      <span className="text-sm">Biệt thự</span>
                     </label>
                   </div>
                 </div>
@@ -356,18 +420,20 @@ export default function HotelsPage() {
           {/* Results */}
           <div className="lg:col-span-3">
             <div className="flex justify-between items-center mb-6">
-              <h2 className="text-xl font-semibold">Hotel Results</h2>
+              <h2 className="text-xl font-semibold">Kết quả tìm kiếm</h2>
               <div className="flex items-center gap-4">
-                <span className="text-sm text-muted-foreground">{results.length} hotels found</span>
+                <span className="text-sm text-muted-foreground">
+                  {initialData ? `${initialData.totalCount || results.length} khách sạn` : `${results.length} khách sạn`}
+                </span>
                 <Select>
                   <SelectTrigger className="w-40">
-                    <SelectValue placeholder="Sort by Price" />
+                    <SelectValue placeholder="Sắp xếp theo giá" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="price-low">Price: Low to High</SelectItem>
-                    <SelectItem value="price-high">Price: High to Low</SelectItem>
-                    <SelectItem value="rating">Guest Rating</SelectItem>
-                    <SelectItem value="distance">Distance</SelectItem>
+                    <SelectItem value="price-low">Giá: Thấp đến cao</SelectItem>
+                    <SelectItem value="price-high">Giá: Cao đến thấp</SelectItem>
+                    <SelectItem value="rating">Đánh giá khách</SelectItem>
+                    <SelectItem value="distance">Khoảng cách</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -387,85 +453,54 @@ export default function HotelsPage() {
                 </Card>
               )}
               <div className="flex items-center justify-between">
-                <div className="text-sm text-muted-foreground">Page {page}</div>
+                <div className="text-sm text-muted-foreground">Trang {page}</div>
                 <div className="flex gap-2">
                   <Button variant="outline" className="bg-transparent" onClick={prevPage} disabled={loading || page === 1}>
-                    Previous
+                    Trước
                   </Button>
                   <Button variant="outline" className="bg-transparent" onClick={nextPage} disabled={loading || !hasMore}>
-                    Next
+                    Tiếp
                   </Button>
                 </div>
               </div>
               {results.map((hotel) => (
-                <Card key={hotel.id} className="hover:shadow-lg transition-shadow cursor-pointer">
-                  <CardContent className="p-0">
-                    <div className="flex flex-col md:flex-row">
-                      <div className="md:w-1/3">
-                        <img
-                          src={hotel.image || "/placeholder.svg"}
-                          alt={hotel.name}
-                          className="w-full h-48 md:h-full object-cover rounded-l-lg"
-                        />
-                      </div>
-                      <div className="md:w-2/3 p-6">
-                        <div className="flex justify-between items-start mb-4">
-                          <div>
-                            <h3 className="text-xl font-semibold mb-1">{hotel.name}</h3>
-                            <div className="flex items-center space-x-2 text-muted-foreground mb-2">
-                              <MapPin className="h-4 w-4" />
-                              <span className="text-sm">{hotel.location}</span>
-                            </div>
-                            <div className="flex items-center space-x-2 mb-3">
-                              <div className="flex items-center">
-                                {Array.from({ length: 5 }).map((_, i) => (
-                                  <Star
-                                    key={i}
-                                    className={`h-4 w-4 ${i < Math.floor(hotel.rating) ? "fill-yellow-400 text-yellow-400" : "text-gray-300"}`}
-                                  />
-                                ))}
-                              </div>
-                              <span className="text-sm font-medium">{hotel.rating}</span>
-                              <span className="text-sm text-muted-foreground">({hotel.reviews} reviews)</span>
-                            </div>
-                          </div>
-                          <div className="text-right">
-                            <div className="text-sm text-muted-foreground line-through">${hotel.originalPrice}</div>
-                            <div className="text-2xl font-bold text-primary">${hotel.price}</div>
-                            <div className="text-sm text-muted-foreground">per night</div>
-                          </div>
-                        </div>
-
-                        <p className="text-muted-foreground mb-4">{hotel.description}</p>
-
-                        <div className="flex flex-wrap gap-2 mb-4">
-                          {hotel.amenities.map((amenity: string) => (
-                            <Badge key={amenity} variant="secondary" className="text-xs">
-                              {amenity}
-                            </Badge>
-                          ))}
-                        </div>
-
-                        <div className="flex space-x-3">
-                          <Button className="flex-1">Book Now</Button>
-                          <Button variant="outline" className="flex-1 bg-transparent" onClick={() => handleViewDetails(hotel)}>
-                            View Details
-                          </Button>
-                        </div>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
+                <HotelCard
+                  key={hotel.id}
+                  hotel={hotel}
+                  onViewDetails={handleViewDetails}
+                  onBookNow={(hotel) => {
+                    // Handle book now action
+                    console.log("Book now clicked for hotel:", hotel.id)
+                  }}
+                />
               ))}
               {!loading && results.length === 0 && !error && (
                 <Card>
-                  <CardContent className="p-6 text-sm text-muted-foreground">No hotels yet. Try a search above.</CardContent>
+                  <CardContent className="p-6 text-sm text-muted-foreground">
+                    {initialData ? "Hiện tại không có khách sạn nào." : "Chưa có khách sạn nào. Hãy thử tìm kiếm ở trên."}
+                  </CardContent>
                 </Card>
               )}
             </div>
           </div>
         </div>
       </div>
+
+      {/* Hotel Details Modal */}
+      <HotelDetailsModal
+        hotelId={selectedHotelId}
+        isOpen={isModalOpen}
+        onClose={handleCloseModal}
+      />
+
+      {/* Destination Selection Modal */}
+      <HotelDestinationModal
+        isOpen={isDestinationModalOpen}
+        onClose={() => setIsDestinationModalOpen(false)}
+        onSelect={handleDestinationSelect}
+        title="Chọn điểm đến"
+        placeholder="Tìm kiếm thành phố hoặc khách sạn..."
+      />
     </div>
   )
 }

@@ -9,10 +9,13 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Slider } from "@/components/ui/slider"
 import { flightService } from "@/modules/flight/service"
-import type { FareClass } from "@/modules/flight/type"
+import type { FareClass, InitialFlightData } from "@/modules/flight/type"
 import { format } from "date-fns"
 import { FlightCardSkeleton } from "@/modules/flight/component/FlightCardSkeleton"
 import { CityComboBox } from "@/modules/flight/component/CityComboBox"
+import FlightDetailsModal from "@/modules/flight/component/FlightDetailsModal"
+import { FlightDestinationModal } from "@/modules/flight/component/FlightDestinationModal"
+import { formatPrice } from "@/lib/currency"
 
 interface City {
   code: string;
@@ -43,6 +46,11 @@ export default function FlightsPage() {
   const [hasMore, setHasMore] = useState(false)
 
   const [flightResults, setFlightResults] = useState<any[]>([])
+  const [initialData, setInitialData] = useState<InitialFlightData | null>(null)
+  const [selectedFlightId, setSelectedFlightId] = useState<string | null>(null)
+  const [isModalOpen, setIsModalOpen] = useState(false)
+  const [isOriginModalOpen, setIsOriginModalOpen] = useState(false)
+  const [isDestinationModalOpen, setIsDestinationModalOpen] = useState(false)
 
   // Defaults for initial auto-search (can be overridden via env)
   const DEFAULT_ORIGIN = process.env.NEXT_PUBLIC_DEFAULT_ORIGIN || "HAN"
@@ -53,13 +61,75 @@ export default function FlightsPage() {
   )
 
   const handleViewDetails = (flight: any) => {
-    router.push(`/flights/${encodeURIComponent(flight.id)}`)
+    setSelectedFlightId(flight.id)
+    setIsModalOpen(true)
+  }
+
+  const handleCloseModal = () => {
+    setIsModalOpen(false)
+    setSelectedFlightId(null)
+  }
+
+  const handleOriginSelect = (city: City) => {
+    setOrigin(city)
+  }
+
+  const handleDestinationSelect = (city: City) => {
+    setDestination(city)
+  }
+
+  async function loadInitialData() {
+    setLoading(true)
+    setError(null)
+    try {
+      // Call search endpoint without any search parameters to get initial data
+      const res = await flightService.search({
+        origin: "",
+        destination: "",
+        departureDate: "",
+        returnDate: undefined,
+        passengers: 1,
+        seatClass: "ECONOMY",
+        sortBy: "departure",
+        page: 1,
+        limit,
+      })
+      setInitialData(res as InitialFlightData)
+      
+      // Convert initial flights to UI format
+      const ui = (res.flights || []).map((f: any) => ({
+        id: f.flightId,
+        airline: f.airline,
+        logo: "/airplane-generic.png",
+        departure: {
+          time: f.departureTime || "--:--",
+          airport: f.origin,
+          city: f.origin,
+        },
+        arrival: {
+          time: f.arrivalTime || "--:--",
+          airport: f.destination,
+          city: f.destination,
+        },
+        duration: f.duration || "",
+        stops: "Non-stop",
+        price: f.price,
+        class: f.seatClass || "ECONOMY",
+        rating: 4.5,
+      }))
+      setFlightResults(ui)
+      setHasMore(Boolean(res.hasMore))
+    } catch (e: any) {
+      setError(e?.message || "Failed to load initial flight data")
+    } finally {
+      setLoading(false)
+    }
   }
 
   function pushQuery(nextPage: number) {
     const params = new URLSearchParams()
-    if (origin?.code) params.set("origin", origin.code)
-    if (destination?.code) params.set("destination", destination.code)
+    if (origin?.name) params.set("origin", origin.name)
+    if (destination?.name) params.set("destination", destination.name)
     if (departDate) params.set("departureDate", departDate)
     if (returnDate) params.set("returnDate", returnDate)
     if (passengers) params.set("passengers", passengers)
@@ -75,8 +145,8 @@ export default function FlightsPage() {
     try {
       const usePage = nextPage ?? page
       const res = await flightService.search({
-        origin: origin?.code || "",
-        destination: destination?.code || "",
+        origin: origin?.name || "",
+        destination: destination?.name || "",
         departureDate: departDate,
         returnDate: returnDate || undefined,
         passengers: parseInt(passengers || "1", 10) || 1,
@@ -114,8 +184,8 @@ export default function FlightsPage() {
         localStorage.setItem(
           "flight:lastSearch",
           JSON.stringify({
-            origin: origin?.code,
-            destination: destination?.code,
+            origin: origin?.name,
+            destination: destination?.name,
             departDate,
             returnDate,
             passengers,
@@ -148,9 +218,10 @@ export default function FlightsPage() {
     }
   }
 
-  // Initialize from query
+  // Initialize from query and load initial data
   useEffect(() => {
     if (!searchParams) return
+    
     const o = searchParams.get("origin") || ""
     const d = searchParams.get("destination") || ""
     const dep = searchParams.get("departureDate") || ""
@@ -158,20 +229,24 @@ export default function FlightsPage() {
     const pas = searchParams.get("passengers") || "1"
     const cls = (searchParams.get("seatClass") as FareClass) || "ECONOMY"
     const pg = parseInt(searchParams.get("page") || "1", 10)
-    // For now, we'll just set the codes, in a real app we'd fetch the full city objects
-    if (o) setOrigin({ code: o, name: o, type: "City" })
-    if (d) setDestination({ code: d, name: d, type: "City" })
-    setDepartDate(dep)
-    setReturnDate(ret)
-    setPassengers(pas)
-    setSeatClass(cls)
-    setPage(isNaN(pg) ? 1 : pg)
-    if (o && d && dep) {
+    
+    // Check if we have search parameters
+    const hasSearchParams = o && d && dep
+    
+    if (hasSearchParams) {
+      // For now, we'll just set the codes, in a real app we'd fetch the full city objects
+      if (o) setOrigin({ code: o, name: o, type: "City" })
+      if (d) setDestination({ code: d, name: d, type: "City" })
+      setDepartDate(dep)
+      setReturnDate(ret)
+      setPassengers(pas)
+      setSeatClass(cls)
+      setPage(isNaN(pg) ? 1 : pg)
       void handleSearch(isNaN(pg) ? 1 : pg)
       return
     }
 
-    // No query provided: try last search from localStorage
+    // No search parameters: try last search from localStorage
     try {
       const raw = localStorage.getItem("flight:lastSearch")
       if (raw) {
@@ -201,18 +276,17 @@ export default function FlightsPage() {
       // ignore storage errors
     }
 
-    // Fallback to sensible defaults and auto-search
-    const today = new Date()
-    const depart = new Date(today.getFullYear(), today.getMonth(), today.getDate() + DEFAULT_DEPARTURE_DAYS_AHEAD)
-    const depStr = format(depart, "yyyy-MM-dd")
-    setOrigin({ code: DEFAULT_ORIGIN, name: DEFAULT_ORIGIN, type: "City" })
-    setDestination({ code: DEFAULT_DESTINATION, name: DEFAULT_DESTINATION, type: "City" })
-    setDepartDate(depStr)
-    setReturnDate("")
-    setPassengers("1")
-    setSeatClass("ECONOMY")
-    setPage(1)
-    setTimeout(() => void handleSearch(1), 0)
+    // No search parameters and no saved search: load initial data
+    void loadInitialData()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  // Load initial data on first mount if no search results are available
+  useEffect(() => {
+    // Load initial data if we don't have any flight results and we're not currently loading
+    if (flightResults.length === 0 && !loading && !initialData) {
+      void loadInitialData()
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
@@ -220,8 +294,8 @@ export default function FlightsPage() {
     <div className="w-full h-full">
       <div className="max-w-7xl mx-auto p-6">
         <div className="mb-8">
-          <h1 className="text-3xl font-bold text-foreground mb-2">Search Flights</h1>
-          <p className="text-muted-foreground">Find the perfect flight for your journey</p>
+          <h1 className="text-3xl font-bold text-foreground mb-2">Tìm kiếm chuyến bay</h1>
+          <p className="text-muted-foreground">Tìm chuyến bay hoàn hảo cho hành trình của bạn với dữ liệu địa chỉ chính xác từ API Đơn vị hành chính Việt Nam</p>
         </div>
 
         {/* Search Form */}
@@ -229,29 +303,45 @@ export default function FlightsPage() {
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Plane className="h-5 w-5" />
-              Flight Search
+              Tìm kiếm chuyến bay
             </CardTitle>
           </CardHeader>
           <CardContent>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
               <div className="space-y-2">
-                <label className="text-sm font-medium">From</label>
-                <CityComboBox
-                  value={origin}
-                  onValueChange={setOrigin}
-                  placeholder="Select departure city..."
-                />
+                <label className="text-sm font-medium">Đi từ</label>
+                <Button
+                  variant="outline"
+                  className="w-full justify-start text-left font-normal"
+                  onClick={() => setIsOriginModalOpen(true)}
+                >
+                  {origin ? (
+                    <span className="truncate">
+                      {origin.name}
+                    </span>
+                  ) : (
+                    <span className="text-muted-foreground">Chọn thành phố khởi hành...</span>
+                  )}
+                </Button>
               </div>
               <div className="space-y-2">
-                <label className="text-sm font-medium">To</label>
-                <CityComboBox
-                  value={destination}
-                  onValueChange={setDestination}
-                  placeholder="Select destination city..."
-                />
+                <label className="text-sm font-medium">Đến</label>
+                <Button
+                  variant="outline"
+                  className="w-full justify-start text-left font-normal"
+                  onClick={() => setIsDestinationModalOpen(true)}
+                >
+                  {destination ? (
+                    <span className="truncate">
+                      {destination.name}
+                    </span>
+                  ) : (
+                    <span className="text-muted-foreground">Chọn thành phố đến...</span>
+                  )}
+                </Button>
               </div>
               <div className="space-y-2">
-                <label className="text-sm font-medium">Departure</label>
+                <label className="text-sm font-medium">Ngày đi</label>
                 <div className="relative">
                   <Calendar className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
                   <Input 
@@ -263,7 +353,7 @@ export default function FlightsPage() {
                 </div>
               </div>
               <div className="space-y-2">
-                <label className="text-sm font-medium">Return</label>
+                <label className="text-sm font-medium">Ngày về</label>
                 <div className="relative">
                   <Calendar className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
                   <Input 
@@ -277,38 +367,38 @@ export default function FlightsPage() {
             </div>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
               <div className="space-y-2">
-                <label className="text-sm font-medium">Passengers</label>
+                <label className="text-sm font-medium">Hành khách</label>
                 <Select value={passengers} onValueChange={setPassengers}>
                   <SelectTrigger>
                     <Users className="h-4 w-4 mr-2" />
-                    <SelectValue placeholder="1 Adult" />
+                    <SelectValue placeholder="1 Người lớn" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="1">1 Adult</SelectItem>
-                    <SelectItem value="2">2 Adults</SelectItem>
-                    <SelectItem value="3">3 Adults</SelectItem>
-                    <SelectItem value="4">4 Adults</SelectItem>
+                    <SelectItem value="1">1 Người lớn</SelectItem>
+                    <SelectItem value="2">2 Người lớn</SelectItem>
+                    <SelectItem value="3">3 Người lớn</SelectItem>
+                    <SelectItem value="4">4 Người lớn</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
               <div className="space-y-2">
-                <label className="text-sm font-medium">Class</label>
+                <label className="text-sm font-medium">Hạng ghế</label>
                 <Select value={seatClass} onValueChange={(v) => setSeatClass(v as FareClass)}>
                   <SelectTrigger>
-                    <SelectValue placeholder="ECONOMY" />
+                    <SelectValue placeholder="PHỔ THÔNG" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="ECONOMY">Economy</SelectItem>
-                    <SelectItem value="PREMIUM_ECONOMY">Premium Economy</SelectItem>
-                    <SelectItem value="BUSINESS">Business</SelectItem>
-                    <SelectItem value="FIRST">First Class</SelectItem>
+                    <SelectItem value="ECONOMY">Phổ thông</SelectItem>
+                    <SelectItem value="PREMIUM_ECONOMY">Phổ thông đặc biệt</SelectItem>
+                    <SelectItem value="BUSINESS">Thương gia</SelectItem>
+                    <SelectItem value="FIRST">Hạng nhất</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
               <div className="flex items-end">
                 <Button className="w-full" onClick={() => handleSearch()} disabled={loading}>
                   <Search className="h-4 w-4 mr-2" />
-                  {loading ? "Searching..." : "Search Flights"}
+                  {loading ? "Đang tìm kiếm..." : "Tìm chuyến bay"}
                 </Button>
               </div>
             </div>
@@ -322,13 +412,13 @@ export default function FlightsPage() {
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <Filter className="h-5 w-5" />
-                  Filters
+                  Bộ lọc
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-6">
                 {/* Price Range */}
                 <div>
-                  <label className="text-sm font-medium mb-3 block">Price Range (VND)</label>
+                  <label className="text-sm font-medium mb-3 block">Khoảng giá (VND)</label>
                   <Slider 
                     value={priceRange} 
                     onValueChange={setPriceRange} 
@@ -337,14 +427,14 @@ export default function FlightsPage() {
                     className="mb-2" 
                   />
                   <div className="flex justify-between text-sm text-muted-foreground">
-                    <span>{priceRange[0].toLocaleString()}</span>
-                    <span>{priceRange[1].toLocaleString()}</span>
+                    <span>{formatPrice(priceRange[0])}</span>
+                    <span>{formatPrice(priceRange[1])}</span>
                   </div>
                 </div>
 
                 {/* Duration */}
                 <div>
-                  <label className="text-sm font-medium mb-3 block">Flight Duration (hours)</label>
+                  <label className="text-sm font-medium mb-3 block">Thời gian bay (giờ)</label>
                   <Slider 
                     value={durationRange} 
                     onValueChange={setDurationRange} 
@@ -360,14 +450,14 @@ export default function FlightsPage() {
 
                 {/* Airlines */}
                 <div>
-                  <label className="text-sm font-medium mb-3 block">Airlines</label>
+                  <label className="text-sm font-medium mb-3 block">Hãng hàng không</label>
                   <Select onValueChange={(value) => {
                     if (!selectedAirlines.includes(value)) {
                       setSelectedAirlines([...selectedAirlines, value])
                     }
                   }}>
                     <SelectTrigger>
-                      <SelectValue placeholder="Select airlines..." />
+                      <SelectValue placeholder="Chọn hãng hàng không..." />
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="vietnam-airlines">Vietnam Airlines</SelectItem>
@@ -400,22 +490,24 @@ export default function FlightsPage() {
           {/* Results */}
           <div className="lg:col-span-3">
             <div className="flex justify-between items-center mb-6">
-              <h2 className="text-xl font-semibold">Flight Results</h2>
+              <h2 className="text-xl font-semibold">Kết quả tìm kiếm</h2>
               <div className="flex items-center gap-4">
-                <span className="text-sm text-muted-foreground">{flightResults.length} flights found</span>
+                <span className="text-sm text-muted-foreground">
+                  {initialData ? `${initialData.totalCount || flightResults.length} chuyến bay` : `${flightResults.length} chuyến bay`}
+                </span>
                 <Select value={sortBy} onValueChange={(value) => {
                   setSortBy(value)
                   // Trigger search with new sort
                   setTimeout(() => void handleSearch(), 0)
                 }}>
                   <SelectTrigger className="w-40">
-                    <SelectValue placeholder="Sort by Departure" />
+                    <SelectValue placeholder="Sắp xếp theo giờ đi" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="price-low">Price: Low to High</SelectItem>
-                    <SelectItem value="price-high">Price: High to Low</SelectItem>
-                    <SelectItem value="duration">Duration</SelectItem>
-                    <SelectItem value="departure">Departure Time</SelectItem>
+                    <SelectItem value="price-low">Giá: Thấp đến cao</SelectItem>
+                    <SelectItem value="price-high">Giá: Cao đến thấp</SelectItem>
+                    <SelectItem value="duration">Thời gian bay</SelectItem>
+                    <SelectItem value="departure">Giờ khởi hành</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -423,7 +515,7 @@ export default function FlightsPage() {
 
             <div className="space-y-4">
               <div className="flex items-center justify-between">
-                <div className="text-sm text-muted-foreground">Page {page}</div>
+                <div className="text-sm text-muted-foreground">Trang {page}</div>
                 <div className="flex gap-2">
                   <Button 
                     variant="outline" 
@@ -431,7 +523,7 @@ export default function FlightsPage() {
                     onClick={prevPage} 
                     disabled={loading || page === 1}
                   >
-                    Previous
+                    Trước
                   </Button>
                   <Button 
                     variant="outline" 
@@ -439,7 +531,7 @@ export default function FlightsPage() {
                     onClick={nextPage} 
                     disabled={loading || !hasMore}
                   >
-                    Next
+                    Tiếp
                   </Button>
                 </div>
               </div>
@@ -494,20 +586,20 @@ export default function FlightsPage() {
 
                       <div className="text-right space-y-2">
                         <div className="text-2xl font-bold text-primary">
-                          {flight.price.toLocaleString()} VND
+                          {formatPrice(flight.price)}
                         </div>
                         <div className="flex items-center space-x-1">
                           <Star className="h-4 w-4 fill-yellow-400 text-yellow-400" />
                           <span className="text-sm">{flight.rating}</span>
                         </div>
                         <div className="space-y-2">
-                          <Button className="w-full">Book Now</Button>
+                          <Button className="w-full">Đặt ngay</Button>
                           <Button
                             variant="outline"
                             className="w-full bg-transparent"
                             onClick={() => handleViewDetails(flight)}
                           >
-                            View Details
+                            Xem chi tiết
                           </Button>
                         </div>
                       </div>
@@ -517,13 +609,40 @@ export default function FlightsPage() {
               ))}
               {!loading && flightResults.length === 0 && !error && (
                 <Card>
-                  <CardContent className="p-6 text-sm text-muted-foreground">No flights yet. Try a search above.</CardContent>
+                  <CardContent className="p-6 text-sm text-muted-foreground">
+                    {initialData ? "Hiện tại không có chuyến bay nào." : "Chưa có chuyến bay nào. Hãy thử tìm kiếm ở trên."}
+                  </CardContent>
                 </Card>
               )}
             </div>
           </div>
         </div>
       </div>
+
+      {/* Flight Details Modal */}
+      <FlightDetailsModal
+        flightId={selectedFlightId}
+        isOpen={isModalOpen}
+        onClose={handleCloseModal}
+      />
+
+      {/* Origin Selection Modal */}
+      <FlightDestinationModal
+        isOpen={isOriginModalOpen}
+        onClose={() => setIsOriginModalOpen(false)}
+        onSelect={handleOriginSelect}
+        title="Chọn điểm khởi hành"
+        placeholder="Tìm kiếm thành phố khởi hành..."
+      />
+
+      {/* Destination Selection Modal */}
+      <FlightDestinationModal
+        isOpen={isDestinationModalOpen}
+        onClose={() => setIsDestinationModalOpen(false)}
+        onSelect={handleDestinationSelect}
+        title="Chọn điểm đến"
+        placeholder="Tìm kiếm thành phố đến..."
+      />
     </div>
   )
 }

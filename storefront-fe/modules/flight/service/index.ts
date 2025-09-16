@@ -1,51 +1,51 @@
 
-import type { FlightDetails, FlightSearchParams, FlightSearchResponse } from "../type"
+import type { FlightDetails, FlightSearchParams, FlightSearchResponse, InitialFlightData, SearchResponse, DestinationSearchResult } from "../type"
 import { apiClient } from '@/lib/api-client';
+import { destinationService } from '../../destination/service';
 
 export const flightService = {
   search(params: FlightSearchParams) {
     // Backend expects: origin, destination, departureDate, returnDate?, passengers, seatClass, page, limit
-    // return apiFetch<FlightSearchResponse>(`/flights/storefront/search`, {
-    //   method: "GET",
-    //   query: params as Record<string, unknown>,
-    // })
     return apiClient.get<FlightSearchResponse>(`/flights/storefront/search`, {
       params
-
-    } )
-  },
-  get(id: string) {
-    // Backend: GET /flights/storefront/{flightId}
-    // return apiFetch<FlightDetails>(`/flights/storefront/${encodeURIComponent(id)}`)
-    return apiClient.get<FlightDetails>(`/flights/storefront/${encodeURIComponent(id)}`)
-  },
-  // New method to fetch initial flight data with city information
-  getInitialData() {
-    return apiClient.get<any>(`/flights/storefront/flights`, {
-      params: {
-        page: 0,
-        limit: 20
-      }
     })
   },
-  // New method to fetch city data from tinhthanhpho.com API
-  async getCities(search: string) {
-    // In a real implementation, this would call the tinhthanhpho.com API
-    // For now, we'll return mock data
-    return Promise.resolve([
-      { code: 'HAN', name: 'Hanoi', type: 'Thành phố' },
-      { code: 'SGN', name: 'Ho Chi Minh City', type: 'Thành phố' },
-      { code: 'DAD', name: 'Da Nang', type: 'Thành phố' },
-      { code: 'CXR', name: 'Nha Trang', type: 'Thành phố' },
-      { code: 'VCA', name: 'Can Tho', type: 'Thành phố' },
-      { code: 'HPH', name: 'Hai Phong', type: 'Thành phố' },
-      { code: 'VII', name: 'Vinh', type: 'Thành phố' },
-      { code: 'HUI', name: 'Hue', type: 'Thành phố' },
-    ].filter(city => 
-      city.name.toLowerCase().includes(search.toLowerCase()) ||
-      city.code.toLowerCase().includes(search.toLowerCase())
-    ));
+  get(id: string) {
+    return apiClient.get<FlightDetails>(`/flights/storefront/${encodeURIComponent(id)}`)
+  },
+  // Use the new destination service for better Vietnamese administrative units integration
+  async searchAirports(search?: string) {
+    try {
+      // Use the Vietnamese Administrative Units API for better accuracy
+      return await destinationService.searchDestinations(search, 20);
+    } catch (error) {
+      console.error('Error searching airports with new service, falling back to backend:', error);
+      // Fallback to backend API if the new service fails
+      const response = await apiClient.get<SearchResponse<DestinationSearchResult>>('/flights/storefront/airports/search', {
+        params: { q: search }
+      });
+      return response;
+    }
+  },
+  
+  async getPopularDestinations() {
+    try {
+      // Use the Vietnamese Administrative Units API for better accuracy
+      return await destinationService.getPopularDestinations();
+    } catch (error) {
+      console.error('Error getting popular destinations with new service, falling back to backend:', error);
+      // Fallback to backend API if the new service fails
+      const response = await apiClient.get<SearchResponse<DestinationSearchResult>>('/flights/storefront/airports/search', {
+        params: { q: '' } // Empty query returns popular destinations
+      });
+      return response;
+    }
   }
 }
 
-export type { FlightSearchParams, FlightSearchResponse, FlightDetails }
+export type { FlightSearchParams, FlightSearchResponse, FlightDetails, InitialFlightData }
+
+// Export components
+export { FlightCardSkeleton } from "../component/FlightCardSkeleton"
+export { CityComboBox } from "../component/CityComboBox"
+export { default as FlightDetailsModal } from "../component/FlightDetailsModal"

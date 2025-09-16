@@ -26,7 +26,7 @@ export default async function HotelDetailsPage({ params }: Props) {
                 </div>
                 <div>
                   <div className="text-xs text-muted-foreground">Available Rooms</div>
-                  <div>{h.availableRooms}</div>
+                  <div>{h.availableRooms.length} rooms available</div>
                 </div>
               </div>
               <div className="text-sm">{h.description}</div>

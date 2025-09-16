@@ -1,4 +1,18 @@
-export type ID = string
+// Import common types
+import type {
+  ID,
+  DestinationSearchResult,
+  SearchResponse,
+  ErrorResponse
+} from '../../../types/common'
+
+// Re-export common types
+export type {
+  ID,
+  DestinationSearchResult,
+  SearchResponse,
+  ErrorResponse
+}
 
 export type Flight = {
   id: ID
@@ -56,6 +70,26 @@ export type FlightSearchResponse = {
   limit: number
   hasMore: boolean
   filters?: Record<string, unknown>
+  // Optional fields for initial data
+  popularDestinations?: Array<{
+    code: string
+    name: string
+    city: string
+    country: string
+    image: string
+    averagePrice: number
+    currency: string
+  }>
+  origins?: Array<{
+    code: string
+    name: string
+    type: string
+  }>
+  destinations?: Array<{
+    code: string
+    name: string
+    type: string
+  }>
 }
 
 export type FlightDetails = {
@@ -71,4 +105,32 @@ export type FlightDetails = {
   currency: string
   seatClass: string
   availableSeats: number
+}
+
+// Initial flight data response from /flights/storefront/flights
+export type InitialFlightData = {
+  flights: FlightSearchResult[]
+  popularDestinations: Array<{
+    code: string
+    name: string
+    city: string
+    country: string
+    image: string
+    averagePrice: number
+    currency: string
+  }>
+  origins: Array<{
+    code: string
+    name: string
+    type: string
+  }>
+  destinations: Array<{
+    code: string
+    name: string
+    type: string
+  }>
+  totalCount: number
+  page: number
+  limit: number
+  hasMore: boolean
 }

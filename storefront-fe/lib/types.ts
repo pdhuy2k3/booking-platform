@@ -1,4 +1,5 @@
-export type ID = string
+// Import common types
+export type { ID } from '../types/common'
 
 // Hotels
 export interface Hotel {

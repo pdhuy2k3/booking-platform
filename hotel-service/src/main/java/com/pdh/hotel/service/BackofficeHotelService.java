@@ -205,12 +205,28 @@ public class BackofficeHotelService {
         List<MediaResponse> mediaResponses = imageService.getHotelMedia(hotel.getHotelId());
         response.put("media", mediaResponses);
         
-        // Also provide images field for backward compatibility (media IDs as strings)
-        List<Long> mediaIds = imageService.getHotelMediaIds(hotel.getHotelId());
-        List<String> imagePublicIds = mediaIds.stream()
-            .map(String::valueOf)
+        // Extract image URLs and set primary image
+        List<String> imageUrls = mediaResponses.stream()
+            .sorted((a, b) -> {
+                // Primary images first
+                if (Boolean.TRUE.equals(a.getIsPrimary()) && !Boolean.TRUE.equals(b.getIsPrimary())) {
+                    return -1;
+                }
+                if (!Boolean.TRUE.equals(a.getIsPrimary()) && Boolean.TRUE.equals(b.getIsPrimary())) {
+                    return 1;
+                }
+                // Then by display order
+                return Integer.compare(
+                    a.getDisplayOrder() != null ? a.getDisplayOrder() : 0,
+                    b.getDisplayOrder() != null ? b.getDisplayOrder() : 0
+                );
+            })
+            .map(media -> media.getSecureUrl() != null ? media.getSecureUrl() : media.getUrl())
+            .filter(url -> url != null && !url.isEmpty())
             .collect(Collectors.toList());
-        response.put("images", imagePublicIds);
+        
+        response.put("images", imageUrls);
+        response.put("primaryImage", imageUrls.isEmpty() ? null : imageUrls.get(0));
 
         return response;
     }

@@ -42,7 +42,7 @@ build/
 ### VS Code ###
 .vscode/
 .github/**/*.md
-.env
+.env*
 memory
 scripts
 templates
