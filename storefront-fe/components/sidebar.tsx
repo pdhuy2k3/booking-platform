@@ -5,6 +5,7 @@ import Link from "next/link"
 import { usePathname, useRouter } from "next/navigation"
 import { cn } from "@/lib/utils"
 import { useState } from "react"
+import { useAuth } from "@/contexts/auth-context"
 
 const navigation = [
   { name: "Chat", icon: MessageSquare, href: "/" },
@@ -17,13 +18,13 @@ export function Sidebar() {
   const pathname = usePathname()
   const router = useRouter()
   const [showUserMenu, setShowUserMenu] = useState(false)
+  const { user, isAuthenticated, isLoading, login, logout } = useAuth()
 
   const userMenuOptions = [
-    { name: "Profile", icon: User, action: () => router.push("/profile") },
-    // Keep placeholders for future routes
-    { name: "Payment", icon: CreditCard, action: () => console.log("Navigate: /payment (coming soon)") },
-    { name: "Settings", icon: Settings, action: () => console.log("Navigate: /settings (coming soon)") },
-    { name: "Logout", icon: LogOut, action: () => console.log("Logout") },
+    { name: "Dashboard", icon: User, action: () => router.push("/dashboard") },
+    { name: "Payment", icon: CreditCard, action: () => router.push("/dashboard#payments") },
+    { name: "Settings", icon: Settings, action: () => router.push("/dashboard#preferences") },
+    { name: "Logout", icon: LogOut, action: () => logout() },
   ]
 
   const chatHistory = [
@@ -125,21 +126,56 @@ export function Sidebar() {
         )}
 
         <div className="p-4 border-t border-sidebar-border">
-          <button
-            onClick={() => setShowUserMenu(!showUserMenu)}
-            className="w-full flex items-center space-x-3 p-2 rounded-lg hover:bg-sidebar-accent transition-colors"
-          >
-            <div className="w-10 h-10 bg-gradient-to-br from-cyan-400 to-blue-500 rounded-full flex items-center justify-center text-white font-semibold">
-              JD
+          {isLoading ? (
+            <div className="w-full flex items-center space-x-3 p-2 rounded-lg">
+              <div className="w-10 h-10 bg-gray-600 rounded-full animate-pulse"></div>
+              <div className="flex-1">
+                <div className="h-4 bg-gray-600 rounded animate-pulse mb-1"></div>
+                <div className="h-3 bg-gray-600 rounded animate-pulse w-2/3"></div>
+              </div>
             </div>
-            <div className="flex-1 text-left">
-              <div className="text-sm font-medium text-sidebar-foreground">John Doe</div>
-              <div className="text-xs text-muted-foreground">john.doe@email.com</div>
-            </div>
-            <ChevronUp
-              className={cn("h-4 w-4 text-muted-foreground transition-transform", showUserMenu && "rotate-180")}
-            />
-          </button>
+          ) : isAuthenticated && user ? (
+            <button
+              onClick={() => setShowUserMenu(!showUserMenu)}
+              className="w-full flex items-center space-x-3 p-2 rounded-lg hover:bg-sidebar-accent transition-colors"
+            >
+              <div className="w-10 h-10 bg-gradient-to-br from-cyan-400 to-blue-500 rounded-full flex items-center justify-center text-white font-semibold overflow-hidden">
+                {user.picture ? (
+                  <img 
+                    src={user.picture} 
+                    alt={user.fullName}
+                    className="w-full h-full object-cover"
+                  />
+                ) : (
+                  user.fullName
+                    .split(" ")
+                    .map((n) => n[0])
+                    .join("")
+                    .toUpperCase()
+                )}
+              </div>
+              <div className="flex-1 text-left">
+                <div className="text-sm font-medium text-sidebar-foreground">{user.fullName}</div>
+                <div className="text-xs text-muted-foreground">{user.email}</div>
+              </div>
+              <ChevronUp
+                className={cn("h-4 w-4 text-muted-foreground transition-transform", showUserMenu && "rotate-180")}
+              />
+            </button>
+          ) : (
+            <button
+              onClick={login}
+              className="w-full flex items-center space-x-3 p-2 rounded-lg hover:bg-sidebar-accent transition-colors"
+            >
+              <div className="w-10 h-10 bg-gradient-to-br from-cyan-400 to-blue-500 rounded-full flex items-center justify-center text-white font-semibold">
+                <User className="h-5 w-5" />
+              </div>
+              <div className="flex-1 text-left">
+                <div className="text-sm font-medium text-sidebar-foreground">Sign In</div>
+                <div className="text-xs text-muted-foreground">Click to login</div>
+              </div>
+            </button>
+          )}
         </div>
       </div>
     </div>

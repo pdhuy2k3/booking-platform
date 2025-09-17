@@ -24,6 +24,7 @@ target/
 .claude
 .qwen
 .serena
+.cursor
 QWEN.md
 GEMINI.md
 CLAUDE.md

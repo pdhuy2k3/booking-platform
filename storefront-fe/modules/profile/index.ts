@@ -1,0 +1,5 @@
+export { ProfileInfo } from './components/ProfileInfo'
+export { AddressForm } from './components/AddressForm'
+export { PasswordChangeModal } from './components/PasswordChangeModal'
+export { PaymentMethodsTab } from './components/PaymentMethodsTab'
+export { BookingHistoryTab } from './components/BookingHistoryTab'

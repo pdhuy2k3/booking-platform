@@ -27,6 +27,7 @@ import {
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { format } from "date-fns"
+import { ProtectedRoute } from "@/components/protected-route"
 
 interface FlightSearchParams {
   from: string
@@ -205,8 +206,9 @@ export default function BookingManagementPage() {
   )
 
   return (
-    <div className="min-h-screen bg-background text-foreground">
-      <div className="container mx-auto p-6 space-y-6">
+    <ProtectedRoute>
+      <div className="min-h-screen bg-background text-foreground">
+        <div className="container mx-auto p-6 space-y-6">
         {/* Header */}
         <div className="text-center space-y-2">
           <h1 className="text-4xl font-bold text-balance">Book Your Perfect Trip</h1>
@@ -740,7 +742,8 @@ export default function BookingManagementPage() {
             </div>
           </TabsContent>
         </Tabs>
+        </div>
       </div>
-    </div>
+    </ProtectedRoute>
   )
 }

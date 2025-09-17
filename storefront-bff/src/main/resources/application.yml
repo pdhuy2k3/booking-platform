@@ -6,7 +6,10 @@ spring:
     active: local
   application:
     name: STOREFRONT-BFF
-
+logging:
+  level:
+    "[com.pdh.storefront]": DEBUG
+    "[org.springframework.security]": DEBUG
 ---
 spring:
   config:
@@ -166,7 +169,4 @@ management:
     health:
       show-details: always
 
-logging:
-  level:
-    "[com.pdh.storefront]": DEBUG
-    "[org.springframework.security]": DEBUG
+

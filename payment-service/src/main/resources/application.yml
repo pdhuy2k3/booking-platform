@@ -43,25 +43,6 @@ payment:
         statement-descriptor: "BookingSmart"
         receipt-email: true
 
-    vietqr:
-      api:
-        base-url: ${VIETQR_API_BASE_URL:https://api.vietqr.vn}
-        client-id: ${VIETQR_CLIENT_ID:default_client_id}
-        api-key: ${VIETQR_API_KEY:default_api_key}
-        timeout-seconds: 30
-      bank:
-        account-number: ${BANK_ACCOUNT_NUMBER:1234567890}
-        account-name: ${BANK_ACCOUNT_NAME:BOOKING SMART COMPANY}
-        bank-code: ${BANK_CODE:VCB}
-        bank-name: ${BANK_NAME:Vietcombank}
-      callback:
-        endpoint-path: /api/payments/vietqr/callback
-        secret: ${VIETQR_CALLBACK_SECRET:vietqr_secret}
-      settings:
-        qr-expiration-minutes: 30
-        currency: VND
-        template: compact2
-
     # Common gateway settings
     common:
       timeout-seconds: 30
@@ -69,10 +50,7 @@ payment:
       retry-delay-seconds: 5
       webhook-verification: true
 
-# Customer Service Integration
-customer-service:
-  base-url: ${CUSTOMER_SERVICE_URL:http://customer-service}
-  timeout-seconds: ${CUSTOMER_SERVICE_TIMEOUT:10}
+
 
 spring:
   application:
