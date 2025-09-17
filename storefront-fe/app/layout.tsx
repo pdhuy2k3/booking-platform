@@ -8,6 +8,7 @@ import "./globals.css"
 import { Sidebar } from "@/components/sidebar"
 import { AuthProvider } from "@/contexts/auth-context"
 import { PreferencesProvider } from "@/contexts/preferences-context"
+import { BookingProvider } from "@/contexts/booking-context"
 import { Toaster } from "@/components/ui/toaster"
 
 export const metadata: Metadata = {
@@ -26,14 +27,16 @@ export default function RootLayout({
           <body className={`font-sans ${GeistSans.variable} ${GeistMono.variable} antialiased`}>
             <AuthProvider>
               <PreferencesProvider>
-                <div className="flex h-screen bg-background">
-                  <Sidebar />
-                  <main className="flex-1 flex flex-col relative overflow-y-auto">
-                    <Suspense fallback={<div className="p-4 text-sm text-muted-foreground">Loading...</div>}>
-                      {children}
-                    </Suspense>
-                  </main>
-                </div>
+                <BookingProvider>
+                  <div className="flex h-screen bg-background">
+                    <Sidebar />
+                    <main className="flex-1 flex flex-col relative overflow-y-auto">
+                      <Suspense fallback={<div className="p-4 text-sm text-muted-foreground">Loading...</div>}>
+                        {children}
+                      </Suspense>
+                    </main>
+                  </div>
+                </BookingProvider>
               </PreferencesProvider>
             </AuthProvider>
             <Toaster />

@@ -204,7 +204,7 @@ const DestinationSearchModal: React.FC<DestinationSearchModalProps> = ({
                         <p className="text-sm font-medium text-gray-900">{destination.name}</p>
                         <p className="text-xs text-gray-500">{destination.type} • {destination.country}</p>
                       </div>
-                      {destination.relevanceScore > 0.8 && (
+                      {destination.relevanceScore && destination.relevanceScore > 0.8 && (
                         <Star className="w-3 h-3 text-yellow-400 fill-current" />
                       )}
                     </div>

@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useState, useRef } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { Search, Filter, Plane, Clock, Star, Calendar, Users } from "lucide-react"
 import { Button } from "@/components/ui/button"
@@ -78,7 +78,16 @@ export default function FlightsPage() {
     setDestination(city)
   }
 
+  // Add a ref to track if we're already loading initial data
+  const isLoadingInitialData = useRef(false)
+
   async function loadInitialData() {
+    // Prevent multiple simultaneous initial data loads
+    if (isLoadingInitialData.current || loading) {
+      return
+    }
+    
+    isLoadingInitialData.current = true
     setLoading(true)
     setError(null)
     try {
@@ -123,6 +132,7 @@ export default function FlightsPage() {
       setError(e?.message || "Failed to load initial flight data")
     } finally {
       setLoading(false)
+      isLoadingInitialData.current = false
     }
   }
 
@@ -220,72 +230,77 @@ export default function FlightsPage() {
 
   // Initialize from query and load initial data
   useEffect(() => {
-    if (!searchParams) return
+    let isMounted = true
     
-    const o = searchParams.get("origin") || ""
-    const d = searchParams.get("destination") || ""
-    const dep = searchParams.get("departureDate") || ""
-    const ret = searchParams.get("returnDate") || ""
-    const pas = searchParams.get("passengers") || "1"
-    const cls = (searchParams.get("seatClass") as FareClass) || "ECONOMY"
-    const pg = parseInt(searchParams.get("page") || "1", 10)
-    
-    // Check if we have search parameters
-    const hasSearchParams = o && d && dep
-    
-    if (hasSearchParams) {
-      // For now, we'll just set the codes, in a real app we'd fetch the full city objects
-      if (o) setOrigin({ code: o, name: o, type: "City" })
-      if (d) setDestination({ code: d, name: d, type: "City" })
-      setDepartDate(dep)
-      setReturnDate(ret)
-      setPassengers(pas)
-      setSeatClass(cls)
-      setPage(isNaN(pg) ? 1 : pg)
-      void handleSearch(isNaN(pg) ? 1 : pg)
-      return
-    }
-
-    // No search parameters: try last search from localStorage
-    try {
-      const raw = localStorage.getItem("flight:lastSearch")
-      if (raw) {
-        const last = JSON.parse(raw) as {
-          origin: string
-          destination: string
-          departDate: string
-          returnDate?: string
-          passengers: string
-          seatClass: FareClass
-          page?: number
-        }
-        if (last?.origin && last?.destination && last?.departDate) {
-          setOrigin({ code: last.origin, name: last.origin, type: "City" })
-          setDestination({ code: last.destination, name: last.destination, type: "City" })
-          setDepartDate(last.departDate)
-          setReturnDate(last.returnDate || "")
-          setPassengers(last.passengers || "1")
-          setSeatClass(last.seatClass || "ECONOMY")
-          setPage(last.page && last.page > 0 ? last.page : 1)
-          // Defer to ensure state is applied
-          setTimeout(() => void handleSearch(last.page && last.page > 0 ? last.page : 1), 0)
-          return
-        }
+    const initialize = async () => {
+      if (!searchParams || !isMounted) return
+      
+      const o = searchParams.get("origin") || ""
+      const d = searchParams.get("destination") || ""
+      const dep = searchParams.get("departureDate") || ""
+      const ret = searchParams.get("returnDate") || ""
+      const pas = searchParams.get("passengers") || "1"
+      const cls = (searchParams.get("seatClass") as FareClass) || "ECONOMY"
+      const pg = parseInt(searchParams.get("page") || "1", 10)
+      
+      // Check if we have search parameters
+      const hasSearchParams = o && d && dep
+      
+      if (hasSearchParams) {
+        // For now, we'll just set the codes, in a real app we'd fetch the full city objects
+        if (o) setOrigin({ code: o, name: o, type: "City" })
+        if (d) setDestination({ code: d, name: d, type: "City" })
+        setDepartDate(dep)
+        setReturnDate(ret)
+        setPassengers(pas)
+        setSeatClass(cls)
+        setPage(isNaN(pg) ? 1 : pg)
+        if (isMounted) void handleSearch(isNaN(pg) ? 1 : pg)
+        return
       }
-    } catch {
-      // ignore storage errors
+
+      // No search parameters: try last search from localStorage
+      try {
+        const raw = localStorage.getItem("flight:lastSearch")
+        if (raw && isMounted) {
+          const last = JSON.parse(raw) as {
+            origin: string
+            destination: string
+            departDate: string
+            returnDate?: string
+            passengers: string
+            seatClass: FareClass
+            page?: number
+          }
+          if (last?.origin && last?.destination && last?.departDate) {
+            setOrigin({ code: last.origin, name: last.origin, type: "City" })
+            setDestination({ code: last.destination, name: last.destination, type: "City" })
+            setDepartDate(last.departDate)
+            setReturnDate(last.returnDate || "")
+            setPassengers(last.passengers || "1")
+            setSeatClass(last.seatClass || "ECONOMY")
+            setPage(last.page && last.page > 0 ? last.page : 1)
+            // Defer to ensure state is applied
+            if (isMounted) {
+              setTimeout(() => void handleSearch(last.page && last.page > 0 ? last.page : 1), 0)
+            }
+            return
+          }
+        }
+      } catch {
+        // ignore storage errors
+      }
+
+      // No search parameters and no saved search: load initial data only if we haven't loaded anything yet
+      if (flightResults.length === 0 && !loading && !initialData && isMounted) {
+        void loadInitialData()
+      }
     }
-
-    // No search parameters and no saved search: load initial data
-    void loadInitialData()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
-
-  // Load initial data on first mount if no search results are available
-  useEffect(() => {
-    // Load initial data if we don't have any flight results and we're not currently loading
-    if (flightResults.length === 0 && !loading && !initialData) {
-      void loadInitialData()
+    
+    initialize()
+    
+    return () => {
+      isMounted = false
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])

@@ -30,12 +30,12 @@ export const PaymentPage: React.FC<PaymentPageProps> = ({
   onBack,
   className,
 }) => {
-  const [selectedMethodId, setSelectedMethodId] = useState<string | null>(null)
+  const [selectedMethodId, setSelectedMethodId] = useState<string | undefined>(undefined)
   const [activeTab, setActiveTab] = useState<'new' | 'saved'>('new')
   const [showPaymentForm, setShowPaymentForm] = useState(false)
 
   const handleSelectMethod = (methodId: string | null) => {
-    setSelectedMethodId(methodId)
+    setSelectedMethodId(methodId || undefined)
     if (methodId) {
       setActiveTab('saved')
     }
@@ -43,7 +43,7 @@ export const PaymentPage: React.FC<PaymentPageProps> = ({
 
   const handleAddNewMethod = () => {
     setActiveTab('new')
-    setSelectedMethodId(null)
+    setSelectedMethodId(undefined)
     setShowPaymentForm(true)
   }
 

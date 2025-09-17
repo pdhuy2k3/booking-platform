@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useState, useRef } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { HotelCardSkeleton } from "@/modules/hotel/component/HotelCardSkeleton"
 import { HotelCard } from "@/modules/hotel/component/HotelCard"
@@ -83,7 +83,16 @@ export default function HotelsPage() {
     setDestination(destination.name)
   }
 
+  // Add a ref to track if we're already loading initial data
+  const isLoadingInitialData = useRef(false)
+
   async function loadInitialData() {
+    // Prevent multiple simultaneous initial data loads
+    if (isLoadingInitialData.current || loading) {
+      return
+    }
+    
+    isLoadingInitialData.current = true
     setLoading(true)
     setError(null)
     try {
@@ -118,6 +127,7 @@ export default function HotelsPage() {
       setError(e?.message || "Failed to load initial hotel data")
     } finally {
       setLoading(false)
+      isLoadingInitialData.current = false
     }
   }
 
@@ -195,61 +205,66 @@ export default function HotelsPage() {
 
   // Initialize from query, then localStorage, else defaults
   useEffect(() => {
-    if (!searchParams) return
-    const d = searchParams.get("destination") || ""
-    const ci = searchParams.get("checkInDate") || ""
-    const co = searchParams.get("checkOutDate") || ""
-    const g = searchParams.get("guests") || DEFAULT_GUESTS
-    const pg = parseInt(searchParams.get("page") || "1", 10)
+    let isMounted = true
     
-    // Check if we have search parameters
-    const hasSearchParams = d && ci && co
-    
-    if (hasSearchParams) {
-      setDestination(d)
-      setCheckInDate(ci)
-      setCheckOutDate(co)
-      setGuests(g)
-      setPage(isNaN(pg) ? 1 : pg)
-      void handleSearch(isNaN(pg) ? 1 : pg)
-      return
-    }
-
-    // No search parameters: try last search from localStorage
-    try {
-      const raw = localStorage.getItem("hotel:lastSearch")
-      if (raw) {
-        const last = JSON.parse(raw) as {
-          destination: string
-          checkInDate: string
-          checkOutDate: string
-          guests: string
-          page?: number
-        }
-        if (last?.destination && last?.checkInDate && last?.checkOutDate) {
-          setDestination(last.destination)
-          setCheckInDate(last.checkInDate)
-          setCheckOutDate(last.checkOutDate)
-          setGuests(last.guests || DEFAULT_GUESTS)
-          setPage(last.page && last.page > 0 ? last.page : 1)
-          setTimeout(() => void handleSearch(last.page && last.page > 0 ? last.page : 1), 0)
-          return
-        }
+    const initialize = async () => {
+      if (!searchParams || !isMounted) return
+      const d = searchParams.get("destination") || ""
+      const ci = searchParams.get("checkInDate") || ""
+      const co = searchParams.get("checkOutDate") || ""
+      const g = searchParams.get("guests") || DEFAULT_GUESTS
+      const pg = parseInt(searchParams.get("page") || "1", 10)
+      
+      // Check if we have search parameters
+      const hasSearchParams = d && ci && co
+      
+      if (hasSearchParams) {
+        setDestination(d)
+        setCheckInDate(ci)
+        setCheckOutDate(co)
+        setGuests(g)
+        setPage(isNaN(pg) ? 1 : pg)
+        if (isMounted) void handleSearch(isNaN(pg) ? 1 : pg)
+        return
       }
-    } catch {
-      // ignore storage errors
+
+      // No search parameters: try last search from localStorage
+      try {
+        const raw = localStorage.getItem("hotel:lastSearch")
+        if (raw && isMounted) {
+          const last = JSON.parse(raw) as {
+            destination: string
+            checkInDate: string
+            checkOutDate: string
+            guests: string
+            page?: number
+          }
+          if (last?.destination && last?.checkInDate && last?.checkOutDate) {
+            setDestination(last.destination)
+            setCheckInDate(last.checkInDate)
+            setCheckOutDate(last.checkOutDate)
+            setGuests(last.guests || DEFAULT_GUESTS)
+            setPage(last.page && last.page > 0 ? last.page : 1)
+            if (isMounted) {
+              setTimeout(() => void handleSearch(last.page && last.page > 0 ? last.page : 1), 0)
+            }
+            return
+          }
+        }
+      } catch {
+        // ignore storage errors
+      }
+
+      // No search parameters and no saved search: load initial data only if we haven't loaded anything yet
+      if (results.length === 0 && !loading && !initialData && isMounted) {
+        void loadInitialData()
+      }
     }
-
-    // No search parameters and no saved search: load initial data
-    void loadInitialData()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
-
-  // Load initial data on first mount if no search results are available
-  useEffect(() => {
-    // Load initial data if we don't have any hotel results and we're not currently loading
-    if (results.length === 0 && !loading && !initialData) {
-      void loadInitialData()
+    
+    initialize()
+    
+    return () => {
+      isMounted = false
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
