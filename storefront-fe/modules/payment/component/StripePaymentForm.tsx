@@ -1,0 +1,417 @@
+'use client'
+
+import React, { useState, useEffect } from 'react'
+import { useStripe, useElements, PaymentElement } from '@stripe/react-stripe-js'
+import { useForm } from 'react-hook-form'
+import { zodResolver } from '@hookform/resolvers/zod'
+import { z } from 'zod'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Alert, AlertDescription } from '@/components/ui/alert'
+import { Loader2, CreditCard, CheckCircle, XCircle } from 'lucide-react'
+import { paymentService } from '../service'
+import { paymentPollingService } from '../service/PaymentPollingService'
+import { StripePaymentFormData } from '../type/stripe'
+import { getStripeErrorMessage } from '../config/stripe'
+
+// Form validation schema
+const paymentFormSchema = z.object({
+  amount: z.number().min(0.01, 'Amount must be greater than 0'),
+  currency: z.string().min(1, 'Currency is required'),
+  customerEmail: z.string().email('Invalid email address'),
+  customerName: z.string().min(2, 'Name must be at least 2 characters'),
+  billingAddress: z.object({
+    line1: z.string().min(1, 'Address line 1 is required'),
+    line2: z.string().optional(),
+    city: z.string().min(1, 'City is required'),
+    state: z.string().optional(),
+    postalCode: z.string().min(1, 'Postal code is required'),
+    country: z.string().min(2, 'Country code is required'),
+  }),
+  savePaymentMethod: z.boolean().optional(),
+  setAsDefault: z.boolean().optional(),
+})
+
+type PaymentFormData = z.infer<typeof paymentFormSchema>
+
+interface StripePaymentFormProps {
+  bookingId: string
+  amount: number
+  currency?: string
+  description?: string
+  onSuccess?: (paymentIntent: any) => void
+  onError?: (error: string) => void
+  onCancel?: () => void
+  className?: string
+}
+
+export const StripePaymentForm: React.FC<StripePaymentFormProps> = ({
+  bookingId,
+  amount,
+  currency = 'usd',
+  description,
+  onSuccess,
+  onError,
+  onCancel,
+  className,
+}) => {
+  const stripe = useStripe()
+  const elements = useElements()
+  
+  const [isProcessing, setIsProcessing] = useState(false)
+  const [paymentStatus, setPaymentStatus] = useState<'idle' | 'processing' | 'succeeded' | 'failed'>('idle')
+  const [errorMessage, setErrorMessage] = useState<string | null>(null)
+  const [clientSecret, setClientSecret] = useState<string | null>(null)
+  const [isPolling, setIsPolling] = useState(false)
+
+  const {
+    register,
+    handleSubmit,
+    formState: { errors },
+    watch,
+  } = useForm<PaymentFormData>({
+    resolver: zodResolver(paymentFormSchema),
+    defaultValues: {
+      amount,
+      currency,
+      customerEmail: '',
+      customerName: '',
+      billingAddress: {
+        line1: '',
+        line2: '',
+        city: '',
+        state: '',
+        postalCode: '',
+        country: 'US',
+      },
+      savePaymentMethod: false,
+      setAsDefault: false,
+    },
+  })
+
+  // Create payment intent when component mounts
+  useEffect(() => {
+    const createPaymentIntent = async () => {
+      try {
+        const formData = watch()
+        const paymentIntent = await paymentService.createIntent({
+          bookingId,
+          amount: formData.amount,
+          currency: formData.currency,
+          customerEmail: formData.customerEmail,
+          customerName: formData.customerName,
+          description: description || '',
+        })
+        
+        setClientSecret(paymentIntent.clientSecret || null)
+      } catch (error) {
+        console.error('Error creating payment intent:', error)
+        setErrorMessage('Failed to initialize payment. Please try again.')
+      }
+    }
+
+    createPaymentIntent()
+  }, [bookingId, amount, currency, description, watch])
+
+  const handlePaymentSubmit = async (data: PaymentFormData) => {
+    if (!stripe || !elements || !clientSecret) {
+      setErrorMessage('Payment system not ready. Please try again.')
+      return
+    }
+
+    setIsProcessing(true)
+    setPaymentStatus('processing')
+    setErrorMessage(null)
+
+    try {
+      // Confirm payment with Stripe
+      const { error, paymentIntent } = await stripe.confirmPayment({
+        elements,
+        confirmParams: {
+          return_url: `${window.location.origin}/payment/result`,
+        },
+        redirect: 'if_required',
+      })
+
+      if (error) {
+        console.error('Payment failed:', error)
+        setErrorMessage(getStripeErrorMessage(error.code))
+        setPaymentStatus('failed')
+        onError?.(error.message || 'Payment failed')
+      } else if (paymentIntent?.status === 'succeeded') {
+        setPaymentStatus('succeeded')
+        onSuccess?.(paymentIntent)
+      } else if (paymentIntent?.status === 'requires_action') {
+        // Start polling for 3D Secure or other actions
+        setIsPolling(true)
+        setPaymentStatus('processing')
+        startPollingForPaymentStatus(paymentIntent.id)
+      }
+    } catch (error) {
+      console.error('Payment error:', error)
+      setErrorMessage('An unexpected error occurred. Please try again.')
+      setPaymentStatus('failed')
+      onError?.('Payment failed')
+    } finally {
+      setIsProcessing(false)
+    }
+  }
+
+  const handleCancel = () => {
+    // Stop polling if active
+    if (clientSecret) {
+      paymentPollingService.stopPolling(clientSecret)
+    }
+    onCancel?.()
+  }
+
+  const startPollingForPaymentStatus = (paymentIntentId: string) => {
+    paymentPollingService.startPolling(paymentIntentId, {
+      maxAttempts: 30, // 1 minute
+      intervalMs: 2000, // 2 seconds
+      onSuccess: (paymentIntent) => {
+        setIsPolling(false)
+        setPaymentStatus('succeeded')
+        onSuccess?.(paymentIntent)
+      },
+      onError: (error) => {
+        setIsPolling(false)
+        setPaymentStatus('failed')
+        setErrorMessage(error)
+        onError?.(error)
+      },
+      onTimeout: () => {
+        setIsPolling(false)
+        setPaymentStatus('failed')
+        setErrorMessage('Payment verification timed out. Please check your payment status.')
+        onError?.('Payment verification timeout')
+      }
+    })
+  }
+
+  // Cleanup polling on unmount
+  useEffect(() => {
+    return () => {
+      if (clientSecret) {
+        paymentPollingService.stopPolling(clientSecret)
+      }
+    }
+  }, [clientSecret])
+
+  const renderPaymentStatus = () => {
+    switch (paymentStatus) {
+      case 'processing':
+        return (
+          <Alert>
+            <Loader2 className="h-4 w-4 animate-spin" />
+            <AlertDescription>
+              {isPolling ? 'Verifying payment status...' : 'Processing your payment...'}
+            </AlertDescription>
+          </Alert>
+        )
+      case 'succeeded':
+        return (
+          <Alert className="border-green-200 bg-green-50">
+            <CheckCircle className="h-4 w-4 text-green-600" />
+            <AlertDescription className="text-green-800">
+              Payment successful! Your booking has been confirmed.
+            </AlertDescription>
+          </Alert>
+        )
+      case 'failed':
+        return (
+          <Alert variant="destructive">
+            <XCircle className="h-4 w-4" />
+            <AlertDescription>
+              Payment failed. Please try again or use a different payment method.
+            </AlertDescription>
+          </Alert>
+        )
+      default:
+        return null
+    }
+  }
+
+  return (
+    <Card className={className}>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <CreditCard className="h-5 w-5" />
+          Payment Details
+        </CardTitle>
+        <CardDescription>
+          Complete your booking with secure payment processing
+        </CardDescription>
+      </CardHeader>
+      
+      <CardContent>
+        <form onSubmit={handleSubmit(handlePaymentSubmit)} className="space-y-6">
+          {/* Customer Information */}
+          <div className="space-y-4">
+            <h3 className="text-lg font-medium">Customer Information</h3>
+            
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <Label htmlFor="customerName">Full Name</Label>
+                <Input
+                  id="customerName"
+                  {...register('customerName')}
+                  placeholder="John Doe"
+                  className={errors.customerName ? 'border-red-500' : ''}
+                />
+                {errors.customerName && (
+                  <p className="text-sm text-red-500 mt-1">{errors.customerName.message}</p>
+                )}
+              </div>
+              
+              <div>
+                <Label htmlFor="customerEmail">Email</Label>
+                <Input
+                  id="customerEmail"
+                  type="email"
+                  {...register('customerEmail')}
+                  placeholder="john@example.com"
+                  className={errors.customerEmail ? 'border-red-500' : ''}
+                />
+                {errors.customerEmail && (
+                  <p className="text-sm text-red-500 mt-1">{errors.customerEmail.message}</p>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* Billing Address */}
+          <div className="space-y-4">
+            <h3 className="text-lg font-medium">Billing Address</h3>
+            
+            <div className="space-y-4">
+              <div>
+                <Label htmlFor="line1">Address Line 1</Label>
+                <Input
+                  id="line1"
+                  {...register('billingAddress.line1')}
+                  placeholder="123 Main St"
+                  className={errors.billingAddress?.line1 ? 'border-red-500' : ''}
+                />
+                {errors.billingAddress?.line1 && (
+                  <p className="text-sm text-red-500 mt-1">{errors.billingAddress.line1.message}</p>
+                )}
+              </div>
+              
+              <div>
+                <Label htmlFor="line2">Address Line 2 (Optional)</Label>
+                <Input
+                  id="line2"
+                  {...register('billingAddress.line2')}
+                  placeholder="Apt 4B"
+                />
+              </div>
+              
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div>
+                  <Label htmlFor="city">City</Label>
+                  <Input
+                    id="city"
+                    {...register('billingAddress.city')}
+                    placeholder="New York"
+                    className={errors.billingAddress?.city ? 'border-red-500' : ''}
+                  />
+                  {errors.billingAddress?.city && (
+                    <p className="text-sm text-red-500 mt-1">{errors.billingAddress.city.message}</p>
+                  )}
+                </div>
+                
+                <div>
+                  <Label htmlFor="state">State</Label>
+                  <Input
+                    id="state"
+                    {...register('billingAddress.state')}
+                    placeholder="NY"
+                  />
+                </div>
+                
+                <div>
+                  <Label htmlFor="postalCode">Postal Code</Label>
+                  <Input
+                    id="postalCode"
+                    {...register('billingAddress.postalCode')}
+                    placeholder="10001"
+                    className={errors.billingAddress?.postalCode ? 'border-red-500' : ''}
+                  />
+                  {errors.billingAddress?.postalCode && (
+                    <p className="text-sm text-red-500 mt-1">{errors.billingAddress.postalCode.message}</p>
+                  )}
+                </div>
+              </div>
+              
+              <div>
+                <Label htmlFor="country">Country</Label>
+                <Input
+                  id="country"
+                  {...register('billingAddress.country')}
+                  placeholder="US"
+                  className={errors.billingAddress?.country ? 'border-red-500' : ''}
+                />
+                {errors.billingAddress?.country && (
+                  <p className="text-sm text-red-500 mt-1">{errors.billingAddress.country.message}</p>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* Payment Element */}
+          <div className="space-y-4">
+            <h3 className="text-lg font-medium">Payment Method</h3>
+            <div className="border rounded-lg p-4">
+              <PaymentElement />
+            </div>
+          </div>
+
+          {/* Error Message */}
+          {errorMessage && (
+            <Alert variant="destructive">
+              <XCircle className="h-4 w-4" />
+              <AlertDescription>{errorMessage}</AlertDescription>
+            </Alert>
+          )}
+
+          {/* Payment Status */}
+          {renderPaymentStatus()}
+
+          {/* Action Buttons */}
+          <div className="flex gap-4 pt-4">
+            <Button
+              type="submit"
+              disabled={!stripe || !elements || isProcessing || paymentStatus === 'succeeded'}
+              className="flex-1"
+            >
+              {isProcessing ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Processing...
+                </>
+              ) : (
+                `Pay $${amount.toFixed(2)} ${currency.toUpperCase()}`
+              )}
+            </Button>
+            
+            {onCancel && (
+              <Button
+                type="button"
+                variant="outline"
+                onClick={handleCancel}
+                disabled={isProcessing}
+              >
+                Cancel
+              </Button>
+            )}
+          </div>
+        </form>
+      </CardContent>
+    </Card>
+  )
+}
+
+export default StripePaymentForm

@@ -4,6 +4,7 @@ import com.pdh.common.model.AbstractAuditEntity;
 import com.pdh.payment.model.enums.PaymentStatus;
 import com.pdh.payment.model.enums.PaymentMethodType;
 import com.pdh.payment.model.enums.PaymentProvider;
+import com.pdh.payment.model.enums.PaymentTransactionType;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Data;
@@ -21,7 +22,16 @@ import java.util.UUID;
  * Core payment information with Saga pattern support
  */
 @Entity
-@Table(name = "payments")
+@Table(name = "payments", indexes = {
+    @Index(name = "idx_payment_booking_id", columnList = "booking_id"),
+    @Index(name = "idx_payment_user_id", columnList = "user_id"),
+    @Index(name = "idx_payment_status", columnList = "status"),
+    @Index(name = "idx_payment_saga_id", columnList = "saga_id"),
+    @Index(name = "idx_payment_created_at", columnList = "created_at"),
+    @Index(name = "idx_payment_provider", columnList = "provider"),
+    @Index(name = "idx_payment_method_type", columnList = "method_type"),
+    @Index(name = "idx_payment_gateway_txn_id", columnList = "gateway_transaction_id")
+})
 @Data
 @EqualsAndHashCode(callSuper = false)
 @NoArgsConstructor
@@ -142,8 +152,11 @@ public class Payment extends AbstractAuditEntity {
     private String notes;
     
     // Relationships
-    @OneToMany(mappedBy = "payment", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
+    @OneToMany(mappedBy = "payment", cascade = CascadeType.ALL, fetch = FetchType.LAZY, orphanRemoval = true)
     private List<PaymentTransaction> transactions = new ArrayList<>();
+    
+    @OneToMany(mappedBy = "payment", cascade = CascadeType.ALL, fetch = FetchType.LAZY, orphanRemoval = true)
+    private List<PaymentSagaLog> sagaLogs = new ArrayList<>();
     
     /**
      * Check if payment can be refunded
@@ -223,5 +236,92 @@ public class Payment extends AbstractAuditEntity {
         this.status = PaymentStatus.FAILED;
         this.failureReason = reason;
         this.processedAt = ZonedDateTime.now();
+    }
+    
+    // Relationship Management Methods
+    
+    /**
+     * Add a transaction to this payment
+     */
+    public void addTransaction(PaymentTransaction transaction) {
+        if (transaction != null) {
+            transaction.setPayment(this);
+            this.transactions.add(transaction);
+        }
+    }
+    
+    /**
+     * Remove a transaction from this payment
+     */
+    public void removeTransaction(PaymentTransaction transaction) {
+        if (transaction != null) {
+            transaction.setPayment(null);
+            this.transactions.remove(transaction);
+        }
+    }
+    
+    /**
+     * Get the latest transaction
+     */
+    public PaymentTransaction getLatestTransaction() {
+        return transactions.stream()
+                .max((t1, t2) -> t1.getCreatedAt().compareTo(t2.getCreatedAt()))
+                .orElse(null);
+    }
+    
+    /**
+     * Get transactions by type
+     */
+    public List<PaymentTransaction> getTransactionsByType(PaymentTransactionType type) {
+        return transactions.stream()
+                .filter(tx -> tx.getTransactionType() == type)
+                .toList();
+    }
+    
+    /**
+     * Get successful transactions
+     */
+    public List<PaymentTransaction> getSuccessfulTransactions() {
+        return transactions.stream()
+                .filter(PaymentTransaction::isSuccessful)
+                .toList();
+    }
+    
+    /**
+     * Add a saga log entry
+     */
+    public void addSagaLog(PaymentSagaLog sagaLog) {
+        if (sagaLog != null) {
+            sagaLog.setPayment(this);
+            this.sagaLogs.add(sagaLog);
+        }
+    }
+    
+    /**
+     * Remove a saga log entry
+     */
+    public void removeSagaLog(PaymentSagaLog sagaLog) {
+        if (sagaLog != null) {
+            sagaLog.setPayment(null);
+            this.sagaLogs.remove(sagaLog);
+        }
+    }
+    
+    /**
+     * Get saga logs by step name
+     */
+    public List<PaymentSagaLog> getSagaLogsByStep(String stepName) {
+        return sagaLogs.stream()
+                .filter(log -> stepName.equals(log.getStepName()))
+                .toList();
+    }
+    
+    /**
+     * Get successful saga logs
+     */
+    public List<PaymentSagaLog> getSuccessfulSagaLogs() {
+        return sagaLogs.stream()
+                .filter(PaymentSagaLog::wasSuccessful)
+                .toList();
     }
 }

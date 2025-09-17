@@ -32,6 +32,11 @@ public interface PaymentRepository extends JpaRepository<Payment, UUID> {
     List<Payment> findByBookingIdOrderByCreatedAtDesc(UUID bookingId);
     
     /**
+     * Find single payment by booking ID (for saga operations)
+     */
+    Optional<Payment> findByBookingId(UUID bookingId);
+    
+    /**
      * Find payment by user ID
      */
     Page<Payment> findByUserIdOrderByCreatedAtDesc(UUID userId, Pageable pageable);

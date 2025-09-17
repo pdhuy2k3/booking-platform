@@ -23,7 +23,6 @@ import java.math.BigDecimal;
 import java.time.ZonedDateTime;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.UUID;
 
 /**
  * Stripe Payment Strategy Implementation
@@ -59,8 +58,8 @@ public class StripePaymentStrategy implements PaymentStrategy {
         PaymentTransaction transaction = createBaseTransaction(payment, paymentMethod);
         
         try {
-            // Create Stripe PaymentIntent
-            PaymentIntent paymentIntent = createPaymentIntent(payment, paymentMethod, additionalData);
+            // Create Stripe PaymentIntent with simple retry
+            PaymentIntent paymentIntent = createPaymentIntentWithRetry(payment, paymentMethod, additionalData);
             
             // Update transaction with Stripe data
             updateTransactionWithStripeData(transaction, paymentIntent);
@@ -68,7 +67,7 @@ public class StripePaymentStrategy implements PaymentStrategy {
             log.info("Stripe payment intent created successfully: {}", paymentIntent.getId());
             
         } catch (StripeException e) {
-            log.error("Stripe payment failed for payment ID: {}", payment.getPaymentId(), e);
+            log.error("Stripe payment failed for payment ID: {} - {}", payment.getPaymentId(), e.getMessage());
             handleStripeError(transaction, e);
         } catch (Exception e) {
             log.error("Unexpected error during Stripe payment processing", e);
@@ -86,8 +85,8 @@ public class StripePaymentStrategy implements PaymentStrategy {
         PaymentTransaction refundTransaction = createRefundTransaction(originalTransaction, refundAmount, reason);
         
         try {
-            // Create Stripe Refund
-            Refund refund = createStripeRefund(originalTransaction, refundAmount, reason);
+            // Create Stripe Refund with simple retry
+            Refund refund = createStripeRefundWithRetry(originalTransaction, refundAmount, reason);
             
             // Update transaction with refund data
             updateRefundTransactionWithStripeData(refundTransaction, refund);
@@ -95,7 +94,7 @@ public class StripePaymentStrategy implements PaymentStrategy {
             log.info("Stripe refund created successfully: {}", refund.getId());
             
         } catch (StripeException e) {
-            log.error("Stripe refund failed for transaction: {}", originalTransaction.getTransactionId(), e);
+            log.error("Stripe refund failed for transaction: {} - {}", originalTransaction.getTransactionId(), e.getMessage());
             handleStripeRefundError(refundTransaction, e);
         } catch (Exception e) {
             log.error("Unexpected error during Stripe refund processing", e);
@@ -322,7 +321,7 @@ public class StripePaymentStrategy implements PaymentStrategy {
         refundTransaction.setProvider(PaymentProvider.STRIPE);
         refundTransaction.setSagaId(originalTransaction.getSagaId());
         refundTransaction.setSagaStep("STRIPE_REFUND_PROCESSING");
-        refundTransaction.setOriginalTransactionId(originalTransaction.getTransactionId());
+        refundTransaction.setOriginalTransaction(originalTransaction);
         refundTransaction.setIsCompensation(true);
 
         return refundTransaction;
@@ -363,27 +362,118 @@ public class StripePaymentStrategy implements PaymentStrategy {
         }
     }
 
-    private void handleStripeError(PaymentTransaction transaction, StripeException e) {
-        String errorCode = e.getCode() != null ? e.getCode() : "STRIPE_ERROR";
-        String errorMessage = e.getUserMessage() != null ? e.getUserMessage() : e.getMessage();
 
+    /**
+     * Create PaymentIntent with simple retry logic (MVP approach)
+     */
+    private PaymentIntent createPaymentIntentWithRetry(Payment payment, PaymentMethod paymentMethod, 
+                                                     Map<String, Object> additionalData) throws StripeException {
+        int maxRetries = 2;
+        int attempt = 0;
+        
+        while (attempt < maxRetries) {
+            attempt++;
+            try {
+                return createPaymentIntent(payment, paymentMethod, additionalData);
+            } catch (StripeException e) {
+                if (attempt >= maxRetries || !isRetryableError(e)) {
+                    throw e;
+                }
+                log.warn("Stripe payment attempt {} failed, retrying... Error: {}", attempt, e.getMessage());
+                try {
+                    Thread.sleep(1000); // Simple 1 second delay
+                } catch (InterruptedException ie) {
+                    Thread.currentThread().interrupt();
+                    throw new RuntimeException("Operation interrupted", ie);
+                }
+            }
+        }
+        throw new RuntimeException("Max retries exceeded");
+    }
+
+    /**
+     * Create Stripe Refund with simple retry logic (MVP approach)
+     */
+    private Refund createStripeRefundWithRetry(PaymentTransaction originalTransaction, 
+                                             BigDecimal refundAmount, String reason) throws StripeException {
+        int maxRetries = 2;
+        int attempt = 0;
+        
+        while (attempt < maxRetries) {
+            attempt++;
+            try {
+                return createStripeRefund(originalTransaction, refundAmount, reason);
+            } catch (StripeException e) {
+                if (attempt >= maxRetries || !isRetryableError(e)) {
+                    throw e;
+                }
+                log.warn("Stripe refund attempt {} failed, retrying... Error: {}", attempt, e.getMessage());
+                try {
+                    Thread.sleep(1000); // Simple 1 second delay
+                } catch (InterruptedException ie) {
+                    Thread.currentThread().interrupt();
+                    throw new RuntimeException("Operation interrupted", ie);
+                }
+            }
+        }
+        throw new RuntimeException("Max retries exceeded");
+    }
+
+    /**
+     * Simple retry logic - only retry on rate limits and connection errors
+     */
+    private boolean isRetryableError(StripeException e) {
+        return e.getStatusCode() >= 500 || // Server errors
+               e.getClass().getSimpleName().equals("RateLimitException") ||
+               e.getClass().getSimpleName().equals("ApiConnectionException");
+    }
+
+    /**
+     * Simple error handling for payments
+     */
+    private void handleStripeError(PaymentTransaction transaction, StripeException e) {
+        String errorMessage = getUserFriendlyMessage(e);
+        
         transaction.setStatus(PaymentStatus.FAILED);
         transaction.setGatewayStatus("ERROR");
         transaction.setFailureReason(errorMessage);
-        transaction.setFailureCode(errorCode);
+        transaction.setFailureCode(e.getCode() != null ? e.getCode() : "STRIPE_ERROR");
         transaction.setGatewayResponse(e.getMessage());
         transaction.setProcessedAt(ZonedDateTime.now());
     }
 
+    /**
+     * Simple error handling for refunds
+     */
     private void handleStripeRefundError(PaymentTransaction refundTransaction, StripeException e) {
-        String errorCode = e.getCode() != null ? e.getCode() : "STRIPE_REFUND_ERROR";
-        String errorMessage = e.getUserMessage() != null ? e.getUserMessage() : e.getMessage();
-
+        String errorMessage = getUserFriendlyMessage(e);
+        
         refundTransaction.setStatus(PaymentStatus.REFUND_FAILED);
         refundTransaction.setGatewayStatus("ERROR");
         refundTransaction.setFailureReason(errorMessage);
-        refundTransaction.setFailureCode(errorCode);
+        refundTransaction.setFailureCode(e.getCode() != null ? e.getCode() : "STRIPE_REFUND_ERROR");
         refundTransaction.setGatewayResponse(e.getMessage());
         refundTransaction.setProcessedAt(ZonedDateTime.now());
+    }
+
+    /**
+     * Convert Stripe errors to user-friendly messages (MVP approach)
+     */
+    private String getUserFriendlyMessage(StripeException e) {
+        String errorCode = e.getCode();
+        if (errorCode == null) {
+            return "Payment processing failed. Please try again.";
+        }
+        
+        return switch (errorCode) {
+            case "card_declined" -> "Your card was declined. Please try a different payment method.";
+            case "expired_card" -> "Your card has expired. Please use a different payment method.";
+            case "incorrect_cvc" -> "The security code you entered is incorrect.";
+            case "incorrect_number" -> "The card number you entered is incorrect.";
+            case "insufficient_funds" -> "Your card has insufficient funds.";
+            case "processing_error" -> "A processing error occurred. Please try again.";
+            case "authentication_required" -> "Additional authentication is required for this payment.";
+            default -> "Payment processing failed. Please try again or contact support.";
+        };
     }
 }

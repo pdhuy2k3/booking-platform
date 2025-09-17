@@ -27,7 +27,7 @@ public class StripeConfig {
     public static class Settings {
         private String captureMethod = "automatic";
         private String confirmationMethod = "automatic";
-        private String currency = "usd";
+        private String currency = "vnd";
         private String statementDescriptor = "BookingSmart";
         private boolean receiptEmail = true;
     }

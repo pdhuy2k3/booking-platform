@@ -12,6 +12,8 @@ import lombok.NoArgsConstructor;
 
 import java.math.BigDecimal;
 import java.time.ZonedDateTime;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.UUID;
 
 /**
@@ -19,7 +21,16 @@ import java.util.UUID;
  * Represents individual transactions within a payment
  */
 @Entity
-@Table(name = "payment_transactions")
+@Table(name = "payment_transactions", indexes = {
+    @Index(name = "idx_txn_payment_id", columnList = "payment_id"),
+    @Index(name = "idx_txn_status", columnList = "status"),
+    @Index(name = "idx_txn_provider", columnList = "provider"),
+    @Index(name = "idx_txn_type", columnList = "transaction_type"),
+    @Index(name = "idx_txn_gateway_id", columnList = "gateway_transaction_id"),
+    @Index(name = "idx_txn_saga_id", columnList = "saga_id"),
+    @Index(name = "idx_txn_created_at", columnList = "created_at"),
+    @Index(name = "idx_txn_original_id", columnList = "original_transaction_id")
+})
 @Data
 @EqualsAndHashCode(callSuper = false)
 @NoArgsConstructor
@@ -65,6 +76,7 @@ public class PaymentTransaction extends AbstractAuditEntity {
     @Column(name = "gateway_reference", length = 100)
     private String gatewayReference;
     
+    @Convert(converter = com.pdh.payment.config.EncryptedStringConverter.class)
     @Column(name = "gateway_response", columnDefinition = "TEXT")
     private String gatewayResponse;
     
@@ -88,11 +100,19 @@ public class PaymentTransaction extends AbstractAuditEntity {
     private ZonedDateTime expiredAt;
     
     // Parent transaction for refunds/compensations
-    @Column(name = "parent_transaction_id")
-    private UUID parentTransactionId;
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "parent_transaction_id")
+    private PaymentTransaction parentTransaction;
     
-    @Column(name = "original_transaction_id")
-    private UUID originalTransactionId;
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "original_transaction_id")
+    private PaymentTransaction originalTransaction;
+    
+    @OneToMany(mappedBy = "parentTransaction", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
+    private List<PaymentTransaction> childTransactions = new ArrayList<>();
+    
+    @OneToMany(mappedBy = "originalTransaction", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
+    private List<PaymentTransaction> refundTransactions = new ArrayList<>();
     
     // Failure handling
     @Column(name = "failure_reason", columnDefinition = "TEXT")
@@ -235,5 +255,71 @@ public class PaymentTransaction extends AbstractAuditEntity {
      */
     public BigDecimal getNetAmount() {
         return isDebit() ? amount.negate() : amount;
+    }
+    
+    // Relationship Management Methods
+    
+    /**
+     * Add a child transaction (refund, compensation, etc.)
+     */
+    public void addChildTransaction(PaymentTransaction childTransaction) {
+        if (childTransaction != null) {
+            childTransaction.setParentTransaction(this);
+            this.childTransactions.add(childTransaction);
+        }
+    }
+    
+    /**
+     * Remove a child transaction
+     */
+    public void removeChildTransaction(PaymentTransaction childTransaction) {
+        if (childTransaction != null) {
+            childTransaction.setParentTransaction(null);
+            this.childTransactions.remove(childTransaction);
+        }
+    }
+    
+    /**
+     * Add a refund transaction
+     */
+    public void addRefundTransaction(PaymentTransaction refundTransaction) {
+        if (refundTransaction != null) {
+            refundTransaction.setOriginalTransaction(this);
+            this.refundTransactions.add(refundTransaction);
+        }
+    }
+    
+    /**
+     * Remove a refund transaction
+     */
+    public void removeRefundTransaction(PaymentTransaction refundTransaction) {
+        if (refundTransaction != null) {
+            refundTransaction.setOriginalTransaction(null);
+            this.refundTransactions.remove(refundTransaction);
+        }
+    }
+    
+    /**
+     * Get total refunded amount
+     */
+    public BigDecimal getTotalRefundedAmount() {
+        return refundTransactions.stream()
+                .filter(PaymentTransaction::isSuccessful)
+                .map(PaymentTransaction::getAmount)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+    }
+    
+    /**
+     * Check if transaction has refunds
+     */
+    public boolean hasRefunds() {
+        return !refundTransactions.isEmpty();
+    }
+    
+    /**
+     * Check if transaction is fully refunded
+     */
+    public boolean isFullyRefunded() {
+        return getTotalRefundedAmount().compareTo(amount) >= 0;
     }
 }

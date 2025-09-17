@@ -9,6 +9,8 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken;
 
+import java.util.UUID;
+
 public final class AuthenticationUtils {
 
     private AuthenticationUtils() {
@@ -24,6 +26,15 @@ public final class AuthenticationUtils {
         JwtAuthenticationToken contextHolder = (JwtAuthenticationToken) authentication;
 
         return contextHolder.getToken().getSubject();
+    }
+
+    public static UUID getCurrentUserIdFromContext() {
+        String userId = extractUserId();
+        try {
+            return UUID.fromString(userId);
+        } catch (IllegalArgumentException e) {
+            throw new AccessDeniedException("Invalid user ID format: " + userId);
+        }
     }
     public static String extractRole() {
         Authentication authentication = getAuthentication();

@@ -195,6 +195,91 @@ public class PaymentService {
         eventPublisher.publishEvent("PaymentRefunded", "Booking", bookingId.toString(), Map.of("bookingId", bookingId));
     }
 
+    /**
+     * Refund payment by payment ID and amount
+     */
+    @Transactional
+    public PaymentTransaction refundPayment(UUID paymentId, BigDecimal refundAmount, String reason) {
+        log.info("Processing refund for payment: {} with amount: {}", paymentId, refundAmount);
+
+        Optional<Payment> paymentOpt = paymentRepository.findById(paymentId);
+        if (paymentOpt.isEmpty()) {
+            throw new IllegalArgumentException("Payment not found: " + paymentId);
+        }
+
+        Payment payment = paymentOpt.get();
+        
+        // Find the latest successful transaction
+        Optional<PaymentTransaction> latestTransaction = payment.getTransactions().stream()
+                .filter(t -> t.getStatus().isSuccessful())
+                .max((t1, t2) -> t1.getCreatedAt().compareTo(t2.getCreatedAt()));
+
+        if (latestTransaction.isEmpty()) {
+            throw new IllegalArgumentException("No successful transaction found for payment: " + paymentId);
+        }
+
+        return processRefund(latestTransaction.get().getTransactionId(), refundAmount, reason);
+    }
+
+    /**
+     * Cancel payment by payment ID
+     */
+    @Transactional
+    public void cancelPayment(UUID paymentId) {
+        log.info("Cancelling payment: {}", paymentId);
+
+        Optional<Payment> paymentOpt = paymentRepository.findById(paymentId);
+        if (paymentOpt.isEmpty()) {
+            throw new IllegalArgumentException("Payment not found: " + paymentId);
+        }
+
+        Payment payment = paymentOpt.get();
+        
+        // Update payment status
+        payment.setStatus(PaymentStatus.CANCELLED);
+        paymentRepository.save(payment);
+
+        // Find pending transactions and cancel them
+        payment.getTransactions().stream()
+                .filter(t -> t.getStatus() == PaymentStatus.PENDING)
+                .forEach(transaction -> {
+                    transaction.setStatus(PaymentStatus.CANCELLED);
+                    transaction.setFailureReason("Payment cancelled");
+                    paymentTransactionRepository.save(transaction);
+                });
+
+        log.info("Payment cancelled successfully: {}", paymentId);
+    }
+
+    /**
+     * Confirm payment by payment ID
+     */
+    @Transactional
+    public void confirmPayment(UUID paymentId) {
+        log.info("Confirming payment: {}", paymentId);
+
+        Optional<Payment> paymentOpt = paymentRepository.findById(paymentId);
+        if (paymentOpt.isEmpty()) {
+            throw new IllegalArgumentException("Payment not found: " + paymentId);
+        }
+
+        Payment payment = paymentOpt.get();
+        
+        // Update payment status
+        payment.setStatus(PaymentStatus.COMPLETED);
+        paymentRepository.save(payment);
+
+        // Find pending transactions and mark as completed
+        payment.getTransactions().stream()
+                .filter(t -> t.getStatus() == PaymentStatus.PENDING)
+                .forEach(transaction -> {
+                    transaction.setStatus(PaymentStatus.COMPLETED);
+                    paymentTransactionRepository.save(transaction);
+                });
+
+        log.info("Payment confirmed successfully: {}", paymentId);
+    }
+
     // Helper methods
 
     private void publishPaymentEvent(Payment payment, PaymentTransaction transaction, String eventType) {
@@ -228,8 +313,8 @@ public class PaymentService {
             "currency", refundTransaction.getCurrency(),
             "status", refundTransaction.getStatus(),
             "provider", refundTransaction.getProvider(),
-            "originalTransactionId", refundTransaction.getOriginalTransactionId() != null ?
-                refundTransaction.getOriginalTransactionId() : "",
+            "originalTransactionId", refundTransaction.getOriginalTransaction() != null ?
+                refundTransaction.getOriginalTransaction().getTransactionId() : "",
             "sagaId", payment.getSagaId() != null ? payment.getSagaId() : ""
         );
 
