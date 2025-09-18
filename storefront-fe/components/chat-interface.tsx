@@ -2,6 +2,7 @@
 
 import type React from "react"
 
+import Image from "next/image"
 import { useState, useEffect, useImperativeHandle, forwardRef } from "react"
 import { Send, Mic, Paperclip, ChevronDown } from "lucide-react"
 import { Button } from "@/components/ui/button"
@@ -261,10 +262,13 @@ export const ChatInterface = forwardRef<any, ChatInterfaceProps>(function ChatIn
                         onClick={() => handleCardClick(result)}
                       >
                         <div className="aspect-video relative">
-                          <img
+                          <Image
                             src={result.image || "/placeholder.svg"}
                             alt={result.type === "flight" ? result.airline : result.name}
-                            className="w-full h-full object-cover"
+                            fill
+                            className="object-cover"
+                            sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
+                            unoptimized
                           />
                           {result.type === "hotel" && (
                             <div className="absolute bottom-2 right-2">

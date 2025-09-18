@@ -1,5 +1,6 @@
 "use client"
 
+import Image from "next/image"
 import { useState, useEffect } from "react"
 import { X, MapPin, Star, Wifi, Car, Coffee, Dumbbell, Building2, Calendar, Check } from "lucide-react"
 import { Button } from "@/components/ui/button"
@@ -13,9 +14,12 @@ interface HotelDetailsModalProps {
   hotelId: string | null
   isOpen: boolean
   onClose: () => void
+  onBookRoom?: (payload: { hotel: HotelDetails; room: any }) => void
+  canBook?: boolean
+  onPromptSearch?: () => void
 }
 
-export default function HotelDetailsModal({ hotelId, isOpen, onClose }: HotelDetailsModalProps) {
+export default function HotelDetailsModal({ hotelId, isOpen, onClose, onBookRoom, canBook = true, onPromptSearch }: HotelDetailsModalProps) {
   const [selectedRoom, setSelectedRoom] = useState("standard")
   const [hotel, setHotel] = useState<HotelDetails | null>(null)
   const [loading, setLoading] = useState(false)
@@ -40,6 +44,14 @@ export default function HotelDetailsModal({ hotelId, isOpen, onClose }: HotelDet
       setHotel(null)
     }
   }, [isOpen, hotelId])
+
+  useEffect(() => {
+    if (hotel?.roomTypes && hotel.roomTypes.length > 0) {
+      setSelectedRoom(hotel.roomTypes[0].id)
+    } else {
+      setSelectedRoom("standard")
+    }
+  }, [hotel])
 
   if (!isOpen || !hotelId) return null
 
@@ -136,7 +148,13 @@ export default function HotelDetailsModal({ hotelId, isOpen, onClose }: HotelDet
         <div className="h-full overflow-y-auto">
           {/* Header Image */}
           <div className="relative h-64 md:h-80">
-            <img src={hotel.primaryImage || hotel.images?.[0] || "/placeholder.svg"} alt={hotel.name} className="w-full h-full object-cover" />
+            <Image
+              src={hotel.primaryImage || hotel.images?.[0] || "/placeholder.svg"}
+              alt={hotel.name}
+              fill
+              className="object-cover"
+              unoptimized
+            />
             <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/60 to-transparent p-6">
               <h1 className="text-3xl font-bold text-white mb-2">{hotel.name}</h1>
               <div className="flex items-center space-x-2 text-white/90">
@@ -208,11 +226,15 @@ export default function HotelDetailsModal({ hotelId, isOpen, onClose }: HotelDet
                       >
                         <CardContent className="p-4">
                           <div className="flex flex-col md:flex-row gap-4">
-                            <img
-                              src={room.image || "/placeholder.svg"}
-                              alt={room.name}
-                              className="w-full md:w-32 h-24 object-cover rounded"
-                            />
+                            <div className="w-full md:w-32 h-24 relative">
+                              <Image
+                                src={room.image || "/placeholder.svg"}
+                                alt={room.name}
+                                fill
+                                className="object-cover rounded"
+                                unoptimized
+                              />
+                            </div>
                             <div className="flex-1">
                               <div className="flex justify-between items-start mb-2">
                                 <h3 className="font-semibold">{room.name}</h3>
@@ -321,13 +343,31 @@ export default function HotelDetailsModal({ hotelId, isOpen, onClose }: HotelDet
                       </span>
                     </div>
 
-                    <Button className="w-full" size="lg">
+                    <Button
+                      className="w-full"
+                      size="lg"
+                      disabled={!canBook || !selectedRoomData}
+                      onClick={() => {
+                        if (!canBook) {
+                          onPromptSearch?.()
+                          return
+                        }
+                        if (selectedRoomData) {
+                          onBookRoom?.({ hotel, room: selectedRoomData })
+                        }
+                      }}
+                    >
                       Book Now
                     </Button>
 
                     <div className="text-xs text-muted-foreground text-center">
                       Free cancellation until 24 hours before check-in
                     </div>
+                    {!canBook && (
+                      <div className="text-xs text-destructive text-center">
+                        Vui lòng nhập thông tin tìm kiếm để tiếp tục đặt phòng
+                      </div>
+                    )}
                   </CardContent>
                 </Card>
               </div>

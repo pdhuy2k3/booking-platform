@@ -1,3 +1,4 @@
+import Image from "next/image"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -20,19 +21,26 @@ type Props = {
   }
   onViewDetails?: (hotel: any) => void
   onBookNow?: (hotel: any) => void
+  showPrice?: boolean
+  bookingDisabled?: boolean
+  onPromptSearch?: () => void
 }
 
-export function HotelCard({ hotel, onViewDetails, onBookNow }: Props) {
+export function HotelCard({ hotel, onViewDetails, onBookNow, showPrice = true, bookingDisabled = false, onPromptSearch }: Props) {
   return (
     <Card className="hover:shadow-lg transition-shadow cursor-pointer">
       <CardContent className="p-0">
         <div className="flex flex-col md:flex-row">
           <div className="md:w-1/3">
-            <img
-              src={hotel.image || "/placeholder.svg"}
-              alt={hotel.name}
-              className="w-full h-48 md:h-full object-cover rounded-l-lg"
-            />
+            <div className="relative w-full h-48 md:h-full">
+              <Image
+                src={hotel.image || "/placeholder.svg"}
+                alt={hotel.name}
+                fill
+                className="object-cover rounded-l-lg"
+                unoptimized
+              />
+            </div>
           </div>
           <div className="md:w-2/3 p-6">
             <div className="flex justify-between items-start mb-4">
@@ -56,9 +64,17 @@ export function HotelCard({ hotel, onViewDetails, onBookNow }: Props) {
                 </div>
               </div>
               <div className="text-right">
-                <div className="text-sm text-muted-foreground line-through">{formatPrice(hotel.originalPrice)}</div>
-                <div className="text-2xl font-bold text-primary">{formatPrice(hotel.price)}</div>
-                <div className="text-sm text-muted-foreground">mỗi đêm</div>
+                {showPrice ? (
+                  <>
+                    <div className="text-sm text-muted-foreground line-through">{formatPrice(hotel.originalPrice)}</div>
+                    <div className="text-2xl font-bold text-primary">{formatPrice(hotel.price)}</div>
+                    <div className="text-sm text-muted-foreground">mỗi đêm</div>
+                  </>
+                ) : (
+                  <Button variant="outline" size="sm" className="w-full" onClick={onPromptSearch}>
+                    Nhập thông tin để xem giá
+                  </Button>
+                )}
               </div>
             </div>
 
@@ -73,7 +89,19 @@ export function HotelCard({ hotel, onViewDetails, onBookNow }: Props) {
             </div>
 
             <div className="flex space-x-3">
-              <Button className="flex-1" onClick={() => onBookNow?.(hotel)}>Đặt ngay</Button>
+              <Button
+                className="flex-1"
+                disabled={bookingDisabled}
+                onClick={() => {
+                  if (bookingDisabled) {
+                    onPromptSearch?.()
+                    return
+                  }
+                  onBookNow?.(hotel)
+                }}
+              >
+                Đặt ngay
+              </Button>
               <Button variant="outline" className="flex-1 bg-transparent" onClick={() => onViewDetails?.(hotel)}>
                 Xem chi tiết
               </Button>
@@ -84,4 +112,3 @@ export function HotelCard({ hotel, onViewDetails, onBookNow }: Props) {
     </Card>
   )
 }
-

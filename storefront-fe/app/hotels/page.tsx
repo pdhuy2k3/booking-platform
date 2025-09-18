@@ -12,14 +12,22 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Slider } from "@/components/ui/slider"
 import { hotelService } from "@/modules/hotel/service"
-import type { InitialHotelData } from "@/modules/hotel/type"
+import type { InitialHotelData, HotelDetails } from "@/modules/hotel/type"
 import HotelDetailsModal from "@/modules/hotel/component/HotelDetailsModal"
 import { HotelDestinationModal } from "@/modules/hotel/component/HotelDestinationModal"
 import { formatPrice } from "@/lib/currency"
+import { useBooking } from "@/contexts/booking-context"
 
 export default function HotelsPage() {
   const router = useRouter()
   const searchParams = useSearchParams()
+  const {
+    resetBooking,
+    setBookingType,
+    setSelectedHotel,
+    updateBookingData,
+    setStep,
+  } = useBooking()
   const [priceRange, setPriceRange] = useState([0, 5000000])
   const [selectedAmenities, setSelectedAmenities] = useState<string[]>([])
   const [selectedRatings, setSelectedRatings] = useState<number[]>([])
@@ -33,6 +41,8 @@ export default function HotelsPage() {
   const [selectedHotelId, setSelectedHotelId] = useState<string | null>(null)
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [isDestinationModalOpen, setIsDestinationModalOpen] = useState(false)
+  const [hasSearched, setHasSearched] = useState(false)
+  const searchSectionRef = useRef<HTMLDivElement | null>(null)
 
   // Defaults for initial auto-search (configurable via env)
   const DEFAULT_DESTINATION = process.env.NEXT_PUBLIC_DEFAULT_HOTEL_DESTINATION || "Ho Chi Minh City"
@@ -69,7 +79,20 @@ export default function HotelsPage() {
     setSelectedRatings((prev) => (prev.includes(rating) ? prev.filter((r) => r !== rating) : [...prev, rating]))
   }
 
+  const scrollToSearch = () => {
+    searchSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  }
+
   const handleViewDetails = (hotel: any) => {
+    setSelectedHotelId(hotel.id)
+    setIsModalOpen(true)
+  }
+
+  const handleBookNow = (hotel: any) => {
+    if (!hasSearched) {
+      scrollToSearch()
+      return
+    }
     setSelectedHotelId(hotel.id)
     setIsModalOpen(true)
   }
@@ -81,6 +104,73 @@ export default function HotelsPage() {
 
   const handleDestinationSelect = (destination: any) => {
     setDestination(destination.name)
+  }
+
+  const handleRoomBooking = ({ hotel, room }: { hotel: HotelDetails; room: any }) => {
+    if (!hasSearched) {
+      scrollToSearch()
+      return
+    }
+    if (!hotel || !room) {
+      console.error('Unable to start booking flow: missing hotel or room details')
+      return
+    }
+
+    const hotelId = hotel.hotelId || selectedHotelId
+
+    if (!hotelId) {
+      console.error('Unable to start booking flow: missing hotel identifier')
+      return
+    }
+
+    const amenities = Array.isArray(room.features) && room.features.length > 0
+      ? room.features
+      : Array.isArray(hotel.amenities)
+      ? hotel.amenities
+      : []
+
+    const roomId = room.id || room.roomId
+    const roomName = room.name || room.roomType || 'Selected Room'
+    const roomType = room.roomType || room.name || 'Room'
+    const price = Number(room.price ?? room.pricePerNight ?? hotel.pricePerNight) || 0
+    const [guestCountRaw, roomCountRaw] = guests.split('-')
+    const guestCount = parseInt(guestCountRaw || '0', 10) || undefined
+    const roomCount = parseInt(roomCountRaw || '0', 10) || undefined
+    const nights = checkInDate && checkOutDate
+      ? Math.max(1, Math.round((new Date(checkOutDate).getTime() - new Date(checkInDate).getTime()) / (1000 * 60 * 60 * 24)))
+      : undefined
+
+    resetBooking()
+    setBookingType('hotel')
+    setSelectedHotel({
+      id: hotelId,
+      name: hotel.name,
+      address: hotel.address || '',
+      city: hotel.city || '',
+      country: hotel.country || '',
+      rating: hotel.starRating ?? hotel.rating,
+      roomId: roomId,
+      roomType,
+      roomName,
+      price,
+      currency: hotel.currency || 'VND',
+      amenities,
+      image: room.image || hotel.primaryImage || hotel.images?.[0],
+      checkInDate: checkInDate || undefined,
+      checkOutDate: checkOutDate || undefined,
+      guests: guestCount,
+      rooms: roomCount,
+      nights,
+    })
+    updateBookingData({
+      bookingType: 'HOTEL',
+      totalAmount: 0,
+      currency: hotel.currency || 'VND',
+      productDetails: undefined,
+    })
+    setStep('passengers')
+    handleCloseModal()
+    router.push('/bookings')
   }
 
   // Add a ref to track if we're already loading initial data
@@ -143,6 +233,35 @@ export default function HotelsPage() {
   }
 
   async function handleSearch(nextPage?: number) {
+    if (!destination.trim() || !checkInDate || !checkOutDate) {
+      setError('Vui lòng chọn điểm đến và ngày nhận/trả phòng để xem giá')
+      scrollToSearch()
+      return
+    }
+
+    const checkIn = new Date(checkInDate)
+    const checkOut = new Date(checkOutDate)
+    if (Number.isNaN(checkIn.getTime()) || Number.isNaN(checkOut.getTime())) {
+      setError('Ngày nhận phòng / trả phòng không hợp lệ')
+      scrollToSearch()
+      return
+    }
+
+    if (checkOut <= checkIn) {
+      setError('Ngày trả phòng phải sau ngày nhận phòng')
+      scrollToSearch()
+      return
+    }
+
+    const [guestCountRaw, roomCountRaw] = guests.split('-')
+    const guestCount = parseInt(guestCountRaw || '0', 10)
+    const roomCount = parseInt(roomCountRaw || '0', 10)
+    if (!Number.isFinite(guestCount) || guestCount <= 0 || !Number.isFinite(roomCount) || roomCount <= 0) {
+      setError('Vui lòng chọn số khách và số phòng hợp lệ')
+      scrollToSearch()
+      return
+    }
+
     setLoading(true)
     setError(null)
     try {
@@ -172,6 +291,7 @@ export default function HotelsPage() {
       setResults(ui)
       setHasMore(Boolean(res.hasMore))
       setPage(usePage)
+      setHasSearched(true)
       pushQuery(usePage)
       // Persist last successful search
       try {
@@ -216,15 +336,17 @@ export default function HotelsPage() {
       const pg = parseInt(searchParams.get("page") || "1", 10)
       
       // Check if we have search parameters
-      const hasSearchParams = d && ci && co
-      
+      const hasSearchParams = Boolean(d && ci && co)
+
       if (hasSearchParams) {
         setDestination(d)
         setCheckInDate(ci)
         setCheckOutDate(co)
         setGuests(g)
         setPage(isNaN(pg) ? 1 : pg)
-        if (isMounted) void handleSearch(isNaN(pg) ? 1 : pg)
+        if (isMounted) {
+          void handleSearch(isNaN(pg) ? 1 : pg)
+        }
         return
       }
 
@@ -246,7 +368,7 @@ export default function HotelsPage() {
             setGuests(last.guests || DEFAULT_GUESTS)
             setPage(last.page && last.page > 0 ? last.page : 1)
             if (isMounted) {
-              setTimeout(() => void handleSearch(last.page && last.page > 0 ? last.page : 1), 0)
+              void handleSearch(last.page && last.page > 0 ? last.page : 1)
             }
             return
           }
@@ -260,14 +382,14 @@ export default function HotelsPage() {
         void loadInitialData()
       }
     }
-    
-    initialize()
-    
+
+    void initialize()
+
     return () => {
       isMounted = false
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  }, [searchParams])
 
   return (
     <div className="w-full h-full">
@@ -278,6 +400,7 @@ export default function HotelsPage() {
         </div>
 
         {/* Search Form */}
+        <div ref={searchSectionRef}>
         <Card className="mb-8">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
@@ -340,6 +463,7 @@ export default function HotelsPage() {
             </div>
           </CardContent>
         </Card>
+        </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
           {/* Filters Sidebar */}
@@ -483,10 +607,10 @@ export default function HotelsPage() {
                   key={hotel.id}
                   hotel={hotel}
                   onViewDetails={handleViewDetails}
-                  onBookNow={(hotel) => {
-                    // Handle book now action
-                    console.log("Book now clicked for hotel:", hotel.id)
-                  }}
+                  onBookNow={handleBookNow}
+                  showPrice={hasSearched}
+                  bookingDisabled={!hasSearched}
+                  onPromptSearch={scrollToSearch}
                 />
               ))}
               {!loading && results.length === 0 && !error && (
@@ -506,6 +630,9 @@ export default function HotelsPage() {
         hotelId={selectedHotelId}
         isOpen={isModalOpen}
         onClose={handleCloseModal}
+        onBookRoom={handleRoomBooking}
+        canBook={hasSearched}
+        onPromptSearch={scrollToSearch}
       />
 
       {/* Destination Selection Modal */}

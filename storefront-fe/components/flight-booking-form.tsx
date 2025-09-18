@@ -1,6 +1,6 @@
 "use client"
 
-import React, { useState } from 'react'
+import React, { useEffect, useState } from 'react'
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -23,6 +23,13 @@ import { format } from "date-fns"
 import { CalendarIcon } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { FlightBookingDetails, PassengerDetails } from '@/modules/booking/types'
+
+const formatDateTimeLabel = (value?: string) => {
+  if (!value) return 'N/A'
+  const parsed = new Date(value)
+  if (Number.isNaN(parsed.getTime())) return value
+  return format(parsed, 'PPP p')
+}
 
 interface FlightBookingFormProps {
   flight: any // Replace with proper flight type
@@ -48,6 +55,15 @@ export function FlightBookingForm({ flight, onSubmit, onCancel }: FlightBookingF
       phoneNumber: ''
     }
   ])
+
+  useEffect(() => {
+    if (flight?.departureTime) {
+      const parsed = new Date(flight.departureTime)
+      if (!Number.isNaN(parsed.getTime())) {
+        setDepartureDate(parsed)
+      }
+    }
+  }, [flight?.departureTime])
 
   const handleAddPassenger = () => {
     if (passengers.length < 9) { // Max 9 passengers
@@ -133,10 +149,10 @@ export function FlightBookingForm({ flight, onSubmit, onCancel }: FlightBookingF
             </div>
             <div>
               <p className="text-sm">
-                <span className="font-medium">Departure:</span> {format(new Date(flight.departureTime), 'PPP p')}
+                <span className="font-medium">Departure:</span> {formatDateTimeLabel(flight.departureTime)}
               </p>
               <p className="text-sm">
-                <span className="font-medium">Arrival:</span> {format(new Date(flight.arrivalTime), 'PPP p')}
+                <span className="font-medium">Arrival:</span> {formatDateTimeLabel(flight.arrivalTime)}
               </p>
             </div>
           </div>

@@ -135,9 +135,8 @@ public class BookingController {
             @Parameter(description = "Storefront booking creation request", required = true)
             @Valid @RequestBody StorefrontCreateBookingRequestDto request) {
         try {
-            log.info("Creating storefront booking with type: {} using CQRS", request.getBookingType());
+            log.info("Creating storefront booking with type: {} ", request.getBookingType());
 
-            // Convert DTO to command
             CreateBookingCommand command = CreateBookingCommand.builder()
                     .userId(AuthenticationUtils.getCurrentUserIdFromContext())
                     .bookingType(request.getBookingType())

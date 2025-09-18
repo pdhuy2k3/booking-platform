@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useState, useRef } from "react"
+import Image from "next/image"
 import { useRouter, useSearchParams } from "next/navigation"
 import { Search, Filter, Plane, Clock, Star, Calendar, Users } from "lucide-react"
 import { Button } from "@/components/ui/button"
@@ -16,6 +17,7 @@ import { CityComboBox } from "@/modules/flight/component/CityComboBox"
 import FlightDetailsModal from "@/modules/flight/component/FlightDetailsModal"
 import { FlightDestinationModal } from "@/modules/flight/component/FlightDestinationModal"
 import { formatPrice } from "@/lib/currency"
+import { useBooking } from "@/contexts/booking-context"
 
 interface City {
   code: string;
@@ -25,10 +27,18 @@ interface City {
 
 export default function FlightsPage() {
   const router = useRouter()
+  const {
+    resetBooking,
+    setBookingType,
+    updateBookingData,
+    setSelectedFlight,
+    setStep,
+  } = useBooking()
   const [priceRange, setPriceRange] = useState([0, 5000000])
   const [durationRange, setDurationRange] = useState([0, 24])
   const [selectedAirlines, setSelectedAirlines] = useState<string[]>([])
   const [sortBy, setSortBy] = useState("departure")
+  const [hasSearched, setHasSearched] = useState(false)
 
   // Search form state
   const searchParams = useSearchParams()
@@ -51,6 +61,7 @@ export default function FlightsPage() {
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [isOriginModalOpen, setIsOriginModalOpen] = useState(false)
   const [isDestinationModalOpen, setIsDestinationModalOpen] = useState(false)
+  const searchSectionRef = useRef<HTMLDivElement | null>(null)
 
   // Defaults for initial auto-search (can be overridden via env)
   const DEFAULT_ORIGIN = process.env.NEXT_PUBLIC_DEFAULT_ORIGIN || "HAN"
@@ -60,6 +71,72 @@ export default function FlightsPage() {
     10,
   )
 
+  const resolveDateTime = (rawDateTime?: string | null, date?: string, time?: string) => {
+    if (rawDateTime) {
+      const parsed = new Date(rawDateTime)
+      if (!Number.isNaN(parsed.getTime())) {
+        return parsed.toISOString()
+      }
+    }
+
+    if (date && time) {
+      const trimmed = time.trim()
+      const normalized = trimmed.length === 5 ? `${trimmed}:00` : trimmed
+      const composed = `${date}T${normalized}`
+      const parsed = new Date(composed)
+      if (!Number.isNaN(parsed.getTime())) {
+        return parsed.toISOString()
+      }
+    }
+
+    return undefined
+  }
+
+  const getDisplayTime = (iso?: string, fallback?: string) => {
+    if (iso) {
+      const parsed = new Date(iso)
+      if (!Number.isNaN(parsed.getTime())) {
+        return format(parsed, 'HH:mm')
+      }
+    }
+    return fallback || '--:--'
+  }
+
+  const mapFlightToUi = (flight: any, searchDate?: string) => {
+    const departureDateTime = resolveDateTime(flight.departureDateTime, searchDate, flight.departureTime)
+    const arrivalDateTime = resolveDateTime(flight.arrivalDateTime, searchDate, flight.arrivalTime)
+
+    return {
+      id: flight.flightId,
+      airline: flight.airline,
+      flightNumber: flight.flightNumber,
+      origin: flight.origin,
+      destination: flight.destination,
+      departureTime: departureDateTime || flight.departureTime,
+      arrivalTime: arrivalDateTime || flight.arrivalTime,
+      departureDateTime,
+      arrivalDateTime,
+      currency: flight.currency || 'VND',
+      seatClass: flight.seatClass || 'ECONOMY',
+      logo: flight.airlineLogo || '/airplane-generic.png',
+      departure: {
+        time: getDisplayTime(departureDateTime, flight.departureTime),
+        airport: flight.origin,
+        city: flight.origin,
+      },
+      arrival: {
+        time: getDisplayTime(arrivalDateTime, flight.arrivalTime),
+        airport: flight.destination,
+        city: flight.destination,
+      },
+      duration: flight.duration || '',
+      stops: flight.stops && flight.stops > 0 ? `${flight.stops} stop${flight.stops === 1 ? '' : 's'}` : 'Non-stop',
+      price: flight.price,
+      class: flight.seatClass || 'ECONOMY',
+      rating: 4.5,
+      raw: flight,
+    }
+  }
   const handleViewDetails = (flight: any) => {
     setSelectedFlightId(flight.id)
     setIsModalOpen(true)
@@ -76,6 +153,54 @@ export default function FlightsPage() {
 
   const handleDestinationSelect = (city: City) => {
     setDestination(city)
+  }
+
+  const scrollToSearch = () => {
+    searchSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  }
+
+  const handleBookFlight = (flight: any) => {
+    if (!hasSearched) {
+      scrollToSearch()
+      return
+    }
+
+    const flightData = flight?.raw || flight
+    const flightId = flightData?.flightId || flight?.id
+
+    if (!flightData || !flightId) {
+      console.error('Unable to start booking flow: missing flight details')
+      return
+    }
+
+    const departureDateTime = resolveDateTime(flightData.departureDateTime, departDate, flightData.departureTime)
+    const arrivalDateTime = resolveDateTime(flightData.arrivalDateTime, departDate, flightData.arrivalTime)
+    const airlineLogo = flight?.logo || flightData.airlineLogo
+
+    resetBooking()
+    setBookingType('flight')
+    setSelectedFlight({
+      id: flightId,
+      flightNumber: flightData.flightNumber,
+      airline: flightData.airline,
+      origin: flightData.origin,
+      destination: flightData.destination,
+      departureTime: departureDateTime || flightData.departureTime,
+      arrivalTime: arrivalDateTime || flightData.arrivalTime,
+      duration: flightData.duration,
+      price: flightData.price,
+      currency: flightData.currency || 'VND',
+      seatClass: flightData.seatClass,
+      logo: airlineLogo,
+    })
+    updateBookingData({
+      bookingType: 'FLIGHT',
+      totalAmount: 0,
+      currency: flightData.currency || 'VND',
+      productDetails: undefined,
+    })
+    setStep('passengers')
+    router.push('/bookings')
   }
 
   // Add a ref to track if we're already loading initial data
@@ -106,26 +231,7 @@ export default function FlightsPage() {
       setInitialData(res as InitialFlightData)
       
       // Convert initial flights to UI format
-      const ui = (res.flights || []).map((f: any) => ({
-        id: f.flightId,
-        airline: f.airline,
-        logo: "/airplane-generic.png",
-        departure: {
-          time: f.departureTime || "--:--",
-          airport: f.origin,
-          city: f.origin,
-        },
-        arrival: {
-          time: f.arrivalTime || "--:--",
-          airport: f.destination,
-          city: f.destination,
-        },
-        duration: f.duration || "",
-        stops: "Non-stop",
-        price: f.price,
-        class: f.seatClass || "ECONOMY",
-        rating: 4.5,
-      }))
+      const ui = (res.flights || []).map((f: any) => mapFlightToUi(f))
       setFlightResults(ui)
       setHasMore(Boolean(res.hasMore))
     } catch (e: any) {
@@ -150,6 +256,25 @@ export default function FlightsPage() {
   }
 
   async function handleSearch(nextPage?: number) {
+    if (!origin || !destination || !departDate) {
+      setError('Vui lòng chọn điểm đi, điểm đến và ngày khởi hành để xem giá')
+      scrollToSearch()
+      return
+    }
+
+    if (origin.code === destination.code) {
+      setError('Điểm đi và điểm đến không được trùng nhau')
+      scrollToSearch()
+      return
+    }
+
+    const passengerCount = parseInt(passengers || '0', 10)
+    if (!Number.isFinite(passengerCount) || passengerCount <= 0) {
+      setError('Vui lòng chọn số lượng hành khách hợp lệ')
+      scrollToSearch()
+      return
+    }
+
     setLoading(true)
     setError(null)
     try {
@@ -165,29 +290,11 @@ export default function FlightsPage() {
         page: usePage,
         limit,
       })
-      const ui = (res.flights || []).map((f) => ({
-        id: f.flightId,
-        airline: f.airline,
-        logo: "/airplane-generic.png",
-        departure: {
-          time: f.departureTime || "--:--",
-          airport: f.origin,
-          city: f.origin,
-        },
-        arrival: {
-          time: f.arrivalTime || "--:--",
-          airport: f.destination,
-          city: f.destination,
-        },
-        duration: f.duration || "",
-        stops: "Non-stop",
-        price: f.price,
-        class: f.seatClass || "ECONOMY",
-        rating: 4.5,
-      }))
+      const ui = (res.flights || []).map((f: any) => mapFlightToUi(f, departDate))
       setFlightResults(ui)
       setHasMore(Boolean(res.hasMore))
       setPage(usePage)
+      setHasSearched(true)
       pushQuery(usePage)
       // Persist last successful search to restore on first load
       try {
@@ -231,10 +338,10 @@ export default function FlightsPage() {
   // Initialize from query and load initial data
   useEffect(() => {
     let isMounted = true
-    
+
     const initialize = async () => {
       if (!searchParams || !isMounted) return
-      
+
       const o = searchParams.get("origin") || ""
       const d = searchParams.get("destination") || ""
       const dep = searchParams.get("departureDate") || ""
@@ -242,20 +349,21 @@ export default function FlightsPage() {
       const pas = searchParams.get("passengers") || "1"
       const cls = (searchParams.get("seatClass") as FareClass) || "ECONOMY"
       const pg = parseInt(searchParams.get("page") || "1", 10)
-      
+
       // Check if we have search parameters
-      const hasSearchParams = o && d && dep
-      
+      const hasSearchParams = Boolean(o && d && dep)
+
       if (hasSearchParams) {
-        // For now, we'll just set the codes, in a real app we'd fetch the full city objects
-        if (o) setOrigin({ code: o, name: o, type: "City" })
-        if (d) setDestination({ code: d, name: d, type: "City" })
+        setOrigin({ code: o, name: o, type: "City" })
+        setDestination({ code: d, name: d, type: "City" })
         setDepartDate(dep)
         setReturnDate(ret)
         setPassengers(pas)
         setSeatClass(cls)
         setPage(isNaN(pg) ? 1 : pg)
-        if (isMounted) void handleSearch(isNaN(pg) ? 1 : pg)
+        if (isMounted) {
+          void handleSearch(isNaN(pg) ? 1 : pg)
+        }
         return
       }
 
@@ -280,9 +388,8 @@ export default function FlightsPage() {
             setPassengers(last.passengers || "1")
             setSeatClass(last.seatClass || "ECONOMY")
             setPage(last.page && last.page > 0 ? last.page : 1)
-            // Defer to ensure state is applied
             if (isMounted) {
-              setTimeout(() => void handleSearch(last.page && last.page > 0 ? last.page : 1), 0)
+              void handleSearch(last.page && last.page > 0 ? last.page : 1)
             }
             return
           }
@@ -291,29 +398,29 @@ export default function FlightsPage() {
         // ignore storage errors
       }
 
-      // No search parameters and no saved search: load initial data only if we haven't loaded anything yet
       if (flightResults.length === 0 && !loading && !initialData && isMounted) {
         void loadInitialData()
       }
     }
-    
-    initialize()
-    
+
+    void initialize()
+
     return () => {
       isMounted = false
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  }, [searchParams])
 
   return (
     <div className="w-full h-full">
       <div className="max-w-7xl mx-auto p-6">
         <div className="mb-8">
           <h1 className="text-3xl font-bold text-foreground mb-2">Tìm kiếm chuyến bay</h1>
-          <p className="text-muted-foreground">Tìm chuyến bay hoàn hảo cho hành trình của bạn với dữ liệu địa chỉ chính xác từ API Đơn vị hành chính Việt Nam</p>
+          <p className="text-muted-foreground">Tìm chuyến bay giá tốt nhất cho hành trình của bạn</p>
         </div>
 
         {/* Search Form */}
+        <div ref={searchSectionRef}>
         <Card className="mb-8">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
@@ -419,6 +526,7 @@ export default function FlightsPage() {
             </div>
           </CardContent>
         </Card>
+        </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
           {/* Filters Sidebar */}
@@ -568,7 +676,14 @@ export default function FlightsPage() {
                     <div className="flex items-center justify-between">
                       <div className="flex items-center space-x-6">
                         <div className="flex items-center space-x-3">
-                          <img src={flight.logo || "/placeholder.svg"} alt={flight.airline} className="w-8 h-8" />
+                          <Image
+                            src={flight.logo || "/placeholder.svg"}
+                            alt={flight.airline}
+                            width={32}
+                            height={32}
+                            className="w-8 h-8 object-contain"
+                            unoptimized
+                          />
                           <div>
                             <div className="font-medium">{flight.airline}</div>
                             <div className="text-sm text-muted-foreground">{flight.class}</div>
@@ -600,15 +715,24 @@ export default function FlightsPage() {
                       </div>
 
                       <div className="text-right space-y-2">
-                        <div className="text-2xl font-bold text-primary">
-                          {formatPrice(flight.price)}
-                        </div>
+                        {hasSearched ? (
+                          <div className="space-y-1">
+                            <div className="text-2xl font-bold text-primary">{formatPrice(flight.price)}</div>
+                            <div className="text-sm text-muted-foreground">Giá mỗi hành khách</div>
+                          </div>
+                        ) : (
+                          <Button variant="outline" size="sm" className="w-full" onClick={scrollToSearch}>
+                            Nhập thông tin để xem giá
+                          </Button>
+                        )}
                         <div className="flex items-center space-x-1">
                           <Star className="h-4 w-4 fill-yellow-400 text-yellow-400" />
                           <span className="text-sm">{flight.rating}</span>
                         </div>
                         <div className="space-y-2">
-                          <Button className="w-full">Đặt ngay</Button>
+                          <Button className="w-full" disabled={!hasSearched} onClick={() => handleBookFlight(flight)}>
+                            Đặt ngay
+                          </Button>
                           <Button
                             variant="outline"
                             className="w-full bg-transparent"
@@ -661,3 +785,4 @@ export default function FlightsPage() {
     </div>
   )
 }
+

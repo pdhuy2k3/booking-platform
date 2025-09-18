@@ -16,18 +16,25 @@ import {
 
 interface BookingFlowManagerProps {
   onBookingComplete: () => void
+  showSelection?: boolean
 }
 
-export function BookingFlowManager({ onBookingComplete }: BookingFlowManagerProps) {
+export function BookingFlowManager({ onBookingComplete, showSelection = true }: BookingFlowManagerProps) {
   const { 
     step, 
     bookingType, 
     bookingData, 
+    selectedFlight,
+    selectedHotel,
     updateBookingData, 
     nextStep, 
     prevStep, 
     createBooking,
-    resetBooking
+    resetBooking,
+    setBookingType,
+    setStep,
+    setSelectedFlight,
+    setSelectedHotel
   } = useBooking()
   
   const [flight, setFlight] = useState<any>(null) // Replace with proper flight type
@@ -36,37 +43,62 @@ export function BookingFlowManager({ onBookingComplete }: BookingFlowManagerProp
   // Mock data for demonstration
   useEffect(() => {
     if (bookingType === 'flight' || bookingType === 'both') {
-      setFlight({
-        id: 'FL123',
-        flightNumber: 'VN123',
-        airline: 'Vietnam Airlines',
-        origin: 'HAN',
-        destination: 'SGN',
-        departureTime: new Date(Date.now() + 86400000).toISOString(), // Tomorrow
-        arrivalTime: new Date(Date.now() + 86400000 + 7200000).toISOString(), // +2 hours
-        price: 1500000
-      })
+      if (selectedFlight) {
+        setFlight(selectedFlight)
+      } else {
+        setFlight({
+          id: 'FL123',
+          flightNumber: 'VN123',
+          airline: 'Vietnam Airlines',
+          origin: 'HAN',
+          destination: 'SGN',
+          departureTime: new Date(Date.now() + 86400000).toISOString(), // Tomorrow
+          arrivalTime: new Date(Date.now() + 86400000 + 7200000).toISOString(), // +2 hours
+          duration: '2h',
+          price: 1500000,
+          currency: 'VND',
+        })
+      }
+    } else {
+      setFlight(null)
     }
-    
+
     if (bookingType === 'hotel' || bookingType === 'both') {
-      setHotel({
-        id: 'HT456',
-        name: 'Hanoi Lotus Hotel',
-        address: '123 Hang Gai Street',
-        city: 'Hanoi',
-        country: 'Vietnam',
-        rating: 4,
-        roomId: 'RM789',
-        roomType: 'Deluxe',
-        roomName: 'Deluxe Room with City View',
-        price: 2000000
-      })
+      if (selectedHotel) {
+        setHotel(selectedHotel)
+      } else {
+        setHotel({
+          id: 'HT456',
+          name: 'Hanoi Lotus Hotel',
+          address: '123 Hang Gai Street',
+          city: 'Hanoi',
+          country: 'Vietnam',
+          rating: 4,
+          roomId: 'RM789',
+          roomType: 'Deluxe',
+          roomName: 'Deluxe Room with City View',
+          price: 2000000,
+          currency: 'VND',
+          amenities: ['Free WiFi', 'Breakfast included'],
+        })
+      }
+    } else {
+      setHotel(null)
     }
-  }, [bookingType])
+  }, [bookingType, selectedFlight, selectedHotel])
 
   const handleStartBooking = (type: 'flight' | 'hotel' | 'both') => {
-    updateBookingData({ bookingType: type.toUpperCase() as any })
-    nextStep()
+    resetBooking()
+    setBookingType(type)
+    setSelectedFlight(null)
+    setSelectedHotel(null)
+    updateBookingData({
+      bookingType: (type === 'both' ? 'COMBO' : type.toUpperCase()) as any,
+      totalAmount: 0,
+      currency: 'VND',
+      productDetails: undefined,
+    })
+    setStep('passengers')
   }
 
   const handleFlightBookingSubmit = (details: FlightBookingDetails) => {
@@ -108,7 +140,7 @@ export function BookingFlowManager({ onBookingComplete }: BookingFlowManagerProp
 
   return (
     <div className="container mx-auto py-8">
-      {step === 'selection' && (
+      {step === 'selection' && showSelection && (
         <BookingFlow 
           onStartBooking={handleStartBooking} 
           isVisible={true} 
@@ -205,3 +237,4 @@ export function BookingFlowManager({ onBookingComplete }: BookingFlowManagerProp
     </div>
   )
 }
+

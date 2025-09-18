@@ -55,57 +55,21 @@ payment:
     key: ${PAYMENT_ENCRYPTION_KEY:default-encryption-key-32-characters}
 
 
-
+server:
+  port: 8085
+  servlet:
+    context-path: /payments
+  
 spring:
   application:
     name: PAYMENT_SERVICE
   profiles:
     active: local
-  datasource:
-    url: ${DB_URL:jdbc:postgresql://localhost:5432/payment_db}
-    username: ${DB_USERNAME:postgres}
-    password: ${DB_PASSWORD:p0stgr3s}
-    driver-class-name: org.postgresql.Driver
-    hikari:
-      maximum-pool-size: 20
-      minimum-idle: 5
-      connection-timeout: 30000
-      idle-timeout: 600000
-      max-lifetime: 1800000
-  jpa:
-    hibernate:
-      ddl-auto: validate
-    show-sql: false
-    database-platform: org.hibernate.dialect.PostgreSQLDialect
-    properties:
-      hibernate:
-        format_sql: true
-        jdbc:
-          batch_size: 25
-        order_inserts: true
-        order_updates: true
-  liquibase:
-    change-log: classpath:db/changelog/db.changelog-master.yaml
-    enabled: true
-  
-  # Kafka Configuration for Outbox Pattern
-  kafka:
-    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
-    consumer:
-      group-id: payment-service
-      auto-offset-reset: earliest
-      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
-      value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
-    producer:
-      key-serializer: org.apache.kafka.common.serialization.StringSerializer
-      value-serializer: org.apache.kafka.common.serialization.StringSerializer
-      retries: 3
-      acks: all
+  threads:
+    virtual:
+      enabled: true
 
-server:
-  port: 8085
-  servlet:
-    context-path: /payments
+
 
 eureka:
   client:
@@ -122,9 +86,44 @@ management:
   endpoint:
     health:
       show-details: always
+---
+spring:
+  config:
+    activate:
+      on-profile: local
 
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          issuer-uri: http://localhost:9090/realms/BookingSmart
+  datasource:
+    url: jdbc:postgresql://localhost:5432/payment_db
+    username: postgres
+    password: p0stgr3s
+    driver-class-name: org.postgresql.Driver
+  jpa:
+    hibernate:
+      ddl-auto: none
+    show-sql: false
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+        format_sql: true
+  kafka:
+    bootstrap-servers: localhost:9092
+    consumer:
+      group-id: payment-service
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.apache.kafka.common.serialization.StringSerializer
+      retries: 3
+      acks: all
 
 ---
+
 spring:
   config:
     activate:
@@ -134,12 +133,30 @@ spring:
     username: ${DB_USERNAME}
     password: ${DB_PASSWORD}
   
-  # Kafka Configuration - Minimal, inherit từ BaseKafkaConfig  
+  jpa:
+    hibernate:
+      ddl-auto: none
+    show-sql: false
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          issuer-uri: ${KEYCLOAK_ISSUER_URI}
   kafka:
-    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS}
     consumer:
       group-id: payment-service
-
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.apache.kafka.common.serialization.StringSerializer
+      retries: 3
+      acks: all
 eureka:
   client:
     service-url:
@@ -147,3 +164,4 @@ eureka:
   instance:
     prefer-ip-address: true
     hostname: payment-service
+

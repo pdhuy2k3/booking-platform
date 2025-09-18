@@ -1,5 +1,6 @@
 "use client"
 
+import Image from "next/image"
 import { useState, useEffect } from "react"
 import { X, Plane, Clock, Star, Wifi, Coffee, Tv, Utensils } from "lucide-react"
 import { Button } from "@/components/ui/button"
@@ -85,7 +86,9 @@ export default function FlightDetailsModal({ flightId, isOpen, onClose }: Flight
         {/* Header */}
         <div className="flex items-center justify-between p-6 border-b border-border">
           <div className="flex items-center space-x-4">
-            <img src="/airplane-generic.png" alt={flight.airline} className="w-10 h-10" />
+            <div className="relative w-10 h-10">
+              <Image src="/airplane-generic.png" alt={flight.airline} fill className="object-contain" />
+            </div>
             <div>
               <h2 className="text-2xl font-bold text-foreground">{flight.airline}</h2>
               <p className="text-muted-foreground">Hạng {flight.seatClass}</p>

@@ -1,5 +1,6 @@
 "use client"
 
+import Image from "next/image"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { Separator } from "@/components/ui/separator"
@@ -102,7 +103,13 @@ export function BookingModal({ item, onClose }: BookingModalProps) {
   const renderHotelDetails = (hotel: any) => (
     <div className="space-y-6">
       <div className="aspect-video relative overflow-hidden rounded-lg">
-        <img src={hotel.image || "/placeholder.svg"} alt={hotel.name} className="w-full h-full object-cover" />
+        <Image
+          src={hotel.image || "/placeholder.svg"}
+          alt={hotel.name}
+          fill
+          className="object-cover"
+          unoptimized
+        />
       </div>
 
       <div className="flex items-center justify-between">

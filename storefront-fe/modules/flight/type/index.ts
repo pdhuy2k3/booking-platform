@@ -54,13 +54,17 @@ export type FlightSearchResult = {
   destination: string
   departureTime: string
   arrivalTime: string
+  departureDateTime?: string
+  arrivalDateTime?: string
   duration: string
+  durationMinutes?: number
   price: number
   currency: string
   formattedPrice: string
   seatClass: string
   availableSeats: number
   aircraft: string
+  airlineLogo?: string
 }
 
 export type FlightSearchResponse = {

@@ -8,6 +8,42 @@ import { useToast } from '@/hooks/use-toast'
 type BookingStep = 'selection' | 'passengers' | 'review' | 'payment' | 'confirmation' | 'error'
 type BookingType = 'flight' | 'hotel' | 'both'
 
+interface SelectedFlight {
+  id: string
+  flightNumber?: string
+  airline: string
+  origin: string
+  destination: string
+  departureTime: string
+  arrivalTime: string
+  duration?: string
+  price: number
+  currency: string
+  seatClass?: string
+  logo?: string
+}
+
+interface SelectedHotel {
+  id: string
+  name: string
+  address: string
+  city: string
+  country: string
+  rating?: number
+  roomId: string
+  roomType: string
+  roomName: string
+  price: number
+  currency: string
+  amenities: string[]
+  image?: string
+  checkInDate?: string
+  checkOutDate?: string
+  guests?: number
+  rooms?: number
+  nights?: number
+}
+
 interface BookingState {
   step: BookingStep
   bookingType: BookingType | null
@@ -15,6 +51,8 @@ interface BookingState {
   bookingResponse: StorefrontBookingResponse | null
   isLoading: boolean
   error: string | null
+  selectedFlight: SelectedFlight | null
+  selectedHotel: SelectedHotel | null
 }
 
 interface BookingContextType extends BookingState {
@@ -25,6 +63,9 @@ interface BookingContextType extends BookingState {
   createBooking: () => Promise<void>
   resetBooking: () => void
   setError: (error: string | null) => void
+  setStep: (step: BookingStep) => void
+  setSelectedFlight: (flight: SelectedFlight | null) => void
+  setSelectedHotel: (hotel: SelectedHotel | null) => void
 }
 
 // Initial state
@@ -34,7 +75,9 @@ const initialState: BookingState = {
   bookingData: {},
   bookingResponse: null,
   isLoading: false,
-  error: null
+  error: null,
+  selectedFlight: null,
+  selectedHotel: null
 }
 
 // Actions
@@ -45,6 +88,8 @@ type BookingAction =
   | { type: 'SET_LOADING'; payload: boolean }
   | { type: 'SET_ERROR'; payload: string | null }
   | { type: 'SET_BOOKING_RESPONSE'; payload: StorefrontBookingResponse }
+  | { type: 'SET_SELECTED_FLIGHT'; payload: SelectedFlight | null }
+  | { type: 'SET_SELECTED_HOTEL'; payload: SelectedHotel | null }
   | { type: 'RESET_BOOKING' }
 
 // Reducer
@@ -84,6 +129,16 @@ function bookingReducer(state: BookingState, action: BookingAction): BookingStat
         ...state,
         bookingResponse: action.payload
       }
+    case 'SET_SELECTED_FLIGHT':
+      return {
+        ...state,
+        selectedFlight: action.payload
+      }
+    case 'SET_SELECTED_HOTEL':
+      return {
+        ...state,
+        selectedHotel: action.payload
+      }
     case 'RESET_BOOKING':
       return initialState
     default:
@@ -105,6 +160,18 @@ export function BookingProvider({ children }: { children: React.ReactNode }) {
 
   const updateBookingData = useCallback((data: Partial<StorefrontBookingRequest>) => {
     dispatch({ type: 'UPDATE_BOOKING_DATA', payload: data })
+  }, [])
+
+  const setStep = useCallback((step: BookingStep) => {
+    dispatch({ type: 'SET_STEP', payload: step })
+  }, [])
+
+  const setSelectedFlight = useCallback((flight: SelectedFlight | null) => {
+    dispatch({ type: 'SET_SELECTED_FLIGHT', payload: flight })
+  }, [])
+
+  const setSelectedHotel = useCallback((hotel: SelectedHotel | null) => {
+    dispatch({ type: 'SET_SELECTED_HOTEL', payload: hotel })
   }, [])
 
   const nextStep = useCallback(() => {
@@ -185,7 +252,10 @@ export function BookingProvider({ children }: { children: React.ReactNode }) {
     prevStep,
     createBooking,
     resetBooking,
-    setError
+    setError,
+    setStep,
+    setSelectedFlight,
+    setSelectedHotel
   }
 
   return (
@@ -203,3 +273,4 @@ export function useBooking() {
   }
   return context
 }
+

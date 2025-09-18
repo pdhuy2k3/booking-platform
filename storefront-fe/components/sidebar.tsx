@@ -1,6 +1,7 @@
 "use client"
 
 import { MessageSquare, Plane, Building2, User, LogOut, Settings, Calendar, CreditCard, ChevronUp } from "lucide-react"
+import Image from "next/image"
 import Link from "next/link"
 import { usePathname, useRouter } from "next/navigation"
 import { cn } from "@/lib/utils"
@@ -139,12 +140,13 @@ export function Sidebar() {
               onClick={() => setShowUserMenu(!showUserMenu)}
               className="w-full flex items-center space-x-3 p-2 rounded-lg hover:bg-sidebar-accent transition-colors"
             >
-              <div className="w-10 h-10 bg-gradient-to-br from-cyan-400 to-blue-500 rounded-full flex items-center justify-center text-white font-semibold overflow-hidden">
+              <div className="w-10 h-10 bg-gradient-to-br from-cyan-400 to-blue-500 rounded-full flex items-center justify-center text-white font-semibold overflow-hidden relative">
                 {user.picture ? (
-                  <img 
-                    src={user.picture} 
+                  <Image
+                    src={user.picture}
                     alt={user.fullName}
-                    className="w-full h-full object-cover"
+                    fill
+                    className="object-cover"
                   />
                 ) : (
                   user.fullName
