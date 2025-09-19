@@ -13,6 +13,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -242,5 +243,8 @@ public class RoomService {
         
         log.info("Bulk availability update completed for {} rooms", roomIds.size());
         }
+    }
+    public BigDecimal calculateMinRoomPerNightByHotel(Long hotelId){
+        return roomRepository.findMinPriceByHotelId(hotelId);
     }
 }

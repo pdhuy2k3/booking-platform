@@ -18,91 +18,92 @@ export default function Register(props: PageProps<Extract<KcContext, { pageId: "
             displayMessage={!messagesPerField.existsError("firstName", "lastName", "email", "username", "password", "password-confirm")}
             headerNode={msg("registerTitle")}
         >
-            <div className="bookingsmart-page-bg fade-in">
+            <div className="bookingsmart-page-bg">
                 <div className="bookingsmart-container">
+
                 <form
                     id="kc-register-form"
                     action={url.registrationAction}
                     method="post"
-                    className="bookingsmart-form space-y-6"
+                    className="bookingsmart-form"
                 >
-                    <div className="space-y-6">
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                            <div className="form-group-enhanced slide-up">
-                                <label htmlFor="firstName" className="bookingsmart-label-enhanced">
+                    <div className="space-y-4">
+                        <div className="grid grid-cols-2 gap-4">
+                            <div>
+                                <label htmlFor="firstName" className="bookingsmart-label block mb-2">
                                     {msg("firstName")}
                                 </label>
                                 <input
                                     type="text"
                                     id="firstName"
-                                    className="bookingsmart-input-enhanced"
+                                    className="bookingsmart-input"
                                     name="firstName"
                                     defaultValue=""
                                     aria-invalid={messagesPerField.existsError("firstName")}
                                 />
                                 {messagesPerField.existsError("firstName") && (
-                                    <div className="bookingsmart-error-enhanced">
+                                    <div className="bookingsmart-error">
                                         {messagesPerField.get("firstName")}
                                     </div>
                                 )}
                             </div>
 
-                            <div className="form-group-enhanced slide-up">
-                                <label htmlFor="lastName" className="bookingsmart-label-enhanced">
+                            <div>
+                                <label htmlFor="lastName" className="bookingsmart-label block mb-2">
                                     {msg("lastName")}
                                 </label>
                                 <input
                                     type="text"
                                     id="lastName"
-                                    className="bookingsmart-input-enhanced"
+                                    className="bookingsmart-input"
                                     name="lastName"
                                     defaultValue=""
                                     aria-invalid={messagesPerField.existsError("lastName")}
                                 />
                                 {messagesPerField.existsError("lastName") && (
-                                    <div className="bookingsmart-error-enhanced">
+                                    <div className="bookingsmart-error">
                                         {messagesPerField.get("lastName")}
                                     </div>
                                 )}
                             </div>
                         </div>
 
-                        <div className="form-group-enhanced slide-up">
-                            <label htmlFor="email" className="bookingsmart-label-enhanced">
+                        <div>
+                            <label htmlFor="email" className="bookingsmart-label block mb-2">
                                 {msg("email")}
                             </label>
                             <input
-                                type="email"
+                                type="text"
                                 id="email"
-                                className="bookingsmart-input-enhanced"
+                                className="bookingsmart-input"
                                 name="email"
                                 defaultValue=""
                                 autoComplete="email"
                                 aria-invalid={messagesPerField.existsError("email")}
                             />
                             {messagesPerField.existsError("email") && (
-                                <div className="bookingsmart-error-enhanced">
+                                <div className="bookingsmart-error">
                                     {messagesPerField.get("email")}
                                 </div>
                             )}
                         </div>
 
                         {!realm.registrationEmailAsUsername && (
-                            <div className="form-group-enhanced slide-up">
-                                <label htmlFor="username" className="bookingsmart-label-enhanced">
+                            <div>
+                                <label htmlFor="username" className="bookingsmart-label block mb-2">
                                     {msg("username")}
                                 </label>
                                 <input
                                     type="text"
                                     id="username"
-                                    className="bookingsmart-input-enhanced"
+                                    className="bookingsmart-input"
                                     name="username"
                                     defaultValue=""
                                     autoComplete="username"
                                     aria-invalid={messagesPerField.existsError("username")}
                                 />
                                 {messagesPerField.existsError("username") && (
-                                    <div className="bookingsmart-error-enhanced">
+                                    <div className="bookingsmart-error">
                                         {messagesPerField.get("username")}
                                     </div>
                                 )}
@@ -110,54 +111,54 @@ export default function Register(props: PageProps<Extract<KcContext, { pageId: "
                         )}
 
                         {passwordRequired && (
-                            <div className="space-y-6">
-                                <div className="form-group-enhanced slide-up">
-                                    <label htmlFor="password" className="bookingsmart-label-enhanced">
+                            <>
+                                <div>
+                                    <label htmlFor="password" className="bookingsmart-label block mb-2">
                                         {msg("password")}
                                     </label>
                                     <input
                                         type="password"
                                         id="password"
-                                        className="bookingsmart-input-enhanced"
+                                        className="bookingsmart-input"
                                         name="password"
                                         autoComplete="new-password"
                                         aria-invalid={messagesPerField.existsError("password", "password-confirm")}
                                     />
                                     {messagesPerField.existsError("password") && (
-                                        <div className="bookingsmart-error-enhanced">
+                                        <div className="bookingsmart-error">
                                             {messagesPerField.get("password")}
                                         </div>
                                     )}
                                 </div>
 
-                                <div className="form-group-enhanced slide-up">
-                                    <label htmlFor="password-confirm" className="bookingsmart-label-enhanced">
+                                <div>
+                                    <label htmlFor="password-confirm" className="bookingsmart-label block mb-2">
                                         {msg("passwordConfirm")}
                                     </label>
                                     <input
                                         type="password"
                                         id="password-confirm"
-                                        className="bookingsmart-input-enhanced"
+                                        className="bookingsmart-input"
                                         name="password-confirm"
                                         autoComplete="new-password"
                                         aria-invalid={messagesPerField.existsError("password-confirm")}
                                     />
                                     {messagesPerField.existsError("password-confirm") && (
-                                        <div className="bookingsmart-error-enhanced">
+                                        <div className="bookingsmart-error">
                                             {messagesPerField.get("password-confirm")}
                                         </div>
                                     )}
                                 </div>
-                            </div>
+                            </>
                         )}
 
                         {recaptchaRequired && (
-                            <div className="g-recaptcha slide-up" data-size="compact" data-sitekey={recaptchaSiteKey}></div>
+                            <div className="g-recaptcha" data-size="compact" data-sitekey={recaptchaSiteKey}></div>
                         )}
 
-                        <div className="pt-6 scale-in">
+                        <div className="pt-4">
                             <input
-                                className="bookingsmart-button-enhanced"
+                                className="bookingsmart-button"
                                 type="submit"
                                 value={msgStr("doRegister")}
                             />
@@ -165,13 +166,13 @@ export default function Register(props: PageProps<Extract<KcContext, { pageId: "
                     </div>
                 </form>
 
-                <div className="bookingsmart-divider-enhanced fade-in">
+                <div className="bookingsmart-divider">
                     <div className="text-center">
-                        <span className="bookingsmart-subheader-enhanced">
+                        <span className="bookingsmart-subheader">
                             {msg("backToLogin")}
                             <a
                                 href={url.loginUrl}
-                                className="bookingsmart-link-enhanced ml-2"
+                                className="bookingsmart-link ml-2"
                             >
                                 {msg("doLogIn")}
                             </a>

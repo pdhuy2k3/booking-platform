@@ -194,64 +194,8 @@ public class HotelController {
                 List<Map<String, Object>> hotels = hotelPage.getContent().stream()
                     .map(hotel -> hotelMapper.toStorefrontSearchResponse(hotel, LocalDate.now(), LocalDate.now().plusDays(1), 2, 1))
                     .collect(Collectors.toList());
-                
-                // Get popular destinations
-                List<Map<String, Object>> popularDestinations = List.of(
-                    Map.of(
-                        "code", "SGN",
-                        "name", "Ho Chi Minh City",
-                        "city", "Ho Chi Minh City",
-                        "country", "Vietnam",
-                        "image", "/destinations/hcmc.jpg",
-                        "averagePrice", 1500000,
-                        "currency", "VND"
-                    ),
-                    Map.of(
-                        "code", "HAN",
-                        "name", "Hanoi",
-                        "city", "Hanoi",
-                        "country", "Vietnam",
-                        "image", "/destinations/hanoi.jpg",
-                        "averagePrice", 1200000,
-                        "currency", "VND"
-                    ),
-                    Map.of(
-                        "code", "DAD",
-                        "name", "Da Nang",
-                        "city", "Da Nang",
-                        "country", "Vietnam",
-                        "image", "/destinations/danang.jpg",
-                        "averagePrice", 1000000,
-                        "currency", "VND"
-                    )
-                );
-                
-                // Get city data
-                List<Map<String, Object>> cities = List.of(
-                    Map.of(
-                        "code", "SGN",
-                        "name", "Ho Chi Minh City",
-                        "type", "Thành phố",
-                        "country", "Vietnam"
-                    ),
-                    Map.of(
-                        "code", "HAN",
-                        "name", "Hanoi",
-                        "type", "Thành phố",
-                        "country", "Vietnam"
-                    ),
-                    Map.of(
-                        "code", "DAD",
-                        "name", "Da Nang",
-                        "type", "Thành phố",
-                        "country", "Vietnam"
-                    )
-                );
-                
                 Map<String, Object> response = Map.of(
                     "hotels", hotels,
-                    "popularDestinations", popularDestinations,
-                    "cities", cities,
                     "totalCount", hotelPage.getTotalElements(),
                     "page", page,
                     "limit", limit,

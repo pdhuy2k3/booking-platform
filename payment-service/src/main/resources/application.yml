@@ -138,7 +138,7 @@ spring:
     oauth2:
       resourceserver:
         jwt:
-          issuer-uri: ${KEYCLOAK_ISSUER_URI}
+          issuer-uri: ${JWT_ISSUER_URI}
   kafka:
     bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS}
     consumer:

@@ -341,13 +341,7 @@ public class FlightController {
 
         try {
             FareClass fareClass = FareClass.valueOf(seatClass.toUpperCase());
-            ZonedDateTime departureTime;
-            try {
-                departureTime = ZonedDateTime.parse(departureDateTime);
-            } catch (DateTimeParseException ex) {
-                LocalDateTime localDateTime = LocalDateTime.parse(departureDateTime);
-                departureTime = localDateTime.atZone(ZoneOffset.UTC);
-            }
+            final ZonedDateTime departureTime = parseDepartureDateTime(departureDateTime);
 
             List<FlightSchedule> schedules = flightScheduleRepository.findByFlightId(flightId);
             if (schedules.isEmpty()) {
@@ -459,7 +453,7 @@ public class FlightController {
 
 
     // === BOOKING INTEGRATION ENDPOINTS ===
-    
+
     /**
      * Reserve flight for booking (called by Booking Service)
      * Enhanced to handle detailed product information
@@ -656,6 +650,15 @@ public class FlightController {
         response.put("availableSeats", result.getAvailableSeats());
         response.put("aircraft", result.getAircraft());
         return response;
+    }
+
+    private ZonedDateTime parseDepartureDateTime(String departureDateTime) {
+        try {
+            return ZonedDateTime.parse(departureDateTime);
+        } catch (DateTimeParseException ex) {
+            LocalDateTime localDateTime = LocalDateTime.parse(departureDateTime);
+            return localDateTime.atZone(ZoneOffset.UTC);
+        }
     }
 
     /**

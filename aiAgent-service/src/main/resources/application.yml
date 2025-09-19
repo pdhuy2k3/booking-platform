@@ -108,7 +108,7 @@ spring:
         version: 1.0.0
 
         request-timeout: 120s
-        type: sync
+  
         root-change-notification: true
         toolcallback.enabled: true
         sse:

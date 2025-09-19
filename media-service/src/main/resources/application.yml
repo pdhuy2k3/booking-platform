@@ -10,13 +10,7 @@ springdoc:
     authorization-url: ${KEYCLOAK_ISSUER_URI:http://localhost:9090}/protocol/openid-connect/auth
     token-url: ${KEYCLOAK_ISSUER_URI:http://localhost:9090}/protocol/openid-connect/token
   show-actuator: true
-  group-configs:
-    - group: 'public'
-      display-name: 'Public API'
-      paths-to-match: ['/upload/**', '/download/**']
-    - group: 'admin'
-      display-name: 'Admin API'
-      paths-to-match: '/admin/**'
+
 
 
 

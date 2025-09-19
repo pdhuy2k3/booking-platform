@@ -18,34 +18,26 @@ export default function LoginVerifyEmail(props: PageProps<Extract<KcContext, { p
             displayMessage={false}
             headerNode={msg("emailVerifyTitle")}
         >
-            <div className="bookingsmart-page-bg fade-in">
+            <div className="bookingsmart-page-bg">
                 <div className="bookingsmart-container">
-                <div className="bookingsmart-alert-enhanced bookingsmart-alert-info-enhanced slide-up">
-                    <div className="flex items-start space-x-3">
-                        <div className="flex-shrink-0">
-                            <svg className="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 4.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-                            </svg>
-                        </div>
-                        <div>
-                            <p className="text-sm leading-relaxed">
-                                {msg("emailVerifyInstruction1")}
-                                <strong className="text-primary font-semibold">{user?.email}</strong>
-                                {msg("emailVerifyInstruction2")}
-                            </p>
-                        </div>
-                    </div>
+
+
+                <div className="bookingsmart-alert bookingsmart-alert-info">
+                    <p className="text-sm">
+                        {msg("emailVerifyInstruction1")}
+                        <strong>{user?.email}</strong>
+                        {msg("emailVerifyInstruction2")}
+                    </p>
                 </div>
 
-                <div className="bookingsmart-divider-enhanced fade-in">
+                <div className="bookingsmart-divider">
                     <div className="text-center">
-                        <span className="bookingsmart-subheader-enhanced">
+                        <span className="bookingsmart-subheader">
                             <a
                                 href={url.loginAction}
-                                className="bookingsmart-link-enhanced inline-flex items-center space-x-2"
+                                className="bookingsmart-link"
                             >
-                                <span>{msg("doClickHere")}</span>
-                                <span>{msg("emailVerifyInstruction3")}</span>
+                                {msg("doClickHere")} {msg("emailVerifyInstruction3")}
                             </a>
                         </span>
                     </div>

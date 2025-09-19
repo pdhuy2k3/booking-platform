@@ -19,17 +19,19 @@ export default function LoginResetPassword(props: PageProps<Extract<KcContext, {
             displayMessage={!messagesPerField.existsError("username")}
             headerNode={msg("emailForgotTitle")}
         >
-            <div className="bookingsmart-page-bg fade-in">
+            <div className="bookingsmart-page-bg">
                 <div className="bookingsmart-container">
+
+
                 <form
                     id="kc-reset-password-form"
                     action={url.loginAction}
                     method="post"
-                    className="bookingsmart-form space-y-6"
+                    className="bookingsmart-form"
                 >
-                    <div className="space-y-6">
-                        <div className="form-group-enhanced slide-up">
-                            <label htmlFor="username" className="bookingsmart-label-enhanced">
+                    <div className="space-y-4">
+                        <div>
+                            <label htmlFor="username" className="bookingsmart-label block mb-2">
                                 {!realm.loginWithEmailAllowed
                                     ? msg("username")
                                     : !realm.registrationEmailAsUsername
@@ -40,21 +42,21 @@ export default function LoginResetPassword(props: PageProps<Extract<KcContext, {
                                 type="text"
                                 id="username"
                                 name="username"
-                                className="bookingsmart-input-enhanced"
+                                className="bookingsmart-input"
                                 autoFocus
                                 defaultValue={auth.attemptedUsername ?? ""}
                                 aria-invalid={messagesPerField.existsError("username")}
                             />
                             {messagesPerField.existsError("username") && (
-                                <div className="bookingsmart-error-enhanced">
+                                <div className="bookingsmart-error">
                                     {messagesPerField.get("username")}
                                 </div>
                             )}
                         </div>
 
-                        <div className="pt-6 scale-in">
+                        <div className="pt-4">
                             <input
-                                className="bookingsmart-button-enhanced"
+                                className="bookingsmart-button"
                                 type="submit"
                                 value={msgStr("doSubmit")}
                             />
@@ -62,12 +64,12 @@ export default function LoginResetPassword(props: PageProps<Extract<KcContext, {
                     </div>
                 </form>
 
-                <div className="bookingsmart-divider-enhanced fade-in">
+                <div className="bookingsmart-divider">
                     <div className="text-center">
-                        <span className="bookingsmart-subheader-enhanced">
+                        <span className="bookingsmart-subheader">
                             <a
                                 href={url.loginUrl}
-                                className="bookingsmart-link-enhanced"
+                                className="bookingsmart-link"
                             >
                                 {msg("backToLogin")}
                             </a>

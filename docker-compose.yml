@@ -303,29 +303,11 @@ services:
       - JWT_ISSUER_URI
       - KAFKA_BOOTSTRAP_SERVERS
       - SERVER_PORT
+      - STRIPE_SECRET_KEY
+      - STRIPE_PUBLISHABLE_KEY
     networks:
       - booking-network
 
-  # Notification Service
-  notification-service:
-    build:
-      context: ./notification-service
-      dockerfile: Dockerfile
-    image: phamduyhuyuit/bookingsmart-notification-service:latest
-    depends_on:
-      postgres:
-        condition: service_healthy
-    environment:
-      - SPRING_PROFILES_ACTIVE=docker
-      - EUREKA_URI=http://discovery-service:8761/eureka
-      - DB_URL=jdbc:postgresql://postgres:5432/notification_db
-      - DB_USERNAME
-      - DB_PASSWORD
-      - JWT_ISSUER_URI
-      - KAFKA_BOOTSTRAP_SERVERS
-      - SERVER_PORT
-    networks:
-      - booking-network
   # Customer Service
   customer-service:
     build:
@@ -347,8 +329,7 @@ services:
       - SERVER_PORT
     networks:
       - booking-network
-  # Media Service - Temporarily disabled (not built in Maven)
-
+  # Media Service -
   media-service:
     image: phamduyhuyuit/bookingsmart-media-service:latest
     build:

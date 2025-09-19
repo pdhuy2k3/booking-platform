@@ -16,6 +16,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.HashMap;
@@ -164,7 +165,7 @@ public class HotelMapper {
         response.put("city", hotel.getCity() != null ? hotel.getCity() : "");
         response.put("country", hotel.getCountry() != null ? hotel.getCountry() : "");
         response.put("rating", hotel.getStarRating() != null ? hotel.getStarRating().intValue() : 3);
-        response.put("pricePerNight", generateMockPrice());
+        response.put("pricePerNight", getMinPriceOfHotel(hotel.getHotelId()));
         response.put("currency", "VND");
         
         // Get images via ImageService - return complete media responses for frontend
@@ -187,7 +188,7 @@ public class HotelMapper {
         response.put("country", hotel.getCountry() != null ? hotel.getCountry() : "");
         response.put("rating", hotel.getStarRating() != null ? hotel.getStarRating().intValue() : 3);
         response.put("description", hotel.getDescription() != null ? hotel.getDescription() : "");
-        response.put("pricePerNight", generateMockPrice());
+        response.put("pricePerNight", getMinPriceOfHotel(hotel.getHotelId()));
         response.put("currency", "VND");
         response.put("availableRooms", getRealAvailableRooms(hotel));
         response.put("roomTypes", getRealRoomTypes(hotel));
@@ -212,9 +213,9 @@ public class HotelMapper {
     /**
      * Generate mock price (in production, this would come from pricing service)
      */
-    private long generateMockPrice() {
-        // Generate random price between 500K and 5M VND
-        return 500000L + (long)(Math.random() * 4500000L);
+    private BigDecimal getMinPriceOfHotel(Long hotelId) {
+
+        return roomService.calculateMinRoomPerNightByHotel(hotelId);
     }
     
     /**
@@ -232,7 +233,7 @@ public class HotelMapper {
                     roomMap.put("roomNumber", room.getRoomNumber());
                     roomMap.put("roomType", room.getRoomType() != null ? room.getRoomType().getName() : "Standard Room");
                     roomMap.put("capacity", room.getMaxOccupancy() != null ? room.getMaxOccupancy() : 2);
-                    roomMap.put("pricePerNight", room.getPrice() != null ? room.getPrice().longValue() : generateMockPrice());
+                    roomMap.put("pricePerNight", room.getPrice() != null ? room.getPrice().longValue() : getMinPriceOfHotel(hotel.getHotelId()));
                     roomMap.put("amenities", room.getAmenities() != null ? 
                         room.getAmenities().stream().map(amenity -> amenity.getName()).collect(Collectors.toList()) : 
                         List.of("WiFi", "Air Conditioning", "TV"));
@@ -242,7 +243,7 @@ public class HotelMapper {
                 .collect(Collectors.toList());
         } catch (Exception e) {
             log.warn("Failed to get real room data for hotel {}, falling back to fallback room data", hotel.getHotelId(), e);
-            return createFallbackRooms(hotel);
+            return List.of();
         }
     }
     
@@ -261,7 +262,7 @@ public class HotelMapper {
                     roomTypeMap.put("name", roomType.getName());
                     roomTypeMap.put("description", roomType.getDescription());
                     roomTypeMap.put("capacityAdults", roomType.getCapacityAdults());
-                    roomTypeMap.put("basePrice", roomType.getBasePrice() != null ? roomType.getBasePrice().longValue() : generateMockPrice());
+                    roomTypeMap.put("basePrice", roomType.getBasePrice() != null ? roomType.getBasePrice().longValue() : getMinPriceOfHotel(hotel.getHotelId()));
                     roomTypeMap.put("features", List.of("Queen bed", "City view", "25 sqm", "Free WiFi")); // Default features
                     roomTypeMap.put("image", roomType.getPrimaryImage() != null ? roomType.getPrimaryImage().getUrl() : "/placeholder.svg?height=200&width=300");
                     return roomTypeMap;
@@ -269,7 +270,7 @@ public class HotelMapper {
                 .collect(Collectors.toList());
         } catch (Exception e) {
             log.warn("Failed to get real room type data for hotel {}, falling back to fallback room type data", hotel.getHotelId(), e);
-            return createFallbackRoomTypes(hotel);
+            return List.of();
         }
     }
     
@@ -286,7 +287,7 @@ public class HotelMapper {
                 .collect(Collectors.toList());
         } catch (Exception e) {
             log.warn("Failed to get real amenity data, falling back to fallback amenities", e);
-            return createFallbackAmenities();
+            return List.of();
         }
     }
     
@@ -328,74 +329,74 @@ public class HotelMapper {
     /**
      * Create fallback room data when real data is unavailable
      */
-    private List<Map<String, Object>> createFallbackRooms(Hotel hotel) {
-        return List.of(
-            Map.of(
-                "roomId", "fallback-1",
-                "roomNumber", "101",
-                "roomType", "Standard Room",
-                "capacity", 2,
-                "pricePerNight", generateMockPrice(),
-                "amenities", List.of("WiFi", "Air Conditioning", "TV"),
-                "available", true
-            ),
-            Map.of(
-                "roomId", "fallback-2",
-                "roomNumber", "102",
-                "roomType", "Deluxe Room",
-                "capacity", 3,
-                "pricePerNight", generateMockPrice() + 500000,
-                "amenities", List.of("WiFi", "Air Conditioning", "TV", "Mini Bar"),
-                "available", true
-            )
-        );
-    }
+//    private List<Map<String, Object>> createFallbackRooms(Hotel hotel) {
+//        return List.of(
+//            Map.of(
+//                "roomId", "fallback-1",
+//                "roomNumber", "101",
+//                "roomType", "Standard Room",
+//                "capacity", 2,
+//                "pricePerNight", getMinPriceOfHotel(),
+//                "amenities", List.of("WiFi", "Air Conditioning", "TV"),
+//                "available", true
+//            ),
+//            Map.of(
+//                "roomId", "fallback-2",
+//                "roomNumber", "102",
+//                "roomType", "Deluxe Room",
+//                "capacity", 3,
+//                "pricePerNight", getMinPriceOfHotel(hotel.getHotelId()) + 500000,
+//                "amenities", List.of("WiFi", "Air Conditioning", "TV", "Mini Bar"),
+//                "available", true
+//            )
+//        );
+//    }
     
     /**
      * Create fallback room type data when real data is unavailable
      */
-    private List<Map<String, Object>> createFallbackRoomTypes(Hotel hotel) {
-        return List.of(
-            Map.of(
-                "id", "fallback-standard",
-                "name", "Standard Room",
-                "description", "Comfortable standard room with city view",
-                "capacityAdults", 2,
-                "basePrice", generateMockPrice(),
-                "features", List.of("Queen bed", "City view", "25 sqm", "Free WiFi"),
-                "image", "/placeholder.svg?height=200&width=300"
-            ),
-            Map.of(
-                "id", "fallback-deluxe",
-                "name", "Deluxe Room",
-                "description", "Spacious deluxe room with balcony",
-                "capacityAdults", 3,
-                "basePrice", generateMockPrice() + 500000,
-                "features", List.of("King bed", "Balcony", "35 sqm", "Mini bar", "Free WiFi"),
-                "image", "/placeholder.svg?height=200&width=300"
-            ),
-            Map.of(
-                "id", "fallback-suite",
-                "name", "Executive Suite",
-                "description", "Luxurious suite with separate living area",
-                "capacityAdults", 4,
-                "basePrice", generateMockPrice() + 1200000,
-                "features", List.of("King bed", "Separate living area", "50 sqm", "City view", "Mini bar", "Free WiFi"),
-                "image", "/placeholder.svg?height=200&width=300"
-            )
-        );
-    }
-    
-    /**
-     * Create fallback amenities when real data is unavailable
-     */
-    private List<String> createFallbackAmenities() {
-        return List.of(
-            "Free WiFi", "Parking", "Restaurant", "Fitness Center", "Swimming Pool",
-            "Business Center", "Concierge", "Room Service", "Laundry Service", "Airport Shuttle"
-        );
-    }
-    
+//    private List<Map<String, Object>> createFallbackRoomTypes(Hotel hotel) {
+//        return List.of(
+//            Map.of(
+//                "id", "fallback-standard",
+//                "name", "Standard Room",
+//                "description", "Comfortable standard room with city view",
+//                "capacityAdults", 2,
+//                "basePrice", getMinPriceOfHotel(),
+//                "features", List.of("Queen bed", "City view", "25 sqm", "Free WiFi"),
+//                "image", "/placeholder.svg?height=200&width=300"
+//            ),
+//            Map.of(
+//                "id", "fallback-deluxe",
+//                "name", "Deluxe Room",
+//                "description", "Spacious deluxe room with balcony",
+//                "capacityAdults", 3,
+//                "basePrice", getMinPriceOfHotel() + 500000,
+//                "features", List.of("King bed", "Balcony", "35 sqm", "Mini bar", "Free WiFi"),
+//                "image", "/placeholder.svg?height=200&width=300"
+//            ),
+//            Map.of(
+//                "id", "fallback-suite",
+//                "name", "Executive Suite",
+//                "description", "Luxurious suite with separate living area",
+//                "capacityAdults", 4,
+//                "basePrice", getMinPriceOfHotel() + 1200000,
+//                "features", List.of("King bed", "Separate living area", "50 sqm", "City view", "Mini bar", "Free WiFi"),
+//                "image", "/placeholder.svg?height=200&width=300"
+//            )
+//        );
+//    }
+//
+//    /**
+//     * Create fallback amenities when real data is unavailable
+//     */
+//    private List<String> createFallbackAmenities() {
+//        return List.of(
+//            "Free WiFi", "Parking", "Restaurant", "Fitness Center", "Swimming Pool",
+//            "Business Center", "Concierge", "Room Service", "Laundry Service", "Airport Shuttle"
+//        );
+//    }
+//
     /**
      * Helper method to fetch and set media information for a single hotel
      */

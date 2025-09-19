@@ -127,4 +127,6 @@ public interface RoomRepository extends JpaRepository<Room, Long> {
     @Modifying(clearAutomatically = true, flushAutomatically = true)
     @Query("UPDATE Room r SET r.isAvailable = :available WHERE r.roomType.roomTypeId = :roomTypeId AND (r.isDeleted IS NULL OR r.isDeleted = false)")
     int updateAvailabilityByRoomType(@Param("roomTypeId") Long roomTypeId, @Param("available") boolean available);
+
+
 }

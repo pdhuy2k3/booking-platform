@@ -48,5 +48,6 @@ memory
 scripts
 templates
 .playwright-mcp
+
 ### Node.js ###
 node_modules/
