@@ -1,6 +1,4 @@
 {
-  "name": "notification-outbox-connector",
-  "config": {
     "connector.class": "io.debezium.connector.postgresql.PostgresConnector",
     "database.hostname": "postgres",
     "database.port": "5432",
@@ -26,5 +24,4 @@
     "transforms.outbox.table.field.event.id": "id",
     "transforms.outbox.table.field.event.timestamp": "created_at",
     "transforms.outbox.table.fields.additional.placement": "aggregate_type:header:aggregateType"
-  }
 }

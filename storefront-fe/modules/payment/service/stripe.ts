@@ -28,16 +28,16 @@ class StripePaymentService {
   }
 
   /**
-   * Confirm a Stripe PaymentIntent
+   * Notify backend of successful Stripe payment
    */
-  async confirmPaymentIntent(paymentIntentId: string): Promise<StripePaymentIntentResponse> {
+  async confirmPayment(payload: { bookingId: string; sagaId?: string; paymentIntentId: string; transactionId: string }) {
     try {
-      return await apiClient.post<StripePaymentIntentResponse>(
-        `${this.baseUrl}/stripe/confirm-payment-intent/${paymentIntentId}`,
-        {}
+      return await apiClient.post<{ success: boolean }>(
+        `${this.baseUrl}/stripe/confirm-payment`,
+        payload
       )
     } catch (error) {
-      console.error('Error confirming payment intent:', error)
+      console.error('Error confirming Stripe payment:', error)
       throw error
     }
   }

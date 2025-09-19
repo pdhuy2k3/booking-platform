@@ -4,12 +4,15 @@ import com.pdh.flight.model.FlightFare;
 import com.pdh.flight.model.enums.FareClass;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import jakarta.persistence.LockModeType;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 /**
@@ -46,6 +49,10 @@ public interface FlightFareRepository extends JpaRepository<FlightFare, UUID> {
      */
     @Query("SELECT ff FROM FlightFare ff WHERE ff.scheduleId = :scheduleId AND ff.fareClass = :fareClass AND ff.isDeleted = false")
     FlightFare findByScheduleIdAndFareClass(@Param("scheduleId") UUID scheduleId, @Param("fareClass") FareClass fareClass);
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT ff FROM FlightFare ff WHERE ff.scheduleId = :scheduleId AND ff.fareClass = :fareClass AND ff.isDeleted = false")
+    Optional<FlightFare> findByScheduleIdAndFareClassForUpdate(@Param("scheduleId") UUID scheduleId, @Param("fareClass") FareClass fareClass);
     
     /**
      * Find all fares for flights with available seats

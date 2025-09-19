@@ -19,9 +19,12 @@ export const paymentService = {
         bookingId: payload.bookingId,
         amount: payload.amount,
         currency: payload.currency,
+        paymentMethodType: payload.paymentMethodType ?? 'CREDIT_CARD',
+        sagaId: payload.sagaId,
         customerEmail: payload.customerEmail,
         customerName: payload.customerName,
-        description: payload.description
+        description: payload.description,
+        billingAddress: payload.billingAddress,
       })
 
       return {
@@ -33,6 +36,7 @@ export const paymentService = {
         description: response.description,
         paymentMethodId: response.paymentMethodId,
         customerId: response.customerId,
+        transactionId: response.transactionId,
         createdAt: response.createdAt,
         metadata: {}
       }
@@ -189,4 +193,3 @@ export const paymentService = {
     }
   }
 }
-

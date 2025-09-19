@@ -5,7 +5,6 @@ import com.pdh.common.saga.CompensationStrategy;
 import com.pdh.common.saga.SagaCommand;
 import com.pdh.common.saga.SagaState;
 import com.pdh.payment.model.Payment;
-import com.pdh.payment.model.PaymentMethod;
 import com.pdh.payment.model.PaymentSagaLog;
 import com.pdh.payment.model.PaymentTransaction;
 import com.pdh.payment.model.enums.PaymentStatus;
@@ -18,6 +17,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
 
@@ -48,32 +48,29 @@ public class PaymentSagaService {
             // Create payment from saga command
             Payment payment = createPaymentFromSagaCommand(command);
             
-            // Create payment method
-            PaymentMethod paymentMethod = createPaymentMethodFromSagaCommand(command);
-            
-            // Process payment
-            PaymentTransaction transaction = paymentService.processPayment(
-                payment, 
-                paymentMethod, 
+            // Initialize payment record and await customer confirmation
+            PaymentTransaction transaction = paymentService.initializePayment(
+                payment,
                 extractAdditionalData(command)
             );
 
-            // Log saga state
-            logSagaState(command.getSagaId(), SagaState.PAYMENT_COMPLETED, 
-                    "Payment processed successfully", transaction);
+            logSagaState(command.getSagaId(), SagaState.PAYMENT_PENDING,
+                    "Payment initialized and awaiting customer confirmation", transaction);
 
-            // Publish saga event
-            publishSagaEvent(command.getSagaId(), "PaymentProcessed", 
-                    Map.of("transactionId", transaction.getTransactionId()));
+            publishSagaEvent(command.getSagaId(), "PaymentPending",
+                    Map.of(
+                        "transactionId", transaction.getTransactionId(),
+                        "bookingId", command.getBookingId().toString()
+                    ));
 
-            log.info("Payment processed successfully for saga: {}", command.getSagaId());
+            log.info("Payment initialized for saga: {}", command.getSagaId());
 
         } catch (Exception e) {
-            log.error("Payment processing failed for saga: {}", command.getSagaId(), e);
+            log.error("Payment initialization failed for saga: {}", command.getSagaId(), e);
             
             // Log failure
             logSagaState(command.getSagaId(), SagaState.COMPENSATION_PAYMENT_REFUND, 
-                    "Payment processing failed: " + e.getMessage(), null);
+                    "Payment initialization failed: " + e.getMessage(), null);
 
             // Publish failure event
             publishSagaEvent(command.getSagaId(), "PaymentFailed", 
@@ -255,17 +252,18 @@ public class PaymentSagaService {
         payment.setBookingId(command.getBookingId());
         payment.setUserId(command.getCustomerId());
         payment.setAmount(command.getTotalAmount());
-        payment.setCurrency("USD"); // Default currency
+        String currency = extractCurrency(command);
+        payment.setCurrency(currency);
         payment.setStatus(PaymentStatus.PENDING);
         payment.setSagaId(command.getSagaId());
-        payment.setDescription("Payment for booking: " + command.getBookingId());
+        payment.setDescription(extractDescription(command));
         
         // Extract payment details from command
         if (command.getPaymentDetails() != null) {
             @SuppressWarnings("unchecked")
             Map<String, Object> paymentDetails = (Map<String, Object>) command.getPaymentDetails();
-            String providerStr = (String) paymentDetails.get("provider");
-            String methodTypeStr = (String) paymentDetails.get("methodType");
+            String providerStr = paymentDetails.containsKey("provider") ? String.valueOf(paymentDetails.get("provider")) : null;
+            String methodTypeStr = paymentDetails.containsKey("methodType") ? String.valueOf(paymentDetails.get("methodType")) : null;
             
             if (providerStr != null) {
                 try {
@@ -294,61 +292,38 @@ public class PaymentSagaService {
         return payment;
     }
 
-    /**
-     * Create payment method from saga command
-     */
-    private PaymentMethod createPaymentMethodFromSagaCommand(SagaCommand command) {
-        PaymentMethod paymentMethod = new PaymentMethod();
-        paymentMethod.setUserId(command.getCustomerId());
-        paymentMethod.setProvider(PaymentProvider.STRIPE); // Default provider
-        paymentMethod.setMethodType(PaymentMethodType.CREDIT_CARD);
-        paymentMethod.setIsActive(true);
-        paymentMethod.setIsDefault(false);
-        paymentMethod.setDisplayName("Saga Payment Method");
-        
-        // Extract payment method details from command
-        if (command.getPaymentDetails() != null) {
-            @SuppressWarnings("unchecked")
-            Map<String, Object> paymentDetails = (Map<String, Object>) command.getPaymentDetails();
-            String providerStr = (String) paymentDetails.get("provider");
-            String methodTypeStr = (String) paymentDetails.get("methodType");
-            String token = (String) paymentDetails.get("token");
-            
-            if (providerStr != null) {
-                try {
-                    paymentMethod.setProvider(PaymentProvider.valueOf(providerStr.toUpperCase()));
-                } catch (IllegalArgumentException e) {
-                    paymentMethod.setProvider(PaymentProvider.STRIPE); // Default
-                }
-            }
-            
-            if (methodTypeStr != null) {
-                try {
-                    paymentMethod.setMethodType(PaymentMethodType.valueOf(methodTypeStr.toUpperCase()));
-                } catch (IllegalArgumentException e) {
-                    paymentMethod.setMethodType(PaymentMethodType.CREDIT_CARD); // Default
-                }
-            }
-            
-            if (token != null) {
-                paymentMethod.setToken(token);
+    private String extractCurrency(SagaCommand command) {
+        if (command.getPaymentDetails() instanceof Map<?, ?> paymentDetails) {
+            Object currencyValue = paymentDetails.get("currency");
+            if (currencyValue != null) {
+                return currencyValue.toString().toUpperCase();
             }
         }
+        return "USD";
+    }
 
-        return paymentMethod;
+    private String extractDescription(SagaCommand command) {
+        if (command.getPaymentDetails() instanceof Map<?, ?> paymentDetails) {
+            Object description = paymentDetails.get("description");
+            if (description != null) {
+                return description.toString();
+            }
+        }
+        return "Payment for booking: " + command.getBookingId();
     }
 
     /**
      * Extract additional data from saga command
      */
     private Map<String, Object> extractAdditionalData(SagaCommand command) {
-        Map<String, Object> additionalData = Map.of(
-            "sagaId", command.getSagaId(),
-            "bookingId", command.getBookingId().toString(),
-            "customerId", command.getCustomerId().toString()
-        );
+        Map<String, Object> additionalData = new HashMap<>();
+        additionalData.put("sagaId", command.getSagaId());
+        additionalData.put("bookingId", command.getBookingId().toString());
+        if (command.getCustomerId() != null) {
+            additionalData.put("customerId", command.getCustomerId().toString());
+        }
+        additionalData.put("currency", extractCurrency(command));
 
-        // Add payment details if available
         if (command.getPaymentDetails() != null) {
             additionalData.put("paymentDetails", command.getPaymentDetails());
         }

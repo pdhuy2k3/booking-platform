@@ -4,12 +4,17 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.pdh.common.config.OpenApiResponses;
 import com.pdh.flight.dto.FlightBookingDetailsDto;
 import com.pdh.flight.dto.response.FlightSearchResultDto;
+import com.pdh.flight.dto.response.FlightFareDetailsResponse;
 import com.pdh.flight.model.Flight;
+import com.pdh.flight.model.FlightSchedule;
+import com.pdh.flight.model.FlightFare;
 import com.pdh.flight.model.Airport;
 import com.pdh.flight.model.enums.FareClass;
 import com.pdh.flight.repository.FlightRepository;
 import com.pdh.flight.repository.AirportRepository;
 import com.pdh.flight.repository.AirlineRepository;
+import com.pdh.flight.repository.FlightScheduleRepository;
+import com.pdh.flight.repository.FlightFareRepository;
 import com.pdh.flight.service.FlightService;
 import com.pdh.flight.service.FlightSearchService;
 import com.pdh.flight.service.CityDataService;
@@ -32,11 +37,17 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.Duration;
+import java.time.ZonedDateTime;
+import java.time.ZoneOffset;
+import java.time.format.DateTimeParseException;
 import java.util.HashMap;
 import java.util.UUID;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Comparator;
 import java.util.stream.Collectors;
 
 /**
@@ -60,6 +71,8 @@ public class FlightController {
     private final ObjectMapper objectMapper;
     private final CityDataService cityDataService;
     private final CityMappingService cityMappingService;
+    private final FlightScheduleRepository flightScheduleRepository;
+    private final FlightFareRepository flightFareRepository;
 
 
     /**
@@ -309,6 +322,82 @@ public class FlightController {
         } catch (Exception e) {
             log.error("Error getting flight details", e);
             return ResponseEntity.notFound().build();
+        }
+    }
+
+    @Operation(
+        summary = "Get fare details for booked flight",
+        description = "Retrieve fare and schedule information for a specific flight booking context",
+        tags = {"Public API"}
+    )
+    @OpenApiResponses.StandardApiResponsesWithNotFound
+    @GetMapping("/storefront/{flightId}/fare-details")
+    public ResponseEntity<FlightFareDetailsResponse> getFareDetails(
+            @PathVariable Long flightId,
+            @RequestParam(name = "seatClass") String seatClass,
+            @RequestParam(name = "departureDateTime") String departureDateTime) {
+
+        log.info("Fare details request flightId={}, seatClass={}, departureDateTime={}", flightId, seatClass, departureDateTime);
+
+        try {
+            FareClass fareClass = FareClass.valueOf(seatClass.toUpperCase());
+            ZonedDateTime departureTime;
+            try {
+                departureTime = ZonedDateTime.parse(departureDateTime);
+            } catch (DateTimeParseException ex) {
+                LocalDateTime localDateTime = LocalDateTime.parse(departureDateTime);
+                departureTime = localDateTime.atZone(ZoneOffset.UTC);
+            }
+
+            List<FlightSchedule> schedules = flightScheduleRepository.findByFlightId(flightId);
+            if (schedules.isEmpty()) {
+                return ResponseEntity.notFound().build();
+            }
+
+            FlightSchedule matchedSchedule = schedules.stream()
+                .min(Comparator.comparingLong(schedule -> Math.abs(Duration.between(departureTime, schedule.getDepartureTime()).toMinutes())))
+                .orElse(null);
+
+            if (matchedSchedule == null) {
+                return ResponseEntity.notFound().build();
+            }
+
+            long minutesDifference = Math.abs(Duration.between(departureTime, matchedSchedule.getDepartureTime()).toMinutes());
+            if (minutesDifference > 360) {
+                return ResponseEntity.notFound().build();
+            }
+
+            FlightFare fare = flightFareRepository.findByScheduleIdAndFareClass(matchedSchedule.getScheduleId(), fareClass);
+            if (fare == null) {
+                return ResponseEntity.notFound().build();
+            }
+
+            Flight flight = flightRepository.findById(flightId).orElse(null);
+
+            FlightFareDetailsResponse response = FlightFareDetailsResponse.builder()
+                .fareId(fare.getFareId())
+                .scheduleId(matchedSchedule.getScheduleId())
+                .seatClass(fareClass.name())
+                .price(fare.getPrice())
+                .currency("VND")
+                .availableSeats(fare.getAvailableSeats())
+                .departureTime(matchedSchedule.getDepartureTime().toString())
+                .arrivalTime(matchedSchedule.getArrivalTime().toString())
+                .flightNumber(flight != null ? flight.getFlightNumber() : null)
+                .airline(flight != null && flight.getAirline() != null ? flight.getAirline().getName() : null)
+                .originAirport(flight != null && flight.getDepartureAirport() != null ? flight.getDepartureAirport().getIataCode() : null)
+                .destinationAirport(flight != null && flight.getArrivalAirport() != null ? flight.getArrivalAirport().getIataCode() : null)
+                .aircraftType(matchedSchedule.getAircraftType())
+                .build();
+
+            return ResponseEntity.ok(response);
+
+        } catch (IllegalArgumentException | DateTimeParseException e) {
+            log.warn("Invalid fare detail request parameters", e);
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).build();
+        } catch (Exception e) {
+            log.error("Error retrieving fare details", e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
         }
     }
 

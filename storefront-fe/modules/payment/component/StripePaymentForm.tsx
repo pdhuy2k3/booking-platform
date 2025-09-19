@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from 'react'
 import { useStripe, useElements, PaymentElement } from '@stripe/react-stripe-js'
+import type { StripeElementsUpdateOptions } from '@stripe/stripe-js'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
@@ -15,6 +16,7 @@ import { paymentService } from '../service'
 import { paymentPollingService } from '../service/PaymentPollingService'
 import { StripePaymentFormData } from '../type/stripe'
 import { getStripeErrorMessage } from '../config/stripe'
+import { useAuth } from '@/contexts/auth-context'
 
 // Form validation schema
 const paymentFormSchema = z.object({
@@ -38,6 +40,7 @@ type PaymentFormData = z.infer<typeof paymentFormSchema>
 
 interface StripePaymentFormProps {
   bookingId: string
+  sagaId?: string
   amount: number
   currency?: string
   description?: string
@@ -49,6 +52,7 @@ interface StripePaymentFormProps {
 
 export const StripePaymentForm: React.FC<StripePaymentFormProps> = ({
   bookingId,
+  sagaId,
   amount,
   currency = 'usd',
   description,
@@ -59,18 +63,21 @@ export const StripePaymentForm: React.FC<StripePaymentFormProps> = ({
 }) => {
   const stripe = useStripe()
   const elements = useElements()
+  const { user } = useAuth()
   
   const [isProcessing, setIsProcessing] = useState(false)
   const [paymentStatus, setPaymentStatus] = useState<'idle' | 'processing' | 'succeeded' | 'failed'>('idle')
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const [clientSecret, setClientSecret] = useState<string | null>(null)
+  const [paymentIntentId, setPaymentIntentId] = useState<string | null>(null)
+  const [transactionId, setTransactionId] = useState<string | null>(null)
   const [isPolling, setIsPolling] = useState(false)
 
   const {
     register,
     handleSubmit,
     formState: { errors },
-    watch,
+    reset,
   } = useForm<PaymentFormData>({
     resolver: zodResolver(paymentFormSchema),
     defaultValues: {
@@ -91,32 +98,32 @@ export const StripePaymentForm: React.FC<StripePaymentFormProps> = ({
     },
   })
 
-  // Create payment intent when component mounts
   useEffect(() => {
-    const createPaymentIntent = async () => {
-      try {
-        const formData = watch()
-        const paymentIntent = await paymentService.createIntent({
-          bookingId,
-          amount: formData.amount,
-          currency: formData.currency,
-          customerEmail: formData.customerEmail,
-          customerName: formData.customerName,
-          description: description || '',
-        })
-        
-        setClientSecret(paymentIntent.clientSecret || null)
-      } catch (error) {
-        console.error('Error creating payment intent:', error)
-        setErrorMessage('Failed to initialize payment. Please try again.')
-      }
+    if (!user) {
+      return
     }
 
-    createPaymentIntent()
-  }, [bookingId, amount, currency, description, watch])
+    const fullName = user.fullName?.trim() || [user.firstName, user.lastName].filter(Boolean).join(' ').trim()
+    reset({
+      amount,
+      currency,
+      customerEmail: user.email || '',
+      customerName: fullName || '',
+      billingAddress: {
+        line1: user.address?.street || '',
+        line2: '',
+        city: user.address?.city || '',
+        state: user.address?.state || '',
+        postalCode: user.address?.postalCode || '',
+        country: (user.address?.country || 'VN').toUpperCase(),
+      },
+      savePaymentMethod: false,
+      setAsDefault: false,
+    })
+  }, [user, amount, currency, reset])
 
   const handlePaymentSubmit = async (data: PaymentFormData) => {
-    if (!stripe || !elements || !clientSecret) {
+    if (!stripe || !elements) {
       setErrorMessage('Payment system not ready. Please try again.')
       return
     }
@@ -126,9 +133,57 @@ export const StripePaymentForm: React.FC<StripePaymentFormProps> = ({
     setErrorMessage(null)
 
     try {
+      const submission = await elements.submit()
+      if (submission && submission.error) {
+        const message = submission.error.message || 'Unable to process payment details.'
+        setErrorMessage(message)
+        setPaymentStatus('failed')
+        onError?.(message)
+        setIsProcessing(false)
+        return
+      }
+
+      let activeClientSecret = clientSecret
+      let activePaymentIntentId = paymentIntentId
+      let activeTransactionId = transactionId
+
+      if (!activeClientSecret) {
+        const createdIntent = await paymentService.createIntent({
+          bookingId,
+          sagaId,
+          amount: data.amount,
+          currency: data.currency,
+          paymentMethodType: 'CREDIT_CARD',
+          customerEmail: data.customerEmail,
+          customerName: data.customerName,
+          description: description || '',
+          billingAddress: data.billingAddress,
+        })
+
+        activeClientSecret = createdIntent.clientSecret ?? null
+        activePaymentIntentId = createdIntent.id ?? null
+        activeTransactionId = createdIntent.transactionId ?? null
+
+        setClientSecret(activeClientSecret)
+        setPaymentIntentId(activePaymentIntentId)
+        setTransactionId(activeTransactionId)
+
+        if (elements && activeClientSecret) {
+          const updateOptions: StripeElementsUpdateOptions = {
+            clientSecret: activeClientSecret,
+          }
+          elements.update(updateOptions)
+        }
+      }
+
+      if (!activeClientSecret) {
+        throw new Error('Unable to initialize payment intent. Please try again.')
+      }
+
       // Confirm payment with Stripe
       const { error, paymentIntent } = await stripe.confirmPayment({
         elements,
+        clientSecret: activeClientSecret,
         confirmParams: {
           return_url: `${window.location.origin}/payment/result`,
         },
@@ -142,12 +197,14 @@ export const StripePaymentForm: React.FC<StripePaymentFormProps> = ({
         onError?.(error.message || 'Payment failed')
       } else if (paymentIntent?.status === 'succeeded') {
         setPaymentStatus('succeeded')
-        onSuccess?.(paymentIntent)
+        if (onSuccess) {
+          await Promise.resolve(onSuccess(paymentIntent))
+        }
       } else if (paymentIntent?.status === 'requires_action') {
         // Start polling for 3D Secure or other actions
         setIsPolling(true)
         setPaymentStatus('processing')
-        startPollingForPaymentStatus(paymentIntent.id)
+        startPollingForPaymentStatus(activeTransactionId)
       }
     } catch (error) {
       console.error('Payment error:', error)
@@ -161,20 +218,26 @@ export const StripePaymentForm: React.FC<StripePaymentFormProps> = ({
 
   const handleCancel = () => {
     // Stop polling if active
-    if (clientSecret) {
-      paymentPollingService.stopPolling(clientSecret)
+    if (transactionId) {
+      paymentPollingService.stopPolling(transactionId)
     }
     onCancel?.()
   }
 
-  const startPollingForPaymentStatus = (paymentIntentId: string) => {
-    paymentPollingService.startPolling(paymentIntentId, {
+  const startPollingForPaymentStatus = (currentTransactionId?: string) => {
+    if (!currentTransactionId) {
+      return
+    }
+
+    paymentPollingService.startPolling(currentTransactionId, {
       maxAttempts: 30, // 1 minute
       intervalMs: 2000, // 2 seconds
       onSuccess: (paymentIntent) => {
         setIsPolling(false)
         setPaymentStatus('succeeded')
-        onSuccess?.(paymentIntent)
+        if (onSuccess) {
+          void Promise.resolve(onSuccess(paymentIntent))
+        }
       },
       onError: (error) => {
         setIsPolling(false)
@@ -194,11 +257,11 @@ export const StripePaymentForm: React.FC<StripePaymentFormProps> = ({
   // Cleanup polling on unmount
   useEffect(() => {
     return () => {
-      if (clientSecret) {
-        paymentPollingService.stopPolling(clientSecret)
+      if (transactionId) {
+        paymentPollingService.stopPolling(transactionId)
       }
     }
-  }, [clientSecret])
+  }, [transactionId])
 
   const renderPaymentStatus = () => {
     switch (paymentStatus) {

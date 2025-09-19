@@ -163,3 +163,27 @@ export interface BookingSummary {
   status?: string;
   error?: string;
 }
+
+export interface BookingHistoryItemDto {
+  bookingId: string;
+  bookingReference: string;
+  bookingType: 'FLIGHT' | 'HOTEL' | 'COMBO';
+  status: string;
+  sagaState?: string | null;
+  totalAmount?: number | string | null;
+  currency?: string | null;
+  createdAt?: string | null;
+  updatedAt?: string | null;
+  productSummary?: string | null;
+  confirmationNumber?: string | null;
+  productDetailsJson?: string | null;
+}
+
+export interface BookingHistoryResponseDto {
+  items: BookingHistoryItemDto[];
+  page: number;
+  size: number;
+  totalElements: number;
+  totalPages: number;
+  hasNext: boolean;
+}

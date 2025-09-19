@@ -1,6 +1,4 @@
 {
-  "name": "payment-outbox-connector",
-  "config": {
     "connector.class": "io.debezium.connector.postgresql.PostgresConnector",
     "database.hostname": "postgres",
     "database.port": "5432",
@@ -25,11 +23,10 @@
     "transforms.outbox.table.field.event.key": "aggregate_id",
     "transforms.outbox.table.field.event.id": "event_id",
     "transforms.outbox.table.field.event.timestamp": "created_at",
-    "transforms.outbox.table.fields.additional.placement": "aggregate_type:header:aggregateType,saga_id:header:sagaId,booking_id:header:bookingId,user_id:header:userId,priority:header:priority,processed:header:processed"
+    "transforms.outbox.table.fields.additional.placement": "aggregate_type:header:aggregateType,saga_id:header:sagaId,booking_id:header:bookingId,user_id:header:userId,priority:header:priority,processed:header:processed",
     "event.processing.failure.handling.mode": "warn",
     "transforms.outbox.table.field.payload": "payload",
     "key.converter": "org.apache.kafka.connect.storage.StringConverter",
     "value.converter": "org.apache.kafka.connect.json.JsonConverter",
     "value.converter.schemas.enable": "false"
-  }
 }

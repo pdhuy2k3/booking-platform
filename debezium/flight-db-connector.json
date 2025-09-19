@@ -1,6 +1,4 @@
 {
-  "name": "flight-outbox-connector",
-  "config": {
     "connector.class": "io.debezium.connector.postgresql.PostgresConnector",
     "database.hostname": "postgres",
     "database.port": "5432",
@@ -25,12 +23,11 @@
     "transforms.outbox.table.field.event.key": "aggregate_id",
     "transforms.outbox.table.field.event.id": "id",
     "transforms.outbox.table.field.event.timestamp": "created_at",
-    "transforms.outbox.table.fields.additional.placement": "aggregate_type:header:aggregateType"
+    "transforms.outbox.table.fields.additional.placement": "aggregate_type:header:aggregateType",
     "event.processing.failure.handling.mode": "warn",
 
     "transforms.outbox.table.field.payload": "payload",
-    "key.converter": "org.apache.kafka.connect.storage.StringConverter",
+    "key.converter": "org.apache.kafka.connect.json.JsonConverter",
     "value.converter": "org.apache.kafka.connect.json.JsonConverter",
     "value.converter.schemas.enable": "false"
-  }
 }

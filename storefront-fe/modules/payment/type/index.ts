@@ -25,6 +25,7 @@ export interface PaymentIntent {
   clientSecret?: string
   paymentMethodId?: string
   customerId?: string
+  transactionId?: string
   createdAt: string
   metadata?: Record<string, string>
 }
@@ -46,6 +47,8 @@ export interface PaymentTransaction {
   metadata?: Record<string, string>
 }
 
+import type { StripeBillingAddress } from './stripe'
+
 export interface CreatePaymentIntentPayload {
   bookingId: string
   amount: number
@@ -53,7 +56,10 @@ export interface CreatePaymentIntentPayload {
   customerEmail?: string
   customerName?: string
   description?: string
+  sagaId?: string
+  paymentMethodType?: string
   metadata?: Record<string, string>
+  billingAddress?: StripeBillingAddress
 }
 
 export interface RefundRequest {
@@ -72,4 +78,3 @@ export interface RefundResponse {
   createdAt: string
   paymentIntentId: string
 }
-

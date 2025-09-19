@@ -4,6 +4,7 @@ import com.pdh.hotel.model.Room;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
@@ -122,4 +123,8 @@ public interface RoomRepository extends JpaRepository<Room, Long> {
         AND (r.isDeleted IS NULL OR r.isDeleted = false)
         """)
     BigDecimal findMinPriceByHotelId(@Param("hotelId") Long hotelId);
+
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query("UPDATE Room r SET r.isAvailable = :available WHERE r.roomType.roomTypeId = :roomTypeId AND (r.isDeleted IS NULL OR r.isDeleted = false)")
+    int updateAvailabilityByRoomType(@Param("roomTypeId") Long roomTypeId, @Param("available") boolean available);
 }

@@ -8,12 +8,14 @@ import com.pdh.common.kafka.cdc.message.HotelOutboxCdcMessage;
 import com.pdh.common.kafka.cdc.message.PaymentOutboxCdcMessage;
 import com.pdh.booking.model.Booking;
 import com.pdh.booking.model.BookingSagaInstance;
+import com.pdh.booking.model.SagaStateLog;
 import com.pdh.booking.model.enums.BookingType;
 import com.pdh.booking.model.enums.BookingStatus;
 import com.pdh.common.outbox.service.OutboxEventService;
 import com.pdh.common.outbox.ExtendedOutboxEvent;
 import com.pdh.booking.repository.BookingRepository;
 import com.pdh.booking.repository.BookingSagaRepository;
+import com.pdh.booking.repository.SagaStateLogRepository;
 import com.pdh.common.saga.SagaState;
 import com.pdh.common.saga.SagaCommand;
 import com.pdh.common.saga.SagaCommandValidator;
@@ -54,6 +56,7 @@ import java.util.UUID;
 public class BookingSagaOrchestrator {
 
     private final BookingSagaRepository sagaRepository;
+    private final SagaStateLogRepository sagaStateLogRepository;
     private final BookingRepository bookingRepository;
     private final OutboxEventService eventPublisher;
     private final ObjectMapper objectMapper;
@@ -139,6 +142,13 @@ public class BookingSagaOrchestrator {
         }
     }
     
+    /**
+     * Checks if a booking is a combo booking (flight + hotel)
+     */
+    private boolean isComboBooking(Booking booking) {
+        return booking != null && booking.getBookingType() == BookingType.COMBO;
+    }
+
     // ============== EVENT LISTENERS ==============
     
     /**
@@ -286,8 +296,9 @@ public class BookingSagaOrchestrator {
         if (bookingOpt.isPresent() && isComboBooking(bookingOpt.get())) {
             publishHotelReservationCommand(saga);
         } else {
-            // Flight only - proceed to payment
-            publishPaymentCommand(saga);
+            // Flight only - move saga to payment pending and wait for user payment
+            transitionSagaState(saga, SagaState.PAYMENT_PENDING);
+            sagaRepository.save(saga);
         }
     }
     
@@ -304,8 +315,9 @@ public class BookingSagaOrchestrator {
         saga.setCurrentState(SagaState.HOTEL_RESERVED);
         sagaRepository.save(saga);
         
-        // Proceed to payment
-        publishPaymentCommand(saga);
+        // Move saga to payment pending and await manual payment completion
+        transitionSagaState(saga, SagaState.PAYMENT_PENDING);
+        sagaRepository.save(saga);
     }
     
     private void handleHotelReservationFailed(BookingSagaInstance saga, JsonNode payload) {
@@ -349,8 +361,7 @@ public class BookingSagaOrchestrator {
     private void publishFlightReservationCommand(BookingSagaInstance saga) {
         log.info("Publishing flight reservation command for saga: {}", saga.getSagaId());
 
-        saga.setCurrentState(SagaState.FLIGHT_RESERVATION_PENDING);
-        sagaRepository.save(saga);
+        transitionSagaState(saga, SagaState.FLIGHT_RESERVATION_PENDING);
 
         try {
             // 1. Use existing outbox event publishing for backward compatibility
@@ -379,8 +390,7 @@ public class BookingSagaOrchestrator {
     private void publishHotelReservationCommand(BookingSagaInstance saga) {
         log.info("Publishing hotel reservation command for saga: {}", saga.getSagaId());
 
-        saga.setCurrentState(SagaState.HOTEL_RESERVATION_PENDING);
-        sagaRepository.save(saga);
+        transitionSagaState(saga, SagaState.HOTEL_RESERVATION_PENDING);
 
         try {
             // 1. Use existing outbox event publishing for backward compatibility
@@ -403,36 +413,6 @@ public class BookingSagaOrchestrator {
         } catch (Exception e) {
             log.error("Failed to send hotel reservation command for saga: {}", saga.getSagaId(), e);
             handleCommandPublishingFailure(saga, "RESERVE_HOTEL", e);
-        }
-    }
-    
-    private void publishPaymentCommand(BookingSagaInstance saga) {
-        log.info("Publishing payment command for saga: {}", saga.getSagaId());
-
-        saga.setCurrentState(SagaState.PAYMENT_PENDING);
-        sagaRepository.save(saga);
-
-        try {
-            // 1. Use existing outbox event publishing for backward compatibility
-            eventPublisher.publishEvent(
-                "PaymentCommand",
-                "BookingSaga",
-                saga.getSagaId(),
-                createCommandPayload(saga, "PROCESS_PAYMENT")
-            );
-
-            // 2. NEW: Also send direct saga command for enhanced flow
-            SagaCommand command = createTypedSagaCommand(saga, "PROCESS_PAYMENT");
-            sagaCommandValidator.validateCommand(command);
-
-            String commandPayload = objectMapper.writeValueAsString(command);
-            sagaCommandKafkaTemplate.send("payment-saga-commands", saga.getSagaId(), commandPayload);
-
-            log.debug("Payment command sent via both outbox and direct command for saga: {}", saga.getSagaId());
-
-        } catch (Exception e) {
-            log.error("Failed to send payment command for saga: {}", saga.getSagaId(), e);
-            handleCommandPublishingFailure(saga, "PROCESS_PAYMENT", e);
         }
     }
     
@@ -471,6 +451,41 @@ public class BookingSagaOrchestrator {
         );
     }
     
+    // ============== STATE TRANSITION LOGGING ==============
+
+    /**
+     * Logs a state transition to the saga_state_log table
+     */
+    private void logStateTransition(BookingSagaInstance saga, SagaState fromState, SagaState toState, 
+                                  String eventType, String eventPayload, String errorMessage) {
+        try {
+            SagaStateLog logEntry = new SagaStateLog();
+            logEntry.setSagaId(saga.getSagaId());
+            logEntry.setBookingId(saga.getBookingId().toString());
+            logEntry.setFromState(fromState);
+            logEntry.setToState(toState);
+            logEntry.setEventType(eventType);
+            logEntry.setEventPayload(eventPayload);
+            logEntry.setErrorMessage(errorMessage);
+            logEntry.setProcessedAt(java.time.LocalDateTime.now());
+            
+            sagaStateLogRepository.save(logEntry);
+            
+            log.debug("Logged state transition for saga {}: {} -> {}", 
+                     saga.getSagaId(), fromState, toState);
+        } catch (Exception e) {
+            log.error("Failed to log state transition for saga: {}", saga.getSagaId(), e);
+        }
+    }
+
+    /**
+     * Logs a state transition without error
+     */
+    private void logStateTransition(BookingSagaInstance saga, SagaState fromState, SagaState toState, 
+                                  String eventType, String eventPayload) {
+        logStateTransition(saga, fromState, toState, eventType, eventPayload, null);
+    }
+
     // ============== STATE VALIDATION ==============
     
     /**
@@ -485,14 +500,19 @@ public class BookingSagaOrchestrator {
      * Safely transition saga state with validation
      */
     private void transitionSagaState(BookingSagaInstance saga, SagaState newState) {
-        if (isValidTransition(saga.getCurrentState(), newState)) {
+        SagaState oldState = saga.getCurrentState();
+        if (isValidTransition(oldState, newState)) {
             saga.setCurrentState(newState);
             sagaRepository.save(saga);
             log.debug("Saga {} transitioned from {} to {}", 
-                     saga.getSagaId(), saga.getCurrentState(), newState);
+                     saga.getSagaId(), oldState, newState);
+            
+            // Log the state transition
+            logStateTransition(saga, oldState, newState, "STATE_TRANSITION", 
+                             String.format("State transition: %s -> %s", oldState, newState));
         } else {
             log.warn("Invalid state transition attempted for saga {} from {} to {}", 
-                    saga.getSagaId(), saga.getCurrentState(), newState);
+                    saga.getSagaId(), oldState, newState);
         }
     }
 
@@ -500,8 +520,7 @@ public class BookingSagaOrchestrator {
     
     private void startCompensation(BookingSagaInstance saga, String reason) {
         saga.startCompensation(reason);
-        saga.setCurrentState(SagaState.COMPENSATION_BOOKING_CANCEL);
-        sagaRepository.save(saga);
+        transitionSagaState(saga, SagaState.COMPENSATION_BOOKING_CANCEL);
 
         // Phase 4: Release inventory locks during compensation
         log.info("Releasing inventory locks for saga compensation: {}", saga.getSagaId());
@@ -522,11 +541,6 @@ public class BookingSagaOrchestrator {
         );
     }
     
-    private boolean isComboBooking(Booking booking) {
-        // Check if booking includes both flight and hotel
-        return booking.getBookingType() == BookingType.COMBO;
-    }
-    
     private String createCommandPayload(BookingSagaInstance saga, String action) {
         try {
             Map<String, Object> payload = new HashMap<>();
@@ -542,22 +556,7 @@ public class BookingSagaOrchestrator {
                 payload.put("customerId", booking.getUserId());
                 payload.put("bookingType", booking.getBookingType());
                 payload.put("totalAmount", booking.getTotalAmount());
-
-                // Include product details JSON for enhanced processing
-                if (booking.getProductDetailsJson() != null && !booking.getProductDetailsJson().isEmpty()) {
-                    try {
-                        JsonNode productDetails = objectMapper.readTree(booking.getProductDetailsJson());
-
-                        // Add specific details based on action
-                        if (action.equals("RESERVE_FLIGHT")) {
-                            payload.put("flightDetails", productDetails);
-                        } else if (action.equals("RESERVE_HOTEL")) {
-                            payload.put("hotelDetails", productDetails);
-                        }
-                    } catch (Exception e) {
-                        log.warn("Failed to parse product details for saga: {}", saga.getSagaId(), e);
-                    }
-                }
+                payload.put("currency", booking.getCurrency());
             }
 
             return objectMapper.writeValueAsString(payload);
@@ -661,7 +660,7 @@ public class BookingSagaOrchestrator {
                     addHotelDetailsToCommand(command, booking.getBookingType(), productDetails);
                     break;
                 case "PROCESS_PAYMENT":
-                    addPaymentDetailsToCommand(command, booking.getBookingType(), productDetails);
+                    addPaymentDetailsToCommand(command, booking, productDetails);
                     break;
             }
         } catch (Exception e) {
@@ -701,15 +700,14 @@ public class BookingSagaOrchestrator {
         }
     }
 
-    private void addPaymentDetailsToCommand(SagaCommand command, BookingType bookingType, Object productDetails) {
-        // Create payment details from command information
+    private void addPaymentDetailsToCommand(SagaCommand command, Booking booking, Object productDetails) {
         Map<String, Object> paymentDetails = new HashMap<>();
-        paymentDetails.put("bookingId", command.getBookingId());
-        paymentDetails.put("customerId", command.getCustomerId());
-        paymentDetails.put("totalAmount", command.getTotalAmount());
-        paymentDetails.put("currency", "VND");
+        paymentDetails.put("bookingId", booking.getBookingId());
+        paymentDetails.put("customerId", booking.getUserId());
+        paymentDetails.put("totalAmount", booking.getTotalAmount());
+        paymentDetails.put("currency", booking.getCurrency());
 
-        // Add booking-type specific description
+        BookingType bookingType = booking.getBookingType();
         if (bookingType == BookingType.FLIGHT) {
             paymentDetails.put("description", "Flight booking payment");
         } else if (bookingType == BookingType.HOTEL) {

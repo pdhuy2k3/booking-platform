@@ -9,6 +9,7 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken;
 
+import java.util.Optional;
 import java.util.UUID;
 
 public final class AuthenticationUtils {
@@ -48,7 +49,26 @@ public final class AuthenticationUtils {
         return contextHolder.getToken().getClaimAsString("role");
     }
     public static String extractJwt() {
-        return ((Jwt) getAuthentication().getPrincipal()).getTokenValue();
+        return tryExtractJwt()
+            .orElseThrow(() -> new AccessDeniedException(ApiConstant.ACCESS_DENIED));
+    }
+
+    public static Optional<String> tryExtractJwt() {
+        Authentication authentication = getAuthentication();
+
+        if (authentication == null || authentication instanceof AnonymousAuthenticationToken) {
+            return Optional.empty();
+        }
+
+        Object principal = authentication.getPrincipal();
+        if (principal instanceof Jwt jwt) {
+            String tokenValue = jwt.getTokenValue();
+            if (tokenValue != null && !tokenValue.isBlank()) {
+                return Optional.of(tokenValue);
+            }
+        }
+
+        return Optional.empty();
     }
 
     public static Authentication getAuthentication() {

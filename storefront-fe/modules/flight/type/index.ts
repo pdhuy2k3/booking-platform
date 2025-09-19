@@ -111,6 +111,22 @@ export type FlightDetails = {
   availableSeats: number
 }
 
+export interface FlightFareDetails {
+  fareId: string
+  scheduleId: string
+  seatClass: string
+  price: number | string
+  currency: string
+  availableSeats: number | null
+  departureTime: string
+  arrivalTime: string
+  flightNumber?: string
+  airline?: string
+  originAirport?: string
+  destinationAirport?: string
+  aircraftType?: string
+}
+
 // Initial flight data response from /flights/storefront/flights
 export type InitialFlightData = {
   flights: FlightSearchResult[]

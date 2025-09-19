@@ -8,6 +8,7 @@ import { FlightBookingForm } from '@/components/flight-booking-form'
 import { HotelBookingForm } from '@/components/hotel-booking-form'
 import { BookingReview } from '@/components/booking-review'
 import { BookingConfirmation } from '@/components/booking-confirmation'
+import { BookingPaymentStep } from '@/components/booking-payment-step'
 import { 
   FlightBookingDetails, 
   HotelBookingDetails, 
@@ -123,7 +124,14 @@ export function BookingFlowManager({ onBookingComplete, showSelection = true }: 
 
   const handleConfirmBooking = async () => {
     await createBooking()
+  }
+
+  const handlePaymentComplete = () => {
     nextStep()
+  }
+
+  const handlePaymentBack = () => {
+    prevStep()
   }
 
   const handleNewBooking = () => {
@@ -131,6 +139,7 @@ export function BookingFlowManager({ onBookingComplete, showSelection = true }: 
   }
 
   const handleViewBookings = () => {
+    resetBooking()
     onBookingComplete()
   }
 
@@ -211,6 +220,14 @@ export function BookingFlowManager({ onBookingComplete, showSelection = true }: 
         />
       )}
 
+      {step === 'payment' && (
+        <BookingPaymentStep
+          onPaymentSuccess={handlePaymentComplete}
+          onBack={handlePaymentBack}
+          onCancel={handleNewBooking}
+        />
+      )}
+
       {step === 'confirmation' && (
         <BookingConfirmation
           onNewBooking={handleNewBooking}
@@ -237,4 +254,3 @@ export function BookingFlowManager({ onBookingComplete, showSelection = true }: 
     </div>
   )
 }
-

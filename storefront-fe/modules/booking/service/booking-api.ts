@@ -5,7 +5,8 @@ import {
   ComboBookingDetails,
   BookingResponse,
   BookingStatusResponse,
-  CreateBookingRequest
+  CreateBookingRequest,
+  BookingHistoryResponseDto
 } from '../types';
 
 // Type definitions for booking API
@@ -82,6 +83,29 @@ class BookingApiService {
     } catch (error: any) {
       console.error('Error canceling booking:', error);
       throw new Error('Failed to cancel booking');
+    }
+  }
+
+  async confirmBooking(bookingId: string): Promise<BookingStatusPollResponse> {
+    try {
+      return await apiClient.post<BookingStatusPollResponse>(
+        `/bookings/storefront/${bookingId}/confirm`
+      )
+    } catch (error: any) {
+      console.error('Error confirming booking:', error)
+      throw new Error('Failed to confirm booking')
+    }
+  }
+
+  async getBookingHistory(page = 0, size = 10): Promise<BookingHistoryResponseDto> {
+    try {
+      return await apiClient.get<BookingHistoryResponseDto>(
+        '/bookings/storefront/history',
+        { params: { page, size } }
+      )
+    } catch (error: any) {
+      console.error('Error fetching booking history:', error)
+      throw new Error('Failed to fetch booking history')
     }
   }
 }

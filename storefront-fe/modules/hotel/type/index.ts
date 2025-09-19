@@ -135,3 +135,32 @@ export type HotelDetails = {
     smoking: string
   }
 }
+
+export interface RoomDetails {
+  id: number
+  hotelId: number
+  hotelName: string
+  roomNumber: string
+  description?: string
+  price?: number | string
+  maxOccupancy?: number
+  bedType?: string
+  roomSize?: number
+  isAvailable?: boolean
+  roomType?: {
+    id?: number
+    name?: string
+    description?: string
+  }
+  amenities?: Array<{
+    amenityId?: number
+    name?: string
+    description?: string
+  }>
+  media?: Array<{ id?: string; url?: string; [key: string]: any }>
+  primaryImage?: { id?: string; url?: string; [key: string]: any }
+  hasMedia?: boolean
+  mediaCount?: number
+  createdAt?: string
+  updatedAt?: string
+}

@@ -37,7 +37,14 @@ public class ProcessPaymentCommandHandler {
             }
             
             Booking booking = bookingOpt.get();
-            
+
+            if (command.getCurrency() == null && booking.getCurrency() != null) {
+                command.setCurrency(booking.getCurrency());
+            }
+            if (command.getCurrency() != null) {
+                command.setCurrency(command.getCurrency().toUpperCase());
+            }
+
             // Update booking status
             booking.setStatus(BookingStatus.PAYMENT_PENDING);
             bookingRepository.save(booking);
@@ -65,7 +72,7 @@ public class ProcessPaymentCommandHandler {
             "bookingId", command.getBookingId().toString(),
             "userId", command.getUserId().toString(),
             "amount", command.getAmount().toString(),
-            "currency", command.getCurrency(),
+            "currency", Optional.ofNullable(command.getCurrency()).orElse("USD"),
             "paymentMethod", command.getPaymentMethod(),
             "paymentDetailsJson", command.getPaymentDetailsJson(),
             "correlationId", command.getCorrelationId(),

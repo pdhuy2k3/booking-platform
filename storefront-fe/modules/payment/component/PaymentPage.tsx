@@ -14,6 +14,7 @@ interface PaymentPageProps {
   amount: number
   currency?: string
   description?: string
+  sagaId?: string
   onSuccess?: (paymentIntent: any) => void
   onError?: (error: string) => void
   onBack?: () => void
@@ -25,6 +26,7 @@ export const PaymentPage: React.FC<PaymentPageProps> = ({
   amount,
   currency = 'usd',
   description,
+  sagaId,
   onSuccess,
   onError,
   onBack,
@@ -93,6 +95,7 @@ export const PaymentPage: React.FC<PaymentPageProps> = ({
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             <StripePaymentForm
               bookingId={bookingId}
+              sagaId={sagaId}
               amount={amount}
               currency={currency}
               description={description}

@@ -6,9 +6,13 @@ import com.pdh.booking.model.dto.request.StorefrontCreateBookingRequestDto;
 import com.pdh.booking.model.dto.response.BookingResponseDto;
 import com.pdh.booking.model.dto.response.StorefrontBookingResponseDto;
 import com.pdh.booking.model.dto.response.BookingStatusResponseDto;
+import com.pdh.booking.model.dto.response.BookingHistoryResponseDto;
+import com.pdh.booking.model.dto.response.BookingHistoryItemDto;
 import com.pdh.booking.mapper.BookingDtoMapper;
 import com.pdh.booking.model.Booking;
 import com.pdh.booking.service.BookingCqrsService;
+import com.pdh.booking.service.BookingService;
+import com.pdh.booking.model.enums.BookingStatus;
 import com.pdh.common.config.OpenApiResponses;
 import com.pdh.common.utils.AuthenticationUtils;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -21,8 +25,13 @@ import java.math.BigDecimal;
 import java.util.Optional;
 import java.util.UUID;
 
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -45,6 +54,9 @@ public class BookingController {
     private final BookingCqrsService bookingCqrsService;
     private final BookingDtoMapper bookingDtoMapper;
     private final ObjectMapper objectMapper;
+    private final BookingService bookingService;
+    @Value("${booking.validation.bypass:true}")
+    private boolean bypassValidation;
 
     /**
      * Create a new booking using CQRS and saga orchestration
@@ -86,6 +98,74 @@ public class BookingController {
 
         } catch (Exception e) {
             log.error("Error creating booking via CQRS: {}", e.getMessage(), e);
+            return ResponseEntity.internalServerError().build();
+        }
+    }
+
+    @Operation(
+        summary = "Confirm booking (Storefront)",
+        description = "Mark booking as confirmed after successful payment",
+        tags = {"Public API", "Status Tracking"}
+    )
+    @SecurityRequirement(name = "oauth2", scopes = {"customer"})
+    @PostMapping("/storefront/{bookingId}/confirm")
+    public ResponseEntity<BookingStatusResponseDto> confirmBooking(
+            @PathVariable UUID bookingId) {
+        try {
+            Booking booking = bookingService.confirmBooking(bookingId);
+
+            BookingStatusResponseDto response = BookingStatusResponseDto.builder()
+                .bookingId(booking.getBookingId().toString())
+                .bookingReference(booking.getBookingReference())
+                .status(booking.getStatus())
+                .lastUpdated(booking.getUpdatedAt().toString())
+                .message("Booking confirmed successfully!")
+                .build();
+
+            response.setEstimatedCompletion(null);
+            response.setProgressPercentage(100);
+
+            return ResponseEntity.ok(response);
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.notFound().build();
+        } catch (Exception e) {
+            log.error("Error confirming booking {}", bookingId, e);
+            return ResponseEntity.internalServerError().build();
+        }
+    }
+
+    @Operation(
+        summary = "Get booking history",
+        description = "Retrieve paginated booking history for the authenticated storefront user",
+        tags = {"Public API", "Status Tracking"}
+    )
+    @SecurityRequirement(name = "oauth2", scopes = {"customer"})
+    @GetMapping("/storefront/history")
+    public ResponseEntity<BookingHistoryResponseDto> getBookingHistory(
+            @RequestParam(name = "page", defaultValue = "0") int page,
+            @RequestParam(name = "size", defaultValue = "10") int size) {
+        try {
+            UUID userId = AuthenticationUtils.getCurrentUserIdFromContext();
+
+            int pageIndex = Math.max(page, 0);
+            int pageSize = Math.max(1, Math.min(size, 50));
+            Pageable pageable = PageRequest.of(pageIndex, pageSize);
+
+            Page<BookingHistoryItemDto> historyPage = bookingService.getBookingHistory(userId, pageable);
+
+            BookingHistoryResponseDto response = BookingHistoryResponseDto.builder()
+                .items(historyPage.getContent())
+                .page(historyPage.getNumber())
+                .size(historyPage.getSize())
+                .totalElements(historyPage.getTotalElements())
+                .totalPages(historyPage.getTotalPages())
+                .hasNext(historyPage.hasNext())
+                .build();
+
+            return ResponseEntity.ok(response);
+
+        } catch (Exception e) {
+            log.error("Error retrieving booking history", e);
             return ResponseEntity.internalServerError().build();
         }
     }
@@ -221,15 +301,20 @@ public class BookingController {
 
             Booking booking = bookingOpt.get();
 
+            BookingStatus effectiveStatus = booking.getStatus();
+            if (bypassValidation && effectiveStatus == BookingStatus.VALIDATION_PENDING) {
+                effectiveStatus = BookingStatus.PENDING;
+            }
+
             BookingStatusResponseDto response = BookingStatusResponseDto.builder()
                 .bookingId(booking.getBookingId().toString())
                 .bookingReference(booking.getBookingReference())
-                .status(booking.getStatus())
+                .status(effectiveStatus)
                 .lastUpdated(booking.getUpdatedAt().toString())
                 .build();
 
             // Add status-specific messages
-            switch (booking.getStatus()) {
+            switch (effectiveStatus) {
                 case VALIDATION_PENDING:
                     response.setMessage("Validating product availability...");
                     response.setEstimatedCompletion("2-5 seconds");
@@ -280,4 +365,3 @@ public class BookingController {
      */
 
 }
-

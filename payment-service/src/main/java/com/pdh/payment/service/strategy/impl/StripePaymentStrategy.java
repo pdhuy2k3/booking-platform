@@ -7,6 +7,7 @@ import com.pdh.payment.model.PaymentTransaction;
 import com.pdh.payment.model.enums.PaymentProvider;
 import com.pdh.payment.model.enums.PaymentStatus;
 import com.pdh.payment.model.enums.PaymentTransactionType;
+import com.pdh.payment.model.enums.PaymentMethodType;
 import com.pdh.payment.service.strategy.PaymentStrategy;
 import com.stripe.Stripe;
 import com.stripe.exception.StripeException;
@@ -14,15 +15,18 @@ import com.stripe.model.PaymentIntent;
 import com.stripe.model.Refund;
 import com.stripe.param.PaymentIntentCreateParams;
 import com.stripe.param.PaymentIntentRetrieveParams;
+import com.stripe.param.PaymentIntentUpdateParams;
 import com.stripe.param.RefundCreateParams;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.ZonedDateTime;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * Stripe Payment Strategy Implementation
@@ -38,6 +42,10 @@ public class StripePaymentStrategy implements PaymentStrategy {
     private static final String STRATEGY_NAME = "Stripe Payment Strategy";
     private static final BigDecimal STRIPE_FEE_RATE = new BigDecimal("0.029"); // 2.9%
     private static final BigDecimal STRIPE_FIXED_FEE = new BigDecimal("0.30"); // $0.30
+    private static final Set<String> ZERO_DECIMAL_CURRENCIES = Set.of(
+        "bif", "clp", "djf", "gnf", "jpy", "kmf", "krw", "mga", "pyg",
+        "rwf", "ugx", "vnd", "vuv", "xaf", "xof", "xpf"
+    );
     
     @jakarta.annotation.PostConstruct
     public void initializeStripe() {
@@ -238,12 +246,15 @@ public class StripePaymentStrategy implements PaymentStrategy {
     private PaymentIntent createPaymentIntent(Payment payment, PaymentMethod paymentMethod,
                                             Map<String, Object> additionalData) throws StripeException {
 
-        // Convert amount to cents (Stripe uses smallest currency unit)
-        long amountInCents = payment.getAmount().multiply(new BigDecimal("100")).longValue();
+        String currency = payment.getCurrency() != null
+                ? payment.getCurrency().toLowerCase()
+                : stripeConfig.getSettings().getCurrency();
+
+        long amountInMinorUnits = toStripeAmount(payment.getAmount(), currency);
 
         PaymentIntentCreateParams.Builder paramsBuilder = PaymentIntentCreateParams.builder()
-                .setAmount(amountInCents)
-                .setCurrency(stripeConfig.getSettings().getCurrency())
+                .setAmount(amountInMinorUnits)
+                .setCurrency(currency)
                 .setPaymentMethod(paymentMethod.getToken())
                 .setCaptureMethod(PaymentIntentCreateParams.CaptureMethod.valueOf(
                     stripeConfig.getSettings().getCaptureMethod().toUpperCase()))
@@ -267,6 +278,96 @@ public class StripePaymentStrategy implements PaymentStrategy {
         }
 
         return PaymentIntent.create(paramsBuilder.build());
+    }
+
+    /**
+     * Create a Stripe PaymentIntent without attaching a payment method (manual confirmation flow)
+     */
+    public PaymentIntent createManualPaymentIntent(Payment payment, Map<String, Object> additionalData,
+                                                   com.pdh.payment.dto.StripePaymentIntentRequest request) throws StripeException {
+        String currency = payment.getCurrency() != null
+                ? payment.getCurrency().toLowerCase()
+                : stripeConfig.getSettings().getCurrency();
+
+        long amountInMinorUnits = toStripeAmount(payment.getAmount(), currency);
+
+        PaymentIntentCreateParams.Builder paramsBuilder = PaymentIntentCreateParams.builder()
+            .setAmount(amountInMinorUnits)
+            .setCurrency(currency)
+            .setCaptureMethod(PaymentIntentCreateParams.CaptureMethod.valueOf(
+                stripeConfig.getSettings().getCaptureMethod().toUpperCase()))
+            .setDescription(payment.getDescription());
+
+        String confirmationMethod = stripeConfig.getSettings().getConfirmationMethod();
+        if (confirmationMethod != null && !"automatic".equalsIgnoreCase(confirmationMethod)) {
+            paramsBuilder.setConfirmationMethod(PaymentIntentCreateParams.ConfirmationMethod.valueOf(
+                confirmationMethod.toUpperCase()));
+        }
+
+        // Align payment method types with Stripe Elements usage
+        paramsBuilder.addPaymentMethodType(resolveStripePaymentMethod(request.getPaymentMethodType()));
+
+        Map<String, String> metadata = new HashMap<>();
+        metadata.put("payment_id", payment.getPaymentId().toString());
+        metadata.put("booking_id", payment.getBookingId().toString());
+        metadata.put("user_id", payment.getUserId().toString());
+        if (payment.getSagaId() != null) {
+            metadata.put("saga_id", payment.getSagaId());
+        }
+        if (request.getMetadata() != null) {
+            request.getMetadata().forEach((key, value) -> {
+                if (value != null) {
+                    metadata.put(key, value);
+                }
+            });
+        }
+        paramsBuilder.putAllMetadata(metadata);
+
+        if (request.getCustomerId() != null && !request.getCustomerId().isBlank()) {
+            paramsBuilder.setCustomer(request.getCustomerId());
+        }
+
+        if (additionalData != null) {
+            if (additionalData.containsKey("customer_email")) {
+                paramsBuilder.setReceiptEmail((String) additionalData.get("customer_email"));
+            }
+            if (additionalData.containsKey("customer_name")) {
+                paramsBuilder.putMetadata("customer_name", (String) additionalData.get("customer_name"));
+            }
+        }
+
+        return PaymentIntent.create(paramsBuilder.build());
+    }
+
+    /**
+     * Update an existing Stripe PaymentIntent without confirming
+     */
+    public PaymentIntent updateManualPaymentIntent(PaymentIntent existingIntent, Payment payment,
+                                                   Map<String, Object> additionalData,
+                                                   com.pdh.payment.dto.StripePaymentIntentRequest request) throws StripeException {
+        long amountInMinorUnits = toStripeAmount(payment.getAmount(), existingIntent.getCurrency());
+
+        PaymentIntentUpdateParams.Builder paramsBuilder = PaymentIntentUpdateParams.builder()
+            .setAmount(amountInMinorUnits)
+            .setDescription(payment.getDescription());
+
+        if (request.getMetadata() != null) {
+            request.getMetadata().forEach((key, value) -> {
+                if (value != null) {
+                    paramsBuilder.putMetadata(key, value);
+                }
+            });
+        }
+
+        if (additionalData != null && additionalData.containsKey("customer_email")) {
+            paramsBuilder.setReceiptEmail((String) additionalData.get("customer_email"));
+        }
+
+        return existingIntent.update(paramsBuilder.build());
+    }
+
+    public void populateTransactionFromIntent(PaymentTransaction transaction, PaymentIntent paymentIntent) {
+        updateTransactionWithStripeData(transaction, paymentIntent);
     }
 
     private void updateTransactionWithStripeData(PaymentTransaction transaction, PaymentIntent paymentIntent) {
@@ -330,12 +431,11 @@ public class StripePaymentStrategy implements PaymentStrategy {
     private Refund createStripeRefund(PaymentTransaction originalTransaction,
                                     BigDecimal refundAmount, String reason) throws StripeException {
 
-        // Convert amount to cents
-        long amountInCents = refundAmount.multiply(new BigDecimal("100")).longValue();
+        long amountInMinorUnits = toStripeAmount(refundAmount, originalTransaction.getCurrency());
 
         RefundCreateParams params = RefundCreateParams.builder()
                 .setPaymentIntent(originalTransaction.getGatewayTransactionId())
-                .setAmount(amountInCents)
+                .setAmount(amountInMinorUnits)
                 .setReason(RefundCreateParams.Reason.REQUESTED_BY_CUSTOMER)
                 .putMetadata("original_transaction_id", originalTransaction.getTransactionId().toString())
                 .putMetadata("refund_reason", reason)
@@ -426,6 +526,41 @@ public class StripePaymentStrategy implements PaymentStrategy {
         return e.getStatusCode() >= 500 || // Server errors
                e.getClass().getSimpleName().equals("RateLimitException") ||
                e.getClass().getSimpleName().equals("ApiConnectionException");
+    }
+
+    private long toStripeAmount(BigDecimal amount, String currency) {
+        if (amount == null) {
+            throw new IllegalArgumentException("Amount cannot be null");
+        }
+
+        String effectiveCurrency = currency != null
+            ? currency.toLowerCase()
+            : stripeConfig.getSettings().getCurrency().toLowerCase();
+
+        BigDecimal normalizedAmount = ZERO_DECIMAL_CURRENCIES.contains(effectiveCurrency)
+            ? amount.setScale(0, RoundingMode.HALF_UP)
+            : amount.multiply(new BigDecimal("100")).setScale(0, RoundingMode.HALF_UP);
+
+        return normalizedAmount.longValueExact();
+    }
+
+    private String resolveStripePaymentMethod(PaymentMethodType methodType) {
+        if (methodType == null) {
+            return "card";
+        }
+
+        return switch (methodType) {
+            case CREDIT_CARD, DEBIT_CARD -> "card";
+            case APPLE_PAY -> "card"; // Apple Pay surfaces as card via Elements
+            case GOOGLE_PAY, SAMSUNG_PAY -> "card";
+            case PAYPAL -> "paypal";
+            case MOMO, ZALOPAY, VNPAY, VIETQR -> "card"; // Placeholder, adjust when supported directly
+            case BANK_TRANSFER, INTERNET_BANKING -> "card";
+            case BITCOIN, ETHEREUM -> "card";
+            case KLARNA -> "klarna";
+            case AFTERPAY -> "afterpay_clearpay";
+            case CASH_ON_DELIVERY, GIFT_CARD, OTHER -> "card";
+        };
     }
 
     /**

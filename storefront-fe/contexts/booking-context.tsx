@@ -1,7 +1,7 @@
 "use client"
 
-import React, { createContext, useContext, useReducer, useState, useEffect, useCallback } from 'react'
-import { bookingService, type StorefrontBookingRequest, type StorefrontBookingResponse } from '@/modules/booking/service'
+import React, { createContext, useContext, useReducer, useEffect, useCallback, useRef } from 'react'
+import { bookingService, type StorefrontBookingRequest, type StorefrontBookingResponse, type BookingStatusResponse } from '@/modules/booking/service'
 import { useToast } from '@/hooks/use-toast'
 
 // Types
@@ -50,9 +50,11 @@ interface BookingState {
   bookingData: Partial<StorefrontBookingRequest>
   bookingResponse: StorefrontBookingResponse | null
   isLoading: boolean
+  isStatusPolling: boolean
   error: string | null
   selectedFlight: SelectedFlight | null
   selectedHotel: SelectedHotel | null
+  bookingStatus: BookingStatusResponse | null
 }
 
 interface BookingContextType extends BookingState {
@@ -66,6 +68,7 @@ interface BookingContextType extends BookingState {
   setStep: (step: BookingStep) => void
   setSelectedFlight: (flight: SelectedFlight | null) => void
   setSelectedHotel: (hotel: SelectedHotel | null) => void
+  refreshBookingStatus: () => Promise<void>
 }
 
 // Initial state
@@ -75,9 +78,11 @@ const initialState: BookingState = {
   bookingData: {},
   bookingResponse: null,
   isLoading: false,
+  isStatusPolling: false,
   error: null,
   selectedFlight: null,
-  selectedHotel: null
+  selectedHotel: null,
+  bookingStatus: null
 }
 
 // Actions
@@ -88,6 +93,8 @@ type BookingAction =
   | { type: 'SET_LOADING'; payload: boolean }
   | { type: 'SET_ERROR'; payload: string | null }
   | { type: 'SET_BOOKING_RESPONSE'; payload: StorefrontBookingResponse }
+  | { type: 'SET_BOOKING_STATUS'; payload: BookingStatusResponse | null }
+  | { type: 'SET_STATUS_POLLING'; payload: boolean }
   | { type: 'SET_SELECTED_FLIGHT'; payload: SelectedFlight | null }
   | { type: 'SET_SELECTED_HOTEL'; payload: SelectedHotel | null }
   | { type: 'RESET_BOOKING' }
@@ -129,6 +136,16 @@ function bookingReducer(state: BookingState, action: BookingAction): BookingStat
         ...state,
         bookingResponse: action.payload
       }
+    case 'SET_BOOKING_STATUS':
+      return {
+        ...state,
+        bookingStatus: action.payload
+      }
+    case 'SET_STATUS_POLLING':
+      return {
+        ...state,
+        isStatusPolling: action.payload
+      }
     case 'SET_SELECTED_FLIGHT':
       return {
         ...state,
@@ -153,6 +170,7 @@ const BookingContext = createContext<BookingContextType | undefined>(undefined)
 export function BookingProvider({ children }: { children: React.ReactNode }) {
   const [state, dispatch] = useReducer(bookingReducer, initialState)
   const { toast } = useToast()
+  const statusPollingRef = useRef<NodeJS.Timeout | null>(null)
 
   const setBookingType = useCallback((type: BookingType) => {
     dispatch({ type: 'SET_BOOKING_TYPE', payload: type })
@@ -194,12 +212,63 @@ export function BookingProvider({ children }: { children: React.ReactNode }) {
     dispatch({ type: 'SET_ERROR', payload: error })
   }, [])
 
+  const stopStatusPolling = useCallback(() => {
+    if (statusPollingRef.current) {
+      clearTimeout(statusPollingRef.current)
+      statusPollingRef.current = null
+    }
+    dispatch({ type: 'SET_STATUS_POLLING', payload: false })
+  }, [])
+
+  const pollBookingStatus = useCallback(async (bookingIdParam?: string) => {
+    const bookingId = bookingIdParam || state.bookingResponse?.bookingId
+    if (!bookingId) return
+
+    dispatch({ type: 'SET_STATUS_POLLING', payload: true })
+
+    try {
+      const statusResponse = await bookingService.getStatus(bookingId)
+      dispatch({ type: 'SET_BOOKING_STATUS', payload: statusResponse })
+
+      const pendingStatuses = new Set(['VALIDATION_PENDING', 'PENDING', 'PAYMENT_PENDING'])
+      const successStatuses = new Set(['CONFIRMED', 'PAID'])
+      const failureStatuses = new Set(['FAILED', 'PAYMENT_FAILED', 'CANCELLED', 'CANCELED', 'VALIDATION_FAILED', 'REJECTED'])
+
+      if (successStatuses.has(statusResponse.status)) {
+        stopStatusPolling()
+        dispatch({ type: 'SET_STEP', payload: 'confirmation' })
+      } else if (failureStatuses.has(statusResponse.status)) {
+        stopStatusPolling()
+        dispatch({ type: 'SET_ERROR', payload: statusResponse.message || 'Booking failed. Please try again.' })
+      } else if (pendingStatuses.has(statusResponse.status)) {
+        if (statusPollingRef.current) {
+          clearTimeout(statusPollingRef.current)
+        }
+        statusPollingRef.current = setTimeout(() => {
+          void pollBookingStatus(bookingId)
+        }, 5000)
+      } else {
+        // Unknown status - stop polling to avoid infinite loop
+        stopStatusPolling()
+      }
+    } catch (error) {
+      console.error('Booking status polling error:', error)
+      stopStatusPolling()
+      dispatch({ type: 'SET_ERROR', payload: 'Unable to retrieve booking status. Please try again.' })
+    }
+  }, [state.bookingResponse?.bookingId, stopStatusPolling])
+
+  const refreshBookingStatus = useCallback(async () => {
+    await pollBookingStatus()
+  }, [pollBookingStatus])
+
   const createBooking = useCallback(async () => {
     if (!state.bookingData.bookingType || !state.bookingData.productDetails) {
       dispatch({ type: 'SET_ERROR', payload: 'Missing required booking information' })
       return
     }
 
+    stopStatusPolling()
     dispatch({ type: 'SET_LOADING', payload: true })
     dispatch({ type: 'SET_ERROR', payload: null })
 
@@ -219,7 +288,14 @@ export function BookingProvider({ children }: { children: React.ReactNode }) {
       }
 
       dispatch({ type: 'SET_BOOKING_RESPONSE', payload: response })
-      dispatch({ type: 'SET_STEP', payload: 'confirmation' })
+      dispatch({ type: 'SET_BOOKING_STATUS', payload: null })
+      dispatch({ type: 'SET_STEP', payload: 'payment' })
+      if (response.bookingId) {
+        if (statusPollingRef.current) {
+          clearTimeout(statusPollingRef.current)
+        }
+        void pollBookingStatus(response.bookingId)
+      }
       
       toast({
         title: "Booking Created",
@@ -238,11 +314,12 @@ export function BookingProvider({ children }: { children: React.ReactNode }) {
     } finally {
       dispatch({ type: 'SET_LOADING', payload: false })
     }
-  }, [state.bookingData, toast])
+  }, [state.bookingData, toast, pollBookingStatus, stopStatusPolling])
 
   const resetBooking = useCallback(() => {
+    stopStatusPolling()
     dispatch({ type: 'RESET_BOOKING' })
-  }, [])
+  }, [stopStatusPolling])
 
   const value = {
     ...state,
@@ -255,8 +332,17 @@ export function BookingProvider({ children }: { children: React.ReactNode }) {
     setError,
     setStep,
     setSelectedFlight,
-    setSelectedHotel
+    setSelectedHotel,
+    refreshBookingStatus,
   }
+
+  useEffect(() => {
+    return () => {
+      if (statusPollingRef.current) {
+        clearTimeout(statusPollingRef.current)
+      }
+    }
+  }, [])
 
   return (
     <BookingContext.Provider value={value}>
@@ -273,4 +359,3 @@ export function useBooking() {
   }
   return context
 }
-

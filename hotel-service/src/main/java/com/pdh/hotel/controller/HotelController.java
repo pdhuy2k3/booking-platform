@@ -3,6 +3,7 @@ package com.pdh.hotel.controller;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.pdh.common.config.OpenApiResponses;
 import com.pdh.hotel.dto.HotelBookingDetailsDto;
+import com.pdh.hotel.dto.response.RoomResponseDto;
 import com.pdh.hotel.model.Hotel;
 import com.pdh.hotel.repository.HotelRepository;
 import com.pdh.hotel.repository.RoomRepository;
@@ -42,6 +43,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.stream.Collectors;
+
+import jakarta.persistence.EntityNotFoundException;
 
 /**
  * Hotel Controller
@@ -93,6 +96,28 @@ public class HotelController {
         );
         
         return ResponseEntity.ok(healthStatus);
+    }
+
+    @Operation(
+        summary = "Get room details",
+        description = "Retrieve detailed information about a specific room by ID",
+        tags = {"Public API", "Details"}
+    )
+    @OpenApiResponses.StandardApiResponsesWithNotFound
+    @GetMapping("/storefront/rooms/{roomId}")
+    public ResponseEntity<RoomResponseDto> getRoomDetails(
+            @Parameter(description = "Room ID", required = true, example = "101")
+            @PathVariable Long roomId) {
+        log.info("Room details request for ID: {}", roomId);
+        try {
+            RoomResponseDto room = roomService.getRoomById(roomId);
+            return ResponseEntity.ok(room);
+        } catch (EntityNotFoundException e) {
+            return ResponseEntity.notFound().build();
+        } catch (Exception e) {
+            log.error("Error retrieving room details", e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+        }
     }
 
     // === STOREFRONT API ENDPOINTS ===

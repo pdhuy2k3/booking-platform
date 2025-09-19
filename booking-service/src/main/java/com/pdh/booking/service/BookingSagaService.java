@@ -34,14 +34,28 @@ public class BookingSagaService {
         // Set user ID from authentication context
         booking.setUserId(UUID.fromString(AuthenticationUtils.extractUserId()));
 
-        // Create booking and publish BookingInitiatedEvent via domain service
+        // Create booking entity (no direct processing)
         Booking savedBooking = bookingService.createBooking(booking);
 
-        // Start event-driven saga orchestration
-        sagaOrchestrator.startBookingSaga(savedBooking.getBookingId());
-
-        log.info("Booking created and saga orchestration started for: {}", savedBooking.getBookingReference());
+        // The saga orchestration is started via the AsyncInventoryValidationService
+        // when the inventory validation is completed successfully
+        
+        log.info("Booking created and validation initiated for: {}", savedBooking.getBookingReference());
         return savedBooking;
+    }
+
+    /**
+     * Continue the booking saga after validation is complete
+     * This method is called by the AsyncInventoryValidationService
+     */
+    @Transactional
+    public void continueBookingSaga(Booking booking) {
+        log.info("Continuing booking saga for booking: {}", booking.getBookingReference());
+        
+        // Start event-driven saga orchestration
+        sagaOrchestrator.startBookingSaga(booking.getBookingId());
+        
+        log.info("Saga orchestration started for booking: {}", booking.getBookingReference());
     }
 
     /**

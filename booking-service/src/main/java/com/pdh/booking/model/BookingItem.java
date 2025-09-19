@@ -10,6 +10,9 @@ import lombok.NoArgsConstructor;
 import java.math.BigDecimal;
 import java.util.UUID;
 
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
+
 @Entity
 @Table(name = "booking_items")
 @Data
@@ -38,6 +41,7 @@ public class BookingItem extends AbstractAuditEntity {
     private BigDecimal price;
     
     @Column(name = "details", columnDefinition = "JSONB")
+    @JdbcTypeCode(SqlTypes.JSON)
     private String details;
     
     // Reference entity

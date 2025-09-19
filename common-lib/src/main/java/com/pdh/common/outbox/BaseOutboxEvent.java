@@ -10,6 +10,9 @@ import lombok.NoArgsConstructor;
 import java.time.LocalDateTime;
 import java.util.UUID;
 
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
+
 /**
  * Base Outbox Event Base Class for implementing the Outbox Pattern
  * This provides the standard structure for reliable event publishing
@@ -47,6 +50,7 @@ public class BaseOutboxEvent extends AbstractAuditEntity {
     private String aggregateType;
     
     @Column(name = "payload", columnDefinition = "JSONB", nullable = false)
+    @JdbcTypeCode(SqlTypes.JSON)
     private String payload;
     
     @Column(name = "processed", nullable = false)

@@ -19,7 +19,7 @@ export class PaymentPollingService {
    * Start polling for payment status
    */
   startPolling(
-    paymentIntentId: string, 
+    transactionId: string, 
     options: PollingOptions = {}
   ): void {
     const {
@@ -36,16 +36,16 @@ export class PaymentPollingService {
       try {
         attempts++
         
-        const paymentIntent = await paymentService.getPaymentStatus(paymentIntentId)
+        const paymentIntent = await paymentService.getPaymentStatus(transactionId)
         
         if (paymentIntent.status === 'succeeded') {
-          this.stopPolling(paymentIntentId)
+          this.stopPolling(transactionId)
           onSuccess?.(paymentIntent)
           return
         }
         
         if (paymentIntent.status === 'failed' || paymentIntent.status === 'canceled') {
-          this.stopPolling(paymentIntentId)
+          this.stopPolling(transactionId)
           onError?.(`Payment ${paymentIntent.status}`)
           return
         }
@@ -53,9 +53,9 @@ export class PaymentPollingService {
         // Continue polling if still pending/processing
         if (attempts < maxAttempts) {
           const timeoutId = setTimeout(poll, intervalMs)
-          this.activePolls.set(paymentIntentId, timeoutId)
+          this.activePolls.set(transactionId, timeoutId)
         } else {
-          this.stopPolling(paymentIntentId)
+          this.stopPolling(transactionId)
           onTimeout?.()
         }
         
@@ -63,9 +63,9 @@ export class PaymentPollingService {
         console.error('Error polling payment status:', error)
         if (attempts < maxAttempts) {
           const timeoutId = setTimeout(poll, intervalMs)
-          this.activePolls.set(paymentIntentId, timeoutId)
+          this.activePolls.set(transactionId, timeoutId)
         } else {
-          this.stopPolling(paymentIntentId)
+          this.stopPolling(transactionId)
           onError?.(error instanceof Error ? error.message : 'Polling failed')
         }
       }

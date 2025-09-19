@@ -1,11 +1,14 @@
 
-import type { HotelDetails, HotelSearchParams, HotelSearchResponse, InitialHotelData, SearchResponse, DestinationSearchResult } from "../type"
+import type { HotelDetails, RoomDetails, HotelSearchParams, HotelSearchResponse, InitialHotelData, SearchResponse, DestinationSearchResult } from "../type"
 import { apiClient } from '@/lib/api-client';
 import { destinationService } from '../../destination/service';
 
 export const hotelService = {
   search(params: HotelSearchParams) {
     return apiClient.get<HotelSearchResponse>('/hotels/storefront/search', { params })
+  },
+  getRoomDetails(id: string | number) {
+    return apiClient.get<RoomDetails>(`/hotels/storefront/rooms/${encodeURIComponent(String(id))}`)
   },
   get(id: string | number) {
     return apiClient.get<HotelDetails>(`/hotels/storefront/${encodeURIComponent(String(id))}`)
@@ -39,7 +42,7 @@ export const hotelService = {
   }
 }
 
-export type { HotelSearchParams, HotelSearchResponse, HotelDetails, InitialHotelData }
+export type { HotelSearchParams, HotelSearchResponse, HotelDetails, RoomDetails, InitialHotelData }
 
 // Export components
 export { HotelCard } from "../component/HotelCard"

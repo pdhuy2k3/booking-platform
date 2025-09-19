@@ -3,6 +3,8 @@ package com.pdh.booking.command.handler;
 import com.pdh.booking.command.CreateBookingCommand;
 import com.pdh.booking.model.Booking;
 import com.pdh.booking.model.enums.BookingStatus;
+import com.pdh.booking.service.BookingItemService;
+import com.pdh.booking.service.BookingPassengerService;
 import com.pdh.booking.service.BookingSagaService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -21,6 +23,8 @@ import java.util.UUID;
 public class CreateBookingCommandHandler {
     
     private final BookingSagaService bookingSagaService;
+    private final BookingItemService bookingItemService;
+    private final BookingPassengerService bookingPassengerService;
     
     @Transactional
     public Booking handle(CreateBookingCommand command) {
@@ -43,8 +47,12 @@ public class CreateBookingCommandHandler {
             // Generate booking reference
             booking.setBookingReference(generateBookingReference());
             
-            // Start saga orchestration
+            // Start saga orchestration first to save the booking
             Booking createdBooking = bookingSagaService.startBookingSaga(booking);
+            
+            // Create booking items and passengers after booking is saved
+            bookingItemService.createBookingItems(createdBooking);
+            bookingPassengerService.createBookingPassengers(createdBooking);
             
             log.info("Booking created successfully: {}", createdBooking.getBookingReference());
             return createdBooking;

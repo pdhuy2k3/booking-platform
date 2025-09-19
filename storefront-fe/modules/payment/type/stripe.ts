@@ -2,6 +2,7 @@
 
 export interface StripePaymentIntentRequest {
   bookingId: string
+  sagaId?: string
   amount: number
   currency: string
   customerEmail?: string
@@ -11,6 +12,7 @@ export interface StripePaymentIntentRequest {
   customerId?: string
   confirmPayment?: boolean
   description?: string
+  paymentMethodType?: string
 }
 
 export interface StripeBillingAddress {
@@ -33,6 +35,7 @@ export interface StripePaymentIntentResponse {
   customerId?: string
   createdAt: string
   error?: StripeError
+  transactionId?: string
 }
 
 export interface StripeError {

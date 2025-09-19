@@ -5,13 +5,17 @@ import type {
   HotelBookingDetails, 
   ComboBookingDetails,
   BookingStatusResponse,
-  CreateBookingRequest
+  CreateBookingRequest,
+  BookingHistoryResponseDto,
+  BookingHistoryItemDto
 } from '../types'
 
 export const bookingService = {
   create: bookingApiService.createBooking,
   getStatus: bookingApiService.getBookingStatus,
   cancel: bookingApiService.cancelBooking,
+  confirm: bookingApiService.confirmBooking,
+  history: bookingApiService.getBookingHistory,
 }
 
 export type { 
@@ -25,5 +29,7 @@ export type {
   StorefrontBookingRequest,
   StorefrontBookingResponse,
   BookingStatusResponse,
-  CreateBookingRequest
+  CreateBookingRequest,
+  BookingHistoryResponseDto,
+  BookingHistoryItemDto
 }

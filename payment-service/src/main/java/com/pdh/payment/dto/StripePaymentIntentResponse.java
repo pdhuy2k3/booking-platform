@@ -8,6 +8,7 @@ import lombok.NoArgsConstructor;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.Map;
+import java.util.UUID;
 
 /**
  * Stripe PaymentIntent Response DTO
@@ -25,6 +26,7 @@ public class StripePaymentIntentResponse {
     private BigDecimal amount;
     private String currency;
     private String description;
+    private UUID transactionId;
     
     // Payment method information
     private String paymentMethodId;

@@ -1,5 +1,5 @@
 
-import type { FlightDetails, FlightSearchParams, FlightSearchResponse, InitialFlightData, SearchResponse, DestinationSearchResult } from "../type"
+import type { FlightDetails, FlightFareDetails, FlightSearchParams, FlightSearchResponse, InitialFlightData, SearchResponse, DestinationSearchResult } from "../type"
 import { apiClient } from '@/lib/api-client';
 import { destinationService } from '../../destination/service';
 
@@ -12,6 +12,11 @@ export const flightService = {
   },
   get(id: string) {
     return apiClient.get<FlightDetails>(`/flights/storefront/${encodeURIComponent(id)}`)
+  },
+  getFareDetails(flightId: string | number, params: { seatClass: string; departureDateTime: string }) {
+    return apiClient.get<FlightFareDetails>(`/flights/storefront/${encodeURIComponent(String(flightId))}/fare-details`, {
+      params
+    })
   },
   // Use the new destination service for better Vietnamese administrative units integration
   async searchAirports(search?: string) {
@@ -43,7 +48,7 @@ export const flightService = {
   }
 }
 
-export type { FlightSearchParams, FlightSearchResponse, FlightDetails, InitialFlightData }
+export type { FlightSearchParams, FlightSearchResponse, FlightDetails, FlightFareDetails, InitialFlightData }
 
 // Export components
 export { FlightCardSkeleton } from "../component/FlightCardSkeleton"

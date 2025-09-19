@@ -39,6 +39,9 @@ public class BookingOutboxEvent extends ExtendedOutboxEvent {
         event.setAggregateType(aggregateType);
         event.setAggregateId(aggregateId);
         event.setPayload(payload);
+        event.setPriority(5); // Set default priority
+        event.setTopic("booking-events"); // Set default topic
+        event.setPartitionKey(aggregateId); // Use aggregateId as partition key
 
         return event;
     }

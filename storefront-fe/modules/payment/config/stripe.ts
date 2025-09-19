@@ -5,6 +5,12 @@ import { StripeElementsOptions } from '../type/stripe'
 // Stripe publishable key from environment
 const STRIPE_PUBLISHABLE_KEY = process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY || 'pk_test_default'
 
+// Stripe currencies without minor units (zero-decimal)
+const ZERO_DECIMAL_CURRENCIES = new Set([
+  'bif', 'clp', 'djf', 'gnf', 'jpy', 'kmf', 'krw', 'mga', 'pyg',
+  'rwf', 'ugx', 'vnd', 'vuv', 'xaf', 'xof', 'xpf'
+])
+
 // Initialize Stripe
 let stripePromise: Promise<Stripe | null>
 
@@ -13,6 +19,14 @@ export const getStripe = () => {
     stripePromise = loadStripe(STRIPE_PUBLISHABLE_KEY)
   }
   return stripePromise
+}
+
+const toStripeAmount = (amount: number, currency: string): number => {
+  const normalizedCurrency = currency.toLowerCase()
+  if (ZERO_DECIMAL_CURRENCIES.has(normalizedCurrency)) {
+    return Math.round(amount)
+  }
+  return Math.round(amount * 100)
 }
 
 // Default Stripe Elements options
@@ -42,7 +56,7 @@ export const createPaymentElementsOptions = (
   customAppearance?: Partial<StripeElementsOptions['appearance']>
 ): StripeElementsOptions => ({
   ...defaultStripeElementsOptions,
-  amount: Math.round(amount * 100), // Convert to cents
+  amount: toStripeAmount(amount, currency),
   currency: currency.toLowerCase(),
   appearance: {
     ...defaultStripeElementsOptions.appearance,
