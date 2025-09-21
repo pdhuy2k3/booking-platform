@@ -11,9 +11,7 @@ import org.springframework.security.config.annotation.web.reactive.EnableWebFlux
 @EnableWebFluxSecurity
 @Slf4j
 public class StoreFrontApplication {
-
     public static void main(String[] args) {
-
         SpringApplication.run(StoreFrontApplication.class, args);
 
     }

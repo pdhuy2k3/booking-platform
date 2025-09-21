@@ -1,17 +1,31 @@
 package com.pdh.flight.service;
 
-import com.pdh.flight.dto.FlightBookingDetailsDto;
-import com.pdh.flight.dto.FlightReservationData;
 import com.pdh.common.outbox.service.OutboxEventService;
+import com.pdh.flight.dto.FlightBookingDetailsDto;
+import com.pdh.flight.dto.FlightBookingDetailsDto.ReturnFlightDetailsDto;
+import com.pdh.flight.dto.FlightReservationData;
+import com.pdh.flight.model.FlightFare;
+import com.pdh.flight.model.FlightSchedule;
+import com.pdh.flight.model.enums.FareClass;
+import com.pdh.flight.repository.FlightFareRepository;
+import com.pdh.flight.repository.FlightScheduleRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.time.Duration;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
+import java.util.Comparator;
 import java.util.HashMap;
+import java.util.List;
+import java.util.Locale;
 import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
 
 @Service
@@ -20,6 +34,8 @@ import java.util.UUID;
 public class FlightService {
 
     private final OutboxEventService eventPublisher;
+    private final FlightFareRepository flightFareRepository;
+    private final FlightScheduleRepository flightScheduleRepository;
 
     @Transactional
     public void reserveFlight(UUID bookingId) {
@@ -34,20 +50,37 @@ public class FlightService {
     public void reserveFlight(UUID bookingId, String sagaId, FlightBookingDetailsDto flightDetails) {
         log.info("Reserving flight for booking: {} with detailed product information", bookingId);
 
-        try {
-            // Validate flight availability and reserve inventory
-//            boolean inventoryReserved = flightInventoryService.reserveSeats(
-//                Long.parseLong(flightDetails.getFlightId()),
-//                flightDetails.getSeatClass(),
-//                flightDetails.getPassengerCount(),
-//                flightDetails.getDepartureDateTime().toLocalDate()
-//            );
-//
-//            if (!inventoryReserved) {
-//                throw new RuntimeException("Flight inventory not available for reservation");
-//            }
+        int passengerCount = Optional.ofNullable(flightDetails.getPassengerCount()).orElse(0);
+        boolean outboundReserved = false;
+        boolean returnReserved = false;
+        int outboundRemaining = -1;
+        int returnRemaining = -1;
 
-            // Create detailed flight reservation data for saga event
+        try {
+            if (passengerCount > 0) {
+                outboundRemaining = adjustFlightInventory(
+                        flightDetails.getFlightId(),
+                        flightDetails.getSeatClass(),
+                        flightDetails.getDepartureDateTime(),
+                        passengerCount,
+                        true
+                );
+                outboundReserved = true;
+
+                ReturnFlightDetailsDto returnFlight = flightDetails.getReturnFlight();
+                if (returnFlight != null && returnFlight.getFlightId() != null) {
+                    String returnSeatClass = firstNonNull(returnFlight.getSeatClass(), flightDetails.getSeatClass());
+                    returnRemaining = adjustFlightInventory(
+                            returnFlight.getFlightId(),
+                            returnSeatClass,
+                            returnFlight.getDepartureDateTime(),
+                            passengerCount,
+                            true
+                    );
+                    returnReserved = true;
+                }
+            }
+
             FlightReservationData flightData = FlightReservationData.builder()
                 .flightId(flightDetails.getFlightId())
                 .reservationId("FLT-" + bookingId.toString().substring(0, 8))
@@ -59,14 +92,20 @@ public class FlightService {
                 .amount(BigDecimal.valueOf(flightDetails.getTotalFlightPrice()))
                 .build();
 
-            // Create comprehensive event payload
             Map<String, Object> eventPayload = new HashMap<>();
             eventPayload.put("bookingId", bookingId);
             eventPayload.put("sagaId", sagaId);
             eventPayload.put("flightData", flightData);
             eventPayload.put("flightDetails", flightDetails);
+            if (outboundReserved) {
+                Map<String, Object> inventorySnapshot = new HashMap<>();
+                inventorySnapshot.put("outboundRemaining", outboundRemaining);
+                if (returnReserved) {
+                    inventorySnapshot.put("returnRemaining", returnRemaining);
+                }
+                eventPayload.put("inventorySnapshot", inventorySnapshot);
+            }
 
-            // Publish detailed success event
             eventPublisher.publishEvent("FlightReserved", "Booking", bookingId.toString(), eventPayload);
 
             log.info("Flight reserved successfully for booking: {} with flight: {}", bookingId, flightDetails.getFlightId());
@@ -74,14 +113,31 @@ public class FlightService {
         } catch (Exception e) {
             log.error("Failed to reserve flight for booking: {}", bookingId, e);
 
-            // Create failure event payload
+            if (returnReserved) {
+                safeReleaseInventory(
+                        flightDetails.getReturnFlight().getFlightId(),
+                        firstNonNull(flightDetails.getReturnFlight().getSeatClass(), flightDetails.getSeatClass()),
+                        flightDetails.getReturnFlight().getDepartureDateTime(),
+                        passengerCount
+                );
+            }
+            if (outboundReserved) {
+                safeReleaseInventory(
+                        flightDetails.getFlightId(),
+                        flightDetails.getSeatClass(),
+                        flightDetails.getDepartureDateTime(),
+                        passengerCount
+                );
+            }
+
             Map<String, Object> failurePayload = new HashMap<>();
             failurePayload.put("bookingId", bookingId);
             failurePayload.put("sagaId", sagaId);
             failurePayload.put("errorMessage", e.getMessage());
             failurePayload.put("flightId", flightDetails.getFlightId());
+            failurePayload.put("seatClass", flightDetails.getSeatClass());
+            failurePayload.put("passengers", passengerCount);
 
-            // Publish failure event
             eventPublisher.publishEvent("FlightReservationFailed", "Booking", bookingId.toString(), failurePayload);
 
             throw e;
@@ -93,7 +149,6 @@ public class FlightService {
         // Legacy method for backward compatibility
         log.info("Canceling flight reservation for booking: {} (legacy method)", bookingId);
 
-        // Publish basic cancellation event
         eventPublisher.publishEvent("FlightReservationCancelled", "Booking", bookingId.toString(), Map.of("bookingId", bookingId));
     }
 
@@ -101,31 +156,170 @@ public class FlightService {
     public void cancelFlightReservation(UUID bookingId, String sagaId, FlightBookingDetailsDto flightDetails) {
         log.info("Canceling flight reservation for booking: {} with detailed product information", bookingId);
 
-        try {
-            // Release flight inventory
-//            flightInventoryService.releaseSeats(
-//                Long.parseLong(flightDetails.getFlightId()),
-//                flightDetails.getSeatClass(),
-//                flightDetails.getPassengerCount(),
-//                flightDetails.getDepartureDateTime().toLocalDate()
-//            );
+        int passengerCount = Optional.ofNullable(flightDetails.getPassengerCount()).orElse(0);
+        if (passengerCount > 0) {
+            safeReleaseInventory(
+                    flightDetails.getFlightId(),
+                    flightDetails.getSeatClass(),
+                    flightDetails.getDepartureDateTime(),
+                    passengerCount
+            );
 
-            // Create detailed cancellation event payload
-            Map<String, Object> eventPayload = new HashMap<>();
-            eventPayload.put("bookingId", bookingId);
-            eventPayload.put("sagaId", sagaId);
-            eventPayload.put("flightId", flightDetails.getFlightId());
-            eventPayload.put("passengers", flightDetails.getPassengerCount());
-            eventPayload.put("seatClass", flightDetails.getSeatClass());
-
-            // Publish detailed cancellation event
-            eventPublisher.publishEvent("FlightReservationCancelled", "Booking", bookingId.toString(), eventPayload);
-
-            log.info("Flight reservation cancelled successfully for booking: {}", bookingId);
-
-        } catch (Exception e) {
-            log.error("Failed to cancel flight reservation for booking: {}", bookingId, e);
-            throw e;
+            ReturnFlightDetailsDto returnFlight = flightDetails.getReturnFlight();
+            if (returnFlight != null && returnFlight.getFlightId() != null) {
+                safeReleaseInventory(
+                        returnFlight.getFlightId(),
+                        firstNonNull(returnFlight.getSeatClass(), flightDetails.getSeatClass()),
+                        returnFlight.getDepartureDateTime(),
+                        passengerCount
+                );
+            }
         }
+
+        Map<String, Object> eventPayload = new HashMap<>();
+        eventPayload.put("bookingId", bookingId);
+        eventPayload.put("sagaId", sagaId);
+        eventPayload.put("flightId", flightDetails.getFlightId());
+        eventPayload.put("passengers", passengerCount);
+        eventPayload.put("seatClass", flightDetails.getSeatClass());
+
+        eventPublisher.publishEvent("FlightReservationCancelled", "Booking", bookingId.toString(), eventPayload);
+
+        log.info("Flight reservation cancelled successfully for booking: {}", bookingId);
+    }
+
+    private int adjustFlightInventory(String flightId,
+                                      String seatClass,
+                                      LocalDateTime departureDateTime,
+                                      int passengerCount,
+                                      boolean reserve) {
+        if (passengerCount <= 0) {
+            return -1;
+        }
+
+        FareClass fareClass = resolveFareClass(seatClass);
+        FlightFare fare = resolveFlightFare(flightId, departureDateTime, fareClass);
+        int currentSeats = Optional.ofNullable(fare.getAvailableSeats()).orElse(0);
+
+        if (reserve) {
+            if (currentSeats < passengerCount) {
+                throw new IllegalStateException(String.format(
+                        "Not enough seats for flight %s (%s). Requested %d, available %d",
+                        flightId, fareClass, passengerCount, currentSeats));
+            }
+            fare.setAvailableSeats(currentSeats - passengerCount);
+        } else {
+            fare.setAvailableSeats(currentSeats + Math.max(passengerCount, 0));
+        }
+
+        flightFareRepository.save(fare);
+        return fare.getAvailableSeats();
+    }
+
+    private void safeReleaseInventory(String flightId,
+                                      String seatClass,
+                                      LocalDateTime departureDateTime,
+                                      int passengerCount) {
+        try {
+            adjustFlightInventory(flightId, seatClass, departureDateTime, passengerCount, false);
+        } catch (Exception releaseError) {
+            log.warn("Failed to release flight inventory for flight {}: {}", flightId, releaseError.getMessage(), releaseError);
+        }
+    }
+
+    private FlightFare resolveFlightFare(String flightId,
+                                         LocalDateTime departureDateTime,
+                                         FareClass fareClass) {
+        UUID scheduleId = tryParseUuid(flightId);
+        if (scheduleId != null) {
+            return flightFareRepository.findByScheduleIdAndFareClassForUpdate(scheduleId, fareClass)
+                    .orElseThrow(() -> new IllegalStateException(String.format(
+                            "Fare not found for schedule %s and class %s", scheduleId, fareClass)));
+        }
+
+        Long flightNumericId = tryParseLong(flightId);
+        if (flightNumericId == null) {
+            throw new IllegalStateException("Unsupported flight identifier: " + flightId);
+        }
+        if (departureDateTime == null) {
+            throw new IllegalStateException("Departure date/time is required to resolve flight inventory");
+        }
+
+        List<FlightSchedule> schedules = flightScheduleRepository.findByFlightIdAndDate(
+                flightNumericId,
+                departureDateTime.toLocalDate()
+        );
+
+        FlightSchedule bestMatch = selectBestMatchingSchedule(schedules, departureDateTime);
+        if (bestMatch == null) {
+            throw new IllegalStateException(String.format(
+                    "No flight schedule found for flight %s around %s", flightId, departureDateTime));
+        }
+
+        return flightFareRepository.findByScheduleIdAndFareClassForUpdate(bestMatch.getScheduleId(), fareClass)
+                .orElseThrow(() -> new IllegalStateException(String.format(
+                        "Fare not found for schedule %s and class %s", bestMatch.getScheduleId(), fareClass)));
+    }
+
+    private FlightSchedule selectBestMatchingSchedule(List<FlightSchedule> schedules, LocalDateTime desiredDeparture) {
+        if (schedules == null || schedules.isEmpty()) {
+            return null;
+        }
+        if (desiredDeparture == null) {
+            return schedules.get(0);
+        }
+
+        return schedules.stream()
+                .min(Comparator.comparing(schedule -> {
+                    if (schedule.getDepartureTime() == null) {
+                        return Long.MAX_VALUE;
+                    }
+                    ZoneId zoneId = schedule.getDepartureTime().getZone();
+                    Duration difference = Duration.between(
+                            desiredDeparture.atZone(zoneId),
+                            schedule.getDepartureTime()
+                    );
+                    return Math.abs(difference.toMinutes());
+                }))
+                .orElse(null);
+    }
+
+    private FareClass resolveFareClass(String seatClass) {
+        if (seatClass == null || seatClass.isBlank()) {
+            return FareClass.ECONOMY;
+        }
+        String normalized = seatClass.trim().replace('-', '_').replace(' ', '_').toUpperCase(Locale.ROOT);
+        try {
+            return FareClass.valueOf(normalized);
+        } catch (IllegalArgumentException ex) {
+            log.warn("Unknown seat class '{}', defaulting to ECONOMY", seatClass);
+            return FareClass.ECONOMY;
+        }
+    }
+
+    private UUID tryParseUuid(String value) {
+        if (value == null) {
+            return null;
+        }
+        try {
+            return UUID.fromString(value);
+        } catch (IllegalArgumentException ex) {
+            return null;
+        }
+    }
+
+    private Long tryParseLong(String value) {
+        if (value == null) {
+            return null;
+        }
+        try {
+            return Long.parseLong(value);
+        } catch (NumberFormatException ex) {
+            return null;
+        }
+    }
+
+    private <T> T firstNonNull(T primary, T fallback) {
+        return primary != null ? primary : fallback;
     }
 }

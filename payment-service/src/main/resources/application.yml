@@ -1,22 +1,15 @@
 # OpenAPI Documentation Configuration
 springdoc:
-  api-docs:
-    path: /api/docs
-    enabled: true
+  packages-to-scan: com.pdh.payment
   swagger-ui:
-    path: /api/swagger-ui
-    enabled: true
-    operationsSorter: method
-    tagsSorter: alpha
-    try-it-out-enabled: true
-  show-actuator: true
-  group-configs:
-    - group: 'internal'
-      display-name: 'Internal API'
-      paths-to-match: ['/process', '/webhook/**']
-    - group: 'admin'
-      display-name: 'Admin API'
-      paths-to-match: '/admin/**'
+    path: /swagger-ui
+    oauth:
+      use-pkce-with-authorization-code-grant:  true
+      client-id: swagger-ui
+  oauthflow:
+    authorization-url: ${KEYCLOAK_ISSUER_URI:http://localhost:9090}/protocol/openid-connect/auth
+    token-url: ${KEYCLOAK_ISSUER_URI:http://localhost:9090}/protocol/openid-connect/token
+
 
 # API Documentation Properties
 api:
@@ -35,7 +28,7 @@ payment:
       api:
         publishable-key: ${STRIPE_PUBLISHABLE_KEY:pk_test_default}
         secret-key: ${STRIPE_SECRET_KEY:sk_test_default}
-        api-version: "2025-06-30.basil"
+        api-version: "2025-08-27.basil"
       settings:
         capture-method: automatic
         confirmation-method: automatic
@@ -43,87 +36,33 @@ payment:
         statement-descriptor: "BookingSmart"
         receipt-email: true
 
-    vietqr:
-      api:
-        base-url: ${VIETQR_API_BASE_URL:https://api.vietqr.vn}
-        client-id: ${VIETQR_CLIENT_ID:default_client_id}
-        api-key: ${VIETQR_API_KEY:default_api_key}
-        timeout-seconds: 30
-      bank:
-        account-number: ${BANK_ACCOUNT_NUMBER:1234567890}
-        account-name: ${BANK_ACCOUNT_NAME:BOOKING SMART COMPANY}
-        bank-code: ${BANK_CODE:VCB}
-        bank-name: ${BANK_NAME:Vietcombank}
-      callback:
-        endpoint-path: /api/payments/vietqr/callback
-        secret: ${VIETQR_CALLBACK_SECRET:vietqr_secret}
-      settings:
-        qr-expiration-minutes: 30
-        currency: VND
-        template: compact2
-
     # Common gateway settings
     common:
       timeout-seconds: 30
       retry-attempts: 3
       retry-delay-seconds: 5
       webhook-verification: true
-
-# Customer Service Integration
-customer-service:
-  base-url: ${CUSTOMER_SERVICE_URL:http://customer-service}
-  timeout-seconds: ${CUSTOMER_SERVICE_TIMEOUT:10}
-
-spring:
-  application:
-    name: PAYMENT_SERVICE
-  profiles:
-    active: local
-  datasource:
-    url: ${DB_URL:jdbc:postgresql://localhost:5432/payment_db}
-    username: ${DB_USERNAME:postgres}
-    password: ${DB_PASSWORD:p0stgr3s}
-    driver-class-name: org.postgresql.Driver
-    hikari:
-      maximum-pool-size: 20
-      minimum-idle: 5
-      connection-timeout: 30000
-      idle-timeout: 600000
-      max-lifetime: 1800000
-  jpa:
-    hibernate:
-      ddl-auto: validate
-    show-sql: false
-    database-platform: org.hibernate.dialect.PostgreSQLDialect
-    properties:
-      hibernate:
-        format_sql: true
-        jdbc:
-          batch_size: 25
-        order_inserts: true
-        order_updates: true
-  liquibase:
-    change-log: classpath:db/changelog/db.changelog-master.yaml
-    enabled: true
   
-  # Kafka Configuration for Outbox Pattern
-  kafka:
-    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
-    consumer:
-      group-id: payment-service
-      auto-offset-reset: earliest
-      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
-      value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
-    producer:
-      key-serializer: org.apache.kafka.common.serialization.StringSerializer
-      value-serializer: org.apache.kafka.common.serialization.StringSerializer
-      retries: 3
-      acks: all
+  # Data encryption settings
+  encryption:
+    key: ${PAYMENT_ENCRYPTION_KEY:default-encryption-key-32-characters}
+
 
 server:
   port: 8085
   servlet:
     context-path: /payments
+  
+spring:
+  application:
+    name: PAYMENT-SERVICE
+  profiles:
+    active: local
+  threads:
+    virtual:
+      enabled: true
+
+
 
 eureka:
   client:
@@ -140,9 +79,44 @@ management:
   endpoint:
     health:
       show-details: always
+---
+spring:
+  config:
+    activate:
+      on-profile: local
 
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          issuer-uri: http://localhost:9090/realms/BookingSmart
+  datasource:
+    url: jdbc:postgresql://localhost:5432/payment_db
+    username: postgres
+    password: p0stgr3s
+    driver-class-name: org.postgresql.Driver
+  jpa:
+    hibernate:
+      ddl-auto: none
+    show-sql: false
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+        format_sql: true
+  kafka:
+    bootstrap-servers: localhost:9092
+    consumer:
+      group-id: payment-service
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.apache.kafka.common.serialization.StringSerializer
+      retries: 3
+      acks: all
 
 ---
+
 spring:
   config:
     activate:
@@ -152,12 +126,30 @@ spring:
     username: ${DB_USERNAME}
     password: ${DB_PASSWORD}
   
-  # Kafka Configuration - Minimal, inherit từ BaseKafkaConfig  
+  jpa:
+    hibernate:
+      ddl-auto: none
+    show-sql: false
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          issuer-uri: ${JWT_ISSUER_URI}
   kafka:
-    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS}
     consumer:
       group-id: payment-service
-
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.apache.kafka.common.serialization.StringSerializer
+      retries: 3
+      acks: all
 eureka:
   client:
     service-url:
@@ -165,3 +157,4 @@ eureka:
   instance:
     prefer-ip-address: true
     hostname: payment-service
+

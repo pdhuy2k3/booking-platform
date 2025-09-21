@@ -174,24 +174,20 @@ services:
       - KEYCLOAK_HOST
       - KEYCLOAK_CLIENT_SECRET_STOREFRONT_BFF
       - SERVER_PORT
-      - API_URL=https://api-bookingsmart.huypd.dev
+      - API_URL
+
     networks:
       - booking-network
-#  storefront-fe:
-#    profiles:
-#      - app
-#    build:
-#      context: ./storefront-fe
-#      dockerfile: Dockerfile
-#      args:
-#        - NEXT_PUBLIC_BFF_BASE_URL=${API_URL}
-#    image: phamduyhuyuit/bookingsmart-storefront-fe:latest
-#    environment:
-#      - NODE_ENV=production
-#      - NEXT_PUBLIC_BFF_BASE_URL=${API_URL}
-#    networks:
-#      - booking-network
-#    restart: unless-stopped
+  storefront-fe:
+    build:
+      context: ./storefront-fe
+      dockerfile: Dockerfile
+    image: phamduyhuyuit/bookingsmart-storefront-fe:latest
+    environment:
+      - NODE_ENV=production
+    networks:
+      - booking-network
+    restart: unless-stopped
 
   # Backoffice Frontend
   backoffice-fe:
@@ -307,29 +303,11 @@ services:
       - JWT_ISSUER_URI
       - KAFKA_BOOTSTRAP_SERVERS
       - SERVER_PORT
+      - STRIPE_SECRET_KEY
+      - STRIPE_PUBLISHABLE_KEY
     networks:
       - booking-network
 
-  # Notification Service
-  notification-service:
-    build:
-      context: ./notification-service
-      dockerfile: Dockerfile
-    image: phamduyhuyuit/bookingsmart-notification-service:latest
-    depends_on:
-      postgres:
-        condition: service_healthy
-    environment:
-      - SPRING_PROFILES_ACTIVE=docker
-      - EUREKA_URI=http://discovery-service:8761/eureka
-      - DB_URL=jdbc:postgresql://postgres:5432/notification_db
-      - DB_USERNAME
-      - DB_PASSWORD
-      - JWT_ISSUER_URI
-      - KAFKA_BOOTSTRAP_SERVERS
-      - SERVER_PORT
-    networks:
-      - booking-network
   # Customer Service
   customer-service:
     build:
@@ -351,8 +329,7 @@ services:
       - SERVER_PORT
     networks:
       - booking-network
-  # Media Service - Temporarily disabled (not built in Maven)
-
+  # Media Service -
   media-service:
     image: phamduyhuyuit/bookingsmart-media-service:latest
     build:

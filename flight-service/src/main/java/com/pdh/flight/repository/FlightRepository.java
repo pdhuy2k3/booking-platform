@@ -4,31 +4,76 @@ import com.pdh.flight.model.Flight;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.time.LocalDate;
-import java.time.LocalDateTime;
-import java.util.List;
 import java.util.Optional;
 
 @Repository
-public interface FlightRepository extends JpaRepository<Flight, Long> {
+public interface FlightRepository extends JpaRepository<Flight, Long>, JpaSpecificationExecutor<Flight> {
 
     /**
      * Find flights by route (origin and destination airports)
      */
     @Query("""
-        SELECT f FROM Flight f
+        SELECT DISTINCT f FROM Flight f
         JOIN FETCH f.airline
         JOIN FETCH f.departureAirport da
         JOIN FETCH f.arrivalAirport aa
+        JOIN FlightSchedule fs ON fs.flightId = f.flightId
         WHERE da.iataCode = :origin
         AND aa.iataCode = :destination
+        AND DATE(fs.departureTime) = :departureDate
         ORDER BY f.flightNumber
         """)
     Page<Flight> findFlightsByRoute(
+        @Param("origin") String origin,
+        @Param("destination") String destination,
+        @Param("departureDate") LocalDate departureDate,
+        Pageable pageable
+    );
+
+    /**
+     * Find flights by route with filters for airlines and airports
+     */
+    @Query("""
+        SELECT DISTINCT f FROM Flight f
+        JOIN FETCH f.airline
+        JOIN FETCH f.departureAirport da
+        JOIN FETCH f.arrivalAirport aa
+        JOIN FlightSchedule fs ON fs.flightId = f.flightId
+        WHERE (:origin IS NULL OR da.iataCode = :origin)
+        AND (:destination IS NULL OR aa.iataCode = :destination)
+        AND (:departureDate IS NULL OR DATE(fs.departureTime) = :departureDate)
+        AND (:airlineId IS NULL OR f.airline.airlineId = :airlineId)
+        ORDER BY f.flightNumber
+        """)
+    Page<Flight> findFlightsByRouteWithFilters(
+        @Param("origin") String origin,
+        @Param("destination") String destination,
+        @Param("departureDate") LocalDate departureDate,
+        @Param("airlineId") Long airlineId,
+        Pageable pageable
+    );
+
+    /**
+     * Find flights by route sorted by departure time
+     */
+    @Query("""
+        SELECT DISTINCT f FROM Flight f
+        JOIN FETCH f.airline
+        JOIN FETCH f.departureAirport da
+        JOIN FETCH f.arrivalAirport aa
+        JOIN FlightSchedule fs ON fs.flightId = f.flightId
+        WHERE da.iataCode = :origin
+        AND aa.iataCode = :destination
+        AND DATE(fs.departureTime) = :departureDate
+        ORDER BY fs.departureTime
+        """)
+    Page<Flight> findFlightsByRouteOrderByDepartureTime(
         @Param("origin") String origin,
         @Param("destination") String destination,
         @Param("departureDate") LocalDate departureDate,
@@ -137,4 +182,140 @@ public interface FlightRepository extends JpaRepository<Flight, Long> {
      */
     @Query("SELECT COUNT(f) FROM Flight f WHERE f.arrivalAirport.airportId = :airportId AND f.status = :status AND f.isDeleted = false")
     Long countByArrivalAirportIdAndStatus(@Param("airportId") Long airportId, @Param("status") String status);
+    
+    /**
+     * Find flights by flexible route search (supports city names and IATA codes)
+     */
+    @Query("""
+        SELECT DISTINCT f FROM Flight f
+        JOIN FETCH f.airline
+        JOIN FETCH f.departureAirport da
+        JOIN FETCH f.arrivalAirport aa
+        JOIN FlightSchedule fs ON fs.flightId = f.flightId
+        WHERE (:origin IS NULL OR da.iataCode = :origin OR LOWER(da.city) LIKE LOWER(CONCAT('%', :origin, '%')))
+        AND (:destination IS NULL OR aa.iataCode = :destination OR LOWER(aa.city) LIKE LOWER(CONCAT('%', :destination, '%')))
+        AND (:departureDate IS NULL OR DATE(fs.departureTime) = :departureDate)
+        AND (:airlineId IS NULL OR f.airline.airlineId = :airlineId)
+        AND f.isDeleted = false
+        ORDER BY f.flightNumber
+        """)
+    Page<Flight> findFlightsByFlexibleRoute(
+        @Param("origin") String origin,
+        @Param("destination") String destination,
+        @Param("departureDate") LocalDate departureDate,
+        @Param("airlineId") Long airlineId,
+        Pageable pageable
+    );
+    
+    /**
+     * Find flights by flexible route search sorted by departure time
+     */
+    @Query("""
+        SELECT DISTINCT f FROM Flight f
+        JOIN FETCH f.airline
+        JOIN FETCH f.departureAirport da
+        JOIN FETCH f.arrivalAirport aa
+        JOIN FlightSchedule fs ON fs.flightId = f.flightId
+        WHERE (:origin IS NULL OR da.iataCode = :origin OR LOWER(da.city) LIKE LOWER(CONCAT('%', :origin, '%')))
+        AND (:destination IS NULL OR aa.iataCode = :destination OR LOWER(aa.city) LIKE LOWER(CONCAT('%', :destination, '%')))
+        AND (:departureDate IS NULL OR DATE(fs.departureTime) = :departureDate)
+        AND (:airlineId IS NULL OR f.airline.airlineId = :airlineId)
+        AND f.isDeleted = false
+        ORDER BY fs.departureTime
+        """)
+    Page<Flight> findFlightsByFlexibleRouteOrderByDepartureTime(
+        @Param("origin") String origin,
+        @Param("destination") String destination,
+        @Param("departureDate") LocalDate departureDate,
+        @Param("airlineId") Long airlineId,
+        Pageable pageable
+    );
+    
+    /**
+     * Find flights by flexible route search sorted by price (requires pricing service integration)
+     */
+    @Query("""
+        SELECT DISTINCT f FROM Flight f
+        JOIN FETCH f.airline
+        JOIN FETCH f.departureAirport da
+        JOIN FETCH f.arrivalAirport aa
+        JOIN FlightSchedule fs ON fs.flightId = f.flightId
+        WHERE (:origin IS NULL OR da.iataCode = :origin OR LOWER(da.city) LIKE LOWER(CONCAT('%', :origin, '%')))
+        AND (:destination IS NULL OR aa.iataCode = :destination OR LOWER(aa.city) LIKE LOWER(CONCAT('%', :destination, '%')))
+        AND (:departureDate IS NULL OR DATE(fs.departureTime) = :departureDate)
+        AND (:airlineId IS NULL OR f.airline.airlineId = :airlineId)
+        AND f.isDeleted = false
+        ORDER BY f.flightNumber
+        """)
+    Page<Flight> findFlightsByFlexibleRouteOrderByPrice(
+        @Param("origin") String origin,
+        @Param("destination") String destination,
+        @Param("departureDate") LocalDate departureDate,
+        @Param("airlineId") Long airlineId,
+        Pageable pageable
+    );
+    
+    /**
+     * Find flights by flexible route search sorted by duration
+     */
+    @Query("""
+        SELECT DISTINCT f FROM Flight f
+        JOIN FETCH f.airline
+        JOIN FETCH f.departureAirport da
+        JOIN FETCH f.arrivalAirport aa
+        JOIN FlightSchedule fs ON fs.flightId = f.flightId
+        WHERE (:origin IS NULL OR da.iataCode = :origin OR LOWER(da.city) LIKE LOWER(CONCAT('%', :origin, '%')))
+        AND (:destination IS NULL OR aa.iataCode = :destination OR LOWER(aa.city) LIKE LOWER(CONCAT('%', :destination, '%')))
+        AND (:departureDate IS NULL OR DATE(fs.departureTime) = :departureDate)
+        AND (:airlineId IS NULL OR f.airline.airlineId = :airlineId)
+        AND f.isDeleted = false
+        ORDER BY f.baseDurationMinutes
+        """)
+    Page<Flight> findFlightsByFlexibleRouteOrderByDuration(
+        @Param("origin") String origin,
+        @Param("destination") String destination,
+        @Param("departureDate") LocalDate departureDate,
+        @Param("airlineId") Long airlineId,
+        Pageable pageable
+    );
+    
+    /**
+     * Find flights by origin only (for destination suggestions)
+     */
+    @Query("""
+        SELECT DISTINCT f FROM Flight f
+        JOIN FETCH f.airline
+        JOIN FETCH f.departureAirport da
+        JOIN FETCH f.arrivalAirport aa
+        JOIN FlightSchedule fs ON fs.flightId = f.flightId
+        WHERE (:origin IS NULL OR da.iataCode = :origin OR LOWER(da.city) LIKE LOWER(CONCAT('%', :origin, '%')))
+        AND (:departureDate IS NULL OR DATE(fs.departureTime) = :departureDate)
+        AND f.isDeleted = false
+        ORDER BY aa.city, aa.iataCode
+        """)
+    Page<Flight> findFlightsByOrigin(
+        @Param("origin") String origin,
+        @Param("departureDate") LocalDate departureDate,
+        Pageable pageable
+    );
+    
+    /**
+     * Find flights by destination only (for origin suggestions)
+     */
+    @Query("""
+        SELECT DISTINCT f FROM Flight f
+        JOIN FETCH f.airline
+        JOIN FETCH f.departureAirport da
+        JOIN FETCH f.arrivalAirport aa
+        JOIN FlightSchedule fs ON fs.flightId = f.flightId
+        WHERE (:destination IS NULL OR aa.iataCode = :destination OR LOWER(aa.city) LIKE LOWER(CONCAT('%', :destination, '%')))
+        AND (:departureDate IS NULL OR DATE(fs.departureTime) = :departureDate)
+        AND f.isDeleted = false
+        ORDER BY da.city, da.iataCode
+        """)
+    Page<Flight> findFlightsByDestination(
+        @Param("destination") String destination,
+        @Param("departureDate") LocalDate departureDate,
+        Pageable pageable
+    );
 }

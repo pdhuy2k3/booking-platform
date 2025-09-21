@@ -5,19 +5,15 @@ server:
 
 # OpenAPI Documentation Configuration
 springdoc:
-  api-docs:
-    path: /api/docs
-    enabled: true
+  packages-to-scan: com.pdh.flight
   swagger-ui:
-    path: /api/swagger-ui
-    enabled: true
-    operationsSorter: method
-    tagsSorter: alpha
-    try-it-out-enabled: true
+    path: /swagger-ui
     oauth:
-      clientId: ${keycloak.client-id:bookingsmart-api}
-      realm: ${keycloak.realm:bookingsmart}
-      appName: ${spring.application.name}
+      use-pkce-with-authorization-code-grant: true
+      client-id: swagger-ui
+  oauthflow:
+    authorization-url: ${KEYCLOAK_ISSUER_URI:http://localhost:9090}/protocol/openid-connect/auth
+    token-url: ${KEYCLOAK_ISSUER_URI:http://localhost:9090}/protocol/openid-connect/token
   show-actuator: true
   group-configs:
     - group: 'public'

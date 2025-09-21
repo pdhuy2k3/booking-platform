@@ -24,10 +24,12 @@ target/
 .claude
 .qwen
 .serena
+.cursor
 QWEN.md
 GEMINI.md
 CLAUDE.md
 WARP.md
+AGENTS.md
 ### NetBeans ###
 /nbproject/private/
 /nbbuild/
@@ -41,10 +43,11 @@ build/
 ### VS Code ###
 .vscode/
 .github/**/*.md
-.env
+.env*
 memory
 scripts
 templates
 .playwright-mcp
+
 ### Node.js ###
 node_modules/

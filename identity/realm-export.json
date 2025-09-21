@@ -86,17 +86,17 @@
             "approved",
             "active"
           ],
-          "approval_status": [
-            "pending",
-            "approved",
-            "rejected",
-            "suspended"
-          ],
           "partner_type": [
             "hotel",
             "transport",
             "flight",
             "activity"
+          ],
+          "approval_status": [
+            "pending",
+            "approved",
+            "rejected",
+            "suspended"
           ]
         }
       },
@@ -727,6 +727,7 @@
         "backchannel.logout.session.required": "true",
         "standard.token.exchange.enabled": "false",
         "frontchannel.logout.session.required": "true",
+        "post.logout.redirect.uris": "+",
         "oauth2.device.authorization.grant.enabled": "false",
         "display.on.consent.screen": "false",
         "use.jwks.url": "false",
@@ -840,7 +841,7 @@
         "request.object.encryption.enc": "any",
         "saml.assertion.signature": "false",
         "id.token.as.detached.signature": "false",
-        "client.secret.creation.time": "1752060606",
+        "client.secret.creation.time": "1757926045",
         "request.object.encryption.alg": "any",
         "client.introspection.response.allow.jwt.claim.enabled": "false",
         "saml.encrypt": "false",
@@ -972,7 +973,7 @@
         "require.pushed.authorization.requests": "false",
         "saml.assertion.signature": "false",
         "id.token.as.detached.signature": "false",
-        "client.secret.creation.time": "1752432344",
+        "client.secret.creation.time": "1758001800",
         "saml.encrypt": "false",
         "saml.server.signature": "false",
         "exclude.session.state.from.auth.response": "false",
@@ -1175,7 +1176,8 @@
       "clientAuthenticatorType": "client-secret",
       "secret": "**********",
       "redirectUris": [
-        "http://bookingsmart.huypd.dev/*"
+        "http://bookingsmart.huypd.dev/*",
+        "http://localhost:8086/*"
       ],
       "webOrigins": [],
       "notBefore": 0,
@@ -1204,7 +1206,7 @@
         "saml.client.signature": "false",
         "id.token.as.detached.signature": "false",
         "saml.assertion.signature": "false",
-        "client.secret.creation.time": "1752431217",
+        "client.secret.creation.time": "1757926065",
         "saml.encrypt": "false",
         "standard.token.exchange.enabled": "false",
         "login_theme": "bookingsmart-keycloak-theme",
@@ -2053,8 +2055,75 @@
   "enabledEventTypes": [],
   "adminEventsEnabled": false,
   "adminEventsDetailsEnabled": false,
-  "identityProviders": [],
-  "identityProviderMappers": [],
+  "identityProviders": [
+    {
+      "alias": "google",
+      "displayName": "",
+      "internalId": "6a6a22b3-63cf-49ac-b863-2c108393a764",
+      "providerId": "google",
+      "enabled": true,
+      "updateProfileFirstLoginMode": "on",
+      "trustEmail": false,
+      "storeToken": true,
+      "addReadTokenRoleOnCreate": false,
+      "authenticateByDefault": false,
+      "linkOnly": false,
+      "hideOnLogin": false,
+      "firstBrokerLoginFlowAlias": "first broker login",
+      "config": {
+        "offlineAccess": "false",
+        "acceptsPromptNoneForwardFromClient": "false",
+        "clientId": "346549553549-ka3ctl7djrgtrff2j42c69mmlcf58d5v.apps.googleusercontent.com",
+        "disableUserInfo": "false",
+        "filteredByClaim": "false",
+        "syncMode": "LEGACY",
+        "clientSecret": "**********",
+        "caseSensitiveOriginalUsername": "false"
+      }
+    }
+  ],
+  "identityProviderMappers": [
+    {
+      "id": "70707970-fefb-439a-9a04-07227e2447a2",
+      "name": "picture",
+      "identityProviderAlias": "google",
+      "identityProviderMapper": "google-user-attribute-mapper",
+      "config": {
+        "syncMode": "INHERIT",
+        "userAttribute": "picture"
+      }
+    },
+    {
+      "id": "c0dda615-8ced-49fd-bc43-c3a0888d50a4",
+      "name": "given_name",
+      "identityProviderAlias": "google",
+      "identityProviderMapper": "google-user-attribute-mapper",
+      "config": {
+        "syncMode": "INHERIT",
+        "userAttribute": "firstName"
+      }
+    },
+    {
+      "id": "ca3d82a2-49c5-4e82-92d2-95591b278b65",
+      "name": "family_name",
+      "identityProviderAlias": "google",
+      "identityProviderMapper": "google-user-attribute-mapper",
+      "config": {
+        "syncMode": "INHERIT",
+        "userAttribute": "lastName"
+      }
+    },
+    {
+      "id": "c6036c3b-5fa6-49ca-99bd-a3e53ba76ae1",
+      "name": "locale",
+      "identityProviderAlias": "google",
+      "identityProviderMapper": "google-user-attribute-mapper",
+      "config": {
+        "syncMode": "INHERIT",
+        "userAttribute": "language"
+      }
+    }
+  ],
   "components": {
     "org.keycloak.services.clientregistration.policy.ClientRegistrationPolicy": [
       {
@@ -2073,14 +2142,14 @@
         "subComponents": {},
         "config": {
           "allowed-protocol-mapper-types": [
-            "saml-user-attribute-mapper",
-            "oidc-sha256-pairwise-sub-mapper",
-            "saml-user-property-mapper",
-            "oidc-address-mapper",
             "saml-role-list-mapper",
-            "oidc-usermodel-attribute-mapper",
+            "saml-user-property-mapper",
             "oidc-usermodel-property-mapper",
-            "oidc-full-name-mapper"
+            "oidc-address-mapper",
+            "oidc-full-name-mapper",
+            "oidc-sha256-pairwise-sub-mapper",
+            "saml-user-attribute-mapper",
+            "oidc-usermodel-attribute-mapper"
           ]
         }
       },
@@ -2151,14 +2220,14 @@
         "subComponents": {},
         "config": {
           "allowed-protocol-mapper-types": [
-            "saml-user-attribute-mapper",
-            "oidc-address-mapper",
-            "saml-user-property-mapper",
+            "oidc-sha256-pairwise-sub-mapper",
             "oidc-full-name-mapper",
-            "saml-role-list-mapper",
             "oidc-usermodel-property-mapper",
             "oidc-usermodel-attribute-mapper",
-            "oidc-sha256-pairwise-sub-mapper"
+            "saml-user-property-mapper",
+            "saml-role-list-mapper",
+            "oidc-address-mapper",
+            "saml-user-attribute-mapper"
           ]
         }
       }
@@ -2170,7 +2239,7 @@
         "subComponents": {},
         "config": {
           "kc.user.profile.config": [
-            "{\"attributes\":[{\"name\":\"username\",\"displayName\":\"${username}\",\"validations\":{\"length\":{\"min\":3,\"max\":255},\"username-prohibited-characters\":{},\"up-username-not-idn-homograph\":{}},\"permissions\":{\"view\":[\"admin\",\"user\"],\"edit\":[\"admin\",\"user\"]},\"multivalued\":false},{\"name\":\"email\",\"displayName\":\"${email}\",\"validations\":{\"email\":{},\"length\":{\"max\":255}},\"required\":{\"roles\":[\"user\"]},\"permissions\":{\"view\":[\"admin\",\"user\"],\"edit\":[\"admin\",\"user\"]},\"multivalued\":false},{\"name\":\"firstName\",\"displayName\":\"${firstName}\",\"validations\":{\"length\":{\"max\":255},\"person-name-prohibited-characters\":{}},\"required\":{\"roles\":[\"user\"]},\"permissions\":{\"view\":[\"admin\",\"user\"],\"edit\":[\"admin\",\"user\"]},\"multivalued\":false},{\"name\":\"lastName\",\"displayName\":\"${lastName}\",\"validations\":{\"length\":{\"max\":255},\"person-name-prohibited-characters\":{}},\"required\":{\"roles\":[\"user\"]},\"permissions\":{\"view\":[\"admin\",\"user\"],\"edit\":[\"admin\",\"user\"]},\"multivalued\":false}],\"groups\":[{\"name\":\"user-metadata\",\"displayHeader\":\"User metadata\",\"displayDescription\":\"Attributes, which refer to user metadata\"}],\"unmanagedAttributePolicy\":\"ENABLED\"}"
+            "{\"attributes\":[{\"name\":\"username\",\"displayName\":\"${username}\",\"validations\":{\"length\":{\"min\":3,\"max\":255},\"username-prohibited-characters\":{},\"up-username-not-idn-homograph\":{}},\"permissions\":{\"view\":[\"admin\",\"user\"],\"edit\":[\"admin\",\"user\"]},\"multivalued\":false},{\"name\":\"email\",\"displayName\":\"${email}\",\"validations\":{\"email\":{},\"length\":{\"max\":255}},\"required\":{\"roles\":[\"user\"]},\"permissions\":{\"view\":[\"admin\",\"user\"],\"edit\":[\"admin\",\"user\"]},\"multivalued\":false},{\"name\":\"firstName\",\"displayName\":\"${firstName}\",\"validations\":{\"length\":{\"max\":255},\"person-name-prohibited-characters\":{}},\"required\":{\"roles\":[\"user\"]},\"permissions\":{\"view\":[\"admin\",\"user\"],\"edit\":[\"admin\",\"user\"]},\"multivalued\":false},{\"name\":\"lastName\",\"displayName\":\"${lastName}\",\"validations\":{\"length\":{\"max\":255},\"person-name-prohibited-characters\":{}},\"required\":{\"roles\":[\"user\"]},\"permissions\":{\"view\":[\"admin\",\"user\"],\"edit\":[\"admin\",\"user\"]},\"multivalued\":false},{\"name\":\"picture\",\"displayName\":\"Profile Picture\",\"validations\":{\"uri\":{\"allowFragment\":false}},\"annotations\":{\"inputType\":\"url\",\"hint\":\"Enter your profile picture URL\"},\"permissions\":{\"view\":[\"admin\",\"user\"],\"edit\":[\"admin\",\"user\"]},\"multivalued\":false},{\"name\":\"phone\",\"displayName\":\"Phone Number\",\"validations\":{\"pattern\":{\"pattern\":\"^\\\\+?[1-9]\\\\d{1,14}$\",\"message\":\"Must be a valid phone number with country code\"}},\"annotations\":{\"inputType\":\"text\",\"hint\":\"Enter your phone number with country code (e.g., +84123456789)\"},\"permissions\":{\"view\":[\"admin\",\"user\"],\"edit\":[\"admin\",\"user\"]},\"multivalued\":false},{\"name\":\"dateOfBirth\",\"displayName\":\"Date of Birth\",\"validations\":{\"pattern\":{\"pattern\":\"^\\\\d{4}-\\\\d{2}-\\\\d{2}$\",\"message\":\"Must be in YYYY-MM-DD format\"}},\"annotations\":{\"inputType\":\"date\",\"hint\":\"Enter your date of birth (YYYY-MM-DD)\"},\"permissions\":{\"view\":[\"admin\",\"user\"],\"edit\":[\"admin\",\"user\"]},\"multivalued\":false},{\"name\":\"language\",\"displayName\":\"Preferred Language\",\"validations\":{\"length\":{\"min\":2,\"max\":10},\"pattern\":{\"pattern\":\"^[a-z]{2}(-[A-Z]{2})?$\",\"message\":\"Must be a valid language code (e.g., 'en', 'en-US')\"}},\"annotations\":{\"inputType\":\"select\",\"selectOptions\":\"en,en-US,vi,vi-VN,fr,fr-FR,de,de-DE,es,es-ES,ja,ja-JP,ko,ko-KR,zh,zh-CN\",\"hint\":\"Select your preferred language for the interface\"},\"permissions\":{\"view\":[\"admin\",\"user\"],\"edit\":[\"admin\",\"user\"]},\"group\":\"preferences\",\"multivalued\":false},{\"name\":\"currency\",\"displayName\":\"Preferred Currency\",\"validations\":{\"length\":{\"min\":3,\"max\":3},\"pattern\":{\"pattern\":\"^[A-Z]{3}$\",\"message\":\"Must be a valid 3-letter currency code\"}},\"annotations\":{\"inputType\":\"select\",\"selectOptions\":\"USD,EUR,VND,GBP,JPY,CNY,KRW,THB,SGD,MYR,IDR,INR,AUD,CAD,CHF,NZD\",\"hint\":\"Select your preferred currency for pricing\"},\"permissions\":{\"view\":[\"admin\",\"user\"],\"edit\":[\"admin\",\"user\"]},\"group\":\"preferences\",\"multivalued\":false},{\"name\":\"theme\",\"displayName\":\"UI Theme\",\"validations\":{\"pattern\":{\"pattern\":\"^(light|dark|auto)$\",\"message\":\"Must be one of: light, dark, auto\"}},\"annotations\":{\"inputType\":\"select\",\"selectOptions\":\"light,dark,auto\",\"hint\":\"Choose your preferred interface theme\"},\"permissions\":{\"view\":[\"admin\",\"user\"],\"edit\":[\"admin\",\"user\"]},\"group\":\"preferences\",\"multivalued\":false},{\"name\":\"density\",\"displayName\":\"UI Density\",\"validations\":{\"pattern\":{\"pattern\":\"^(compact|comfortable|spacious)$\",\"message\":\"Must be one of: compact, comfortable, spacious\"}},\"annotations\":{\"inputType\":\"select\",\"selectOptions\":\"compact,comfortable,spacious\",\"hint\":\"Choose how dense you want the interface to be\"},\"permissions\":{\"view\":[\"admin\",\"user\"],\"edit\":[\"admin\",\"user\"]},\"group\":\"preferences\",\"multivalued\":false},{\"name\":\"notifications\",\"displayName\":\"Notification Preferences\",\"validations\":{\"pattern\":{\"pattern\":\"^(email|sms|push|all|none)$\",\"message\":\"Must be one of: email, sms, push, all, none\"}},\"annotations\":{\"inputType\":\"select\",\"selectOptions\":\"email,sms,push,all,none\",\"hint\":\"How would you like to receive notifications?\"},\"permissions\":{\"view\":[\"admin\",\"user\"],\"edit\":[\"admin\",\"user\"]},\"group\":\"preferences\",\"multivalued\":false},{\"name\":\"street\",\"displayName\":\"Street Address\",\"validations\":{\"length\":{\"min\":5,\"max\":200}},\"annotations\":{\"inputType\":\"text\",\"hint\":\"Enter your street address (e.g., 123 Main Street, Apt 4B)\"},\"permissions\":{\"view\":[\"admin\",\"user\"],\"edit\":[\"admin\",\"user\"]},\"group\":\"address\",\"multivalued\":false},{\"name\":\"city\",\"displayName\":\"City\",\"validations\":{\"length\":{\"min\":2,\"max\":50}},\"annotations\":{\"inputType\":\"text\",\"hint\":\"Enter your city name\"},\"permissions\":{\"view\":[\"admin\",\"user\"],\"edit\":[\"admin\",\"user\"]},\"group\":\"address\",\"multivalued\":false},{\"name\":\"state\",\"displayName\":\"State/Province\",\"validations\":{\"length\":{\"min\":2,\"max\":50}},\"annotations\":{\"inputType\":\"text\",\"hint\":\"Enter your state or province (optional)\"},\"permissions\":{\"view\":[\"admin\",\"user\"],\"edit\":[\"admin\",\"user\"]},\"group\":\"address\",\"multivalued\":false},{\"name\":\"country\",\"displayName\":\"Country\",\"validations\":{\"length\":{\"min\":2,\"max\":50}},\"annotations\":{\"inputType\":\"select\",\"selectOptions\":\"Vietnam,United States,United Kingdom,Canada,Australia,Germany,France,Japan,South Korea,China,Thailand,Singapore,Malaysia,Indonesia,Philippines,India,Brazil,Mexico,Argentina,Chile,Colombia,Peru,South Africa,Egypt,Morocco,Nigeria,Kenya,Russia,Ukraine,Poland,Czech Republic,Hungary,Romania,Bulgaria,Italy,Spain,Portugal,Netherlands,Belgium,Switzerland,Austria,Sweden,Norway,Denmark,Finland,Ireland,New Zealand\",\"hint\":\"Select your country\"},\"permissions\":{\"view\":[\"admin\",\"user\"],\"edit\":[\"admin\",\"user\"]},\"group\":\"address\",\"multivalued\":false},{\"name\":\"postalCode\",\"displayName\":\"Postal Code\",\"validations\":{\"length\":{\"min\":3,\"max\":20},\"pattern\":{\"pattern\":\"^[a-zA-Z0-9\\\\s\\\\-]+$\",\"message\":\"Must contain valid postal code characters\"}},\"annotations\":{\"inputType\":\"text\",\"hint\":\"Enter your postal/zip code (optional)\"},\"permissions\":{\"view\":[\"admin\",\"user\"],\"edit\":[\"admin\",\"user\"]},\"group\":\"address\",\"multivalued\":false}],\"groups\":[{\"name\":\"user-metadata\",\"displayHeader\":\"User Information\",\"displayDescription\":\"Basic user information and contact details\"},{\"name\":\"preferences\",\"displayHeader\":\"Preferences\",\"displayDescription\":\"Your application preferences and settings\",\"annotations\":{}},{\"name\":\"address\",\"displayHeader\":\"Address Information\",\"displayDescription\":\"Your billing and contact address\",\"annotations\":{}}]}"
           ]
         }
       }

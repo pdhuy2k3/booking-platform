@@ -9,6 +9,7 @@ import java.security.SecureRandom;
 import java.util.Base64;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import org.apache.commons.validator.routines.EmailValidator;
 import org.keycloak.admin.client.CreatedResponseUtil;
 import org.keycloak.admin.client.Keycloak;
@@ -17,12 +18,15 @@ import org.keycloak.admin.client.resource.UserResource;
 import org.keycloak.representations.idm.CredentialRepresentation;
 import org.keycloak.representations.idm.RoleRepresentation;
 import org.keycloak.representations.idm.UserRepresentation;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 
 @Service
 public class CustomerService {
 
+    private static final Logger log = LoggerFactory.getLogger(CustomerService.class);
     private static final String ERROR_FORMAT = "%s: Client %s don't have access right for this resource";
     private static final int USER_PER_PAGE = 10;
     private static final String GUEST = "GUEST";
@@ -71,6 +75,114 @@ public class CustomerService {
             userResource.update(userRepresentation);
         } else {
             throw new NotFoundException(Constants.ErrorCode.USER_NOT_FOUND);
+        }
+    }
+
+    public void updateCustomerPassword(String id, CustomerPasswordRequestVm passwordRequestVm) {
+        try {
+            RealmResource realmResource = keycloak.realm(keycloakPropsConfig.getRealm());
+            UserResource userResource = realmResource.users().get(id);
+            
+            if (userResource == null) {
+                throw new NotFoundException(Constants.ErrorCode.USER_NOT_FOUND);
+            }
+            
+            // Create new password credential
+            CredentialRepresentation newPasswordCredential = createPasswordCredentials(passwordRequestVm.newPassword());
+            
+            // Update the user's password
+            userResource.resetPassword(newPasswordCredential);
+            
+        } catch (ForbiddenException exception) {
+            throw new AccessDeniedException(
+                    String.format(ERROR_FORMAT, exception.getMessage(), keycloakPropsConfig.getResource()));
+        }
+    }
+
+    public void updateCustomerPicture(String id, CustomerPictureRequestVm pictureRequestVm) {
+        try {
+            UserRepresentation userRepresentation =
+                    keycloak.realm(keycloakPropsConfig.getRealm()).users().get(id).toRepresentation();
+            if (userRepresentation != null) {
+                // Set the picture attribute
+                userRepresentation.singleAttribute("picture", pictureRequestVm.pictureUrl());
+
+                RealmResource realmResource = keycloak.realm(keycloakPropsConfig.getRealm());
+                UserResource userResource = realmResource.users().get(id);
+                userResource.update(userRepresentation);
+            } else {
+                throw new NotFoundException(Constants.ErrorCode.USER_NOT_FOUND);
+            }
+        } catch (ForbiddenException exception) {
+            throw new AccessDeniedException(
+                    String.format(ERROR_FORMAT, exception.getMessage(), keycloakPropsConfig.getResource()));
+        }
+    }
+
+    public void updateCustomerAttributes(String id, CustomerAttributesRequestVm attributesRequestVm) {
+        try {
+            UserRepresentation userRepresentation =
+                    keycloak.realm(keycloakPropsConfig.getRealm()).users().get(id).toRepresentation();
+            if (userRepresentation != null) {
+                // Update all attributes
+                Map<String, String> attributes = attributesRequestVm.attributes();
+                log.info("Updating attributes for user {}: {}", id, attributes);
+                
+                for (Map.Entry<String, String> entry : attributes.entrySet()) {
+                    String key = entry.getKey();
+                    String value = entry.getValue();
+                    
+                    // Use the attribute name directly (frontend now sends simple names)
+                    String keycloakKey = key;
+                    
+                    log.info("Setting attribute {} = {} (Keycloak key: {})", key, value, keycloakKey);
+                    userRepresentation.singleAttribute(keycloakKey, value);
+                   
+                }
+
+                // Log the attributes before update
+                log.info("UserRepresentation attributes before update: {}", userRepresentation.getAttributes());
+
+                RealmResource realmResource = keycloak.realm(keycloakPropsConfig.getRealm());
+                UserResource userResource = realmResource.users().get(id);
+                
+                log.info("Updating user representation in Keycloak for user: {}", id);
+                userResource.update(userRepresentation);
+                log.info("Successfully updated user attributes in Keycloak for user: {}", id);
+                
+                // Verify the update by reading the user back
+                UserRepresentation updatedUser = userResource.toRepresentation();
+                log.info("UserRepresentation attributes after update: {}", updatedUser.getAttributes());
+            } else {
+                throw new NotFoundException(Constants.ErrorCode.USER_NOT_FOUND);
+            }
+        } catch (ForbiddenException exception) {
+            log.error("Forbidden error updating user attributes for user {}: {}", id, exception.getMessage());
+            throw new AccessDeniedException(
+                    String.format(ERROR_FORMAT, exception.getMessage(), keycloakPropsConfig.getResource()));
+        } catch (Exception exception) {
+            log.error("Error updating user attributes for user {}: {}", id, exception.getMessage(), exception);
+            throw exception;
+        }
+    }
+
+    public void updateCustomerSingleAttribute(String id, String attributeName, CustomerSingleAttributeRequestVm attributeRequestVm) {
+        try {
+            UserRepresentation userRepresentation =
+                    keycloak.realm(keycloakPropsConfig.getRealm()).users().get(id).toRepresentation();
+            if (userRepresentation != null) {
+                // Update single attribute
+                userRepresentation.singleAttribute(attributeName, attributeRequestVm.value());
+
+                RealmResource realmResource = keycloak.realm(keycloakPropsConfig.getRealm());
+                UserResource userResource = realmResource.users().get(id);
+                userResource.update(userRepresentation);
+            } else {
+                throw new NotFoundException(Constants.ErrorCode.USER_NOT_FOUND);
+            }
+        } catch (ForbiddenException exception) {
+            throw new AccessDeniedException(
+                    String.format(ERROR_FORMAT, exception.getMessage(), keycloakPropsConfig.getResource()));
         }
     }
     //make sure revoke the user's access token before deleting the user

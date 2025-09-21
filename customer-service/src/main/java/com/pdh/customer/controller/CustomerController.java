@@ -90,6 +90,36 @@ public class CustomerController {
         return ResponseEntity.noContent().build();
     }
 
+    @PutMapping("/storefront/profile/password")
+    public ResponseEntity<Void> updateCustomerPassword(@Valid @RequestBody CustomerPasswordRequestVm passwordRequestVm) {
+        String userId = AuthenticationUtils.extractUserId();
+        customerService.updateCustomerPassword(userId, passwordRequestVm);
+        return ResponseEntity.noContent().build();
+    }
+
+    @PutMapping("/storefront/profile/picture")
+    public ResponseEntity<Void> updateCustomerPicture(@Valid @RequestBody CustomerPictureRequestVm pictureRequestVm) {
+        String userId = AuthenticationUtils.extractUserId();
+        customerService.updateCustomerPicture(userId, pictureRequestVm);
+        return ResponseEntity.noContent().build();
+    }
+
+    @PutMapping("/storefront/profile/attributes")
+    public ResponseEntity<Void> updateCustomerAttributes(@Valid @RequestBody CustomerAttributesRequestVm attributesRequestVm) {
+        String userId = AuthenticationUtils.extractUserId();
+        customerService.updateCustomerAttributes(userId, attributesRequestVm);
+        return ResponseEntity.noContent().build();
+    }
+
+    @PutMapping("/storefront/profile/attributes/{attributeName}")
+    public ResponseEntity<Void> updateCustomerSingleAttribute(
+            @PathVariable String attributeName,
+            @Valid @RequestBody CustomerSingleAttributeRequestVm attributeRequestVm) {
+        String userId = AuthenticationUtils.extractUserId();
+        customerService.updateCustomerSingleAttribute(userId, attributeName, attributeRequestVm);
+        return ResponseEntity.noContent().build();
+    }
+
     @PostMapping("/storefront/guest")
     public ResponseEntity<GuestUserVm> createGuestUser() {
         GuestUserVm guestUser = customerService.createGuestUser();

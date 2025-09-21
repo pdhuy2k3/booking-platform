@@ -66,6 +66,16 @@ public interface AirportRepository extends JpaRepository<Airport, Long> {
     boolean existsByIataCodeIgnoreCase(String iataCode);
     
     /**
+     * Search airports by name or IATA code (for autocomplete)
+     * @param name search term for name
+     * @param iataCode search term for IATA code
+     * @param pageable pagination information
+     * @return Page of matching airports
+     */
+    Page<Airport> findByNameContainingIgnoreCaseOrIataCodeContainingIgnoreCase(
+        String name, String iataCode, Pageable pageable);
+        
+    /**
      * Search airports by name, IATA code, or city (for autocomplete)
      * @param name search term for name
      * @param iataCode search term for IATA code

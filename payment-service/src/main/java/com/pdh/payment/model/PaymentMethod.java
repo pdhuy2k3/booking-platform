@@ -16,7 +16,15 @@ import java.util.UUID;
  * Supports Strategy Pattern for different payment methods
  */
 @Entity
-@Table(name = "payment_methods")
+@Table(name = "payment_methods", indexes = {
+    @Index(name = "idx_pm_user_id", columnList = "user_id"),
+    @Index(name = "idx_pm_provider", columnList = "provider"),
+    @Index(name = "idx_pm_method_type", columnList = "method_type"),
+    @Index(name = "idx_pm_is_active", columnList = "is_active"),
+    @Index(name = "idx_pm_is_default", columnList = "is_default"),
+    @Index(name = "idx_pm_fingerprint", columnList = "fingerprint"),
+    @Index(name = "idx_pm_created_at", columnList = "created_at")
+})
 @Data
 @EqualsAndHashCode(callSuper = false)
 @NoArgsConstructor
@@ -72,6 +80,7 @@ public class PaymentMethod extends AbstractAuditEntity {
     private String bankAccountLastFour;
     
     // Provider specific data (encrypted JSON)
+    @Convert(converter = com.pdh.payment.config.EncryptedStringConverter.class)
     @Column(name = "provider_data", columnDefinition = "TEXT")
     private String providerData;
     
@@ -85,8 +94,9 @@ public class PaymentMethod extends AbstractAuditEntity {
     @Column(name = "is_active", nullable = false)
     private Boolean isActive = true;
     
+    @Convert(converter = com.pdh.payment.config.EncryptedStringConverter.class)
     @Column(name = "token", length = 500)
-    private String token; // Payment gateway token
+    private String token; // Encrypted payment gateway token
     
     @Column(name = "fingerprint", length = 100)
     private String fingerprint; // Unique identifier for duplicate detection

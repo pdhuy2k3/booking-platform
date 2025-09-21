@@ -1,5 +1,8 @@
 package com.pdh.payment.model.enums;
 
+import com.fasterxml.jackson.annotation.JsonCreator;
+import com.fasterxml.jackson.annotation.JsonValue;
+
 /**
  * Payment Method Type Enum
  * Supports Strategy Pattern for different payment methods
@@ -57,7 +60,33 @@ public enum PaymentMethodType {
     public String getCode() {
         return code;
     }
-    
+
+    @JsonValue
+    public String toJson() {
+        return this.name();
+    }
+
+    @JsonCreator
+    public static PaymentMethodType fromJson(String value) {
+        if (value == null || value.trim().isEmpty()) {
+            throw new IllegalArgumentException("Payment method type is required");
+        }
+
+        String normalized = value.trim();
+
+        for (PaymentMethodType type : values()) {
+            if (type.name().equalsIgnoreCase(normalized) || type.code.equalsIgnoreCase(normalized)) {
+                return type;
+            }
+        }
+
+        if ("CARD".equalsIgnoreCase(normalized)) {
+            return CREDIT_CARD;
+        }
+
+        throw new IllegalArgumentException("Unknown payment method type: " + value);
+    }
+
     /**
      * Get PaymentMethodType by code
      */

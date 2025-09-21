@@ -50,4 +50,6 @@ public class Hotel extends AbstractAuditEntity {
     private Boolean isActive = true;
     @OneToMany(mappedBy = "hotel", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<HotelImage> hotelImages;
+
+
 }

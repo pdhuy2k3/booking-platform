@@ -6,7 +6,10 @@ spring:
     active: local
   application:
     name: STOREFRONT-BFF
-
+logging:
+  level:
+    "[com.pdh.storefront]": DEBUG
+    "[org.springframework.security]": DEBUG
 ---
 spring:
   config:
@@ -18,30 +21,79 @@ spring:
         registration:
           storefront-client:
             client-id: storefront-bff
-            client-secret: ${KEYCLOAK_CLIENT_SECRET_STOREFRONT_BFF:wYUpnvBO9kXw9Aa7M1fU9DakJQ5XNIvx}
+            client-secret: gPJFZUR2r7wgsjkCDRilDtkMhSQVCJo8
             scope: profile, email, openid, roles
             provider: keycloak
         provider:
           keycloak:
             issuer-uri: http://localhost:9090/realms/BookingSmart
-  kafka:
-    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
-    consumer:
-      group-id: storefront-bff-group
+
 
   cloud:
     gateway:
       routes:
-        - id: api
-          uri: http://api.bookingsmart.local
+        - id: flight-service
+          uri: lb://FLIGHT-SERVICE
           predicates:
-            - Path=/api/**
+            - Path=/api/flights/**
           filters:
-            - RewritePath=/api/(?<segment>.*), /$\{segment}
+            - StripPrefix=1
             - TokenRelay=
+        - id: hotel-service
+          uri: lb://HOTEL-SERVICE
+          predicates:
+            - Path=/api/hotels/**
+          filters:
+            - StripPrefix=1
+            - TokenRelay=
+        - id: booking-service
+          uri: lb://BOOKING-SERVICE
+          predicates:
+            - Path=/api/bookings/**, /api/availability/**
+          filters:
+            - StripPrefix=1
+            - TokenRelay=
+        - id: customer-service
+          uri: lb://CUSTOMER-SERVICE
+          predicates:
+            - Path=/api/customers/**
+          filters:
+            - StripPrefix=1
+            - TokenRelay=
+        - id: payment-service
+          uri: lb://PAYMENT-SERVICE
+          predicates:
+            - Path=/api/payments/**
+          filters:
+            - StripPrefix=1
+            - TokenRelay=
+        - id: notification-service
+          uri: lb://NOTIFICATION-SERVICE
+          predicates:
+            - Path=/api/notifications/**
+          filters:
+            - StripPrefix=1
+            - TokenRelay=
+        - id: media-service
+          uri: lb://MEDIA-SERVICE
+          predicates:
+            - Path=/api/media/**
+          filters:
+            - StripPrefix=1
+            - TokenRelay=
+        # Administrative routes
+        - id: eureka-web-start
+          uri: lb://DISCOVERY-SERVICE
+          predicates:
+            - Path=/eureka/web
+          filters:
+            - StripPrefix=2
 
-        # Frontend fallback route - redirect to storefront domain
-
+        # Default frontend route (lowest priority)
+        - id: frontend-fallback
+          uri: http://localhost:3000
+          predicates:
+            - Path=/**
       default-filters:
         - SaveSession
 
@@ -74,59 +126,32 @@ spring:
             issuer-uri: ${JWT_ISSUER_URI}
   cloud:
     gateway:
-      routes:
-        - id: flight-service
-          uri: lb://FLIGHT-SERVICE
-          predicates:
-            - Path=/api/flights/**
-          filters:
-            - StripPrefix=1
-            - TokenRelay=
-        - id: hotel-service
-          uri: lb://HOTEL-SERVICE
-          predicates:
-            - Path=/api/hotels/**
-          filters:
-            - StripPrefix=1
-            - TokenRelay=
-        - id: booking-service
-          uri: lb://BOOKING-SERVICE
-          predicates:
-            - Path=/api/bookings/**
-          filters:
-            - StripPrefix=1
-            - TokenRelay=
-        - id: customer-service
-          uri: lb://CUSTOMER-SERVICE
-          predicates:
-            - Path=/api/customers/**
-          filters:
-            - StripPrefix=1
-            - TokenRelay=
-        - id: payment-service
-          uri: lb://PAYMENT-SERVICE
-          predicates:
-            - Path=/api/payments/**
-          filters:
-            - StripPrefix=1
-            - TokenRelay=
-        - id: notification-service
-          uri: lb://NOTIFICATION-SERVICE
-          predicates:
-            - Path=/api/notifications/**
-          filters:
-            - StripPrefix=1
-            - TokenRelay=
-        
-        # Frontend fallback route - redirect to storefront domain
-
-
-      default-filters:
-        - SaveSession
-  kafka:
-    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
-    consumer:
-      group-id: storefront-bff-group
+      server:
+        webflux:
+          routes:
+            - id: sse
+              uri: ${API_URL}
+              predicates:
+                - Path=/mcp/**
+              filters:
+                - RewritePath=/mcp/(?<segment>.*), /$\{segment}
+                - TokenRelay=
+                - SetResponseHeader=Cache-Control, no-cache, no-transform
+                - AddResponseHeader=Connection, keep-alive
+            - id: api
+              uri: ${API_URL}
+              predicates:
+                - Path=/api/**
+              filters:
+                - RewritePath=/api/(?<segment>.*), /$\{segment}
+                - TokenRelay=
+            # Default frontend route (lowest priority)
+            - id: frontend-fallback
+              uri: http://storefront-fe:3000
+              predicates:
+                - Path=/**
+          default-filters:
+            - SaveSession
 
 eureka:
   client:
@@ -144,7 +169,4 @@ management:
     health:
       show-details: always
 
-logging:
-  level:
-    "[com.pdh.storefront]": DEBUG
-    "[org.springframework.security]": DEBUG
+

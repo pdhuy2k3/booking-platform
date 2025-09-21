@@ -3,6 +3,7 @@ package com.pdh.hotel.service;
 import com.pdh.hotel.model.RoomAvailability;
 import com.pdh.hotel.model.RoomType;
 import com.pdh.hotel.repository.RoomAvailabilityRepository;
+import com.pdh.hotel.repository.RoomRepository;
 import com.pdh.hotel.repository.RoomTypeRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -10,6 +11,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
+import java.util.List;
 import java.util.Optional;
 
 /**
@@ -23,6 +25,7 @@ public class HotelInventoryService {
 
     private final RoomAvailabilityRepository roomAvailabilityRepository;
     private final RoomTypeRepository roomTypeRepository;
+    private final RoomRepository roomRepository;
 
     /**
      * Reserve rooms for a hotel booking
@@ -63,6 +66,8 @@ public class HotelInventoryService {
             
             log.info("Successfully reserved {} rooms of type {} for hotel {} from {} to {}", 
                     roomCount, roomTypeName, hotelId, checkInDate, checkOutDate);
+
+            refreshRoomAvailabilityFlag(roomType, checkInDate, checkOutDate);
             return true;
             
         } catch (Exception e) {
@@ -105,6 +110,8 @@ public class HotelInventoryService {
             
             log.info("Successfully released {} rooms of type {} for hotel {} from {} to {}", 
                     roomCount, roomTypeName, hotelId, checkInDate, checkOutDate);
+
+            refreshRoomAvailabilityFlag(roomType, checkInDate, checkOutDate);
             
         } catch (Exception e) {
             log.error("Error releasing rooms for hotel {}: {}", hotelId, e.getMessage(), e);
@@ -151,6 +158,45 @@ public class HotelInventoryService {
             log.error("Error checking availability for hotel {}: {}", hotelId, e.getMessage(), e);
             return false;
         }
+    }
+
+    /**
+     * Reserve room for a specific date
+     */
+    private void refreshRoomAvailabilityFlag(RoomType roomType, LocalDate checkInDate, LocalDate checkOutDate) {
+        if (roomType == null || roomType.getRoomTypeId() == null || checkInDate == null || checkOutDate == null) {
+            return;
+        }
+
+        LocalDate endDate = checkOutDate.minusDays(1);
+        if (endDate.isBefore(checkInDate)) {
+            endDate = checkInDate;
+        }
+
+        List<RoomAvailability> availabilityRange = roomAvailabilityRepository
+                .findByRoomTypeIdAndDateBetween(roomType.getRoomTypeId(), checkInDate, endDate);
+
+        if (availabilityRange.isEmpty()) {
+            return;
+        }
+
+        boolean soldOut = availabilityRange.stream().allMatch(availability -> remainingRooms(availability) <= 0);
+        boolean hasAvailability = availabilityRange.stream().anyMatch(availability -> remainingRooms(availability) > 0);
+
+        if (soldOut) {
+            roomRepository.updateAvailabilityByRoomType(roomType.getRoomTypeId(), false);
+        } else if (hasAvailability) {
+            roomRepository.updateAvailabilityByRoomType(roomType.getRoomTypeId(), true);
+        }
+    }
+
+    private int remainingRooms(RoomAvailability availability) {
+        if (availability == null) {
+            return 0;
+        }
+        int totalInventory = Optional.ofNullable(availability.getTotalInventory()).orElse(0);
+        int totalReserved = Optional.ofNullable(availability.getTotalReserved()).orElse(0);
+        return totalInventory - totalReserved;
     }
 
     /**

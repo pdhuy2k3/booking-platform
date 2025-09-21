@@ -60,12 +60,12 @@ public interface PaymentTransactionRepository extends JpaRepository<PaymentTrans
     /**
      * Find transactions by parent transaction
      */
-    List<PaymentTransaction> findByParentTransactionIdOrderByCreatedAtDesc(UUID parentTransactionId);
+    List<PaymentTransaction> findByParentTransaction_TransactionIdOrderByCreatedAtDesc(UUID parentTransactionId);
     
     /**
      * Find transactions by original transaction
      */
-    List<PaymentTransaction> findByOriginalTransactionIdOrderByCreatedAtDesc(UUID originalTransactionId);
+    List<PaymentTransaction> findByOriginalTransaction_TransactionIdOrderByCreatedAtDesc(UUID originalTransactionId);
     
     /**
      * Find transactions needing retry
@@ -128,7 +128,7 @@ public interface PaymentTransactionRepository extends JpaRepository<PaymentTrans
      * Find failed transactions for compensation
      */
     @Query("SELECT t FROM PaymentTransaction t WHERE t.status = 'FAILED' AND t.isCompensation = false " +
-           "AND NOT EXISTS (SELECT 1 FROM PaymentTransaction ct WHERE ct.originalTransactionId = t.transactionId AND ct.isCompensation = true)")
+           "AND NOT EXISTS (SELECT 1 FROM PaymentTransaction ct WHERE ct.originalTransaction.transactionId = t.transactionId AND ct.isCompensation = true)")
     List<PaymentTransaction> findFailedTransactionsNeedingCompensation();
     
     /**

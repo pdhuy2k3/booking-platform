@@ -6,10 +6,7 @@ import lombok.*;
 
 import java.time.LocalDate;
 
-/**
- * Entity to store booking passenger information instead of JSONB
- * This provides better data integrity and query capabilities
- */
+
 @Entity
 @Table(name = "booking_passengers")
 @Getter
@@ -24,7 +21,7 @@ public class BookingPassenger extends AbstractAuditEntity {
     private Long id;
     
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "booking_id", nullable = false)
+    @JoinColumn(name = "booking_id", referencedColumnName = "booking_id", nullable = false)
     private Booking booking;
     
     @Column(name = "passenger_type")

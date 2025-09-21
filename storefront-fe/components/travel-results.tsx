@@ -1,5 +1,6 @@
 "use client"
 
+import Image from "next/image"
 import { useState } from "react"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -95,7 +96,14 @@ export function TravelResults({ results, onItemSelect }: TravelResultsProps) {
     >
       <CardContent className="p-0">
         <div className="aspect-video relative overflow-hidden rounded-t-lg">
-          <img src={hotel.image || "/placeholder.svg"} alt={hotel.name} className="w-full h-full object-cover" />
+          <Image
+            src={hotel.image || "/placeholder.svg"}
+            alt={hotel.name}
+            fill
+            className="object-cover"
+            sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
+            unoptimized
+          />
         </div>
         <div className="p-6">
           <div className="flex items-start justify-between mb-2">

@@ -38,6 +38,13 @@ services:
     networks:
       - booking-local-network
 
+  redis-insight:
+    image: redislabs/redisinsight:latest
+    container_name: bookingsmart-redis-insight-local
+    ports:
+      - "5540:5540"
+    networks:
+      - booking-local-network             
   # Zookeeper for Kafka
   zookeeper:
     image: confluentinc/cp-zookeeper:7.3.2
@@ -62,13 +69,11 @@ services:
     environment:
       KAFKA_BROKER_ID: 1
       KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
-      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://localhost:9092,PLAINTEXT_HOST://localhost:29092
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:29092,PLAINTEXT_HOST://localhost:9092
       KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
       KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
       KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
-      KAFKA_AUTO_CREATE_TOPICS_ENABLE: true
-      KAFKA_LOG_RETENTION_HOURS: 24
     networks:
       - booking-local-network
 
@@ -105,7 +110,7 @@ services:
     image: quay.io/debezium/connect:3.2.0.Final
     container_name: bookingsmart-debezium-local
     ports:
-      - "8083:8083"
+      - "8073:8083"
     depends_on:
       kafka:
         condition: service_started
@@ -124,15 +129,23 @@ services:
       - ./debezium:/kafka/connect/debezium-connectors
     networks:
       - booking-local-network
-    profiles:
-      - full  # Only start with --profile full
-
+  debezium-ui:
+    image: quay.io/debezium/debezium-ui:1.9
+    container_name: bookingsmart-debezium-ui-local
+    ports:
+      - "8074:8080"
+    environment:
+      DEBEZIUM_UI_PROVIDERS_CONNECT_CLUSTER_0_NAME: local
+      DEBEZIUM_UI_PROVIDERS_CONNECT_CLUSTER_0_URL: http://connect:8083
+      KAFKA_CONNECT_URIS: http://connect:8083
+    networks:
+      - booking-local-network
   # Kafka UI for Development Monitoring
   kafka-ui:
     image: provectuslabs/kafka-ui:latest
     container_name: bookingsmart-kafka-ui-local
     ports:
-      - "8080:8080"
+      - "8090:8080"
     depends_on:
       - kafka
     environment:
@@ -141,28 +154,10 @@ services:
       KAFKA_CLUSTERS_0_ZOOKEEPER: zookeeper:2181
     networks:
       - booking-local-network
-    profiles:
-      - monitoring  # Only start with --profile monitoring
+
 
   # PgAdmin for Database Management
-  pgadmin:
-    image: dpage/pgadmin4:latest
-    container_name: bookingsmart-pgadmin-local
-    ports:
-      - "8888:80"
-    depends_on:
-      postgres:
-        condition: service_healthy
-    environment:
-      PGADMIN_CONFIG_SERVER_MODE: 'False'
-      PGADMIN_DEFAULT_EMAIL: admin@local.dev
-      PGADMIN_DEFAULT_PASSWORD: admin123
-    volumes:
-      - pgadmin_local_data:/var/lib/pgadmin
-    networks:
-      - booking-local-network
-    profiles:
-      - monitoring  # Only start with --profile monitoring
+
 
 networks:
   booking-local-network:
@@ -174,5 +169,3 @@ volumes:
     name: bookingsmart_postgres_local_data
   redis_local_data:
     name: bookingsmart_redis_local_data
-  pgadmin_local_data:
-    name: bookingsmart_pgadmin_local_data

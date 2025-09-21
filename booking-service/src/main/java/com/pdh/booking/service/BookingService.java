@@ -5,24 +5,27 @@ import com.pdh.booking.model.enums.BookingStatus;
 import com.pdh.booking.model.enums.BookingType;
 import com.pdh.booking.repository.BookingRepository;
 import com.pdh.common.utils.AuthenticationUtils;
-import io.github.resilience4j.circuitbreaker.annotation.CircuitBreaker;
-import io.github.resilience4j.retry.annotation.Retry;
+import com.pdh.common.outbox.service.OutboxEventService;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.pdh.common.saga.SagaState;
+import com.pdh.booking.model.dto.response.BookingHistoryItemDto;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.web.client.RestClient;
 
-import java.math.BigDecimal;
-import java.time.ZonedDateTime;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+
 /**
- * Simplified Booking service using direct REST calls with circuit breakers
- * Replaces complex saga orchestration with synchronous service communication
+ * Booking service using CQRS pattern with Kafka events
+ * Replaces direct REST calls with event-driven communication for saga orchestration
  */
 @Service
 @Slf4j
@@ -30,12 +33,14 @@ import java.util.UUID;
 public class BookingService {
 
     private final BookingRepository bookingRepository;
-    private final RestClient.Builder restClientBuilder;
-    private final WebhookNotificationService webhookNotificationService;
+    private final OutboxEventService eventPublisher;
     private final AnalyticsEventService analyticsEventService;
+    private final ObjectMapper objectMapper;
 
     /**
-     * Create and process booking with direct service calls
+     * Create booking entity and publish initial saga command
+     * This method only creates the booking entity and initiates the saga
+     * Actual processing is handled by the saga orchestrator via Kafka events
      */
     @Transactional
     public Booking createBooking(Booking booking) {
@@ -43,7 +48,7 @@ public class BookingService {
         
         // Set user ID from authentication context
         booking.setUserId(UUID.fromString(AuthenticationUtils.extractUserId()));
-        booking.setStatus(BookingStatus.PENDING);
+        booking.setStatus(BookingStatus.VALIDATION_PENDING);
         
         // Save booking first
         Booking savedBooking = bookingRepository.save(booking);
@@ -51,170 +56,48 @@ public class BookingService {
         // Publish analytics event for booking initiated
         analyticsEventService.publishBookingAnalyticsEvent(savedBooking, "booking.initiated");
         
-        long startTime = System.currentTimeMillis();
-        boolean success = false;
+        // Publish validation command to start the async validation process
+        publishValidationCommand(savedBooking);
         
-        try {
-            // Process booking based on type using direct REST calls
-            switch (booking.getBookingType()) {
-                case FLIGHT -> processFlightBooking(savedBooking);
-                case HOTEL -> processHotelBooking(savedBooking);
-                case COMBO -> processComboBooking(savedBooking);
-                default -> throw new IllegalArgumentException("Unsupported booking type: " + booking.getBookingType());
-            }
-            
-            // If all services succeed, confirm booking
-            savedBooking.setStatus(BookingStatus.CONFIRMED);
-            savedBooking.setConfirmationNumber(generateConfirmationNumber());
-            savedBooking = bookingRepository.save(savedBooking);
-            
-            // Send webhook notification for successful booking
-            webhookNotificationService.sendBookingConfirmedNotification(savedBooking);
-            
-            // Publish analytics events for successful booking
-            analyticsEventService.publishBookingAnalyticsEvent(savedBooking, "booking.confirmed");
-            
-            success = true;
-            log.info("Booking {} processed successfully", savedBooking.getBookingReference());
-            
-        } catch (Exception e) {
-            log.error("Error processing booking {}: {}", savedBooking.getBookingReference(), e.getMessage());
-            
-            // Mark booking as failed
-            savedBooking.setStatus(BookingStatus.FAILED);
-            savedBooking = bookingRepository.save(savedBooking);
-            
-            // Send webhook notification for failed booking
-            webhookNotificationService.sendBookingFailedNotification(savedBooking, e.getMessage());
-            
-            // Publish analytics event for failed booking
-            analyticsEventService.publishBookingAnalyticsEvent(savedBooking, "booking.failed");
-            
-            throw new BookingProcessingException("Failed to process booking: " + e.getMessage(), e);
-        } finally {
-            // Publish performance metrics
-            long duration = System.currentTimeMillis() - startTime;
-            analyticsEventService.publishPerformanceMetrics("booking.creation", duration, success);
-        }
+        log.info("Booking {} created and validation command published", savedBooking.getBookingReference());
         
         return savedBooking;
     }
 
     /**
-     * Process flight booking with circuit breaker
+     * Publish validation command for async processing
+     * This follows the "Listen to Yourself" pattern where we publish an event
+     * that we also consume to trigger async processing
      */
-    @CircuitBreaker(name = "flight-service", fallbackMethod = "flightServiceFallback")
-    @Retry(name = "flight-service")
-    private void processFlightBooking(Booking booking) {
-        log.info("Processing flight booking: {}", booking.getBookingReference());
-        
-        RestClient restClient = restClientBuilder.build();
-        
-        // Call flight service using service discovery
-        Map<String, Object> flightBookingRequest = Map.of(
-            "bookingId", booking.getBookingId().toString(),
-            "userId", booking.getUserId().toString(),
-            "productDetails", booking.getProductDetailsJson(),
-            "totalAmount", booking.getTotalAmount(),
-            "currency", booking.getCurrency()
-        );
-        
-        String response = restClient.post()
-            .uri("http://flight-service/api/bookings")
-            .contentType(MediaType.APPLICATION_JSON)
-            .body(flightBookingRequest)
-            .retrieve()
-            .body(String.class);
+    private void publishValidationCommand(Booking booking) {
+        try {
+            // Create a simple payload with just basic information
+            Map<String, Object> payloadMap = new HashMap<>();
+            payloadMap.put("eventType", "ValidateInventoryCommand");
+            payloadMap.put("bookingId", booking.getBookingId().toString());
+            payloadMap.put("bookingType", booking.getBookingType().name());
+            payloadMap.put("totalAmount", booking.getTotalAmount());
+            payloadMap.put("currency", booking.getCurrency());
+            payloadMap.put("customerId", booking.getUserId().toString());
+            payloadMap.put("sagaId", booking.getSagaId()); // Add sagaId to payload
+
+            if (booking.getProductDetailsJson() != null && !booking.getProductDetailsJson().isBlank()) {
+                JsonNode productDetailsNode = objectMapper.readTree(booking.getProductDetailsJson());
+                payloadMap.put("productDetails", productDetailsNode);
+            }
+
+            eventPublisher.publishEvent(
+                "ValidateInventoryCommand",
+                "Booking",
+                booking.getBookingId().toString(),
+                payloadMap
+            );
             
-        log.info("Flight booking processed successfully for booking: {}", booking.getBookingReference());
-    }
-
-    /**
-     * Process hotel booking with circuit breaker
-     */
-    @CircuitBreaker(name = "hotel-service", fallbackMethod = "hotelServiceFallback")
-    @Retry(name = "hotel-service")
-    private void processHotelBooking(Booking booking) {
-        log.info("Processing hotel booking: {}", booking.getBookingReference());
-        
-        RestClient restClient = restClientBuilder.build();
-        
-        Map<String, Object> hotelBookingRequest = Map.of(
-            "bookingId", booking.getBookingId().toString(),
-            "userId", booking.getUserId().toString(),
-            "productDetails", booking.getProductDetailsJson(),
-            "totalAmount", booking.getTotalAmount(),
-            "currency", booking.getCurrency()
-        );
-        
-        String response = restClient.post()
-            .uri("http://hotel-service/api/bookings")
-            .contentType(MediaType.APPLICATION_JSON)
-            .body(hotelBookingRequest)
-            .retrieve()
-            .body(String.class);
-            
-        log.info("Hotel booking processed successfully for booking: {}", booking.getBookingReference());
-    }
-
-    /**
-     * Process combo booking (both flight and hotel)
-     */
-    private void processComboBooking(Booking booking) {
-        log.info("Processing combo booking: {}", booking.getBookingReference());
-        
-        // Process both flight and hotel
-        processFlightBooking(booking);
-        processHotelBooking(booking);
-        
-        log.info("Combo booking processed successfully for booking: {}", booking.getBookingReference());
-    }
-
-    /**
-     * Process payment with circuit breaker
-     */
-    @CircuitBreaker(name = "payment-service", fallbackMethod = "paymentServiceFallback")
-    @Retry(name = "payment-service")
-    private void processPayment(Booking booking) {
-        log.info("Processing payment for booking: {}", booking.getBookingReference());
-        
-        RestClient restClient = restClientBuilder.build();
-        
-        Map<String, Object> paymentRequest = Map.of(
-            "bookingId", booking.getBookingId().toString(),
-            "userId", booking.getUserId().toString(),
-            "amount", booking.getTotalAmount(),
-            "currency", booking.getCurrency(),
-            "paymentMethod", "CREDIT_CARD" // This would come from request
-        );
-        
-        String response = restClient.post()
-            .uri("http://payment-service/api/payments")
-            .contentType(MediaType.APPLICATION_JSON)
-            .body(paymentRequest)
-            .retrieve()
-            .body(String.class);
-            
-        log.info("Payment processed successfully for booking: {}", booking.getBookingReference());
-    }
-
-    // Fallback methods
-    private void flightServiceFallback(Booking booking, Exception ex) {
-        log.error("Flight service fallback triggered for booking: {}, error: {}", 
-                booking.getBookingReference(), ex.getMessage());
-        throw new BookingProcessingException("Flight service unavailable", ex);
-    }
-
-    private void hotelServiceFallback(Booking booking, Exception ex) {
-        log.error("Hotel service fallback triggered for booking: {}, error: {}", 
-                booking.getBookingReference(), ex.getMessage());
-        throw new BookingProcessingException("Hotel service unavailable", ex);
-    }
-
-    private void paymentServiceFallback(Booking booking, Exception ex) {
-        log.error("Payment service fallback triggered for booking: {}, error: {}", 
-                booking.getBookingReference(), ex.getMessage());
-        throw new BookingProcessingException("Payment service unavailable", ex);
+            log.debug("Validation command published for booking: {}", booking.getBookingReference());
+        } catch (Exception e) {
+            log.error("Error publishing validation command for booking: {}", booking.getBookingReference(), e);
+            throw new BookingProcessingException("Failed to publish validation command: " + e.getMessage(), e);
+        }
     }
 
     // Utility methods
@@ -235,8 +118,129 @@ public class BookingService {
             });
     }
 
+    @Transactional(readOnly = true)
+    public Page<BookingHistoryItemDto> getBookingHistory(UUID userId, Pageable pageable) {
+        Page<Booking> bookings = bookingRepository.findByUserIdOrderByCreatedAtDesc(userId, pageable);
+        return bookings.map(this::mapToHistoryItem);
+    }
+
     private String generateConfirmationNumber() {
         return "CNF" + System.currentTimeMillis();
+    }
+
+    @Transactional
+    public Booking confirmBooking(UUID bookingId) {
+        return bookingRepository.findByBookingId(bookingId)
+            .map(booking -> {
+                booking.setStatus(BookingStatus.CONFIRMED);
+                booking.setSagaState(SagaState.BOOKING_COMPLETED);
+                if (booking.getConfirmationNumber() == null || booking.getConfirmationNumber().isBlank()) {
+                    booking.setConfirmationNumber(generateConfirmationNumber());
+                }
+                return bookingRepository.save(booking);
+            })
+            .orElseThrow(() -> new IllegalArgumentException("Booking not found: " + bookingId));
+    }
+
+    private BookingHistoryItemDto mapToHistoryItem(Booking booking) {
+        return BookingHistoryItemDto.builder()
+            .bookingId(booking.getBookingId().toString())
+            .bookingReference(booking.getBookingReference())
+            .bookingType(booking.getBookingType())
+            .status(booking.getStatus())
+            .sagaState(booking.getSagaState() != null ? booking.getSagaState().name() : null)
+            .totalAmount(booking.getTotalAmount())
+            .currency(booking.getCurrency())
+            .createdAt(booking.getCreatedAt() != null ? booking.getCreatedAt().toString() : null)
+            .updatedAt(booking.getUpdatedAt() != null ? booking.getUpdatedAt().toString() : null)
+            .confirmationNumber(booking.getConfirmationNumber())
+            .productSummary(buildProductSummary(booking))
+            .productDetailsJson(booking.getProductDetailsJson())
+            .build();
+    }
+
+    private String buildProductSummary(Booking booking) {
+        if (booking.getProductDetailsJson() == null || booking.getProductDetailsJson().isBlank()) {
+            return null;
+        }
+
+        try {
+            JsonNode root = objectMapper.readTree(booking.getProductDetailsJson());
+            return switch (booking.getBookingType()) {
+                case FLIGHT -> summarizeFlight(root);
+                case HOTEL -> summarizeHotel(root);
+                case COMBO -> summarizeCombo(root);
+                default -> null;
+            };
+        } catch (Exception e) {
+            log.warn("Failed to build product summary for booking {}", booking.getBookingId(), e);
+            return null;
+        }
+    }
+
+    private String summarizeFlight(JsonNode node) {
+        String flightNumber = node.path("flightNumber").asText(null);
+        String airline = node.path("airline").asText(null);
+        String origin = node.path("originAirport").asText(null);
+        String destination = node.path("destinationAirport").asText(null);
+
+        if (flightNumber == null && airline == null && origin == null && destination == null) {
+            return null;
+        }
+
+        StringBuilder builder = new StringBuilder();
+        if (flightNumber != null) {
+            builder.append(flightNumber);
+        }
+        if (airline != null) {
+            if (builder.length() > 0) {
+                builder.append(" · ");
+            }
+            builder.append(airline);
+        }
+        if (origin != null || destination != null) {
+            if (builder.length() > 0) {
+                builder.append(" · ");
+            }
+            builder.append(origin != null ? origin : "?")
+                .append(" → ")
+                .append(destination != null ? destination : "?");
+        }
+        return builder.toString();
+    }
+
+    private String summarizeHotel(JsonNode node) {
+        String hotelName = node.path("hotelName").asText(null);
+        String city = node.path("city").asText(null);
+        if (hotelName == null && city == null) {
+            return null;
+        }
+        if (hotelName != null && city != null) {
+            return hotelName + " · " + city;
+        }
+        return hotelName != null ? hotelName : city;
+    }
+
+    private String summarizeCombo(JsonNode node) {
+        StringBuilder builder = new StringBuilder();
+        JsonNode flight = node.path("flightDetails");
+        JsonNode hotel = node.path("hotelDetails");
+        if (!flight.isMissingNode()) {
+            String flightSummary = summarizeFlight(flight);
+            if (flightSummary != null) {
+                builder.append(flightSummary);
+            }
+        }
+        if (!hotel.isMissingNode()) {
+            String hotelSummary = summarizeHotel(hotel);
+            if (hotelSummary != null) {
+                if (builder.length() > 0) {
+                    builder.append(" • ");
+                }
+                builder.append(hotelSummary);
+            }
+        }
+        return builder.length() == 0 ? null : builder.toString();
     }
 
     // Exception class

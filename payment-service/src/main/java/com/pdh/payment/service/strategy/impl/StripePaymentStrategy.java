@@ -7,6 +7,7 @@ import com.pdh.payment.model.PaymentTransaction;
 import com.pdh.payment.model.enums.PaymentProvider;
 import com.pdh.payment.model.enums.PaymentStatus;
 import com.pdh.payment.model.enums.PaymentTransactionType;
+import com.pdh.payment.model.enums.PaymentMethodType;
 import com.pdh.payment.service.strategy.PaymentStrategy;
 import com.stripe.Stripe;
 import com.stripe.exception.StripeException;
@@ -14,16 +15,18 @@ import com.stripe.model.PaymentIntent;
 import com.stripe.model.Refund;
 import com.stripe.param.PaymentIntentCreateParams;
 import com.stripe.param.PaymentIntentRetrieveParams;
+import com.stripe.param.PaymentIntentUpdateParams;
 import com.stripe.param.RefundCreateParams;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.ZonedDateTime;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.UUID;
+import java.util.Set;
 
 /**
  * Stripe Payment Strategy Implementation
@@ -39,6 +42,10 @@ public class StripePaymentStrategy implements PaymentStrategy {
     private static final String STRATEGY_NAME = "Stripe Payment Strategy";
     private static final BigDecimal STRIPE_FEE_RATE = new BigDecimal("0.029"); // 2.9%
     private static final BigDecimal STRIPE_FIXED_FEE = new BigDecimal("0.30"); // $0.30
+    private static final Set<String> ZERO_DECIMAL_CURRENCIES = Set.of(
+        "bif", "clp", "djf", "gnf", "jpy", "kmf", "krw", "mga", "pyg",
+        "rwf", "ugx", "vnd", "vuv", "xaf", "xof", "xpf"
+    );
     
     @jakarta.annotation.PostConstruct
     public void initializeStripe() {
@@ -59,8 +66,8 @@ public class StripePaymentStrategy implements PaymentStrategy {
         PaymentTransaction transaction = createBaseTransaction(payment, paymentMethod);
         
         try {
-            // Create Stripe PaymentIntent
-            PaymentIntent paymentIntent = createPaymentIntent(payment, paymentMethod, additionalData);
+            // Create Stripe PaymentIntent with simple retry
+            PaymentIntent paymentIntent = createPaymentIntentWithRetry(payment, paymentMethod, additionalData);
             
             // Update transaction with Stripe data
             updateTransactionWithStripeData(transaction, paymentIntent);
@@ -68,7 +75,7 @@ public class StripePaymentStrategy implements PaymentStrategy {
             log.info("Stripe payment intent created successfully: {}", paymentIntent.getId());
             
         } catch (StripeException e) {
-            log.error("Stripe payment failed for payment ID: {}", payment.getPaymentId(), e);
+            log.error("Stripe payment failed for payment ID: {} - {}", payment.getPaymentId(), e.getMessage());
             handleStripeError(transaction, e);
         } catch (Exception e) {
             log.error("Unexpected error during Stripe payment processing", e);
@@ -86,8 +93,8 @@ public class StripePaymentStrategy implements PaymentStrategy {
         PaymentTransaction refundTransaction = createRefundTransaction(originalTransaction, refundAmount, reason);
         
         try {
-            // Create Stripe Refund
-            Refund refund = createStripeRefund(originalTransaction, refundAmount, reason);
+            // Create Stripe Refund with simple retry
+            Refund refund = createStripeRefundWithRetry(originalTransaction, refundAmount, reason);
             
             // Update transaction with refund data
             updateRefundTransactionWithStripeData(refundTransaction, refund);
@@ -95,7 +102,7 @@ public class StripePaymentStrategy implements PaymentStrategy {
             log.info("Stripe refund created successfully: {}", refund.getId());
             
         } catch (StripeException e) {
-            log.error("Stripe refund failed for transaction: {}", originalTransaction.getTransactionId(), e);
+            log.error("Stripe refund failed for transaction: {} - {}", originalTransaction.getTransactionId(), e.getMessage());
             handleStripeRefundError(refundTransaction, e);
         } catch (Exception e) {
             log.error("Unexpected error during Stripe refund processing", e);
@@ -239,12 +246,15 @@ public class StripePaymentStrategy implements PaymentStrategy {
     private PaymentIntent createPaymentIntent(Payment payment, PaymentMethod paymentMethod,
                                             Map<String, Object> additionalData) throws StripeException {
 
-        // Convert amount to cents (Stripe uses smallest currency unit)
-        long amountInCents = payment.getAmount().multiply(new BigDecimal("100")).longValue();
+        String currency = payment.getCurrency() != null
+                ? payment.getCurrency().toLowerCase()
+                : stripeConfig.getSettings().getCurrency();
+
+        long amountInMinorUnits = toStripeAmount(payment.getAmount(), currency);
 
         PaymentIntentCreateParams.Builder paramsBuilder = PaymentIntentCreateParams.builder()
-                .setAmount(amountInCents)
-                .setCurrency(stripeConfig.getSettings().getCurrency())
+                .setAmount(amountInMinorUnits)
+                .setCurrency(currency)
                 .setPaymentMethod(paymentMethod.getToken())
                 .setCaptureMethod(PaymentIntentCreateParams.CaptureMethod.valueOf(
                     stripeConfig.getSettings().getCaptureMethod().toUpperCase()))
@@ -268,6 +278,96 @@ public class StripePaymentStrategy implements PaymentStrategy {
         }
 
         return PaymentIntent.create(paramsBuilder.build());
+    }
+
+    /**
+     * Create a Stripe PaymentIntent without attaching a payment method (manual confirmation flow)
+     */
+    public PaymentIntent createManualPaymentIntent(Payment payment, Map<String, Object> additionalData,
+                                                   com.pdh.payment.dto.StripePaymentIntentRequest request) throws StripeException {
+        String currency = payment.getCurrency() != null
+                ? payment.getCurrency().toLowerCase()
+                : stripeConfig.getSettings().getCurrency();
+
+        long amountInMinorUnits = toStripeAmount(payment.getAmount(), currency);
+
+        PaymentIntentCreateParams.Builder paramsBuilder = PaymentIntentCreateParams.builder()
+            .setAmount(amountInMinorUnits)
+            .setCurrency(currency)
+            .setCaptureMethod(PaymentIntentCreateParams.CaptureMethod.valueOf(
+                stripeConfig.getSettings().getCaptureMethod().toUpperCase()))
+            .setDescription(payment.getDescription());
+
+        String confirmationMethod = stripeConfig.getSettings().getConfirmationMethod();
+        if (confirmationMethod != null && !"automatic".equalsIgnoreCase(confirmationMethod)) {
+            paramsBuilder.setConfirmationMethod(PaymentIntentCreateParams.ConfirmationMethod.valueOf(
+                confirmationMethod.toUpperCase()));
+        }
+
+        // Align payment method types with Stripe Elements usage
+        paramsBuilder.addPaymentMethodType(resolveStripePaymentMethod(request.getPaymentMethodType()));
+
+        Map<String, String> metadata = new HashMap<>();
+        metadata.put("payment_id", payment.getPaymentId().toString());
+        metadata.put("booking_id", payment.getBookingId().toString());
+        metadata.put("user_id", payment.getUserId().toString());
+        if (payment.getSagaId() != null) {
+            metadata.put("saga_id", payment.getSagaId());
+        }
+        if (request.getMetadata() != null) {
+            request.getMetadata().forEach((key, value) -> {
+                if (value != null) {
+                    metadata.put(key, value);
+                }
+            });
+        }
+        paramsBuilder.putAllMetadata(metadata);
+
+        if (request.getCustomerId() != null && !request.getCustomerId().isBlank()) {
+            paramsBuilder.setCustomer(request.getCustomerId());
+        }
+
+        if (additionalData != null) {
+            if (additionalData.containsKey("customer_email")) {
+                paramsBuilder.setReceiptEmail((String) additionalData.get("customer_email"));
+            }
+            if (additionalData.containsKey("customer_name")) {
+                paramsBuilder.putMetadata("customer_name", (String) additionalData.get("customer_name"));
+            }
+        }
+
+        return PaymentIntent.create(paramsBuilder.build());
+    }
+
+    /**
+     * Update an existing Stripe PaymentIntent without confirming
+     */
+    public PaymentIntent updateManualPaymentIntent(PaymentIntent existingIntent, Payment payment,
+                                                   Map<String, Object> additionalData,
+                                                   com.pdh.payment.dto.StripePaymentIntentRequest request) throws StripeException {
+        long amountInMinorUnits = toStripeAmount(payment.getAmount(), existingIntent.getCurrency());
+
+        PaymentIntentUpdateParams.Builder paramsBuilder = PaymentIntentUpdateParams.builder()
+            .setAmount(amountInMinorUnits)
+            .setDescription(payment.getDescription());
+
+        if (request.getMetadata() != null) {
+            request.getMetadata().forEach((key, value) -> {
+                if (value != null) {
+                    paramsBuilder.putMetadata(key, value);
+                }
+            });
+        }
+
+        if (additionalData != null && additionalData.containsKey("customer_email")) {
+            paramsBuilder.setReceiptEmail((String) additionalData.get("customer_email"));
+        }
+
+        return existingIntent.update(paramsBuilder.build());
+    }
+
+    public void populateTransactionFromIntent(PaymentTransaction transaction, PaymentIntent paymentIntent) {
+        updateTransactionWithStripeData(transaction, paymentIntent);
     }
 
     private void updateTransactionWithStripeData(PaymentTransaction transaction, PaymentIntent paymentIntent) {
@@ -322,7 +422,7 @@ public class StripePaymentStrategy implements PaymentStrategy {
         refundTransaction.setProvider(PaymentProvider.STRIPE);
         refundTransaction.setSagaId(originalTransaction.getSagaId());
         refundTransaction.setSagaStep("STRIPE_REFUND_PROCESSING");
-        refundTransaction.setOriginalTransactionId(originalTransaction.getTransactionId());
+        refundTransaction.setOriginalTransaction(originalTransaction);
         refundTransaction.setIsCompensation(true);
 
         return refundTransaction;
@@ -331,12 +431,11 @@ public class StripePaymentStrategy implements PaymentStrategy {
     private Refund createStripeRefund(PaymentTransaction originalTransaction,
                                     BigDecimal refundAmount, String reason) throws StripeException {
 
-        // Convert amount to cents
-        long amountInCents = refundAmount.multiply(new BigDecimal("100")).longValue();
+        long amountInMinorUnits = toStripeAmount(refundAmount, originalTransaction.getCurrency());
 
         RefundCreateParams params = RefundCreateParams.builder()
                 .setPaymentIntent(originalTransaction.getGatewayTransactionId())
-                .setAmount(amountInCents)
+                .setAmount(amountInMinorUnits)
                 .setReason(RefundCreateParams.Reason.REQUESTED_BY_CUSTOMER)
                 .putMetadata("original_transaction_id", originalTransaction.getTransactionId().toString())
                 .putMetadata("refund_reason", reason)
@@ -363,27 +462,153 @@ public class StripePaymentStrategy implements PaymentStrategy {
         }
     }
 
-    private void handleStripeError(PaymentTransaction transaction, StripeException e) {
-        String errorCode = e.getCode() != null ? e.getCode() : "STRIPE_ERROR";
-        String errorMessage = e.getUserMessage() != null ? e.getUserMessage() : e.getMessage();
 
+    /**
+     * Create PaymentIntent with simple retry logic (MVP approach)
+     */
+    private PaymentIntent createPaymentIntentWithRetry(Payment payment, PaymentMethod paymentMethod, 
+                                                     Map<String, Object> additionalData) throws StripeException {
+        int maxRetries = 2;
+        int attempt = 0;
+        
+        while (attempt < maxRetries) {
+            attempt++;
+            try {
+                return createPaymentIntent(payment, paymentMethod, additionalData);
+            } catch (StripeException e) {
+                if (attempt >= maxRetries || !isRetryableError(e)) {
+                    throw e;
+                }
+                log.warn("Stripe payment attempt {} failed, retrying... Error: {}", attempt, e.getMessage());
+                try {
+                    Thread.sleep(1000); // Simple 1 second delay
+                } catch (InterruptedException ie) {
+                    Thread.currentThread().interrupt();
+                    throw new RuntimeException("Operation interrupted", ie);
+                }
+            }
+        }
+        throw new RuntimeException("Max retries exceeded");
+    }
+
+    /**
+     * Create Stripe Refund with simple retry logic (MVP approach)
+     */
+    private Refund createStripeRefundWithRetry(PaymentTransaction originalTransaction, 
+                                             BigDecimal refundAmount, String reason) throws StripeException {
+        int maxRetries = 2;
+        int attempt = 0;
+        
+        while (attempt < maxRetries) {
+            attempt++;
+            try {
+                return createStripeRefund(originalTransaction, refundAmount, reason);
+            } catch (StripeException e) {
+                if (attempt >= maxRetries || !isRetryableError(e)) {
+                    throw e;
+                }
+                log.warn("Stripe refund attempt {} failed, retrying... Error: {}", attempt, e.getMessage());
+                try {
+                    Thread.sleep(1000); // Simple 1 second delay
+                } catch (InterruptedException ie) {
+                    Thread.currentThread().interrupt();
+                    throw new RuntimeException("Operation interrupted", ie);
+                }
+            }
+        }
+        throw new RuntimeException("Max retries exceeded");
+    }
+
+    /**
+     * Simple retry logic - only retry on rate limits and connection errors
+     */
+    private boolean isRetryableError(StripeException e) {
+        return e.getStatusCode() >= 500 || // Server errors
+               e.getClass().getSimpleName().equals("RateLimitException") ||
+               e.getClass().getSimpleName().equals("ApiConnectionException");
+    }
+
+    private long toStripeAmount(BigDecimal amount, String currency) {
+        if (amount == null) {
+            throw new IllegalArgumentException("Amount cannot be null");
+        }
+
+        String effectiveCurrency = currency != null
+            ? currency.toLowerCase()
+            : stripeConfig.getSettings().getCurrency().toLowerCase();
+
+        BigDecimal normalizedAmount = ZERO_DECIMAL_CURRENCIES.contains(effectiveCurrency)
+            ? amount.setScale(0, RoundingMode.HALF_UP)
+            : amount.multiply(new BigDecimal("100")).setScale(0, RoundingMode.HALF_UP);
+
+        return normalizedAmount.longValueExact();
+    }
+
+    private String resolveStripePaymentMethod(PaymentMethodType methodType) {
+        if (methodType == null) {
+            return "card";
+        }
+
+        return switch (methodType) {
+            case CREDIT_CARD, DEBIT_CARD -> "card";
+            case APPLE_PAY -> "card"; // Apple Pay surfaces as card via Elements
+            case GOOGLE_PAY, SAMSUNG_PAY -> "card";
+            case PAYPAL -> "paypal";
+            case MOMO, ZALOPAY, VNPAY, VIETQR -> "card"; // Placeholder, adjust when supported directly
+            case BANK_TRANSFER, INTERNET_BANKING -> "card";
+            case BITCOIN, ETHEREUM -> "card";
+            case KLARNA -> "klarna";
+            case AFTERPAY -> "afterpay_clearpay";
+            case CASH_ON_DELIVERY, GIFT_CARD, OTHER -> "card";
+        };
+    }
+
+    /**
+     * Simple error handling for payments
+     */
+    private void handleStripeError(PaymentTransaction transaction, StripeException e) {
+        String errorMessage = getUserFriendlyMessage(e);
+        
         transaction.setStatus(PaymentStatus.FAILED);
         transaction.setGatewayStatus("ERROR");
         transaction.setFailureReason(errorMessage);
-        transaction.setFailureCode(errorCode);
+        transaction.setFailureCode(e.getCode() != null ? e.getCode() : "STRIPE_ERROR");
         transaction.setGatewayResponse(e.getMessage());
         transaction.setProcessedAt(ZonedDateTime.now());
     }
 
+    /**
+     * Simple error handling for refunds
+     */
     private void handleStripeRefundError(PaymentTransaction refundTransaction, StripeException e) {
-        String errorCode = e.getCode() != null ? e.getCode() : "STRIPE_REFUND_ERROR";
-        String errorMessage = e.getUserMessage() != null ? e.getUserMessage() : e.getMessage();
-
+        String errorMessage = getUserFriendlyMessage(e);
+        
         refundTransaction.setStatus(PaymentStatus.REFUND_FAILED);
         refundTransaction.setGatewayStatus("ERROR");
         refundTransaction.setFailureReason(errorMessage);
-        refundTransaction.setFailureCode(errorCode);
+        refundTransaction.setFailureCode(e.getCode() != null ? e.getCode() : "STRIPE_REFUND_ERROR");
         refundTransaction.setGatewayResponse(e.getMessage());
         refundTransaction.setProcessedAt(ZonedDateTime.now());
+    }
+
+    /**
+     * Convert Stripe errors to user-friendly messages (MVP approach)
+     */
+    private String getUserFriendlyMessage(StripeException e) {
+        String errorCode = e.getCode();
+        if (errorCode == null) {
+            return "Payment processing failed. Please try again.";
+        }
+        
+        return switch (errorCode) {
+            case "card_declined" -> "Your card was declined. Please try a different payment method.";
+            case "expired_card" -> "Your card has expired. Please use a different payment method.";
+            case "incorrect_cvc" -> "The security code you entered is incorrect.";
+            case "incorrect_number" -> "The card number you entered is incorrect.";
+            case "insufficient_funds" -> "Your card has insufficient funds.";
+            case "processing_error" -> "A processing error occurred. Please try again.";
+            case "authentication_required" -> "Additional authentication is required for this payment.";
+            default -> "Payment processing failed. Please try again or contact support.";
+        };
     }
 }
