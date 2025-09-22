@@ -30,6 +30,7 @@ public class FlightSearchResultDto {
     private String airlineCode;
     private String airlineLogo;
     
+    
     /**
      * Flight number
      */
@@ -42,6 +43,10 @@ public class FlightSearchResultDto {
     private String destination;
     private String originName;
     private String destinationName;
+    private Double originLatitude;
+    private Double originLongitude;
+    private Double destinationLatitude;
+    private Double destinationLongitude;
     
     /**
      * Schedule information

@@ -41,10 +41,12 @@ import org.springframework.web.bind.annotation.*;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
 import java.time.Duration;
 import java.time.ZonedDateTime;
 import java.time.ZoneOffset;
+import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -67,6 +69,8 @@ import java.util.stream.Collectors;
 @Tag(name = "Flights", description = "Flight search and booking operations")
 @SecurityRequirement(name = "oauth2")
 public class FlightController {
+
+    private static final DateTimeFormatter TIME_FORMATTER = DateTimeFormatter.ofPattern("HH:mm");
 
     private final FlightRepository flightRepository;
     private final AirportRepository airportRepository;
@@ -660,6 +664,10 @@ public class FlightController {
         response.put("departureTime", result.getDepartureTime());
         response.put("arrivalTime", result.getArrivalTime());
         response.put("duration", result.getDuration());
+        response.put("originLatitude", result.getOriginLatitude());
+        response.put("originLongitude", result.getOriginLongitude());
+        response.put("destinationLatitude", result.getDestinationLatitude());
+        response.put("destinationLongitude", result.getDestinationLongitude());
         response.put("price", result.getPrice());
         response.put("currency", result.getCurrency());
         response.put("formattedPrice", result.getFormattedPrice());
@@ -682,20 +690,71 @@ public class FlightController {
      * Convert Flight entity to response format
      */
     private Map<String, Object> convertFlightToResponse(Flight flight) {
+        FlightSchedule primarySchedule = resolvePrimarySchedule(flight.getFlightId());
+
         Map<String, Object> response = new HashMap<>();
         response.put("flightId", flight.getFlightId().toString());
         response.put("airline", flight.getAirline() != null ? flight.getAirline().getName() : "Unknown Airline");
         response.put("flightNumber", flight.getFlightNumber());
         response.put("origin", flight.getDepartureAirport() != null ? flight.getDepartureAirport().getIataCode() : "");
         response.put("destination", flight.getArrivalAirport() != null ? flight.getArrivalAirport().getIataCode() : "");
-        response.put("departureTime", "08:00"); // Mock time - in production, get from schedule
-        response.put("arrivalTime", "10:30");   // Mock time - in production, calculate from departure + duration
-        response.put("duration", formatDuration(flight.getBaseDurationMinutes()));
-        response.put("price", 2500000); // Default price - in production, get from pricing service
-        response.put("currency", "VND");
-        response.put("seatClass", "ECONOMY");
-        response.put("availableSeats", 100); // Default - in production, get from inventory
+        response.put("originLatitude", flight.getDepartureAirport() != null ? flight.getDepartureAirport().getLatitude() : null);
+        response.put("originLongitude", flight.getDepartureAirport() != null ? flight.getDepartureAirport().getLongitude() : null);
+        response.put("destinationLatitude", flight.getArrivalAirport() != null ? flight.getArrivalAirport().getLatitude() : null);
+        response.put("destinationLongitude", flight.getArrivalAirport() != null ? flight.getArrivalAirport().getLongitude() : null);
+
+        if (primarySchedule != null) {
+            response.put("departureTime", primarySchedule.getDepartureTime().format(TIME_FORMATTER));
+            response.put("arrivalTime", primarySchedule.getArrivalTime().format(TIME_FORMATTER));
+            response.put("departureDateTime", primarySchedule.getDepartureTime().toString());
+            response.put("arrivalDateTime", primarySchedule.getArrivalTime().toString());
+
+            int durationMinutes = (int) ChronoUnit.MINUTES.between(
+                primarySchedule.getDepartureTime(), primarySchedule.getArrivalTime());
+            response.put("duration", formatDuration(durationMinutes));
+        } else {
+            response.put("departureTime", "08:00");
+            response.put("arrivalTime", "10:30");
+            response.put("duration", formatDuration(flight.getBaseDurationMinutes()));
+        }
+
+        FlightFare primaryFare = primarySchedule != null ? resolvePrimaryFare(primarySchedule) : null;
+        if (primaryFare != null) {
+            response.put("price", primaryFare.getPrice());
+            response.put("currency", "VND");
+            response.put("seatClass", primaryFare.getFareClass() != null ? primaryFare.getFareClass().name() : "ECONOMY");
+            response.put("availableSeats", primaryFare.getAvailableSeats());
+        } else {
+            response.put("price", flight.getBasePrice() != null ? flight.getBasePrice() : BigDecimal.valueOf(2500000));
+            response.put("currency", "VND");
+            response.put("seatClass", "ECONOMY");
+            response.put("availableSeats", 100);
+        }
         return response;
+    }
+
+    private FlightSchedule resolvePrimarySchedule(Long flightId) {
+        List<FlightSchedule> schedules = flightScheduleRepository.findByFlightId(flightId);
+        if (schedules.isEmpty()) {
+            return null;
+        }
+        return schedules.get(0);
+    }
+
+    private FlightFare resolvePrimaryFare(FlightSchedule schedule) {
+        if (schedule == null) {
+            return null;
+        }
+
+        FlightFare fare = flightFareRepository.findByScheduleIdAndFareClass(schedule.getScheduleId(), FareClass.ECONOMY);
+        if (fare != null) {
+            return fare;
+        }
+
+        List<FlightFare> fares = flightFareRepository.findByScheduleId(schedule.getScheduleId());
+        return fares.stream()
+            .min(Comparator.comparing(FlightFare::getPrice))
+            .orElse(null);
     }
 //
 //    /**
