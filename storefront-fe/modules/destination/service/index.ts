@@ -1,224 +1,188 @@
 import type { DestinationSearchResult, SearchResponse } from "../../../types/common";
 
-// Vietnamese Administrative Units API types
-export interface Province {
-  code: string;
+/**
+ * Types returned by the Open-Meteo Geocoding API
+ * https://open-meteo.com/en/docs/geocoding-api
+ */
+type OpenMeteoGeocodingResult = {
+  id: number;
   name: string;
-  type: string;
-}
+  latitude: number;
+  longitude: number;
+  elevation?: number;
+  feature_code?: string;
+  country_code?: string;
+  country?: string;
+  population?: number;
+  timezone?: string;
+  admin1?: string;
+  admin2?: string;
+  admin3?: string;
+  admin4?: string;
+  postcodes?: string[];
+};
 
-export interface District {
-  code: string;
+type OpenMeteoGeocodingResponse = {
+  results?: OpenMeteoGeocodingResult[];
+  generationtime_ms?: number;
+  results_count?: number;
+};
+
+const GEOCODING_BASE_URL = "https://geocoding-api.open-meteo.com/v1";
+const DEFAULT_SEARCH_LANGUAGE = "en";
+
+const POPULAR_DESTINATIONS: Array<{
+  id?: number;
   name: string;
-  type: string;
-  province_code: string;
-}
-
-export interface Ward {
-  code: string;
-  name: string;
-  type: string;
-  district_code: string;
-  province_code: string;
-}
-
-export interface AdministrativeApiResponse<T> {
-  success: boolean;
-  data: T[];
-  metadata: {
-    total: number;
-    page: number;
-    limit: number;
-  };
-}
-
-export interface FullAddressResponse {
-  success: boolean;
-  data: {
-    province: Province;
-    district: District;
-    ward: Ward;
-  };
-}
-
-// API Configuration
-const ADMINISTRATIVE_API_BASE = 'https://tinhthanhpho.com/api/v1';
-
-// Popular Vietnamese destinations for hotel search
-const POPULAR_DESTINATIONS = [
-  { name: 'Hà Nội', code: '01', type: 'Thành phố' },
-  { name: 'Thành phố Hồ Chí Minh', code: '79', type: 'Thành phố' },
-  { name: 'Đà Nẵng', code: '48', type: 'Thành phố' },
-  { name: 'Hải Phòng', code: '31', type: 'Thành phố' },
-  { name: 'Cần Thơ', code: '92', type: 'Thành phố' },
-  { name: 'Nha Trang', code: '56', type: 'Thành phố' },
-  { name: 'Huế', code: '46', type: 'Thành phố' },
-  { name: 'Hội An', code: '48', type: 'Thành phố' },
-  { name: 'Phú Quốc', code: '91', type: 'Huyện' },
-  { name: 'Đà Lạt', code: '68', type: 'Thành phố' },
-  { name: 'Vũng Tàu', code: '77', type: 'Thành phố' },
-  { name: 'Quy Nhon', code: '56', type: 'Thành phố' }
+  country: string;
+  latitude: number;
+  longitude: number;
+  admin1?: string;
+  feature_code?: string;
+}> = [
+  { name: "Ho Chi Minh City", country: "Vietnam", latitude: 10.8231, longitude: 106.6297, admin1: "Ho Chi Minh", feature_code: "PPLA" },
+  { name: "Hanoi", country: "Vietnam", latitude: 21.0278, longitude: 105.8342, admin1: "Ha Noi", feature_code: "PPLC" },
+  { name: "Da Nang", country: "Vietnam", latitude: 16.0471, longitude: 108.2068, admin1: "Da Nang", feature_code: "PPLA" },
+  { name: "Nha Trang", country: "Vietnam", latitude: 12.2388, longitude: 109.1967, admin1: "Khanh Hoa", feature_code: "PPLA" },
+  { name: "Hue", country: "Vietnam", latitude: 16.4637, longitude: 107.5909, admin1: "Thua Thien-Hue", feature_code: "PPLA" },
+  { name: "Da Lat", country: "Vietnam", latitude: 11.9404, longitude: 108.4583, admin1: "Lam Dong", feature_code: "PPLA" },
+  { name: "Hoi An", country: "Vietnam", latitude: 15.8801, longitude: 108.3380, admin1: "Quang Nam", feature_code: "PPLA" },
+  { name: "Phu Quoc", country: "Vietnam", latitude: 10.2899, longitude: 103.9840, admin1: "Kien Giang", feature_code: "PPLA" },
+  { name: "Vung Tau", country: "Vietnam", latitude: 10.4114, longitude: 107.1362, admin1: "Ba Ria-Vung Tau", feature_code: "PPLA" },
+  { name: "Can Tho", country: "Vietnam", latitude: 10.0452, longitude: 105.7469, admin1: "Can Tho", feature_code: "PPLA" },
 ];
 
-export const destinationService = {
-  /**
-   * Search addresses using Vietnamese Administrative Units API
-   * @param keyword Search keyword (e.g., "hanoi", "ho chi minh")
-   * @param limit Number of results to return
-   * @param page Page number
-   * @returns Promise<AdministrativeApiResponse<Province>>
-   */
-  async searchAddress(keyword: string, limit: number = 20, page: number = 1): Promise<AdministrativeApiResponse<Province>> {
-    const params = new URLSearchParams();
-    params.append('keyword', keyword);
-    params.append('limit', limit.toString());
-    params.append('page', page.toString());
+const buildQueryString = (params: Record<string, string | number | undefined>) => {
+  const searchParams = new URLSearchParams();
+  Object.entries(params).forEach(([key, value]) => {
+    if (value !== undefined && value !== null && value !== "") {
+      searchParams.append(key, String(value));
+    }
+  });
+  return searchParams.toString();
+};
 
-    const response = await fetch(`${ADMINISTRATIVE_API_BASE}/search-address?${params}`, {
+const mapOpenMeteoResultToDestination = (result: OpenMeteoGeocodingResult): DestinationSearchResult => {
+  const adminPath = [result.admin1, result.admin2, result.admin3, result.admin4]
+    .filter(Boolean)
+    .join(", ");
+
+  return {
+    name: result.name,
+    type: result.feature_code ?? "location",
+    country: result.country ?? result.country_code ?? "Unknown",
+    category: result.feature_code ?? "location",
+    iataCode: result.id ? String(result.id) : undefined,
+    description: adminPath || undefined,
+    latitude: result.latitude,
+    longitude: result.longitude,
+    relevanceScore: undefined,
+  };
+};
+
+export const destinationService = {
+  async fetchGeocoding(params: Record<string, string | number | undefined>): Promise<OpenMeteoGeocodingResponse> {
+    const query = buildQueryString({ language: DEFAULT_SEARCH_LANGUAGE, format: "json", ...params });
+    const response = await fetch(`${GEOCODING_BASE_URL}/search?${query}`, {
       headers: {
-        'Accept': 'application/json',
-        'Content-Type': 'application/json'
-      }
+        Accept: "application/json",
+      },
     });
 
     if (!response.ok) {
-      throw new Error(`API request failed: ${response.status} ${response.statusText}`);
+      throw new Error(`Open-Meteo geocoding request failed: ${response.status} ${response.statusText}`);
     }
 
-    const data = await response.json();
-    console.log('API Response:', data); // Debug log
-    return data;
+    return (await response.json()) as OpenMeteoGeocodingResponse;
   },
 
-  /**
-   * Search destinations for hotel search (converts API response to DestinationSearchResult format)
-   * @param keyword Search keyword
-   * @param limit Number of results to return
-   * @returns Promise<SearchResponse<DestinationSearchResult>>
-   */
   async searchDestinations(keyword?: string, limit: number = 20): Promise<SearchResponse<DestinationSearchResult>> {
-    try {
-      // If no keyword provided, return popular destinations
-      if (!keyword || keyword.trim() === '') {
-        return this.getPopularDestinations();
-      }
+    const sanitizedKeyword = keyword?.trim();
 
-      // Use the simplified search-address endpoint
-      const response = await this.searchAddress(keyword, limit);
-      
-      console.log('Search response:', response); // Debug log
-      
-      if (response.success && response.data && response.data.length > 0) {
-        const destinations: DestinationSearchResult[] = response.data.map(province => ({
-          name: province.name,
-          type: province.type,
-          country: 'Vietnam',
-          category: province.type,
-          iataCode: province.code,
-          relevanceScore: this.calculateRelevanceScore(province.name, keyword)
-        }));
-
-        return {
-          results: destinations,
-          totalCount: response.metadata?.total || destinations.length,
-          query: keyword,
-          page: response.metadata?.page || 1,
-          limit: response.metadata?.limit || limit,
-          hasMore: response.metadata ? (response.metadata.page * response.metadata.limit < response.metadata.total) : false,
-          metadata: { 
-            source: 'vietnamese_administrative_api_search_address',
-            total: response.metadata?.total || destinations.length,
-            page: response.metadata?.page || 1,
-            limit: response.metadata?.limit || limit
-          }
-        };
-      }
-
-      // Return empty result if no matches found
-      return {
-        results: [],
-        totalCount: 0,
-        query: keyword,
-        metadata: { 
-          source: 'vietnamese_administrative_api_search_address', 
-          message: 'No destinations found',
-          total: 0,
-          page: 1,
-          limit: limit
-        }
-      };
-
-    } catch (error) {
-      console.error('Error searching destinations:', error);
-      return {
-        results: [],
-        totalCount: 0,
-        query: keyword || '',
-        metadata: { 
-          source: 'vietnamese_administrative_api_search_address', 
-          error: 'Error searching destinations' 
-        }
-      };
+    if (!sanitizedKeyword) {
+      return this.getPopularDestinations();
     }
-  },
 
-  /**
-   * Get popular destinations for hotel search
-   * @returns Promise<SearchResponse<DestinationSearchResult>>
-   */
-  async getPopularDestinations(): Promise<SearchResponse<DestinationSearchResult>> {
     try {
-      const destinations: DestinationSearchResult[] = POPULAR_DESTINATIONS.map(dest => ({
-        name: dest.name,
-        type: dest.type,
-        country: 'Vietnam',
-        category: dest.type,
-        iataCode: dest.code,
-        relevanceScore: 1.0
+      const geocodingResponse = await this.fetchGeocoding({ name: sanitizedKeyword, count: limit });
+      const results = geocodingResponse.results ?? [];
+
+      const destinations = results.map((result) => ({
+        ...mapOpenMeteoResultToDestination(result),
+        relevanceScore: this.calculateRelevanceScore(result.name, sanitizedKeyword),
       }));
 
       return {
         results: destinations,
-        totalCount: destinations.length,
-        query: '',
-        metadata: { source: 'popular_destinations' }
+        totalCount: results.length,
+        query: sanitizedKeyword,
+        limit,
+        page: 1,
+        hasMore: results.length >= limit,
+        metadata: {
+          source: "open_meteo_geocoding_api",
+          generationtimeMs: geocodingResponse.generationtime_ms,
+          resultsCount: geocodingResponse.results_count ?? results.length,
+        },
       };
     } catch (error) {
-      console.error('Error loading popular destinations:', error);
+      console.error("Error searching destinations via Open-Meteo:", error);
       return {
         results: [],
         totalCount: 0,
-        query: '',
-        metadata: { source: 'popular_destinations', error: 'Error loading popular destinations' }
+        query: sanitizedKeyword ?? "",
+        metadata: {
+          source: "open_meteo_geocoding_api",
+          error: error instanceof Error ? error.message : "Unknown error",
+        },
       };
     }
   },
 
-  /**
-   * Calculate relevance score for search results
-   * @param name Destination name
-   * @param keyword Search keyword
-   * @returns number Relevance score (0-1)
-   */
+  async getPopularDestinations(): Promise<SearchResponse<DestinationSearchResult>> {
+    const destinations: DestinationSearchResult[] = POPULAR_DESTINATIONS.map((destination) => ({
+      name: destination.name,
+      type: destination.feature_code ?? "popular",
+      country: destination.country,
+      category: destination.feature_code ?? "popular",
+      iataCode: destination.id ? String(destination.id) : undefined,
+      latitude: destination.latitude,
+      longitude: destination.longitude,
+      description: destination.admin1,
+      relevanceScore: 1.0,
+    }));
+
+    return {
+      results: destinations,
+      totalCount: destinations.length,
+      query: "",
+      metadata: { source: "popular_destinations" },
+    };
+  },
+
   calculateRelevanceScore(name: string, keyword: string): number {
-    if (!keyword) return 1.0;
+    if (!keyword) {
+      return 1.0;
+    }
 
     const nameLower = name.toLowerCase();
     const keywordLower = keyword.toLowerCase();
 
-    // Exact match gets highest score
-    if (nameLower === keywordLower) return 1.0;
-    
-    // Starts with keyword gets high score
-    if (nameLower.startsWith(keywordLower)) return 0.9;
-    
-    // Contains keyword gets medium score
-    if (nameLower.includes(keywordLower)) return 0.7;
-    
-    // Partial match gets lower score
-    const nameWords = nameLower.split(' ');
-    const keywordWords = keywordLower.split(' ');
-    
+    if (nameLower === keywordLower) {
+      return 1.0;
+    }
+
+    if (nameLower.startsWith(keywordLower)) {
+      return 0.9;
+    }
+
+    if (nameLower.includes(keywordLower)) {
+      return 0.7;
+    }
+
+    const nameWords = nameLower.split(" ");
+    const keywordWords = keywordLower.split(" ");
+
     for (const kw of keywordWords) {
       for (const nw of nameWords) {
         if (nw.startsWith(kw) || kw.startsWith(nw)) {
@@ -230,33 +194,20 @@ export const destinationService = {
     return 0.1;
   },
 
-  /**
-   * Get destination by code
-   * @param code Destination code
-   * @returns Promise<DestinationSearchResult | null>
-   */
   async getDestinationByCode(code: string): Promise<DestinationSearchResult | null> {
-    try {
-      const response = await this.searchAddress(code, 1);
-      
-      if (response.success && response.data.length > 0) {
-        const province = response.data[0];
-        return {
-          name: province.name,
-          type: province.type,
-          country: 'Vietnam',
-          category: province.type,
-          iataCode: province.code,
-          relevanceScore: 1.0
-        };
-      }
-
-      return null;
-    } catch (error) {
-      console.error('Error getting destination by code:', error);
+    if (!code) {
       return null;
     }
-  }
+
+    try {
+      const geocodingResponse = await this.fetchGeocoding({ ids: code, count: 1 });
+      const result = geocodingResponse.results?.[0];
+      return result ? mapOpenMeteoResultToDestination(result) : null;
+    } catch (error) {
+      console.error("Error fetching destination by id from Open-Meteo:", error);
+      return null;
+    }
+  },
 };
 
 export default destinationService;

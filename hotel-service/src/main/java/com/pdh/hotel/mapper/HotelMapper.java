@@ -210,9 +210,7 @@ public class HotelMapper {
         return response;
     }
     
-    /**
-     * Generate mock price (in production, this would come from pricing service)
-     */
+
     private BigDecimal getMinPriceOfHotel(Long hotelId) {
 
         return roomService.calculateMinRoomPerNightByHotel(hotelId);

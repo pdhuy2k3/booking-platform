@@ -48,8 +48,12 @@ public class Hotel extends AbstractAuditEntity {
     
     @Column(name = "is_active", nullable = false)
     private Boolean isActive = true;
+
     @OneToMany(mappedBy = "hotel", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<HotelImage> hotelImages;
+
+    @OneToMany(mappedBy = "hotel", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
+    private List<Room> rooms = new ArrayList<>();
 
 
 }

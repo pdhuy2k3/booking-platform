@@ -1,6 +1,10 @@
 package com.pdh.hotel.specification;
 
+import com.pdh.hotel.model.Amenity;
 import com.pdh.hotel.model.Hotel;
+import com.pdh.hotel.model.Room;
+import com.pdh.hotel.model.RoomAmenity;
+import com.pdh.hotel.model.RoomType;
 import jakarta.persistence.criteria.*;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.util.StringUtils;
@@ -8,6 +12,8 @@ import org.springframework.util.StringUtils;
 import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
+import java.util.stream.Collectors;
 
 /**
  * JPA Specifications for Hotel entity with destination search capabilities
@@ -98,17 +104,50 @@ public class HotelSpecification {
             if (minRating == null && maxRating == null) {
                 return criteriaBuilder.conjunction();
             }
-            
+
             List<Predicate> predicates = new ArrayList<>();
-            
+
             if (minRating != null) {
                 predicates.add(criteriaBuilder.greaterThanOrEqualTo(root.get("starRating"), minRating));
             }
-            
+
             if (maxRating != null) {
                 predicates.add(criteriaBuilder.lessThanOrEqualTo(root.get("starRating"), maxRating));
             }
-            
+
+            return criteriaBuilder.and(predicates.toArray(new Predicate[0]));
+        };
+    }
+
+    /**
+     * Search hotels by associated room price range.
+     */
+    public static Specification<Hotel> hasRoomPriceRange(BigDecimal minPrice, BigDecimal maxPrice) {
+        return (root, query, criteriaBuilder) -> {
+            if (minPrice == null && maxPrice == null) {
+                return criteriaBuilder.conjunction();
+            }
+
+            query.distinct(true);
+            Join<Hotel, Room> roomJoin = root.join("rooms", JoinType.LEFT);
+
+            List<Predicate> predicates = new ArrayList<>();
+            predicates.add(criteriaBuilder.isFalse(roomJoin.get("isDeleted")));
+
+            Predicate availabilityPredicate = criteriaBuilder.or(
+                criteriaBuilder.isNull(roomJoin.get("isAvailable")),
+                criteriaBuilder.isTrue(roomJoin.get("isAvailable"))
+            );
+            predicates.add(availabilityPredicate);
+
+            if (minPrice != null) {
+                predicates.add(criteriaBuilder.greaterThanOrEqualTo(roomJoin.get("price"), minPrice));
+            }
+
+            if (maxPrice != null) {
+                predicates.add(criteriaBuilder.lessThanOrEqualTo(roomJoin.get("price"), maxPrice));
+            }
+
             return criteriaBuilder.and(predicates.toArray(new Predicate[0]));
         };
     }
@@ -147,9 +186,54 @@ public class HotelSpecification {
             if (!StringUtils.hasText(description)) {
                 return criteriaBuilder.conjunction();
             }
-            
+
             String searchTerm = "%" + description.toLowerCase() + "%";
             return criteriaBuilder.like(criteriaBuilder.lower(root.get("description")), searchTerm);
+        };
+    }
+
+    /**
+     * Filter hotels that provide rooms matching a specific room type name.
+     */
+    public static Specification<Hotel> hasRoomType(String roomTypeName) {
+        return (root, query, criteriaBuilder) -> {
+            if (!StringUtils.hasText(roomTypeName)) {
+                return criteriaBuilder.conjunction();
+            }
+
+            query.distinct(true);
+            Join<Hotel, Room> roomJoin = root.join("rooms", JoinType.LEFT);
+            Join<Room, RoomType> roomTypeJoin = roomJoin.join("roomType", JoinType.LEFT);
+
+            String searchTerm = "%" + roomTypeName.toLowerCase(Locale.ROOT) + "%";
+            return criteriaBuilder.like(criteriaBuilder.lower(roomTypeJoin.get("name")), searchTerm);
+        };
+    }
+
+    /**
+     * Filter hotels that offer any of the provided amenities in their rooms.
+     */
+    public static Specification<Hotel> hasAmenities(List<String> amenities) {
+        return (root, query, criteriaBuilder) -> {
+            if (amenities == null || amenities.isEmpty()) {
+                return criteriaBuilder.conjunction();
+            }
+
+            List<String> normalized = amenities.stream()
+                .filter(StringUtils::hasText)
+                .map(name -> name.toLowerCase(Locale.ROOT))
+                .collect(Collectors.toList());
+
+            if (normalized.isEmpty()) {
+                return criteriaBuilder.conjunction();
+            }
+
+            query.distinct(true);
+            Join<Hotel, Room> roomJoin = root.join("rooms", JoinType.LEFT);
+            Join<Room, RoomAmenity> roomAmenityJoin = roomJoin.join("roomAmenities", JoinType.LEFT);
+            Join<RoomAmenity, Amenity> amenityJoin = roomAmenityJoin.join("amenity", JoinType.LEFT);
+
+            return criteriaBuilder.lower(amenityJoin.get("name")).in(normalized);
         };
     }
 

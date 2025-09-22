@@ -1,12 +1,12 @@
 # Destination Module
 
-This module provides comprehensive destination search functionality using the Vietnamese Administrative Units API from [tinhthanhpho.com](https://tinhthanhpho.com/api-docs).
+This module provides destination search functionality backed by the [Open-Meteo Geocoding API](https://open-meteo.com/en/docs/geocoding-api). It powers the storefront hotel and flight experiences with real-time city lookups and curated popular destinations.
 
 ## Features
 
-- **Vietnamese Administrative Units Integration**: Uses the official Vietnamese administrative units API for accurate city/province data
+- **Global Geocoding Coverage**: Uses Open-Meteo's worldwide geocoding data set for accurate city and location search
 - **Real-time Search**: Debounced search with configurable delay
-- **Popular Destinations**: Pre-defined list of popular Vietnamese destinations
+- **Popular Destinations**: Pre-defined list of popular Vietnamese destinations for quick access
 - **Fallback Support**: Falls back to backend API if the external service fails
 - **Type Safety**: Full TypeScript support with comprehensive type definitions
 - **Relevance Scoring**: Intelligent relevance scoring for search results
@@ -15,15 +15,11 @@ This module provides comprehensive destination search functionality using the Vi
 
 ### Base URL
 ```
-https://tinhthanhpho.com/api/v1
+https://geocoding-api.open-meteo.com/v1
 ```
 
 ### Endpoints Used
-- `GET /search-address` - Search addresses/provinces/cities (simplified single endpoint)
-
-### Rate Limits
-- **Public API**: 100 requests/minute
-- **Authenticated API**: Based on API key settings
+- `GET /search` - Search for locations by name or by numeric identifier (`ids`)
 
 ## Usage
 
@@ -32,17 +28,14 @@ https://tinhthanhpho.com/api/v1
 ```typescript
 import { destinationService } from '@/modules/destination';
 
-// Search destinations using the simplified search-address endpoint
+// Search destinations using Open-Meteo geocoding
 const searchResults = await destinationService.searchDestinations('hanoi', 10);
 
 // Get popular destinations
 const popularDestinations = await destinationService.getPopularDestinations();
 
 // Get destination by code
-const destination = await destinationService.getDestinationByCode('01');
-
-// Direct search using the search-address endpoint
-const addressResults = await destinationService.searchAddress('ho chi minh', 20, 1);
+const destination = await destinationService.getDestinationByCode('2950159');
 ```
 
 ### Using the Hook
@@ -72,7 +65,7 @@ function MyComponent() {
       />
       {loading && <div>Loading...</div>}
       {destinations.map(dest => (
-        <div key={dest.id}>{dest.name}</div>
+        <div key={dest.iataCode ?? dest.name}>{dest.name}</div>
       ))}
     </div>
   );
@@ -114,27 +107,19 @@ function MyComponent() {
 ## Data Structure
 
 ### DestinationSearchResult
-```typescript
-interface DestinationSearchResult {
-  id: string;           // Administrative code
-  name: string;         // City/province name
-  type: string;         // Type (Thành phố, Tỉnh, etc.)
-  country: string;      // Always "Vietnam"
-  code: string;         // Administrative code
-  relevanceScore: number; // 0-1 relevance score
-}
-```
+The module returns the shared `DestinationSearchResult` type defined in `types/common`:
 
-### API Response Format
 ```typescript
-interface AdministrativeApiResponse<T> {
-  success: boolean;
-  data: T[];
-  metadata: {
-    total: number;
-    page: number;
-    limit: number;
-  };
+export type DestinationSearchResult = {
+  name: string;
+  type: string;
+  country: string;
+  category: string;
+  iataCode?: string;
+  relevanceScore?: number;
+  description?: string;
+  latitude?: number;
+  longitude?: number;
 }
 ```
 
@@ -142,18 +127,16 @@ interface AdministrativeApiResponse<T> {
 
 The module includes a pre-defined list of popular Vietnamese destinations:
 
-- Hà Nội (01)
-- Thành phố Hồ Chí Minh (79)
-- Đà Nẵng (48)
-- Hải Phòng (31)
-- Cần Thơ (92)
-- Nha Trang (56)
-- Huế (46)
-- Hội An (48)
-- Phú Quốc (91)
-- Đà Lạt (68)
-- Vũng Tàu (77)
-- Quy Nhon (56)
+- Ho Chi Minh City
+- Hanoi
+- Da Nang
+- Nha Trang
+- Hue
+- Da Lat
+- Hoi An
+- Phu Quoc
+- Vung Tau
+- Can Tho
 
 ## Error Handling
 
@@ -169,15 +152,10 @@ The module includes comprehensive error handling:
 ### Service Configuration
 ```typescript
 const destinationService = {
-  // Base API URL
-  ADMINISTRATIVE_API_BASE: 'https://tinhthanhpho.com/api/v1',
-  
-  // Popular destinations list
-  POPULAR_DESTINATIONS: [...],
-  
-  // Default search parameters
+  geocodingBaseUrl: 'https://geocoding-api.open-meteo.com/v1',
   defaultLimit: 20,
-  defaultDebounceMs: 300
+  defaultDebounceMs: 300,
+  // ...
 };
 ```
 

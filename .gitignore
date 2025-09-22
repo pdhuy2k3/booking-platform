@@ -48,6 +48,6 @@ memory
 scripts
 templates
 .playwright-mcp
-
+aiagent
 ### Node.js ###
 node_modules/

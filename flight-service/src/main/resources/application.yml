@@ -15,19 +15,7 @@ springdoc:
     authorization-url: ${KEYCLOAK_ISSUER_URI:http://localhost:9090}/protocol/openid-connect/auth
     token-url: ${KEYCLOAK_ISSUER_URI:http://localhost:9090}/protocol/openid-connect/token
   show-actuator: true
-  group-configs:
-    - group: 'public'
-      display-name: 'Public API'
-      paths-to-match: '/storefront/**'
-    - group: 'admin'
-      display-name: 'Admin API'
-      paths-to-match: '/backoffice/**'
-    - group: 'internal'
-      display-name: 'Internal API'
-      paths-to-match: ['/reserve', '/cancel-reservation', '/confirm-reservation']
-    - group: 'monitoring'
-      display-name: 'Monitoring & Health'
-      paths-to-match: '**/health'
+
 
 # API Documentation Properties
 api:
@@ -110,7 +98,20 @@ spring:
       resourceserver:
        jwt:
          issuer-uri: http://localhost:9090/realms/BookingSmart
-
+  ai:
+    mcp:
+      server:
+        enabled: true
+        stdio: false
+        name: flight-mcp-server
+        version: 1.0.0
+        type: sync
+        base-url: /flights
+        capabilities:
+          prompt: false
+          completion: false
+          resource: false
+          tool: true
   liquibase:
     enabled: true
     default-schema: public
@@ -172,7 +173,20 @@ spring:
       resourceserver:
         jwt:
           issuer-uri: ${JWT_ISSUER_URI}
-
+  ai:
+    mcp:
+      server:
+        enabled: true
+        stdio: false
+        name: flight-mcp-server
+        version: 1.0.0
+        type: sync
+        base-url: /flights
+        capabilities:
+          prompt: false
+          completion: false
+          resource: false
+          tool: true
   liquibase:
     enabled: true
     default-schema: public

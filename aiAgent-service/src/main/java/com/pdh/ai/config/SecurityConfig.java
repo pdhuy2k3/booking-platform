@@ -1,4 +1,4 @@
-package com.pdh.ai;
+package com.pdh.ai.config;
 
 import java.util.ArrayList;
 import java.util.Collection;

@@ -36,7 +36,8 @@ public class FlightSpecification {
             return criteriaBuilder.or(
                 criteriaBuilder.like(criteriaBuilder.lower(departureAirport.get("city")), searchTerm),
                 criteriaBuilder.like(criteriaBuilder.lower(departureAirport.get("country")), searchTerm),
-                criteriaBuilder.like(criteriaBuilder.lower(departureAirport.get("iataCode")), searchTerm)
+                criteriaBuilder.like(criteriaBuilder.lower(departureAirport.get("iataCode")), searchTerm),
+                criteriaBuilder.like(criteriaBuilder.lower(departureAirport.get("name")), searchTerm)
             );
         };
     }
@@ -57,7 +58,8 @@ public class FlightSpecification {
             return criteriaBuilder.or(
                 criteriaBuilder.like(criteriaBuilder.lower(arrivalAirport.get("city")), searchTerm),
                 criteriaBuilder.like(criteriaBuilder.lower(arrivalAirport.get("country")), searchTerm),
-                criteriaBuilder.like(criteriaBuilder.lower(arrivalAirport.get("iataCode")), searchTerm)
+                criteriaBuilder.like(criteriaBuilder.lower(arrivalAirport.get("iataCode")), searchTerm),
+                criteriaBuilder.like(criteriaBuilder.lower(arrivalAirport.get("name")), searchTerm)
             );
         };
     }

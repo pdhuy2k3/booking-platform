@@ -1,5 +1,7 @@
-package com.pdh.ai;
+package controller;
 
+import com.pdh.ai.ChatRequest;
+import com.pdh.ai.service.AiService;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 

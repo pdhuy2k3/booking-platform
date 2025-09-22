@@ -12,8 +12,12 @@ import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
 import java.math.BigDecimal;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.LinkedHashSet;
+import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * Service for hotel search using JPA Specifications
@@ -261,15 +265,22 @@ public class HotelSearchSpecificationService {
         if (criteria == null) {
             return HotelSpecification.isActive();
         }
-        
+
+        Specification<Hotel> destinationSpec = buildDestinationSpecification(criteria);
+
         return HotelSpecification.combine(
             HotelSpecification.isActive(),
-            StringUtils.hasText(criteria.getDestination()) ? HotelSpecification.hasDestinationSearch(criteria.getDestination()) : null,
+            destinationSpec,
             StringUtils.hasText(criteria.getCity()) ? HotelSpecification.hasCity(criteria.getCity()) : null,
             StringUtils.hasText(criteria.getCountry()) ? HotelSpecification.hasCountry(criteria.getCountry()) : null,
             StringUtils.hasText(criteria.getAddress()) ? HotelSpecification.hasAddress(criteria.getAddress()) : null,
             StringUtils.hasText(criteria.getName()) ? HotelSpecification.hasName(criteria.getName()) : null,
             StringUtils.hasText(criteria.getDescription()) ? HotelSpecification.hasDescription(criteria.getDescription()) : null,
+            criteria.getMinPrice() != null || criteria.getMaxPrice() != null ?
+                HotelSpecification.hasRoomPriceRange(criteria.getMinPrice(), criteria.getMaxPrice()) : null,
+            StringUtils.hasText(criteria.getRoomType()) ? HotelSpecification.hasRoomType(criteria.getRoomType()) : null,
+            criteria.getAmenities() != null && !criteria.getAmenities().isEmpty() ?
+                HotelSpecification.hasAmenities(criteria.getAmenities()) : null,
             criteria.getMinRating() != null || criteria.getMaxRating() != null ? 
                 HotelSpecification.hasStarRatingRange(criteria.getMinRating(), criteria.getMaxRating()) : null,
             criteria.getLatitude() != null && criteria.getLongitude() != null && criteria.getRadiusKm() != null ? 
@@ -281,16 +292,62 @@ public class HotelSearchSpecificationService {
         );
     }
 
+    private Specification<Hotel> buildDestinationSpecification(HotelSearchCriteria criteria) {
+        if (criteria == null) {
+            return null;
+        }
+
+        Set<String> destinationTerms = new LinkedHashSet<>();
+
+        if (criteria.getDestinationTerms() != null) {
+            criteria.getDestinationTerms().stream()
+                .filter(StringUtils::hasText)
+                .map(String::trim)
+                .forEach(destinationTerms::add);
+        }
+
+        if (destinationTerms.isEmpty() && StringUtils.hasText(criteria.getDestination())) {
+            destinationTerms.add(criteria.getDestination().trim());
+        }
+
+        if (destinationTerms.isEmpty()) {
+            return null;
+        }
+
+        List<Specification<Hotel>> destinationSpecifications = new ArrayList<>();
+        for (String term : destinationTerms) {
+            destinationSpecifications.add(HotelSpecification.hasCity(term));
+            destinationSpecifications.add(HotelSpecification.hasCountry(term));
+            destinationSpecifications.add(HotelSpecification.hasAddress(term));
+        }
+
+        if (destinationSpecifications.isEmpty()) {
+            return null;
+        }
+
+        Specification<Hotel> combined = Specification.where(destinationSpecifications.get(0));
+        for (int i = 1; i < destinationSpecifications.size(); i++) {
+            combined = combined.or(destinationSpecifications.get(i));
+        }
+
+        return combined;
+    }
+
     /**
      * Hotel search criteria DTO
      */
     public static class HotelSearchCriteria {
         private String destination;
+        private List<String> destinationTerms;
         private String city;
         private String country;
         private String address;
         private String name;
         private String description;
+        private BigDecimal minPrice;
+        private BigDecimal maxPrice;
+        private String roomType;
+        private List<String> amenities;
         private BigDecimal minRating;
         private BigDecimal maxRating;
         private BigDecimal latitude;
@@ -317,6 +374,9 @@ public class HotelSearchSpecificationService {
         public String getDestination() { return destination; }
         public void setDestination(String destination) { this.destination = destination; }
 
+        public List<String> getDestinationTerms() { return destinationTerms; }
+        public void setDestinationTerms(List<String> destinationTerms) { this.destinationTerms = destinationTerms; }
+
         public String getCity() { return city; }
         public void setCity(String city) { this.city = city; }
 
@@ -331,6 +391,18 @@ public class HotelSearchSpecificationService {
 
         public String getDescription() { return description; }
         public void setDescription(String description) { this.description = description; }
+
+        public BigDecimal getMinPrice() { return minPrice; }
+        public void setMinPrice(BigDecimal minPrice) { this.minPrice = minPrice; }
+
+        public BigDecimal getMaxPrice() { return maxPrice; }
+        public void setMaxPrice(BigDecimal maxPrice) { this.maxPrice = maxPrice; }
+
+        public String getRoomType() { return roomType; }
+        public void setRoomType(String roomType) { this.roomType = roomType; }
+
+        public List<String> getAmenities() { return amenities; }
+        public void setAmenities(List<String> amenities) { this.amenities = amenities; }
 
         public BigDecimal getMinRating() { return minRating; }
         public void setMinRating(BigDecimal minRating) { this.minRating = minRating; }
@@ -363,11 +435,16 @@ public class HotelSearchSpecificationService {
         public String toString() {
             return "HotelSearchCriteria{" +
                     "destination='" + destination + '\'' +
+                    ", destinationTerms=" + destinationTerms +
                     ", city='" + city + '\'' +
                     ", country='" + country + '\'' +
                     ", address='" + address + '\'' +
                     ", name='" + name + '\'' +
                     ", description='" + description + '\'' +
+                    ", minPrice=" + minPrice +
+                    ", maxPrice=" + maxPrice +
+                    ", roomType='" + roomType + '\'' +
+                    ", amenities=" + amenities +
                     ", minRating=" + minRating +
                     ", maxRating=" + maxRating +
                     ", latitude=" + latitude +
