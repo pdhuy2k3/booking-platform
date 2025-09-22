@@ -1,4 +1,4 @@
-package controller;
+package com.pdh.ai.controller;
 
 import com.pdh.ai.ChatRequest;
 import com.pdh.ai.service.AiService;
