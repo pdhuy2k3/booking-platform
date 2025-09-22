@@ -63,10 +63,10 @@ export function PaymentMethodsTab() {
 
   return (
     <div className="space-y-6">
-      <Card className="bg-gray-900/50 border-gray-800">
+      <Card className="bg-white border-gray-200">
         <CardHeader className="flex flex-row items-center justify-between">
           <div>
-            <CardTitle className="text-white">Payment Methods</CardTitle>
+            <CardTitle className="text-gray-900">Payment Methods</CardTitle>
             <CardDescription>Manage your payment methods for bookings</CardDescription>
           </div>
           <Button className="bg-cyan-500 hover:bg-cyan-600">
@@ -78,7 +78,7 @@ export function PaymentMethodsTab() {
           {paymentMethods.length === 0 ? (
             <div className="text-center py-8">
               <CreditCard className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-              <h3 className="text-lg font-medium text-white mb-2">No Payment Methods</h3>
+              <h3 className="text-lg font-medium text-card-foreground mb-2">No Payment Methods</h3>
               <p className="text-gray-400 mb-4">Add a payment method to make bookings easier</p>
               <Button className="bg-cyan-500 hover:bg-cyan-600">
                 <Plus className="h-4 w-4 mr-2" />
@@ -90,22 +90,22 @@ export function PaymentMethodsTab() {
               {paymentMethods.map((method) => (
                 <div
                   key={method.id}
-                  className="flex items-center justify-between p-4 bg-gray-800/50 border border-gray-700 rounded-lg"
+                  className="flex items-center justify-between p-4 bg-white border border-gray-200 rounded-lg"
                 >
                   <div className="flex items-center gap-4">
                     <div className="text-2xl">{getCardIcon(method.type)}</div>
                     <div>
                       <div className="flex items-center gap-2">
-                        <span className="text-white font-medium">
+                        <span className="text-gray-900 font-medium">
                           {method.type.toUpperCase()} •••• {method.last4}
                         </span>
                         {method.isDefault && (
-                          <Badge variant="secondary" className="bg-cyan-500/10 text-cyan-400">
+                          <Badge variant="secondary" className="bg-cyan-500/10 text-cyan-600">
                             Default
                           </Badge>
                         )}
                       </div>
-                      <p className="text-gray-400 text-sm">
+                      <p className="text-gray-600 text-sm">
                         Expires {method.expiryMonth}/{method.expiryYear}
                       </p>
                     </div>
@@ -116,7 +116,7 @@ export function PaymentMethodsTab() {
                         variant="outline"
                         size="sm"
                         onClick={() => handleSetDefault(method.id)}
-                        className="border-gray-700 hover:bg-gray-800"
+                        className="border-gray-300 hover:bg-gray-50"
                       >
                         Set Default
                       </Button>
@@ -124,7 +124,7 @@ export function PaymentMethodsTab() {
                     <Button
                       variant="outline"
                       size="sm"
-                      className="border-gray-700 hover:bg-gray-800"
+                      className="border-gray-300 hover:bg-gray-50"
                     >
                       <Edit3 className="h-4 w-4" />
                     </Button>

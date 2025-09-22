@@ -84,10 +84,10 @@ export function AddressForm({ user, onUpdate }: AddressFormProps) {
   }
 
   return (
-    <Card className="bg-gray-900/50 border-gray-800">
+    <Card className="bg-white border-gray-200">
       <CardHeader className="flex flex-row items-center justify-between">
         <div>
-          <CardTitle className="text-white">Billing Address</CardTitle>
+          <CardTitle className="text-gray-900">Billing Address</CardTitle>
           <CardDescription>Your billing and contact address for bookings</CardDescription>
         </div>
         <div className="flex gap-2">
@@ -95,7 +95,7 @@ export function AddressForm({ user, onUpdate }: AddressFormProps) {
             variant={isEditing ? "default" : "outline"}
             onClick={isEditing ? handleSaveAddress : () => setIsEditing(true)}
             disabled={isSaving}
-            className={isEditing ? "bg-cyan-500 hover:bg-cyan-600" : "border-gray-700 hover:bg-gray-800"}
+            className={isEditing ? "bg-cyan-500 hover:bg-cyan-600" : "border-gray-300 hover:bg-gray-50"}
           >
             {isEditing ? (
               <>
@@ -125,7 +125,7 @@ export function AddressForm({ user, onUpdate }: AddressFormProps) {
               onChange={(e) => setAddressInfo((prev) => ({ ...prev, address: e.target.value }))}
               disabled={!isEditing}
               placeholder="Enter your street address (e.g., 123 Main Street, Apt 4B)"
-              className="bg-gray-800/50 border-gray-700 disabled:opacity-60"
+              className="bg-white border-gray-300 disabled:opacity-60"
             />
           </div>
           <div className="space-y-2">
@@ -136,7 +136,7 @@ export function AddressForm({ user, onUpdate }: AddressFormProps) {
               onChange={(e) => setAddressInfo((prev) => ({ ...prev, city: e.target.value }))}
               disabled={!isEditing}
               placeholder="Enter your city name"
-              className="bg-gray-800/50 border-gray-700 disabled:opacity-60"
+              className="bg-white border-gray-300 disabled:opacity-60"
             />
           </div>
           <div className="space-y-2">
@@ -147,7 +147,7 @@ export function AddressForm({ user, onUpdate }: AddressFormProps) {
               onChange={(e) => setAddressInfo((prev) => ({ ...prev, state: e.target.value }))}
               disabled={!isEditing}
               placeholder="Enter your state or province (optional)"
-              className="bg-gray-800/50 border-gray-700 disabled:opacity-60"
+              className="bg-white border-gray-300 disabled:opacity-60"
             />
           </div>
           <div className="space-y-2">
@@ -158,7 +158,7 @@ export function AddressForm({ user, onUpdate }: AddressFormProps) {
               onChange={(e) => setAddressInfo((prev) => ({ ...prev, country: e.target.value }))}
               disabled={!isEditing}
               placeholder="Select your country"
-              className="bg-gray-800/50 border-gray-700 disabled:opacity-60"
+              className="bg-white border-gray-300 disabled:opacity-60"
             />
           </div>
           <div className="space-y-2">
@@ -169,7 +169,7 @@ export function AddressForm({ user, onUpdate }: AddressFormProps) {
               onChange={(e) => setAddressInfo((prev) => ({ ...prev, postalCode: e.target.value }))}
               disabled={!isEditing}
               placeholder="Enter your postal/zip code (optional)"
-              className="bg-gray-800/50 border-gray-700 disabled:opacity-60"
+              className="bg-white border-gray-300 disabled:opacity-60"
             />
           </div>
         </div>

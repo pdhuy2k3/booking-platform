@@ -124,10 +124,10 @@ export function BookingSummaryView() {
             <CardTitle className="text-xl">Selected Flight</CardTitle>
           </div>
           <div className="flex gap-2">
-            <Button variant="outline" size="sm" onClick={() => router.push('/flights')}>
+            <Button variant="outline" size="sm" onClick={() => router.push('/?tab=search&searchTab=flights')}>
               Change flight
             </Button>
-            <Button variant="ghost" size="icon" onClick={() => router.push('/flights')}>
+            <Button variant="ghost" size="icon" onClick={() => router.push('/?tab=search&searchTab=flights')}>
               <RefreshCcw className="h-4 w-4" />
               <span className="sr-only">Change flight</span>
             </Button>
@@ -208,10 +208,10 @@ export function BookingSummaryView() {
             <CardTitle className="text-xl">Selected Stay</CardTitle>
           </div>
           <div className="flex gap-2">
-            <Button variant="outline" size="sm" onClick={() => router.push('/hotels')}>
+            <Button variant="outline" size="sm" onClick={() => router.push('/?tab=search&searchTab=hotels')}>
               Change room
             </Button>
-            <Button variant="ghost" size="icon" onClick={() => router.push('/hotels')}>
+            <Button variant="ghost" size="icon" onClick={() => router.push('/?tab=search&searchTab=hotels')}>
               <RefreshCcw className="h-4 w-4" />
               <span className="sr-only">Change room</span>
             </Button>
@@ -278,8 +278,8 @@ export function BookingSummaryView() {
           </p>
         </div>
         <div className="flex flex-col gap-2 sm:flex-row">
-          <Button onClick={() => router.push('/flights')}>Find flights</Button>
-          <Button variant="outline" onClick={() => router.push('/hotels')}>
+          <Button onClick={() => router.push('/?tab=search&searchTab=flights')}>Find flights</Button>
+          <Button variant="outline" onClick={() => router.push('/?tab=search&searchTab=hotels')}>
             Browse hotels
           </Button>
         </div>

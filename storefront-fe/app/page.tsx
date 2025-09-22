@@ -1,62 +1,95 @@
 "use client"
 
-import { useRef, useState } from "react"
-import { useRouter } from "next/navigation"
+import { useState, useEffect } from "react"
+import { useRouter, useSearchParams } from "next/navigation"
+import { Search, MessageCircle } from "lucide-react"
+import { cn } from "@/lib/utils"
 import { ChatInterface } from "@/components/chat-interface"
-import { BookingModal } from "@/components/booking-modal"
-import { WelcomeScreen } from "@/components/welcome-screen"
+import { SearchInterface } from "@/components/search-interface"
 
-export default function TravelBookingPage() {
+type MainTab = "chat" | "search"
+
+export default function HomePage() {
   const router = useRouter()
-  const [selectedItem, setSelectedItem] = useState<any>(null)
-  const [chatStarted, setChatStarted] = useState(false)
-  const chatInterfaceRef = useRef<any>(null)
+  const searchParams = useSearchParams()
+  const [activeTab, setActiveTab] = useState<MainTab>("chat")
 
-  const handleItemSelect = (item: any) => {
-    setSelectedItem(item)
-  }
-
-  const handleCloseModal = () => {
-    setSelectedItem(null)
-  }
-
-  const handleStartBooking = (type: "flight" | "hotel" | "both") => {
-    if (type === "flight") router.push("/flights")
-    else if (type === "hotel") router.push("/hotels")
-    else router.push("/bookings")
-  }
-
-  const handleSearchResults = (results: any[], _type: string) => {
-    if (results.length === 1) {
-      setSelectedItem(results[0])
+  // Handle URL parameters
+  useEffect(() => {
+    const tab = searchParams.get("tab") as MainTab
+    if (tab && (tab === "chat" || tab === "search")) {
+      setActiveTab(tab)
     }
-  }
+  }, [searchParams])
 
-  const handleChatStart = () => setChatStarted(true)
-
-  const handleExampleClick = (prompt: string) => {
-    setChatStarted(true)
-    requestAnimationFrame(() => {
-      if (chatInterfaceRef.current) {
-        chatInterfaceRef.current.handleExamplePrompt(prompt)
+  const handleTabChange = (tab: MainTab) => {
+    setActiveTab(tab)
+    // Update URL without refreshing the page
+    const params = new URLSearchParams()
+    params.set("tab", tab)
+    
+    if (tab === "search") {
+      // When switching to search tab, default to flights if no searchTab exists
+      const currentSearchTab = searchParams.get("searchTab")
+      if (!currentSearchTab || (currentSearchTab !== "flights" && currentSearchTab !== "hotels")) {
+        params.set("searchTab", "flights")
+      } else {
+        params.set("searchTab", currentSearchTab)
       }
-    })
+    }
+    // Don't add searchTab parameter for chat tab
+    
+    router.replace(`/?${params.toString()}`, { scroll: false })
   }
+
+  const tabs = [
+    { id: "chat" as const, label: "Chat", icon: MessageCircle },
+    { id: "search" as const, label: "Search", icon: Search },
+  ]
 
   return (
-    <>
-      {!chatStarted ? (
-        <WelcomeScreen onExampleClick={handleExampleClick} />
-      ) : (
-        <ChatInterface
-          ref={chatInterfaceRef}
-          onSearchResults={handleSearchResults}
-          onStartBooking={handleStartBooking}
-          onChatStart={handleChatStart}
-          onItemSelect={handleItemSelect}
-        />
-      )}
-      {selectedItem && <BookingModal item={selectedItem} onClose={handleCloseModal} />} 
-    </>
+    <div className="flex flex-col h-full">
+      {/* Main Tab Navigation */}
+      <div className="flex items-center justify-center p-4 border-b border-border">
+        <div className="flex bg-muted rounded-full p-1">
+          {tabs.map((tab) => {
+            const Icon = tab.icon
+            return (
+              <button
+                key={tab.id}
+                onClick={() => handleTabChange(tab.id)}
+                className={cn(
+                  "flex items-center gap-2 px-6 py-2 rounded-full text-sm font-medium transition-all duration-200",
+                  activeTab === tab.id
+                    ? "bg-background text-foreground shadow-sm"
+                    : "text-muted-foreground hover:text-foreground"
+                )}
+              >
+                <Icon className="h-4 w-4" />
+                {tab.label}
+              </button>
+            )
+          })}
+        </div>
+      </div>
+
+      {/* Tab Content */}
+      <div className="flex-1 overflow-hidden">
+        {activeTab === "chat" && (
+          <div className="h-full">
+            <ChatInterface
+              onSearchResults={() => {}}
+              onStartBooking={() => {}}
+              onChatStart={() => {}}
+            />
+          </div>
+        )}
+        {activeTab === "search" && (
+          <div className="h-full">
+            <SearchInterface />
+          </div>
+        )}
+      </div>
+    </div>
   )
 }

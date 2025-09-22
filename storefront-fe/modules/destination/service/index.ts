@@ -29,7 +29,7 @@ type OpenMeteoGeocodingResponse = {
 };
 
 const GEOCODING_BASE_URL = "https://geocoding-api.open-meteo.com/v1";
-const DEFAULT_SEARCH_LANGUAGE = "en";
+const DEFAULT_SEARCH_LANGUAGE = "vn";
 
 const POPULAR_DESTINATIONS: Array<{
   id?: number;

@@ -1,185 +1,244 @@
 "use client"
 
-import { MessageSquare, Plane, Building2, User, LogOut, Settings, Calendar, CreditCard, ChevronUp } from "lucide-react"
-import Image from "next/image"
+import type { ElementType } from "react"
+import { useMemo } from "react"
 import Link from "next/link"
 import { usePathname, useRouter } from "next/navigation"
 import { cn } from "@/lib/utils"
-import { useState } from "react"
+import {
+  MessageCircle,
+  Search,
+  Heart,
+  Briefcase,
+  Bell,
+  Sparkles,
+  Plus,
+  Info,
+  Settings,
+  LogOut,
+  UserRound,
+  User,
+  History,
+  BarChart3,
+} from "lucide-react"
+import Image from "next/image"
 import { useAuth } from "@/contexts/auth-context"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 
-const navigation = [
-  { name: "Chat", icon: MessageSquare, href: "/" },
-  { name: "Flights", icon: Plane, href: "/flights" },
-  { name: "Hotels", icon: Building2, href: "/hotels" },
-  { name: "Bookings", icon: Calendar, href: "/bookings" },
-]
+interface NavItem {
+  label: string
+  icon: ElementType
+  href?: string
+  action?: () => void
+}
 
 export function Sidebar() {
   const pathname = usePathname()
   const router = useRouter()
-  const [showUserMenu, setShowUserMenu] = useState(false)
   const { user, isAuthenticated, isLoading, login, logout } = useAuth()
 
-  const userMenuOptions = [
-    { name: "Dashboard", icon: User, action: () => router.push("/dashboard") },
-    { name: "Payment", icon: CreditCard, action: () => router.push("/dashboard#payments") },
-    { name: "Settings", icon: Settings, action: () => router.push("/dashboard#preferences") },
-    { name: "Logout", icon: LogOut, action: () => logout() },
-  ]
+  const primaryNav: NavItem[] = useMemo(
+    () => [
+      { label: "Chats", icon: MessageCircle, href: "/" },
+      { label: "Explore", icon: Search, href: "/explore" },
+      { label: "Saved", icon: Heart, href: "/saved" },
+      { label: "Trips", icon: Briefcase, href: "/trips" },
+      { label: "Updates", icon: Bell, href: "/updates" },
+      { label: "Inspiration", icon: Sparkles, href: "/inspiration" },
+    ],
+    [],
+  )
 
-  const chatHistory = [
-    "Weekend trip to Paris",
-    "Business travel options",
-    "Summer vacation planning",
-    "Hotel booking in Tokyo",
-    "Flight comparison NYC-LA",
-    "European backpacking trip",
-    "Luxury resorts in Maldives",
-    "Budget travel to Southeast Asia",
-    "Family vacation to Disney World",
-    "Honeymoon destinations",
-    "Solo travel safety tips",
-    "Best time to visit Japan",
-    "Ski resorts in Switzerland",
-    "Beach holidays in Greece",
-    "Cultural tours in Italy",
-    "Adventure travel in New Zealand",
-    "Food tours in Thailand",
-    "Safari trips in Kenya",
-    "Northern lights in Iceland",
-    "City breaks in Europe",
-  ]
+  const secondaryNav: NavItem[] = useMemo(
+    () => [
+      { label: "Create", icon: Plus, href: "/create" },
+    ],
+    [],
+  )
+
+  const handleSettings = () => router.push("/dashboard#preferences")
 
   return (
-    <div className="w-64 bg-sidebar border-r border-sidebar-border flex flex-col h-screen">
-      <div className="flex-shrink-0">
-        <div className="p-6">
-          <div className="flex items-center space-x-2">
-            <div className="w-8 h-8 bg-sidebar-primary rounded-lg flex items-center justify-center">
-              <Plane className="w-5 h-5 text-sidebar-primary-foreground" />
-            </div>
-            <span className="text-xl font-bold text-sidebar-foreground">TravelAI</span>
-          </div>
+    <aside className="w-16 shrink-0 bg-white border-r border-gray-200 flex flex-col items-center py-4 gap-1">
+      {/* Logo */}
+      <Link
+        href="/"
+        className="flex h-10 w-10 items-center justify-center rounded-full mb-4"
+        aria-label="mindtrip Home"
+      >
+        <div className="text-2xl font-bold">
+          <span className="text-black">🧠</span>
         </div>
+      </Link>
 
-        <nav className="px-4 space-y-2">
-          {navigation.map((item) => {
-            const active = pathname === item.href
+      {/* Main Navigation */}
+      <nav className="flex-1 flex flex-col items-center gap-1">
+        {primaryNav.map((item) => {
+          const isActive = item.href ? pathname === item.href : false
+          const Icon = item.icon
+          const content = (
+            <div
+              className={cn(
+                "flex h-10 w-10 items-center justify-center rounded-full transition-all duration-200",
+                isActive 
+                  ? "bg-gray-900 text-white" 
+                  : "text-gray-600 hover:bg-gray-100 hover:text-gray-900"
+              )}
+            >
+              <Icon className="h-5 w-5" />
+            </div>
+          )
+
+          if (item.href) {
             return (
-              <Link
-                key={item.name}
-                href={item.href}
-                className={cn(
-                  "w-full flex items-center px-3 py-2 text-sm font-medium rounded-lg transition-colors",
-                  active
-                    ? "bg-sidebar-primary text-sidebar-primary-foreground"
-                    : "text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
-                )}
-              >
-                <item.icon className="mr-3 h-5 w-5" />
-                {item.name}
+              <Link key={item.label} href={item.href} aria-label={item.label} className="relative">
+                {content}
+                <span className="sr-only">{item.label}</span>
               </Link>
             )
-          })}
-        </nav>
+          }
 
-        <div className="px-4 mt-6">
-          <div className="border-t border-sidebar-border"></div>
-        </div>
-
-        <div className="px-4 pt-4 pb-2">
-          <div className="text-xs text-muted-foreground">Conversations</div>
-        </div>
-      </div>
-
-      <div className="flex-1 overflow-y-auto px-4 space-y-1 min-h-0">
-        {chatHistory.map((chat, index) => (
-          <div
-            key={index}
-            className={cn(
-              "text-sm truncate py-1 cursor-pointer hover:text-sidebar-foreground transition-colors",
-              index === 0 ? "text-sidebar-foreground" : "text-muted-foreground",
-            )}
-          >
-            {chat}
-          </div>
-        ))}
-      </div>
-
-      <div className="relative flex-shrink-0">
-        {showUserMenu && (
-          <div className="absolute bottom-full left-4 right-4 mb-2 bg-sidebar-accent border border-sidebar-border rounded-lg shadow-lg py-2 z-50">
-            {userMenuOptions.map((option) => (
-              <button
-                key={option.name}
-                onClick={() => {
-                  option.action()
-                  setShowUserMenu(false)
-                }}
-                className="w-full flex items-center px-3 py-2 text-sm text-sidebar-foreground hover:bg-sidebar-primary hover:text-sidebar-primary-foreground transition-colors"
-              >
-                <option.icon className="mr-3 h-4 w-4" />
-                {option.name}
-              </button>
-            ))}
-          </div>
-        )}
-
-        <div className="p-4 border-t border-sidebar-border">
-          {isLoading ? (
-            <div className="w-full flex items-center space-x-3 p-2 rounded-lg">
-              <div className="w-10 h-10 bg-gray-600 rounded-full animate-pulse"></div>
-              <div className="flex-1">
-                <div className="h-4 bg-gray-600 rounded animate-pulse mb-1"></div>
-                <div className="h-3 bg-gray-600 rounded animate-pulse w-2/3"></div>
-              </div>
-            </div>
-          ) : isAuthenticated && user ? (
+          return (
             <button
-              onClick={() => setShowUserMenu(!showUserMenu)}
-              className="w-full flex items-center space-x-3 p-2 rounded-lg hover:bg-sidebar-accent transition-colors"
+              key={item.label}
+              type="button"
+              onClick={item.action}
+              aria-label={item.label}
+              className="relative"
             >
-              <div className="w-10 h-10 bg-gradient-to-br from-cyan-400 to-blue-500 rounded-full flex items-center justify-center text-white font-semibold overflow-hidden relative">
-                {user.picture ? (
-                  <Image
-                    src={user.picture}
-                    alt={user.fullName}
-                    fill
-                    className="object-cover"
-                  />
-                ) : (
-                  user.fullName
-                    .split(" ")
-                    .map((n) => n[0])
-                    .join("")
-                    .toUpperCase()
-                )}
-              </div>
-              <div className="flex-1 text-left">
-                <div className="text-sm font-medium text-sidebar-foreground">{user.fullName}</div>
-                <div className="text-xs text-muted-foreground">{user.email}</div>
-              </div>
-              <ChevronUp
-                className={cn("h-4 w-4 text-muted-foreground transition-transform", showUserMenu && "rotate-180")}
-              />
+              {content}
+              <span className="sr-only">{item.label}</span>
             </button>
+          )
+        })}
+      </nav>
+
+      {/* Secondary Navigation */}
+      <div className="flex flex-col items-center gap-1 mb-4">
+        {secondaryNav.map((item) => {
+          const Icon = item.icon
+          return item.href ? (
+            <Link key={item.label} href={item.href} aria-label={item.label} className="relative">
+              <div className="flex h-10 w-10 items-center justify-center rounded-full text-gray-600 hover:bg-gray-100 hover:text-gray-900 transition-all duration-200">
+                <Icon className="h-5 w-5" />
+              </div>
+              <span className="sr-only">{item.label}</span>
+            </Link>
           ) : (
             <button
-              onClick={login}
-              className="w-full flex items-center space-x-3 p-2 rounded-lg hover:bg-sidebar-accent transition-colors"
+              key={item.label}
+              type="button"
+              aria-label={item.label}
+              onClick={item.action}
+              className="relative"
             >
-              <div className="w-10 h-10 bg-gradient-to-br from-cyan-400 to-blue-500 rounded-full flex items-center justify-center text-white font-semibold">
-                <User className="h-5 w-5" />
+              <div className="flex h-10 w-10 items-center justify-center rounded-full text-gray-600 hover:bg-gray-100 hover:text-gray-900 transition-all duration-200">
+                <Icon className="h-5 w-5" />
               </div>
-              <div className="flex-1 text-left">
-                <div className="text-sm font-medium text-sidebar-foreground">Sign In</div>
-                <div className="text-xs text-muted-foreground">Click to login</div>
-              </div>
+              <span className="sr-only">{item.label}</span>
             </button>
-          )}
-        </div>
+          )
+        })}
       </div>
-    </div>
+
+      {/* User Section */}
+      <div className="flex flex-col items-center gap-2">
+        {isLoading ? (
+          <div className="h-10 w-10 animate-pulse rounded-full bg-gray-200" />
+        ) : isAuthenticated && user ? (
+          <>
+            <Popover>
+              <PopoverTrigger asChild>
+                <button
+                  type="button"
+                  aria-label="User menu"
+                  className="flex h-10 w-10 items-center justify-center rounded-full border border-gray-200 overflow-hidden bg-gray-50 hover:ring-2 hover:ring-blue-500 hover:ring-offset-2 transition-all duration-200"
+                >
+                  {user.picture ? (
+                    <Image src={user.picture} alt={user.fullName} width={40} height={40} className="h-full w-full object-cover" />
+                  ) : (
+                    <span className="text-sm font-semibold text-gray-700 uppercase">
+                      {user.fullName
+                        .split(" ")
+                        .map((part) => part[0])
+                        .join("")
+                        .slice(0, 2)}
+                    </span>
+                  )}
+                </button>
+              </PopoverTrigger>
+              <PopoverContent side="right" align="end" className="w-56 p-2">
+                <div className="flex items-center gap-3 p-2 border-b border-gray-100 mb-2">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-full border border-gray-200 overflow-hidden bg-gray-50">
+                    {user.picture ? (
+                      <Image src={user.picture} alt={user.fullName} width={40} height={40} className="h-full w-full object-cover" />
+                    ) : (
+                      <span className="text-sm font-semibold text-gray-700 uppercase">
+                        {user.fullName
+                          .split(" ")
+                          .map((part) => part[0])
+                          .join("")
+                          .slice(0, 2)}
+                      </span>
+                    )}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-gray-900 truncate">{user.fullName}</p>
+                    <p className="text-xs text-gray-500 truncate">{user.email}</p>
+                  </div>
+                </div>
+                <div className="space-y-1">
+                  <Link
+                    href="/dashboard"
+                    className="flex items-center gap-3 px-2 py-2 text-sm text-gray-700 hover:bg-gray-100 rounded-md transition-colors"
+                  >
+                    <BarChart3 className="h-4 w-4" />
+                    Dashboard
+                  </Link>
+                  <Link
+                    href="/dashboard#profile"
+                    className="flex items-center gap-3 px-2 py-2 text-sm text-gray-700 hover:bg-gray-100 rounded-md transition-colors"
+                  >
+                    <User className="h-4 w-4" />
+                    Hồ sơ cá nhân
+                  </Link>
+                  <Link
+                    href="/dashboard#bookings"
+                    className="flex items-center gap-3 px-2 py-2 text-sm text-gray-700 hover:bg-gray-100 rounded-md transition-colors"
+                  >
+                    <History className="h-4 w-4" />
+                    Lịch sử đặt chỗ
+                  </Link>
+                  <button
+                    onClick={logout}
+                    className="flex items-center gap-3 px-2 py-2 text-sm text-red-600 hover:bg-red-50 rounded-md transition-colors w-full text-left"
+                  >
+                    <LogOut className="h-4 w-4" />
+                    Đăng xuất
+                  </button>
+                </div>
+              </PopoverContent>
+            </Popover>
+          </>
+        ) : (
+          <button
+            type="button"
+            onClick={login}
+            aria-label="Sign in"
+            className="flex h-10 w-10 items-center justify-center rounded-full bg-gray-900 text-white hover:bg-gray-800 transition-all duration-200"
+          >
+            <UserRound className="h-5 w-5" />
+          </button>
+        )}
+
+        {/* Help Button */}
+        <Link href="/help" aria-label="Help" className="relative">
+          <div className="flex h-10 w-10 items-center justify-center rounded-full text-gray-600 hover:bg-gray-100 hover:text-gray-900 transition-all duration-200">
+            <Info className="h-5 w-5" />
+          </div>
+          <span className="sr-only">Help</span>
+        </Link>
+      </div>
+    </aside>
   )
 }

@@ -133,10 +133,10 @@ export function ProfileInfo({ user, onUpdate }: ProfileInfoProps) {
   }
 
   return (
-    <Card className="bg-gray-900/50 border-gray-800">
+    <Card className="bg-white border-gray-200">
       <CardHeader className="flex flex-row items-center justify-between">
         <div>
-          <CardTitle className="text-white">Personal Information</CardTitle>
+          <CardTitle className="text-gray-900">Personal Information</CardTitle>
           <CardDescription>Update your personal details and contact information</CardDescription>
         </div>
         <div className="flex gap-2">
@@ -144,7 +144,7 @@ export function ProfileInfo({ user, onUpdate }: ProfileInfoProps) {
             variant={isEditing ? "default" : "outline"}
             onClick={isEditing ? handleSaveProfile : () => setIsEditing(true)}
             disabled={isSaving}
-            className={isEditing ? "bg-cyan-500 hover:bg-cyan-600" : "border-gray-700 hover:bg-gray-800"}
+            className={isEditing ? "bg-cyan-500 hover:bg-cyan-600" : "border-gray-300 hover:bg-gray-50"}
           >
             {isEditing ? (
               <>
@@ -195,8 +195,8 @@ export function ProfileInfo({ user, onUpdate }: ProfileInfoProps) {
             />
           </div>
           <div>
-            <h3 className="text-lg font-medium text-white">{userInfo.fullName}</h3>
-            <p className="text-gray-400">{userInfo.email}</p>
+            <h3 className="text-lg font-medium text-gray-900">{userInfo.fullName}</h3>
+            <p className="text-gray-600">{userInfo.email}</p>
             <p className="text-sm text-gray-500">Click to change avatar</p>
           </div>
         </div>
@@ -210,7 +210,7 @@ export function ProfileInfo({ user, onUpdate }: ProfileInfoProps) {
               value={userInfo.fullName}
               onChange={(e) => setUserInfo((prev) => ({ ...prev, fullName: e.target.value }))}
               disabled={!isEditing}
-              className="bg-gray-800/50 border-gray-700 disabled:opacity-60"
+              className="bg-white border-gray-300 disabled:opacity-60"
             />
           </div>
           <div className="space-y-2">
@@ -219,7 +219,7 @@ export function ProfileInfo({ user, onUpdate }: ProfileInfoProps) {
               id="username"
               value={userInfo.username}
               disabled={true}
-              className="bg-gray-800/50 border-gray-700 disabled:opacity-60"
+              className="bg-white border-gray-300 disabled:opacity-60"
             />
           </div>
           <div className="space-y-2">
@@ -230,7 +230,7 @@ export function ProfileInfo({ user, onUpdate }: ProfileInfoProps) {
               value={userInfo.email}
               onChange={(e) => setUserInfo((prev) => ({ ...prev, email: e.target.value }))}
               disabled={!isEditing}
-              className="bg-gray-800/50 border-gray-700 disabled:opacity-60"
+              className="bg-white border-gray-300 disabled:opacity-60"
             />
           </div>
           <div className="space-y-2">
@@ -241,7 +241,7 @@ export function ProfileInfo({ user, onUpdate }: ProfileInfoProps) {
               value={userInfo.phone}
               onChange={(e) => setUserInfo((prev) => ({ ...prev, phone: e.target.value }))}
               disabled={!isEditing}
-              className="bg-gray-800/50 border-gray-700 disabled:opacity-60"
+              className="bg-white border-gray-300 disabled:opacity-60"
             />
           </div>
           <div className="space-y-2">
@@ -252,7 +252,7 @@ export function ProfileInfo({ user, onUpdate }: ProfileInfoProps) {
               value={userInfo.dateOfBirth}
               onChange={(e) => setUserInfo((prev) => ({ ...prev, dateOfBirth: e.target.value }))}
               disabled={!isEditing}
-              className="bg-gray-800/50 border-gray-700 disabled:opacity-60"
+              className="bg-white border-gray-300 disabled:opacity-60"
             />
           </div>
         </div>

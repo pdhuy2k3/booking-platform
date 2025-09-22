@@ -358,9 +358,9 @@ export function BookingHistoryTab() {
 
   return (
     <div className="space-y-6">
-      <Card className="bg-gray-900/50 border-gray-800">
+      <Card className="bg-white border-gray-200">
         <CardHeader>
-          <CardTitle className="text-white">Booking History</CardTitle>
+          <CardTitle className="text-gray-900">Booking History</CardTitle>
           <CardDescription>Review your completed and in-progress bookings</CardDescription>
         </CardHeader>
         <CardContent className="space-y-5">
@@ -381,8 +381,8 @@ export function BookingHistoryTab() {
           {items.length === 0 && !isLoading && !error && (
             <div className="text-center py-12">
               <Calendar className="h-12 w-12 text-gray-500 mx-auto mb-4" />
-              <h3 className="text-lg font-medium text-white mb-2">No bookings yet</h3>
-              <p className="text-gray-400">Plan your next trip to see bookings listed here.</p>
+              <h3 className="text-lg font-medium text-gray-900 mb-2">No bookings yet</h3>
+              <p className="text-gray-600">Plan your next trip to see bookings listed here.</p>
             </div>
           )}
 
@@ -401,19 +401,19 @@ export function BookingHistoryTab() {
                   return (
                     <div
                       key={bookingId}
-                      className="rounded-lg border border-gray-800 bg-gray-900/60 p-4"
+                      className="rounded-lg border border-gray-200 bg-white p-4"
                     >
                       <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
                         <div className="flex items-start gap-4">
-                          <div className="text-cyan-400">{getBookingIcon(booking.bookingType)}</div>
+                          <div className="text-cyan-500">{getBookingIcon(booking.bookingType)}</div>
                           <div>
                             <div className="flex flex-wrap items-center gap-2">
-                              <h3 className="text-white font-medium">
+                              <h3 className="text-gray-900 font-medium">
                                 {booking.productSummary ?? booking.bookingType ?? "Booking"}
                               </h3>
                               {renderStatusBadge(booking.status)}
                             </div>
-                            <div className="text-sm text-gray-400 space-y-1">
+                            <div className="text-sm text-gray-600 space-y-1">
                               <p>{`Reference: ${booking.bookingReference}`}</p>
                               {booking.confirmationNumber && <p>{`Confirmation: ${booking.confirmationNumber}`}</p>}
                               <p>{`Created: ${formatDateTime(booking.createdAt)}`}</p>
@@ -422,14 +422,14 @@ export function BookingHistoryTab() {
                           </div>
                         </div>
                         <div className="flex flex-col items-start gap-2 text-sm md:items-end">
-                          <span className="text-white font-semibold text-base">
+                          <span className="text-gray-900 font-semibold text-base">
                             {formatCurrency(booking.totalAmount, booking.currency)}
                           </span>
                           <div className="flex gap-2">
                             <Button
                               variant="outline"
                               size="sm"
-                              className="border-gray-700 text-gray-200"
+                              className="border-gray-300 text-gray-700 hover:bg-gray-50"
                               onClick={() => handleViewDetails(booking)}
                               disabled={detailLoadingId === bookingId}
                             >
