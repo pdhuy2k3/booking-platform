@@ -162,7 +162,13 @@ spring:
               url: https://api-bookingsmart.huypd.dev
               sse-endpoint: /flights/sse
         stdio:
-          servers-configuration: classpath:mcp-servers.json
+          connections:
+            weather:
+              command: python
+              args:
+                - -m
+                - mcp_weather_server
+          # servers-configuration: classpath:mcp-servers.json
         initialized: true
 eureka:
   client:
