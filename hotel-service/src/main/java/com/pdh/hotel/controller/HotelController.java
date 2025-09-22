@@ -6,18 +6,18 @@ import com.pdh.hotel.dto.HotelBookingDetailsDto;
 import com.pdh.hotel.dto.response.RoomResponseDto;
 import com.pdh.hotel.model.Hotel;
 import com.pdh.hotel.repository.HotelRepository;
-import com.pdh.hotel.repository.RoomRepository;
 import com.pdh.hotel.service.AmenityService;
 import com.pdh.hotel.service.HotelService;
 import com.pdh.hotel.service.HotelSearchSpecificationService;
-import com.pdh.hotel.service.ImageService;
 import com.pdh.hotel.service.RoomService;
-import com.pdh.hotel.service.RoomTypeService;
 import com.pdh.hotel.mapper.HotelMapper;
 import com.pdh.common.dto.SearchResponse;
 import com.pdh.common.dto.DestinationSearchResult;
 import com.pdh.common.dto.ErrorResponse;
 import com.pdh.common.validation.SearchValidation;
+import com.pdh.hotel.util.HotelSearchResponseBuilder;
+import com.pdh.hotel.util.HotelSearchUtils;
+import com.pdh.hotel.util.HotelStaticData;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.media.Content;
@@ -34,7 +34,6 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.util.CollectionUtils;
 import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.*;
 
@@ -43,7 +42,6 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -66,14 +64,11 @@ import jakarta.persistence.EntityNotFoundException;
 public class HotelController {
 
     private final HotelRepository hotelRepository;
-    private final RoomRepository roomRepository;
     private final HotelService hotelService;
     private final HotelSearchSpecificationService hotelSearchSpecificationService;
     private final RoomService roomService;
-    private final RoomTypeService roomTypeService;
     private final AmenityService amenityService;
     private final ObjectMapper objectMapper;
-    private final ImageService imageService;
     private final HotelMapper hotelMapper;
     
 
@@ -184,63 +179,33 @@ public class HotelController {
             // Validate textual inputs
             SearchValidation.ValidationResult destinationValidation = SearchValidation.validateSearchQuery(destination);
             if (!destinationValidation.isValid()) {
-                return ResponseEntity.badRequest().body(Map.of(
-                    "error", "VALIDATION_ERROR",
-                    "message", "Invalid destination: " + destinationValidation.getErrorMessage(),
-                    "hotels", List.of(),
-                    "totalCount", 0
-                ));
+                return ResponseEntity.badRequest().body(HotelSearchResponseBuilder.validationError("Invalid destination: " + destinationValidation.getErrorMessage()));
             }
 
             SearchValidation.ValidationResult hotelValidation = SearchValidation.validateSearchQuery(hotelName);
             if (!hotelValidation.isValid()) {
-                return ResponseEntity.badRequest().body(Map.of(
-                    "error", "VALIDATION_ERROR",
-                    "message", "Invalid hotel name: " + hotelValidation.getErrorMessage(),
-                    "hotels", List.of(),
-                    "totalCount", 0
-                ));
+                return ResponseEntity.badRequest().body(HotelSearchResponseBuilder.validationError("Invalid hotel name: " + hotelValidation.getErrorMessage()));
             }
 
             SearchValidation.ValidationResult roomTypeValidation = SearchValidation.validateSearchQuery(roomType);
             if (!roomTypeValidation.isValid()) {
-                return ResponseEntity.badRequest().body(Map.of(
-                    "error", "VALIDATION_ERROR",
-                    "message", "Invalid room type: " + roomTypeValidation.getErrorMessage(),
-                    "hotels", List.of(),
-                    "totalCount", 0
-                ));
+                return ResponseEntity.badRequest().body(HotelSearchResponseBuilder.validationError("Invalid room type: " + roomTypeValidation.getErrorMessage()));
             }
 
             if (minPrice != null && maxPrice != null && minPrice.compareTo(maxPrice) > 0) {
-                return ResponseEntity.badRequest().body(Map.of(
-                    "error", "VALIDATION_ERROR",
-                    "message", "minPrice cannot be greater than maxPrice",
-                    "hotels", List.of(),
-                    "totalCount", 0
-                ));
+                return ResponseEntity.badRequest().body(HotelSearchResponseBuilder.validationError("minPrice cannot be greater than maxPrice"));
             }
 
             if (minRating != null && maxRating != null && minRating.compareTo(maxRating) > 0) {
-                return ResponseEntity.badRequest().body(Map.of(
-                    "error", "VALIDATION_ERROR",
-                    "message", "minRating cannot be greater than maxRating",
-                    "hotels", List.of(),
-                    "totalCount", 0
-                ));
+                return ResponseEntity.badRequest().body(HotelSearchResponseBuilder.validationError("minRating cannot be greater than maxRating"));
             }
 
             String sanitizedDestination = SearchValidation.sanitizeSearchQuery(destination);
-            List<String> destinationTerms = extractDestinationTerms(sanitizedDestination);
+            List<String> destinationTerms = HotelSearchUtils.extractDestinationTerms(sanitizedDestination);
             String sanitizedHotelName = SearchValidation.sanitizeSearchQuery(hotelName);
             String sanitizedRoomType = SearchValidation.sanitizeSearchQuery(roomType);
 
-            List<String> sanitizedAmenities = CollectionUtils.isEmpty(amenities)
-                ? List.of()
-                : amenities.stream()
-                    .map(SearchValidation::sanitizeSearchQuery)
-                    .filter(StringUtils::hasText)
-                    .collect(Collectors.toList());
+            List<String> sanitizedAmenities = HotelSearchUtils.sanitizeAmenities(amenities);
 
             LocalDate effectiveCheckIn;
             LocalDate effectiveCheckOut;
@@ -248,21 +213,11 @@ public class HotelController {
                 effectiveCheckIn = StringUtils.hasText(checkInDate) ? LocalDate.parse(checkInDate) : LocalDate.now();
                 effectiveCheckOut = StringUtils.hasText(checkOutDate) ? LocalDate.parse(checkOutDate) : effectiveCheckIn.plusDays(1);
             } catch (DateTimeParseException ex) {
-                return ResponseEntity.badRequest().body(Map.of(
-                    "error", "VALIDATION_ERROR",
-                    "message", "Invalid date format. Expected YYYY-MM-DD",
-                    "hotels", List.of(),
-                    "totalCount", 0
-                ));
+                return ResponseEntity.badRequest().body(HotelSearchResponseBuilder.validationError("Invalid date format. Expected YYYY-MM-DD"));
             }
 
             if (!effectiveCheckOut.isAfter(effectiveCheckIn)) {
-                return ResponseEntity.badRequest().body(Map.of(
-                    "error", "VALIDATION_ERROR",
-                    "message", "checkOutDate must be after checkInDate",
-                    "hotels", List.of(),
-                    "totalCount", 0
-                ));
+                return ResponseEntity.badRequest().body(HotelSearchResponseBuilder.validationError("checkOutDate must be after checkInDate"));
             }
 
             boolean hasFilters = StringUtils.hasText(sanitizedDestination)
@@ -288,25 +243,23 @@ public class HotelController {
                         rooms))
                     .collect(Collectors.toList());
 
-                Map<String, Object> response = Map.of(
-                    "hotels", hotels,
-                    "totalCount", hotelPage.getTotalElements(),
-                    "page", page,
-                    "limit", limit,
-                    "hasMore", hotelPage.hasNext(),
-                    "filters", Map.of(
-                        "applied", Map.of(),
-                        "available", Map.of(
-                            "destinations", hotels.stream()
-                                .map(entry -> (String) entry.getOrDefault("city", ""))
-                                .filter(StringUtils::hasText)
-                                .distinct()
-                                .collect(Collectors.toList())
-                        )
-                    )
+                Map<String, Object> availableFilters = Map.of(
+                    "destinations", hotels.stream()
+                        .map(entry -> (String) entry.getOrDefault("city", ""))
+                        .filter(StringUtils::hasText)
+                        .distinct()
+                        .collect(Collectors.toList())
                 );
 
-                return ResponseEntity.ok(response);
+                return ResponseEntity.ok(HotelSearchResponseBuilder.pagedResponse(
+                    hotels,
+                    hotelPage.getTotalElements(),
+                    page,
+                    limit,
+                    hotelPage.hasNext(),
+                    Map.of(),
+                    availableFilters
+                ));
             }
 
             HotelSearchSpecificationService.HotelSearchCriteria criteria = new HotelSearchSpecificationService.HotelSearchCriteria();
@@ -331,46 +284,37 @@ public class HotelController {
                     rooms))
                 .collect(Collectors.toList());
 
-            Map<String, Object> response = Map.of(
-                "hotels", hotels,
-                "totalCount", hotelPage.getTotalElements(),
-                "page", page,
-                "limit", limit,
-                "hasMore", hotelPage.hasNext(),
-                "filters", Map.of(
-                    "applied", Map.of(
-                        "destination", sanitizedDestination,
-                        "hotelName", sanitizedHotelName,
-                        "roomType", sanitizedRoomType,
-                        "minPrice", minPrice,
-                        "maxPrice", maxPrice,
-                        "minRating", minRating,
-                        "maxRating", maxRating,
-                        "amenities", sanitizedAmenities
-                    ),
-                    "available", Map.of(
-                        "amenities", amenityService.getActiveAmenities().stream()
-                            .map(dto -> dto.getName())
-                            .collect(Collectors.toList())
-                    )
-                )
+            Map<String, Object> appliedFilters = Map.of(
+                "destination", sanitizedDestination,
+                "hotelName", sanitizedHotelName,
+                "roomType", sanitizedRoomType,
+                "minPrice", minPrice,
+                "maxPrice", maxPrice,
+                "minRating", minRating,
+                "maxRating", maxRating,
+                "amenities", sanitizedAmenities
+            );
+
+            Map<String, Object> availableFilters = Map.of(
+                "amenities", amenityService.getActiveAmenities().stream()
+                    .map(dto -> dto.getName())
+                    .collect(Collectors.toList())
             );
 
             log.info("Found {} hotels for search criteria", hotels.size());
-            return ResponseEntity.ok(response);
+            return ResponseEntity.ok(HotelSearchResponseBuilder.pagedResponse(
+                hotels,
+                hotelPage.getTotalElements(),
+                page,
+                limit,
+                hotelPage.hasNext(),
+                appliedFilters,
+                availableFilters
+            ));
 
         } catch (Exception e) {
             log.error("Error searching hotels", e);
-            Map<String, Object> errorResponse = Map.of(
-                "error", "Failed to search hotels",
-                "message", e.getMessage(),
-                "hotels", List.of(),
-                "totalCount", 0,
-                "page", page,
-                "limit", limit,
-                "hasMore", false
-            );
-            return ResponseEntity.ok(errorResponse);
+            return ResponseEntity.ok(HotelSearchResponseBuilder.searchFailure(e.getMessage(), page, limit));
         }
     }
 
@@ -588,40 +532,7 @@ public class HotelController {
      */
     @GetMapping("/storefront/origins")
     public ResponseEntity<Map<String, Object>> getPopularOrigins() {
-        return ResponseEntity.ok(Map.of(
-            "origins", List.of(
-                Map.of(
-                    "name", "Ho Chi Minh City",
-                    "code", "SGN",
-                    "type", "Thành phố",
-                    "country", "Vietnam"
-                ),
-                Map.of(
-                    "name", "Hanoi",
-                    "code", "HAN",
-                    "type", "Thành phố",
-                    "country", "Vietnam"
-                ),
-                Map.of(
-                    "name", "Da Nang",
-                    "code", "DAD",
-                    "type", "Thành phố",
-                    "country", "Vietnam"
-                ),
-                Map.of(
-                    "name", "Nha Trang",
-                    "code", "CXR",
-                    "type", "Thành phố",
-                    "country", "Vietnam"
-                ),
-                Map.of(
-                    "name", "Phu Quoc",
-                    "code", "PQC",
-                    "type", "Đảo",
-                    "country", "Vietnam"
-                )
-            )
-        ));
+        return ResponseEntity.ok(Map.of("origins", HotelStaticData.POPULAR_ORIGINS));
     }
     
     /**
@@ -686,23 +597,17 @@ public class HotelController {
                     .limit(20)
                     .collect(Collectors.toList());
             } else {
-                // Return popular destinations when no query
-                destinations = List.of(
-                    DestinationSearchResult.city("Ho Chi Minh City", "Vietnam", null),
-                    DestinationSearchResult.city("Hanoi", "Vietnam", null),
-                    DestinationSearchResult.city("Da Nang", "Vietnam", null),
-                    DestinationSearchResult.city("Nha Trang", "Vietnam", null),
-                    DestinationSearchResult.builder()
-                        .name("Phu Quoc")
-                        .type("Đảo")
-                        .country("Vietnam")
-                        .category("island")
+                // Return popular destinations when no query using static catalogue
+                destinations = HotelStaticData.POPULAR_DESTINATIONS.stream()
+                    .map(entry -> DestinationSearchResult.builder()
+                        .name((String) entry.get("name"))
+                        .type((String) entry.get("type"))
+                        .country((String) entry.get("country"))
+                        .category(((String) entry.get("type")).toLowerCase())
+                        .iataCode((String) entry.get("code"))
                         .relevanceScore(1.0)
-                        .build(),
-                    DestinationSearchResult.city("Da Lat", "Vietnam", null),
-                    DestinationSearchResult.city("Hue", "Vietnam", null),
-                    DestinationSearchResult.city("Hoi An", "Vietnam", null)
-                );
+                        .build())
+                    .collect(Collectors.toList());
             }
             
             long executionTime = System.currentTimeMillis() - startTime;
@@ -804,22 +709,4 @@ public class HotelController {
         }
     }
 
-    private List<String> extractDestinationTerms(String destination) {
-        if (!StringUtils.hasText(destination)) {
-            return List.of();
-        }
-
-        String normalized = destination.trim().replaceAll("\\s+", " ");
-        LinkedHashSet<String> terms = new LinkedHashSet<>();
-        terms.add(normalized);
-
-        for (String part : normalized.split(",")) {
-            String trimmed = part.trim();
-            if (StringUtils.hasText(trimmed)) {
-                terms.add(trimmed);
-            }
-        }
-
-        return new ArrayList<>(terms);
-    }
 }
