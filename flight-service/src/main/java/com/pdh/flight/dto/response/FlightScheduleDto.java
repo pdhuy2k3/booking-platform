@@ -1,5 +1,6 @@
 package com.pdh.flight.dto.response;
 
+import com.pdh.flight.model.enums.ScheduleStatus;
 import lombok.*;
 import java.time.ZonedDateTime;
 import java.util.UUID;
@@ -18,7 +19,7 @@ public class FlightScheduleDto {
     private ZonedDateTime arrivalTime;
     private String aircraftType;
     private Long aircraftId;
-    private String status;
+    private ScheduleStatus status;
     
     // Enhanced fields for backoffice management
     private FlightDto flight;          // Complete flight information

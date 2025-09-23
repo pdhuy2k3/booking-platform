@@ -1,0 +1,140 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+    xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+    http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.29.xsd">
+
+    <!-- Update flight_schedules table to use enum constraint and update existing functions -->
+    <changeSet id="008-update-flight-schedule-status-enum-1" author="PhamDuyHuy">
+        <comment>Add enum constraint to flight_schedules status column and update existing data</comment>
+        
+        <!-- First update any existing status values to match enum -->
+        <sql><![CDATA[
+            UPDATE flight_schedules 
+            SET status = CASE 
+                WHEN UPPER(status) = 'SCHEDULED' THEN 'SCHEDULED'
+                WHEN UPPER(status) = 'ACTIVE' THEN 'ACTIVE'
+                WHEN UPPER(status) = 'DELAYED' THEN 'DELAYED'
+                WHEN UPPER(status) = 'CANCELLED' THEN 'CANCELLED'
+                WHEN UPPER(status) = 'COMPLETED' THEN 'COMPLETED'
+                WHEN arrival_time < CURRENT_TIMESTAMP THEN 'COMPLETED'
+                WHEN departure_time <= CURRENT_TIMESTAMP + INTERVAL '1 hour' 
+                     AND departure_time > CURRENT_TIMESTAMP THEN 'ACTIVE'
+                ELSE 'SCHEDULED'
+            END
+            WHERE status IS NULL OR status NOT IN ('SCHEDULED', 'ACTIVE', 'DELAYED', 'CANCELLED', 'COMPLETED');
+        ]]></sql>
+        
+        <!-- Add check constraint for valid enum values -->
+        <sql><![CDATA[
+            ALTER TABLE flight_schedules 
+            ADD CONSTRAINT chk_flight_schedule_status 
+            CHECK (status IN ('SCHEDULED', 'ACTIVE', 'DELAYED', 'CANCELLED', 'COMPLETED'));
+        ]]></sql>
+        
+        <!-- Update column to be NOT NULL with default -->
+        <sql><![CDATA[
+            ALTER TABLE flight_schedules 
+            ALTER COLUMN status SET NOT NULL,
+            ALTER COLUMN status SET DEFAULT 'SCHEDULED';
+        ]]></sql>
+        
+        <!-- Remove duplicate schedules before adding unique constraint -->
+        <sql><![CDATA[
+            -- First, delete related flight_fares for duplicate schedules
+            DELETE FROM flight_fares 
+            WHERE schedule_id IN (
+                SELECT fs.schedule_id
+                FROM flight_schedules fs
+                WHERE fs.schedule_id NOT IN (
+                    SELECT DISTINCT ON (flight_id, departure_time, arrival_time) schedule_id
+                    FROM flight_schedules 
+                    ORDER BY flight_id, departure_time, arrival_time, created_at DESC
+                )
+                AND fs.is_deleted = false
+            );
+            
+            -- Then delete duplicate flight schedules (keep the latest created)
+            DELETE FROM flight_schedules 
+            WHERE schedule_id NOT IN (
+                SELECT DISTINCT ON (flight_id, departure_time, arrival_time) schedule_id
+                FROM flight_schedules 
+                ORDER BY flight_id, departure_time, arrival_time, created_at DESC
+            )
+            AND is_deleted = false;
+        ]]></sql>
+        
+        <!-- Add unique constraint to prevent duplicate schedules -->
+        <sql><![CDATA[
+            ALTER TABLE flight_schedules 
+            ADD CONSTRAINT uk_flight_schedule_time 
+            UNIQUE (flight_id, departure_time, arrival_time);
+        ]]></sql>
+        
+        <!-- Add indexes for efficient status-based queries -->
+        <sql><![CDATA[
+            CREATE INDEX IF NOT EXISTS idx_flight_schedules_status_departure 
+            ON flight_schedules(status, departure_time);
+            
+            CREATE INDEX IF NOT EXISTS idx_flight_schedules_arrival_time 
+            ON flight_schedules(arrival_time) 
+            WHERE status != 'COMPLETED';
+            
+            CREATE INDEX IF NOT EXISTS idx_flight_schedules_status_active 
+            ON flight_schedules(status, departure_time, arrival_time)
+            WHERE status IN ('SCHEDULED', 'ACTIVE');
+        ]]></sql>
+    </changeSet>
+
+    <!-- Add unique constraint for flight_fares (schedule_id, fare_class) -->
+    <changeSet id="008-update-flight-schedule-status-enum-2" author="PhamDuyHuy">
+        <comment>Add unique constraint for flight fares schedule and fare class combination</comment>
+        
+        <!-- Remove any duplicate fares first (keep the latest created) -->
+        <sql><![CDATA[
+            DELETE FROM flight_fares 
+            WHERE fare_id NOT IN (
+                SELECT DISTINCT ON (schedule_id, fare_class) fare_id
+                FROM flight_fares 
+                ORDER BY schedule_id, fare_class, created_at DESC
+            );
+        ]]></sql>
+        
+        <!-- Add unique constraint -->
+        <sql><![CDATA[
+            ALTER TABLE flight_fares 
+            ADD CONSTRAINT uk_flight_fares_schedule_class 
+            UNIQUE (schedule_id, fare_class);
+        ]]></sql>
+        
+        <!-- Add performance indexes -->
+        <sql><![CDATA[
+            CREATE INDEX IF NOT EXISTS idx_flight_fares_schedule_id 
+            ON flight_fares(schedule_id);
+            
+            CREATE INDEX IF NOT EXISTS idx_flight_fares_fare_class 
+            ON flight_fares(fare_class);
+        ]]></sql>
+    </changeSet>
+
+    <!-- Update generate_daily_flight_data function to use proper enum values -->
+    <changeSet id="008-update-flight-schedule-status-enum-3" author="PhamDuyHuy">
+        <comment>Update generate_daily_flight_data function to use ScheduleStatus enum</comment>
+        <sql>DROP FUNCTION IF EXISTS generate_daily_flight_data(DATE);</sql>
+        <sqlFile path="db/changelog/sql/generate_daily_flight_data.sql" 
+                 splitStatements="false" 
+                 stripComments="false" 
+                 endDelimiter=";"/>
+    </changeSet>
+
+    <!-- Create function to migrate existing data status -->
+    <changeSet id="008-update-flight-schedule-status-enum-4" author="PhamDuyHuy">
+        <comment>Create function to update existing flight schedule statuses based on current time</comment>
+        <sqlFile path="db/changelog/sql/update_existing_flight_schedule_statuses.sql" 
+                 splitStatements="false" 
+                 stripComments="false" 
+                 endDelimiter=";"/>
+    </changeSet>
+
+</databaseChangeLog>

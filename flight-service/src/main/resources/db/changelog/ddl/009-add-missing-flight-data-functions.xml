@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+    xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+    http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.29.xsd">
+
+    <!-- Add missing PostgreSQL functions for flight data generation -->
+    <changeSet id="009-add-missing-flight-data-functions-1" author="PhamDuyHuy">
+        <comment>Add generate_flight_data_range function</comment>
+        <sqlFile path="db/changelog/sql/generate_flight_data_range.sql" 
+                 splitStatements="false" 
+                 stripComments="false" 
+                 endDelimiter=";"/>
+    </changeSet>
+
+    <changeSet id="009-add-missing-flight-data-functions-2" author="PhamDuyHuy">
+        <comment>Add cleanup_old_flight_data function</comment>
+        <sqlFile path="db/changelog/sql/cleanup_old_flight_data.sql" 
+                 splitStatements="false" 
+                 stripComments="false" 
+                 endDelimiter=";"/>
+    </changeSet>
+
+    <changeSet id="009-add-missing-flight-data-functions-3" author="PhamDuyHuy">
+        <comment>Add get_flight_statistics function</comment>
+        <sqlFile path="db/changelog/sql/get_flight_statistics.sql" 
+                 splitStatements="false" 
+                 stripComments="false" 
+                 endDelimiter=";"/>
+    </changeSet>
+
+</databaseChangeLog>

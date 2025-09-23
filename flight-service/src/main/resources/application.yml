@@ -17,28 +17,6 @@ springdoc:
   show-actuator: true
 
 
-# API Documentation Properties
-api:
-  info:
-    title: Flight Service API
-    description: Flight search and booking API for the BookingSmart platform
-    version: '@project.version@'
-    contact:
-      name: BookingSmart Flight Team
-      email: flight-team@bookingsmart.com
-    license:
-      name: MIT License
-      url: https://opensource.org/licenses/MIT
-    oauth2:
-      authorization-url: http://localhost:8080/realms/bookingsmart/protocol/openid-connect/auth
-      token-url: http://localhost:8080/realms/bookingsmart/protocol/openid-connect/token
-      refresh-url: http://localhost:8080/realms/bookingsmart/protocol/openid-connect/token
-      scopes:
-        admin: Administrative access to flight management
-        customer: Customer access to flight search and booking
-        partner: Partner access to flight integration endpoints
-        public: Public access to flight search and information
-        internal: Internal service-to-service communication
 
 logging:
   level:
@@ -54,6 +32,10 @@ spring:
   threads:
     virtual:
       enabled: true
+  task:
+    scheduling:
+      pool:
+        size: 2  # Pool size for scheduled tasks
 
 ---
 

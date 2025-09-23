@@ -1,5 +1,6 @@
 package com.pdh.flight.dto.request;
 
+import com.pdh.flight.model.enums.ScheduleStatus;
 import jakarta.validation.constraints.*;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -25,9 +26,7 @@ public class FlightScheduleUpdateDto {
     
     private Long aircraftId;
     
-    @Pattern(regexp = "^(SCHEDULED|ACTIVE|DELAYED|CANCELLED|COMPLETED)$", 
-            message = "Status must be SCHEDULED, ACTIVE, DELAYED, CANCELLED, or COMPLETED")
-    private String status;
+    private ScheduleStatus status;
     
     @AssertTrue(message = "Arrival time must be after departure time")
     public boolean isArrivalTimeAfterDepartureTime() {

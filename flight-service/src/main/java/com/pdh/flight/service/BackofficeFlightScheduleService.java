@@ -7,6 +7,7 @@ import com.pdh.flight.dto.response.FlightDto;
 import com.pdh.flight.mapper.BackofficeFlightMapper;
 import com.pdh.flight.model.FlightSchedule;
 import com.pdh.flight.model.Aircraft;
+import com.pdh.flight.model.enums.ScheduleStatus;
 import com.pdh.flight.repository.FlightScheduleRepository;
 import com.pdh.flight.repository.FlightRepository;
 import com.pdh.flight.repository.AircraftRepository;
@@ -54,22 +55,25 @@ public class BackofficeFlightScheduleService {
         // Apply filters based on parameters
         if (flightId != null && StringUtils.hasText(status) && date != null) {
             // All filters applied
+            ScheduleStatus scheduleStatus = ScheduleStatus.valueOf(status);
             schedulePage = flightScheduleRepository.findByFlightIdAndStatusAndDateAndIsDeletedFalse(
-                    flightId, status, date, pageable);
+                    flightId, scheduleStatus, date, pageable);
         } else if (flightId != null && date != null) {
             // Flight ID and date filter
             schedulePage = flightScheduleRepository.findByFlightIdAndDateAndIsDeletedFalse(
                     flightId, date, pageable);
         } else if (flightId != null && StringUtils.hasText(status)) {
             // Flight ID and status filter
+            ScheduleStatus scheduleStatus = ScheduleStatus.valueOf(status);
             schedulePage = flightScheduleRepository.findByFlightIdAndStatusAndIsDeletedFalse(
-                    flightId, status, pageable);
+                    flightId, scheduleStatus, pageable);
         } else if (flightId != null) {
             // Flight ID filter only
             schedulePage = flightScheduleRepository.findByFlightIdAndIsDeletedFalse(flightId, pageable);
         } else if (StringUtils.hasText(status)) {
             // Status filter only
-            schedulePage = flightScheduleRepository.findByStatusAndIsDeletedFalse(status, pageable);
+            ScheduleStatus scheduleStatus = ScheduleStatus.valueOf(status);
+            schedulePage = flightScheduleRepository.findByStatusAndIsDeletedFalse(scheduleStatus, pageable);
         } else if (date != null) {
             // Date filter only
             schedulePage = flightScheduleRepository.findByDateAndIsDeletedFalse(date, pageable);
@@ -177,7 +181,7 @@ public class BackofficeFlightScheduleService {
             schedule.setAircraftId(updateDto.getAircraftId());
         }
         
-        if (StringUtils.hasText(updateDto.getStatus())) {
+        if (updateDto.getStatus() != null) {
             schedule.setStatus(updateDto.getStatus());
         }
         
@@ -220,11 +224,11 @@ public class BackofficeFlightScheduleService {
         log.info("Fetching flight schedule statistics");
         
         long totalSchedules = flightScheduleRepository.countByIsDeletedFalse();
-        long scheduledCount = flightScheduleRepository.countByStatusAndIsDeletedFalse("SCHEDULED");
-        long activeCount = flightScheduleRepository.countByStatusAndIsDeletedFalse("ACTIVE");
-        long delayedCount = flightScheduleRepository.countByStatusAndIsDeletedFalse("DELAYED");
-        long cancelledCount = flightScheduleRepository.countByStatusAndIsDeletedFalse("CANCELLED");
-        long completedCount = flightScheduleRepository.countByStatusAndIsDeletedFalse("COMPLETED");
+        long scheduledCount = flightScheduleRepository.countByStatusAndIsDeletedFalse(ScheduleStatus.SCHEDULED);
+        long activeCount = flightScheduleRepository.countByStatusAndIsDeletedFalse(ScheduleStatus.ACTIVE);
+        long delayedCount = flightScheduleRepository.countByStatusAndIsDeletedFalse(ScheduleStatus.DELAYED);
+        long cancelledCount = flightScheduleRepository.countByStatusAndIsDeletedFalse(ScheduleStatus.CANCELLED);
+        long completedCount = flightScheduleRepository.countByStatusAndIsDeletedFalse(ScheduleStatus.COMPLETED);
         
         Map<String, Object> stats = new HashMap<>();
         stats.put("totalSchedules", totalSchedules);

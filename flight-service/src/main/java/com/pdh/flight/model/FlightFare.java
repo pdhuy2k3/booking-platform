@@ -12,7 +12,11 @@ import java.math.BigDecimal;
 import java.util.UUID;
 
 @Entity
-@Table(name = "flight_fares")
+@Table(name = "flight_fares",
+       uniqueConstraints = {
+           @UniqueConstraint(name = "uk_flight_fares_schedule_class", 
+                           columnNames = {"schedule_id", "fare_class"})
+       })
 @Data
 @EqualsAndHashCode(callSuper = false)
 @NoArgsConstructor

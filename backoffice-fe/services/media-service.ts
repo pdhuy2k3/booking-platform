@@ -254,8 +254,9 @@ class MediaService {
    */
   async getMediaByFolder(folder: string, page = 1, limit = 20): Promise<{ items: SimpleMediaItem[], total: number, totalPages: number }> {
     try {
-      const response = await apiClient.get('/api/media/management/folder/' + encodeURIComponent(folder), {
+      const response = await apiClient.get('/api/media/browse', {
         params: { 
+          folder: folder,
           page: page, // Backend uses 1-based pages
           limit: limit 
         }
@@ -313,15 +314,13 @@ class MediaService {
       params.search = search;
     }
     
+    if (folder) {
+      params.folder = folder;
+    }
+    
     try {
-      let url = '/api/media/management/search';
-      
-      // If folder is specified, use folder-specific endpoint
-      if (folder) {
-        url = '/api/media/management/folder/' + encodeURIComponent(folder) + '/search';
-      }
-      
-      const response = await apiClient.get(url, { params }) as { data: any };
+      // Use single browse endpoint for all searches
+      const response = await apiClient.get('/api/media/browse', { params }) as { data: any };
       const data = response.data.data || response.data;
       
       return {
@@ -412,7 +411,7 @@ class MediaService {
    */
   async getFolders(): Promise<string[]> {
     try {
-      const response = await apiClient.get('/api/media/folders') as { data: any };
+      const response = await apiClient.get('/api/media/browse/folders') as { data: any };
       const data = response.data.data || response.data;
       // Filter to only include hotel and flight related folders
       const hotelAndFlightFolders = ['hotels', 'rooms', 'amenities', 'room-types', 'airlines', 'airports', 'flights'];

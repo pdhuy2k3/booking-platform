@@ -29,7 +29,8 @@ import {
   Trash2,
   Calendar,
   Clock,
-  Plane
+  Plane,
+  Zap
 } from "lucide-react";
 import { toast } from "sonner";
 import { FlightScheduleService, type FlightScheduleListParams } from "@/services/flight-schedule-service";
@@ -37,6 +38,7 @@ import { FlightService } from "@/services/flight-service";
 import { AircraftService } from "@/services/aircraft-service";
 import type { FlightSchedule, Flight, Aircraft } from "@/types/api";
 import { FlightScheduleFormDialog } from "@/components/admin/flight/schedule-form-dialog";
+import { FlightDataGeneratorDialog } from "@/components/dialogs/FlightDataGeneratorDialog";
 import { AdminLayout } from "@/components/admin/admin-layout";
 
 export default function FlightSchedulesPage() {
@@ -55,6 +57,7 @@ export default function FlightSchedulesPage() {
   // Dialog states
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+  const [isDataGeneratorOpen, setIsDataGeneratorOpen] = useState(false);
   const [selectedSchedule, setSelectedSchedule] = useState<FlightSchedule | null>(null);
 
   const fetchSchedules = async () => {
@@ -159,10 +162,20 @@ export default function FlightSchedulesPage() {
           </p>
         </div>
 
-        <Button onClick={() => setIsCreateDialogOpen(true)}>
-          <Plus className="mr-2 h-4 w-4" />
-          Add Schedule
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button 
+            variant="outline" 
+            onClick={() => setIsDataGeneratorOpen(true)}
+            className="flex items-center gap-2"
+          >
+            <Zap className="h-4 w-4" />
+            Generate Data
+          </Button>
+          <Button onClick={() => setIsCreateDialogOpen(true)}>
+            <Plus className="mr-2 h-4 w-4" />
+            Add Schedule
+          </Button>
+        </div>
       </div>
 
       {/* Statistics Cards */}
@@ -449,6 +462,13 @@ export default function FlightSchedulesPage() {
         flights={flights}
         aircraft={aircraft}
         initialData={selectedSchedule || undefined}
+        onSuccess={handleFormSuccess}
+      />
+
+      {/* Data Generator Dialog */}
+      <FlightDataGeneratorDialog
+        isOpen={isDataGeneratorOpen}
+        onClose={() => setIsDataGeneratorOpen(false)}
         onSuccess={handleFormSuccess}
       />
     </div>

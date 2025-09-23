@@ -314,4 +314,76 @@ public class MediaManagementController {
         }
     }
 
+    @GetMapping("/folder/{folder}")
+    @Operation(summary = "Get media by folder", description = "Retrieve media files from a specific Cloudinary folder")
+    public ResponseEntity<ApiResponse<Map<String, Object>>> getMediaByFolder(
+            @Parameter(description = "Folder name", required = true)
+            @PathVariable String folder,
+            
+            @Parameter(description = "Page number")
+            @RequestParam(value = "page", defaultValue = "1") int page,
+            
+            @Parameter(description = "Items per page")
+            @RequestParam(value = "limit", defaultValue = "20") int limit
+    ) {
+        try {
+            // Use CloudinaryService to browse assets in specific folder
+            Map<String, Object> result = cloudinaryService.browseMedia(folder, null, "image", page, limit);
+            return ResponseEntity.ok(ApiResponse.success(result));
+        } catch (Exception e) {
+            log.error("Error retrieving media from folder: {}", folder, e);
+            return ResponseEntity.internalServerError()
+                    .body(ApiResponse.error("Folder retrieval failed: " + e.getMessage(), "FOLDER_RETRIEVAL_FAILED"));
+        }
+    }
+
+    @GetMapping("/folder/{folder}/search")
+    @Operation(summary = "Search media in folder", description = "Search for media files within a specific Cloudinary folder")
+    public ResponseEntity<ApiResponse<Map<String, Object>>> searchMediaInFolder(
+            @Parameter(description = "Folder name", required = true)
+            @PathVariable String folder,
+            
+            @Parameter(description = "Search term")
+            @RequestParam(value = "search", required = false) String search,
+            
+            @Parameter(description = "Page number")
+            @RequestParam(value = "page", defaultValue = "1") int page,
+            
+            @Parameter(description = "Items per page")
+            @RequestParam(value = "limit", defaultValue = "20") int limit
+    ) {
+        try {
+            // Use CloudinaryService to search assets in specific folder
+            Map<String, Object> result = cloudinaryService.browseMedia(folder, search, "image", page, limit);
+            return ResponseEntity.ok(ApiResponse.success(result));
+        } catch (Exception e) {
+            log.error("Error searching media in folder: {}", folder, e);
+            return ResponseEntity.internalServerError()
+                    .body(ApiResponse.error("Folder search failed: " + e.getMessage(), "FOLDER_SEARCH_FAILED"));
+        }
+    }
+
+    @GetMapping("/search")
+    @Operation(summary = "Search all media", description = "Search for media files across all folders")
+    public ResponseEntity<ApiResponse<Map<String, Object>>> searchAllMedia(
+            @Parameter(description = "Search term")
+            @RequestParam(value = "search", required = false) String search,
+            
+            @Parameter(description = "Page number")
+            @RequestParam(value = "page", defaultValue = "1") int page,
+            
+            @Parameter(description = "Items per page")
+            @RequestParam(value = "limit", defaultValue = "20") int limit
+    ) {
+        try {
+            // Use CloudinaryService to search assets across all folders
+            Map<String, Object> result = cloudinaryService.browseMedia(null, search, "image", page, limit);
+            return ResponseEntity.ok(ApiResponse.success(result));
+        } catch (Exception e) {
+            log.error("Error searching all media", e);
+            return ResponseEntity.internalServerError()
+                    .body(ApiResponse.error("Search failed: " + e.getMessage(), "SEARCH_FAILED"));
+        }
+    }
+
 }
