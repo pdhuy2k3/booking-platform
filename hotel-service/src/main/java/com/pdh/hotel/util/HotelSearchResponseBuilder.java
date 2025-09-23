@@ -1,5 +1,6 @@
 package com.pdh.hotel.util;
 
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -12,12 +13,12 @@ public final class HotelSearchResponseBuilder {
     }
 
     public static Map<String, Object> validationError(String message) {
-        return Map.of(
-            "error", "VALIDATION_ERROR",
-            "message", message,
-            "hotels", List.of(),
-            "totalCount", 0
-        );
+        Map<String, Object> response = new HashMap<>();
+        response.put("error", "VALIDATION_ERROR");
+        response.put("message", message != null ? message : "Invalid request parameters");
+        response.put("hotels", List.of());
+        response.put("totalCount", 0);
+        return response;
     }
 
     public static Map<String, Object> pagedResponse(
@@ -28,29 +29,29 @@ public final class HotelSearchResponseBuilder {
             boolean hasMore,
             Map<String, Object> appliedFilters,
             Map<String, Object> availableFilters) {
-        return Map.of(
-            "hotels", hotels,
-            "totalCount", totalCount,
-            "page", page,
-            "limit", limit,
-            "hasMore", hasMore,
-            "filters", Map.of(
-                "applied", appliedFilters,
-                "available", availableFilters
-            )
-        );
+        Map<String, Object> filters = new HashMap<>();
+        filters.put("applied", appliedFilters != null ? appliedFilters : Map.of());
+        filters.put("available", availableFilters != null ? availableFilters : Map.of());
+
+        Map<String, Object> response = new HashMap<>();
+        response.put("hotels", hotels != null ? hotels : List.of());
+        response.put("totalCount", totalCount);
+        response.put("page", page);
+        response.put("limit", limit);
+        response.put("hasMore", hasMore);
+        response.put("filters", filters);
+        return response;
     }
 
     public static Map<String, Object> searchFailure(String message, int page, int limit) {
-        return Map.of(
-            "error", "Failed to search hotels",
-            "message", message,
-            "hotels", List.of(),
-            "totalCount", 0,
-            "page", page,
-            "limit", limit,
-            "hasMore", false
-        );
+        Map<String, Object> response = new HashMap<>();
+        response.put("error", "Failed to search hotels");
+        response.put("message", message != null ? message : "Unexpected error occurred");
+        response.put("hotels", List.of());
+        response.put("totalCount", 0);
+        response.put("page", page);
+        response.put("limit", limit);
+        response.put("hasMore", false);
+        return response;
     }
 }
-

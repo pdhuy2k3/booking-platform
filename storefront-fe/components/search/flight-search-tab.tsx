@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
-import { ArrowRight, Search, Calendar, Users, Filter, Plane, Star } from "lucide-react"
+import { ArrowRight, Search, Calendar, Users, Filter, Plane, Star, ChevronUp, ChevronDown } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
@@ -67,7 +67,12 @@ export function FlightSearchTab() {
   const [isOriginModalOpen, setIsOriginModalOpen] = useState(false)
   const [isDestinationModalOpen, setIsDestinationModalOpen] = useState(false)
 
+  // Collapse state for search form
+  const [isSearchCollapsed, setIsSearchCollapsed] = useState(false)
+  const [lastScrollY, setLastScrollY] = useState(0)
+
   const searchSectionRef = useRef<HTMLDivElement | null>(null)
+  const resultsContainerRef = useRef<HTMLDivElement | null>(null)
   const isLoadingInitialData = useRef(false)
 
   const resolveDateTime = (rawDateTime?: string | null, date?: string, time?: string) => {
@@ -304,129 +309,190 @@ export function FlightSearchTab() {
     }
   }, [])
 
+  // Handle scroll for search form collapse
+  useEffect(() => {
+    const handleScroll = () => {
+      if (!resultsContainerRef.current) return
+      
+      const currentScrollY = resultsContainerRef.current.scrollTop
+      
+      if (currentScrollY < 10) {
+        // At top of results - always expand
+        setIsSearchCollapsed(false)
+      } else if (currentScrollY > lastScrollY && currentScrollY > 100) {
+        // Scrolling down and past 100px - collapse
+        setIsSearchCollapsed(true)
+      } else if (currentScrollY < lastScrollY) {
+        // Scrolling up - expand
+        setIsSearchCollapsed(false)
+      }
+      
+      setLastScrollY(currentScrollY)
+    }
+
+    const container = resultsContainerRef.current
+    if (container) {
+      container.addEventListener('scroll', handleScroll, { passive: true })
+      return () => container.removeEventListener('scroll', handleScroll)
+    }
+  }, [lastScrollY])
+
+  const toggleSearchCollapse = () => {
+    setIsSearchCollapsed(!isSearchCollapsed)
+  }
+
   return (
     <div className="flex flex-col h-full bg-gray-50">
       {/* Search Form */}
-      <div className="bg-white border-b" ref={searchSectionRef}>
-        <div className="max-w-6xl mx-auto p-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Đi từ</label>
-              <Button
-                variant="outline"
-                className="w-full justify-start text-left font-normal h-8 border-2 text-sm"
-                onClick={() => setIsOriginModalOpen(true)}
-              >
-                {origin ? (
-                  <span className="truncate">{origin.name}</span>
-                ) : (
-                  <span className="text-muted-foreground">Chọn thành phố khởi hành...</span>
-                )}
-              </Button>
-            </div>
-
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Đến</label>
-              <Button
-                variant="outline"
-                className="w-full justify-start text-left font-normal h-8 border-2 text-sm"
-                onClick={() => setIsDestinationModalOpen(true)}
-              >
-                {destination ? (
-                  <span className="truncate">{destination.name}</span>
-                ) : (
-                  <span className="text-muted-foreground">Chọn thành phố đến...</span>
-                )}
-              </Button>
-            </div>
-
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Ngày đi</label>
-              <div className="relative">
-                <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 h-3 w-3 text-gray-400" />
-                <Input 
-                  type="date" 
-                  className="pl-8 h-8 border-2 text-sm" 
-                  value={departDate} 
-                  onChange={(e) => setDepartDate(e.target.value)} 
-                />
-              </div>
-            </div>
-
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Ngày về (tùy chọn)</label>
-              <div className="relative">
-                <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 h-3 w-3 text-gray-400" />
-                <Input 
-                  type="date" 
-                  className="pl-8 h-8 border-2 text-sm" 
-                  value={returnDate} 
-                  onChange={(e) => setReturnDate(e.target.value)} 
-                />
-              </div>
-            </div>
+      <div className="bg-white border-b shadow-sm" ref={searchSectionRef}>
+        <div className="max-w-6xl mx-auto">
+          {/* Chevron Toggle Button - Always visible */}
+          <div className="flex justify-center pt-2">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={toggleSearchCollapse}
+              className="h-6 w-8 p-0 hover:bg-gray-100 rounded-full"
+            >
+              {isSearchCollapsed ? (
+                <ChevronDown className="h-4 w-4 text-gray-600" />
+              ) : (
+                <ChevronUp className="h-4 w-4 text-gray-600" />
+              )}
+            </Button>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Hành khách</label>
-              <Select value={passengers} onValueChange={setPassengers}>
-                <SelectTrigger className="h-8 border-2 text-sm">
-                  <Users className="h-3 w-3 mr-2" />
-                  <SelectValue placeholder="1 Người lớn" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="1">1 Người lớn</SelectItem>
-                  <SelectItem value="2">2 Người lớn</SelectItem>
-                  <SelectItem value="3">3 Người lớn</SelectItem>
-                  <SelectItem value="4">4 Người lớn</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
+          {/* Search Form Content - Collapsible */}
+          <div 
+            className={cn(
+              "transition-all duration-300 ease-in-out overflow-hidden",
+              isSearchCollapsed 
+                ? "max-h-0 opacity-0" 
+                : "max-h-96 opacity-100 pb-6"
+            )}
+          >
+            <div className="px-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Đi từ</label>
+                  <Button
+                    variant="outline"
+                    className="w-full justify-start text-left font-normal h-8 border-2 text-sm"
+                    onClick={() => setIsOriginModalOpen(true)}
+                  >
+                    {origin ? (
+                      <span className="truncate">{origin.name}</span>
+                    ) : (
+                      <span className="text-muted-foreground">Chọn thành phố khởi hành...</span>
+                    )}
+                  </Button>
+                </div>
 
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Hạng ghế</label>
-              <Select value={seatClass} onValueChange={(v) => setSeatClass(v as FareClass)}>
-                <SelectTrigger className="h-8 border-2 text-sm">
-                  <SelectValue placeholder="PHỔ THÔNG" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="ECONOMY">Phổ thông</SelectItem>
-                  <SelectItem value="PREMIUM_ECONOMY">Phổ thông đặc biệt</SelectItem>
-                  <SelectItem value="BUSINESS">Thương gia</SelectItem>
-                  <SelectItem value="FIRST">Hạng nhất</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Đến</label>
+                  <Button
+                    variant="outline"
+                    className="w-full justify-start text-left font-normal h-8 border-2 text-sm"
+                    onClick={() => setIsDestinationModalOpen(true)}
+                  >
+                    {destination ? (
+                      <span className="truncate">{destination.name}</span>
+                    ) : (
+                      <span className="text-muted-foreground">Chọn thành phố đến...</span>
+                    )}
+                  </Button>
+                </div>
 
-            <div className="flex items-end">
-              <Button 
-                className="w-full h-8 bg-blue-600 text-white hover:bg-blue-700 text-sm font-medium" 
-                onClick={() => handleSearch()} 
-                disabled={loading}
-              >
-                <Search className="h-3 w-3 mr-2" />
-                {loading ? "Đang tìm kiếm..." : "Tìm chuyến bay"}
-              </Button>
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Ngày đi</label>
+                  <div className="relative">
+                    <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 h-3 w-3 text-gray-400" />
+                    <Input 
+                      type="date" 
+                      className="pl-8 h-8 border-2 text-sm" 
+                      value={departDate} 
+                      onChange={(e) => setDepartDate(e.target.value)} 
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Ngày về (tùy chọn)</label>
+                  <div className="relative">
+                    <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 h-3 w-3 text-gray-400" />
+                    <Input 
+                      type="date" 
+                      className="pl-8 h-8 border-2 text-sm" 
+                      value={returnDate} 
+                      onChange={(e) => setReturnDate(e.target.value)} 
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Hành khách</label>
+                  <Select value={passengers} onValueChange={setPassengers}>
+                    <SelectTrigger className="h-8 border-2 text-sm">
+                      <Users className="h-3 w-3 mr-2" />
+                      <SelectValue placeholder="1 Người lớn" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="1">1 Người lớn</SelectItem>
+                      <SelectItem value="2">2 Người lớn</SelectItem>
+                      <SelectItem value="3">3 Người lớn</SelectItem>
+                      <SelectItem value="4">4 Người lớn</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Hạng ghế</label>
+                  <Select value={seatClass} onValueChange={(v) => setSeatClass(v as FareClass)}>
+                    <SelectTrigger className="h-8 border-2 text-sm">
+                      <SelectValue placeholder="PHỔ THÔNG" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="ECONOMY">Phổ thông</SelectItem>
+                      <SelectItem value="PREMIUM_ECONOMY">Phổ thông đặc biệt</SelectItem>
+                      <SelectItem value="BUSINESS">Thương gia</SelectItem>
+                      <SelectItem value="FIRST">Hạng nhất</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="flex items-end">
+                  <Button 
+                    className="w-full h-8 bg-blue-600 text-white hover:bg-blue-700 text-sm font-medium" 
+                    onClick={() => handleSearch()} 
+                    disabled={loading}
+                  >
+                    <Search className="h-3 w-3 mr-2" />
+                    {loading ? "Đang tìm kiếm..." : "Tìm chuyến bay"}
+                  </Button>
+                </div>
+              </div>
             </div>
           </div>
         </div>
       </div>
 
       {/* Results Section */}
-      <div className="flex-1 overflow-auto">
+      <div className="flex-1 overflow-auto" ref={resultsContainerRef}>
         <div className="max-w-6xl mx-auto p-6">
           <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
-            {/* Filters Sidebar */}
+            {/* Filters Sidebar - Sticky */}
             <div className="lg:col-span-1">
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <Filter className="h-5 w-5" />
-                    Bộ lọc
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-6">
+              <div className="sticky top-0 space-y-4">
+                <Card className="max-h-[calc(100vh-120px)] overflow-hidden flex flex-col">
+                  <CardHeader className="flex-shrink-0">
+                    <CardTitle className="flex items-center gap-2">
+                      <Filter className="h-5 w-5" />
+                      Bộ lọc
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-6 overflow-y-auto flex-1 pr-3">
                   {/* Price Range */}
                   <div>
                     <label className="text-sm font-medium mb-3 block">Khoảng giá (VND)</label>
@@ -498,6 +564,7 @@ export function FlightSearchTab() {
                   </div>
                 </CardContent>
               </Card>
+              </div>
             </div>
 
             {/* Results */}

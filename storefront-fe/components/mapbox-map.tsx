@@ -53,14 +53,13 @@ export function MapboxMap({
     if (!mapContainer.current || map.current) return;
 
     // Get API key from environment variables
-    const apiKey = process.env.MAPBOX_ACCESS_TOKEN;
+    const apiKey = process.env.NEXT_PUBLIC_MAPBOX_ACCESS_TOKEN;
     if (!apiKey) {
       console.error('Mapbox API key not found. Please set NEXT_PUBLIC_MAPBOX_API_KEY in your environment variables.');
       return;
     }
 
     mapboxgl.accessToken = apiKey;
-
     map.current = new mapboxgl.Map({
       container: mapContainer.current,
       style,

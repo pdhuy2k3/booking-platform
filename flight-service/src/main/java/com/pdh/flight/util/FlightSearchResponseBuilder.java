@@ -1,5 +1,6 @@
 package com.pdh.flight.util;
 
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -12,27 +13,26 @@ public final class FlightSearchResponseBuilder {
     }
 
     public static Map<String, Object> validationError(String message, int page, int limit) {
-        return Map.of(
-            "error", "VALIDATION_ERROR",
-            "message", message,
-            "flights", List.of(),
-            "totalCount", 0,
-            "page", page,
-            "limit", limit,
-            "hasMore", false
-        );
+        Map<String, Object> response = new HashMap<>();
+        response.put("error", "VALIDATION_ERROR");
+        response.put("message", message != null ? message : "Invalid request parameters");
+        response.put("flights", List.of());
+        response.put("totalCount", 0);
+        response.put("page", page);
+        response.put("limit", limit);
+        response.put("hasMore", false);
+        return response;
     }
 
     public static Map<String, Object> failureResponse(String message, int page, int limit) {
-        return Map.of(
-            "error", "Failed to search flights",
-            "message", message,
-            "flights", List.of(),
-            "totalCount", 0,
-            "page", page,
-            "limit", limit,
-            "hasMore", false
-        );
+        Map<String, Object> response = new HashMap<>();
+        response.put("error", "Failed to search flights");
+        response.put("message", message != null ? message : "Unexpected error occurred");
+        response.put("flights", List.of());
+        response.put("totalCount", 0);
+        response.put("page", page);
+        response.put("limit", limit);
+        response.put("hasMore", false);
+        return response;
     }
 }
-

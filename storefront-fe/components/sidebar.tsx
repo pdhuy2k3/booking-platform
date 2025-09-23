@@ -24,6 +24,7 @@ import {
 import Image from "next/image"
 import { useAuth } from "@/contexts/auth-context"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import { ThemeToggle } from "@/components/theme-toggle"
 
 interface NavItem {
   label: string
@@ -59,7 +60,7 @@ export function Sidebar() {
   const handleSettings = () => router.push("/dashboard#preferences")
 
   return (
-    <aside className="w-16 shrink-0 bg-white border-r border-gray-200 flex flex-col items-center py-4 gap-1">
+    <aside className="w-16 shrink-0 bg-background border-r border-border flex flex-col items-center py-4 gap-1">
       {/* Logo */}
       <Link
         href="/"
@@ -67,7 +68,7 @@ export function Sidebar() {
         aria-label="mindtrip Home"
       >
         <div className="text-2xl font-bold">
-          <span className="text-black">🧠</span>
+          <span className="text-foreground">🧠</span>
         </div>
       </Link>
 
@@ -81,8 +82,8 @@ export function Sidebar() {
               className={cn(
                 "flex h-10 w-10 items-center justify-center rounded-full transition-all duration-200",
                 isActive 
-                  ? "bg-gray-900 text-white" 
-                  : "text-gray-600 hover:bg-gray-100 hover:text-gray-900"
+                  ? "bg-primary text-primary-foreground" 
+                  : "text-muted-foreground hover:bg-secondary hover:text-foreground"
               )}
             >
               <Icon className="h-5 w-5" />
@@ -119,7 +120,7 @@ export function Sidebar() {
           const Icon = item.icon
           return item.href ? (
             <Link key={item.label} href={item.href} aria-label={item.label} className="relative">
-              <div className="flex h-10 w-10 items-center justify-center rounded-full text-gray-600 hover:bg-gray-100 hover:text-gray-900 transition-all duration-200">
+              <div className="flex h-10 w-10 items-center justify-center rounded-full text-muted-foreground hover:bg-secondary hover:text-foreground transition-all duration-200">
                 <Icon className="h-5 w-5" />
               </div>
               <span className="sr-only">{item.label}</span>
@@ -132,7 +133,7 @@ export function Sidebar() {
               onClick={item.action}
               className="relative"
             >
-              <div className="flex h-10 w-10 items-center justify-center rounded-full text-gray-600 hover:bg-gray-100 hover:text-gray-900 transition-all duration-200">
+              <div className="flex h-10 w-10 items-center justify-center rounded-full text-muted-foreground hover:bg-secondary hover:text-foreground transition-all duration-200">
                 <Icon className="h-5 w-5" />
               </div>
               <span className="sr-only">{item.label}</span>
@@ -144,7 +145,7 @@ export function Sidebar() {
       {/* User Section */}
       <div className="flex flex-col items-center gap-2">
         {isLoading ? (
-          <div className="h-10 w-10 animate-pulse rounded-full bg-gray-200" />
+          <div className="h-10 w-10 animate-pulse rounded-full bg-secondary" />
         ) : isAuthenticated && user ? (
           <>
             <Popover>
@@ -152,12 +153,12 @@ export function Sidebar() {
                 <button
                   type="button"
                   aria-label="User menu"
-                  className="flex h-10 w-10 items-center justify-center rounded-full border border-gray-200 overflow-hidden bg-gray-50 hover:ring-2 hover:ring-blue-500 hover:ring-offset-2 transition-all duration-200"
+                  className="flex h-10 w-10 items-center justify-center rounded-full border border-border overflow-hidden bg-secondary hover:ring-2 hover:ring-primary hover:ring-offset-2 hover:ring-offset-background transition-all duration-200"
                 >
                   {user.picture ? (
                     <Image src={user.picture} alt={user.fullName} width={40} height={40} className="h-full w-full object-cover" />
                   ) : (
-                    <span className="text-sm font-semibold text-gray-700 uppercase">
+                    <span className="text-sm font-semibold text-foreground uppercase">
                       {user.fullName
                         .split(" ")
                         .map((part) => part[0])
@@ -168,12 +169,12 @@ export function Sidebar() {
                 </button>
               </PopoverTrigger>
               <PopoverContent side="right" align="end" className="w-56 p-2">
-                <div className="flex items-center gap-3 p-2 border-b border-gray-100 mb-2">
-                  <div className="flex h-10 w-10 items-center justify-center rounded-full border border-gray-200 overflow-hidden bg-gray-50">
+                <div className="flex items-center gap-3 p-2 border-b border-border mb-2">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-full border border-border overflow-hidden bg-secondary">
                     {user.picture ? (
                       <Image src={user.picture} alt={user.fullName} width={40} height={40} className="h-full w-full object-cover" />
                     ) : (
-                      <span className="text-sm font-semibold text-gray-700 uppercase">
+                      <span className="text-sm font-semibold text-foreground uppercase">
                         {user.fullName
                           .split(" ")
                           .map((part) => part[0])
@@ -183,35 +184,35 @@ export function Sidebar() {
                     )}
                   </div>
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-gray-900 truncate">{user.fullName}</p>
-                    <p className="text-xs text-gray-500 truncate">{user.email}</p>
+                    <p className="text-sm font-medium text-foreground truncate">{user.fullName}</p>
+                    <p className="text-xs text-muted-foreground truncate">{user.email}</p>
                   </div>
                 </div>
                 <div className="space-y-1">
                   <Link
                     href="/dashboard"
-                    className="flex items-center gap-3 px-2 py-2 text-sm text-gray-700 hover:bg-gray-100 rounded-md transition-colors"
+                    className="flex items-center gap-3 px-2 py-2 text-sm text-foreground hover:bg-secondary rounded-md transition-colors"
                   >
                     <BarChart3 className="h-4 w-4" />
                     Dashboard
                   </Link>
                   <Link
                     href="/dashboard#profile"
-                    className="flex items-center gap-3 px-2 py-2 text-sm text-gray-700 hover:bg-gray-100 rounded-md transition-colors"
+                    className="flex items-center gap-3 px-2 py-2 text-sm text-foreground hover:bg-secondary rounded-md transition-colors"
                   >
                     <User className="h-4 w-4" />
                     Hồ sơ cá nhân
                   </Link>
                   <Link
                     href="/dashboard#bookings"
-                    className="flex items-center gap-3 px-2 py-2 text-sm text-gray-700 hover:bg-gray-100 rounded-md transition-colors"
+                    className="flex items-center gap-3 px-2 py-2 text-sm text-foreground hover:bg-secondary rounded-md transition-colors"
                   >
                     <History className="h-4 w-4" />
                     Lịch sử đặt chỗ
                   </Link>
                   <button
                     onClick={logout}
-                    className="flex items-center gap-3 px-2 py-2 text-sm text-red-600 hover:bg-red-50 rounded-md transition-colors w-full text-left"
+                    className="flex items-center gap-3 px-2 py-2 text-sm text-destructive hover:bg-destructive/10 rounded-md transition-colors w-full text-left"
                   >
                     <LogOut className="h-4 w-4" />
                     Đăng xuất
@@ -225,15 +226,18 @@ export function Sidebar() {
             type="button"
             onClick={login}
             aria-label="Sign in"
-            className="flex h-10 w-10 items-center justify-center rounded-full bg-gray-900 text-white hover:bg-gray-800 transition-all duration-200"
+            className="flex h-10 w-10 items-center justify-center rounded-full bg-primary text-primary-foreground hover:bg-primary/90 transition-all duration-200"
           >
             <UserRound className="h-5 w-5" />
           </button>
         )}
 
+        {/* Theme Toggle */}
+        <ThemeToggle variant="simple" />
+
         {/* Help Button */}
         <Link href="/help" aria-label="Help" className="relative">
-          <div className="flex h-10 w-10 items-center justify-center rounded-full text-gray-600 hover:bg-gray-100 hover:text-gray-900 transition-all duration-200">
+          <div className="flex h-10 w-10 items-center justify-center rounded-full text-muted-foreground hover:bg-secondary hover:text-foreground transition-all duration-200">
             <Info className="h-5 w-5" />
           </div>
           <span className="sr-only">Help</span>
