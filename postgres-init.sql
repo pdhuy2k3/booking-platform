@@ -18,5 +18,6 @@ CREATE DATABASE notification_db WITH OWNER = postgres ENCODING = 'UTF8' LC_COLLA
 LIMIT = -1;
 CREATE DATABASE media_db WITH OWNER = postgres ENCODING = 'UTF8' LC_COLLATE = 'en_US.utf8' LC_CTYPE = 'en_US.utf8' TABLESPACE = pg_default CONNECTION
 LIMIT = -1;
-
+CREATE DATABASE ai_db WITH OWNER = postgres ENCODING = 'UTF8' LC_COLLATE = 'en_US.utf8' LC_CTYPE = 'en_US.utf8' TABLESPACE = pg_default CONNECTION
+LIMIT = -1;
 

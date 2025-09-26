@@ -254,10 +254,10 @@ export function AttributeManager({ user, onUpdate }: AttributeManagerProps) {
   // Address attributes are now handled in the profile tab, not here
 
   return (
-    <Card className="bg-gray-900/50 border-gray-800">
+    <Card className="bg-white border-gray-200">
       <CardHeader className="flex flex-row items-center justify-between">
         <div>
-          <CardTitle className="text-white">User Preferences</CardTitle>
+          <CardTitle className="text-gray-900">User Preferences</CardTitle>
           <CardDescription>Manage your application preferences and settings</CardDescription>
         </div>
         <div className="flex gap-2">
@@ -292,7 +292,7 @@ export function AttributeManager({ user, onUpdate }: AttributeManagerProps) {
                 variant="outline"
                 onClick={handleCancel}
                 disabled={isSaving}
-                className="border-gray-700 hover:bg-gray-800"
+                className="border-gray-300 hover:bg-gray-50"
               >
                 <X className="h-4 w-4 mr-2" />
                 Cancel

@@ -158,20 +158,38 @@ public class HotelMapper {
      * Convert Hotel entity to storefront search response format
      */
     public Map<String, Object> toStorefrontSearchResponse(Hotel hotel, LocalDate checkIn, LocalDate checkOut, int guests, int rooms) {
-        Map<String, Object> response = new HashMap<>();
-        response.put("hotelId", hotel.getHotelId().toString());
-        response.put("name", hotel.getName() != null ? hotel.getName() : "Unknown Hotel");
-        response.put("address", hotel.getAddress() != null ? hotel.getAddress() : "");
-        response.put("city", hotel.getCity() != null ? hotel.getCity() : "");
-        response.put("country", hotel.getCountry() != null ? hotel.getCountry() : "");
-        response.put("rating", hotel.getStarRating() != null ? hotel.getStarRating().intValue() : 3);
-        response.put("pricePerNight", getMinPriceOfHotel(hotel.getHotelId()));
-        response.put("currency", "VND");
+        if (hotel == null) {
+            log.warn("Hotel is null in toStorefrontSearchResponse");
+            return new HashMap<>();
+        }
         
-        // Get images via ImageService - return complete media responses for frontend
-        List<String> images = getHotelImages(hotel.getHotelId());
-        response.put("images", images);
-        response.put("primaryImage", images.isEmpty() ? null : images.get(0));
+        Map<String, Object> response = new HashMap<>();
+        try {
+            response.put("hotelId", hotel.getHotelId() != null ? hotel.getHotelId().toString() : "unknown");
+            response.put("name", hotel.getName() != null ? hotel.getName() : "Unknown Hotel");
+            response.put("address", hotel.getAddress() != null ? hotel.getAddress() : "");
+            response.put("city", hotel.getCity() != null ? hotel.getCity() : "");
+            response.put("country", hotel.getCountry() != null ? hotel.getCountry() : "");
+            response.put("rating", hotel.getStarRating() != null ? hotel.getStarRating().intValue() : 3);
+            response.put("pricePerNight", getMinPriceOfHotel(hotel.getHotelId()));
+            response.put("currency", "VND");
+            
+            // Get images via ImageService - return complete media responses for frontend
+            List<String> images = getHotelImages(hotel.getHotelId());
+            response.put("images", images != null ? images : List.of());
+            response.put("primaryImage", (images != null && !images.isEmpty()) ? images.get(0) : null);
+            
+        } catch (Exception e) {
+            log.error("Error creating hotel search response for hotel {}: {}", 
+                     hotel.getHotelId(), e.getMessage(), e);
+            // Return a minimal response to prevent complete failure
+            response.put("hotelId", hotel.getHotelId() != null ? hotel.getHotelId().toString() : "unknown");
+            response.put("name", hotel.getName() != null ? hotel.getName() : "Unknown Hotel");
+            response.put("pricePerNight", BigDecimal.valueOf(500000));
+            response.put("currency", "VND");
+            response.put("images", List.of());
+            response.put("primaryImage", null);
+        }
         
         return response;
     }
@@ -210,12 +228,15 @@ public class HotelMapper {
         return response;
     }
     
-    /**
-     * Generate mock price (in production, this would come from pricing service)
-     */
-    private BigDecimal getMinPriceOfHotel(Long hotelId) {
 
-        return roomService.calculateMinRoomPerNightByHotel(hotelId);
+    private BigDecimal getMinPriceOfHotel(Long hotelId) {
+        try {
+            BigDecimal minPrice = roomService.calculateMinRoomPerNightByHotel(hotelId);
+            return minPrice != null ? minPrice : BigDecimal.valueOf(500000); // Default price if no rooms found
+        } catch (Exception e) {
+            log.warn("Error calculating min price for hotel {}: {}", hotelId, e.getMessage());
+            return BigDecimal.valueOf(500000); // Default fallback price
+        }
     }
     
     /**

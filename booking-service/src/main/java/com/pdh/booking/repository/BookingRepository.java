@@ -8,6 +8,8 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
+import org.springframework.security.access.method.P;
+
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
@@ -29,8 +31,9 @@ public interface BookingRepository extends JpaRepository<Booking, UUID> {
     Page<Booking> findByUserIdOrderByCreatedAtDesc(UUID userId, Pageable pageable);
 
     List<Booking> findByStatus(BookingStatus status);
-    
+    Page<Booking> findByStatus(BookingStatus status, Pageable pageable);
     List<Booking> findByBookingType(BookingType bookingType);
+    Page<Booking> findByBookingType(BookingType bookingType, Pageable pageable);
     
     List<Booking> findByUserIdAndBookingType(UUID userId, BookingType bookingType);
     
@@ -224,4 +227,14 @@ public interface BookingRepository extends JpaRepository<Booking, UUID> {
                    "GROUP BY booking_type ORDER BY revenue DESC", nativeQuery = true)
     List<Map<String, Object>> getRevenueByBookingType(@Param("startDate") LocalDate startDate,
                                                      @Param("endDate") LocalDate endDate);
+
+    /**
+     * Search bookings by text (booking reference, customer info, product details)
+     */
+    @Query(value = "SELECT * FROM bookings WHERE " +
+                   "booking_reference ILIKE CONCAT('%', :searchTerm, '%') OR " +
+                   "CAST(product_details AS TEXT) ILIKE CONCAT('%', :searchTerm, '%') OR " +
+                   "notes ILIKE CONCAT('%', :searchTerm, '%') " +
+                   "ORDER BY created_at DESC", nativeQuery = true)
+    Page<Booking> searchBookings(@Param("searchTerm") String searchTerm, Pageable pageable);
 }

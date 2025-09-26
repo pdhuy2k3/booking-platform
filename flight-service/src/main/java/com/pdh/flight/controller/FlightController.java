@@ -8,17 +8,17 @@ import com.pdh.flight.dto.response.FlightFareDetailsResponse;
 import com.pdh.flight.model.Flight;
 import com.pdh.flight.model.FlightSchedule;
 import com.pdh.flight.model.FlightFare;
-import com.pdh.flight.model.Airport;
 import com.pdh.flight.model.enums.FareClass;
 import com.pdh.flight.repository.FlightRepository;
-import com.pdh.flight.repository.AirportRepository;
-import com.pdh.flight.repository.AirlineRepository;
 import com.pdh.flight.repository.FlightScheduleRepository;
 import com.pdh.flight.repository.FlightFareRepository;
 import com.pdh.flight.service.FlightService;
 import com.pdh.flight.service.FlightSearchService;
 import com.pdh.flight.service.CityDataService;
 import com.pdh.flight.service.CityMappingService;
+import com.pdh.flight.util.FlightResponseAssembler;
+import com.pdh.flight.util.FlightSearchResponseBuilder;
+import com.pdh.flight.util.FlightStaticData;
 import com.pdh.common.validation.SearchValidation;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -29,25 +29,32 @@ import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.ai.tool.annotation.Tool;
+import org.springframework.ai.tool.annotation.ToolParam;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.*;
 
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.format.DateTimeParseException;
 import java.time.Duration;
 import java.time.ZonedDateTime;
 import java.time.ZoneOffset;
-import java.time.format.DateTimeParseException;
-import java.util.HashMap;
-import java.util.UUID;
+import java.time.temporal.ChronoUnit;
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.Comparator;
+import java.util.UUID;
 import java.util.stream.Collectors;
 
 /**
@@ -64,8 +71,6 @@ import java.util.stream.Collectors;
 public class FlightController {
 
     private final FlightRepository flightRepository;
-    private final AirportRepository airportRepository;
-    private final AirlineRepository airlineRepository;
     private final FlightService flightService;
     private final FlightSearchService flightSearchService;
     private final ObjectMapper objectMapper;
@@ -73,191 +78,188 @@ public class FlightController {
     private final CityMappingService cityMappingService;
     private final FlightScheduleRepository flightScheduleRepository;
     private final FlightFareRepository flightFareRepository;
+    private final FlightResponseAssembler flightResponseAssembler;
 
 
     /**
      * Search flights for storefront
      * GET /flights/storefront/search?origin=HAN&destination=SGN&departureDate=2024-02-15&passengers=1&seatClass=ECONOMY
      */
-    @Operation(
-        summary = "Search flights",
-        description = "Search for flights based on origin, destination, date, and passenger requirements. Returns paginated results with availability and pricing information.",
-        tags = {"Public API", "Search"}
-    )
-    @ApiResponses(value = {
-        @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "Flights found successfully",
-            content = @Content(schema = @Schema(implementation = Map.class))
-        ),
-        @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400", description = "Invalid search parameters")
-    })
-    @GetMapping("/storefront/search")
-    public ResponseEntity<Map<String, Object>> searchFlights(
-            @Parameter(description = "Origin airport IATA code", example = "HAN")
-            @RequestParam(required = false) String origin,
-            @Parameter(description = "Destination airport IATA code", example = "SGN")
-            @RequestParam(required = false) String destination,
-            @Parameter(description = "Departure date in YYYY-MM-DD format", example = "2024-02-15")
-            @RequestParam(required = false) String departureDate,
-            @Parameter(description = "Return date in YYYY-MM-DD format (for round-trip)", example = "2024-02-20")
-            @RequestParam(required = false) String returnDate,
-            @Parameter(description = "Number of passengers", example = "1")
-            @RequestParam(defaultValue = "1") int passengers,
-            @Parameter(description = "Seat class", example = "ECONOMY")
-            @RequestParam(defaultValue = "ECONOMY") String seatClass,
-            @Parameter(description = "Sort by criteria (price, duration, departure, arrival)", example = "departure")
-            @RequestParam(defaultValue = "departure") String sortBy,
-            @Parameter(description = "Filter by airline ID", example = "1")
-            @RequestParam(required = false) Long airlineId,
-            @Parameter(description = "Filter by departure airport ID", example = "1")
-            @RequestParam(required = false) Long departureAirportId,
-            @Parameter(description = "Page number (1-based)", example = "1")
-            @RequestParam(defaultValue = "1") int page,
-            @Parameter(description = "Number of results per page", example = "20")
-            @RequestParam(defaultValue = "20") int limit) {
 
-        log.info("Flight search request: origin={}, destination={}, departureDate={}, passengers={}, seatClass={}",
-                origin, destination, departureDate, passengers, seatClass);
+    @GetMapping("/storefront/search")
+    @Tool(name = "search_flights", description = "Search flights with filters for origin, destination, dates, airline, price range, and duration.")
+    public ResponseEntity<Map<String, Object>> searchFlights(
+            @ToolParam(description = "Origin airport, city, or IATA code", required = false)
+            @RequestParam(required = false) String origin,
+            @ToolParam(description = "Destination airport, city, or IATA code", required = false)
+            @RequestParam(required = false) String destination,
+            @ToolParam(description = "Airline name filter", required = false)
+            @RequestParam(required = false) String airlineName,
+            @ToolParam(description = "Airline IATA code filter", required = false)
+            @RequestParam(required = false) String airlineCode,
+            @ToolParam(description = "Departure date in YYYY-MM-DD format", required = false)
+            @RequestParam(required = false) String departureDate,
+            @ToolParam(description = "Return date in YYYY-MM-DD format (for round-trip)",  required = false)
+            @RequestParam(required = false) String returnDate,
+            @ToolParam(description = "Number of passengers")
+            @RequestParam(defaultValue = "1") Integer passengers,
+            @ToolParam(description = "Seat class")
+            @RequestParam(defaultValue = "ECONOMY") String seatClass,
+            @ToolParam(description = "Minimum total fare")
+            @RequestParam(required = false) BigDecimal minPrice,
+            @ToolParam(description = "Maximum total fare")
+            @RequestParam(required = false) BigDecimal maxPrice,
+            @ToolParam(description = "Minimum duration in minutes")
+            @RequestParam(required = false) Integer minDuration,
+            @ToolParam(description = "Maximum duration in minutes")
+            @RequestParam(required = false) Integer maxDuration,
+            @ToolParam(description = "Sort by criteria (price, duration, departure, arrival")
+            @RequestParam(defaultValue = "departure") String sortBy,
+            @ToolParam(description = "Filter by airline ID")
+            @RequestParam(required = false) Long airlineId,
+            @ToolParam(description = "Filter by departure airport ID")
+            @RequestParam(required = false) Long departureAirportId,
+            @ToolParam(description = "Page number (1-based)")
+            @RequestParam(defaultValue = "1") Integer page,
+            @ToolParam(description = "Number of results per page")
+            @RequestParam(defaultValue = "20") Integer limit) {
+
+        log.info("Flight search request: origin={}, destination={}, departureDate={}, airlineName={}, minPrice={}, maxPrice={}, seatClass={}",
+                origin, destination, departureDate, airlineName, minPrice, maxPrice, seatClass);
 
         try {
-            // Validate search parameters
             SearchValidation.ValidationResult originValidation = SearchValidation.validateSearchQuery(origin);
             SearchValidation.ValidationResult destinationValidation = SearchValidation.validateSearchQuery(destination);
-            
+            SearchValidation.ValidationResult airlineValidation = SearchValidation.validateSearchQuery(airlineName);
+
             if (!originValidation.isValid()) {
-                log.warn("Invalid origin parameter: {}", originValidation.getErrorMessage());
-                return ResponseEntity.badRequest().body(Map.of(
-                    "error", "VALIDATION_ERROR",
-                    "message", "Invalid origin: " + originValidation.getErrorMessage(),
-                    "flights", List.of(),
-                    "totalCount", 0
-                ));
+                return ResponseEntity.badRequest().body(FlightSearchResponseBuilder.validationError(originValidation.getErrorMessage(), page, limit));
             }
-            
+
             if (!destinationValidation.isValid()) {
-                log.warn("Invalid destination parameter: {}", destinationValidation.getErrorMessage());
-                return ResponseEntity.badRequest().body(Map.of(
-                    "error", "VALIDATION_ERROR",
-                    "message", "Invalid destination: " + destinationValidation.getErrorMessage(),
-                    "flights", List.of(),
-                    "totalCount", 0
-                ));
-            }
-            
-            // Sanitize inputs
-            String sanitizedOrigin = SearchValidation.sanitizeSearchQuery(origin);
-            String sanitizedDestination = SearchValidation.sanitizeSearchQuery(destination);
-            
-            // Resolve city names to IATA codes if needed
-            String resolvedOrigin = resolveCityToIataCode(sanitizedOrigin);
-            String resolvedDestination = resolveCityToIataCode(sanitizedDestination);
-            
-            // Check if this is a search request or initial data request
-            boolean hasSearchCriteria = (resolvedOrigin != null && !resolvedOrigin.trim().isEmpty()) ||
-                                      (resolvedDestination != null && !resolvedDestination.trim().isEmpty()) ||
-                                      (departureDate != null && !departureDate.trim().isEmpty());
-
-            if (!hasSearchCriteria) {
-                // Return initial data - all flights without search filters
-                log.info("Returning initial flight data without search filters");
-                
-                // Create pageable
-                Pageable pageable = PageRequest.of(page - 1, limit);
-                
-                // Get all flights (without search filters) for initial display
-                Page<Flight> flightPage = flightRepository.findAll(pageable);
-                
-                // Convert flights to response format
-                List<Map<String, Object>> flights = flightPage.getContent().stream()
-                    .map(this::convertFlightToResponse)
-                    .collect(Collectors.toList());
-                
-                // Get popular destinations
-                List<Map<String, Object>> popularDestinations = getPopularDestinationsData();
-                
-                // Get origin and destination data from external API
-                List<Map<String, Object>> origins = getOriginData();
-                List<Map<String, Object>> destinations = getDestinationData();
-                
-                Map<String, Object> response = Map.of(
-                    "flights", flights,
-                    "popularDestinations", popularDestinations,
-                    "origins", origins,
-                    "destinations", destinations,
-                    "totalCount", flightPage.getTotalElements(),
-                    "page", page,
-                    "limit", limit,
-                    "hasMore", flightPage.hasNext()
-                );
-                
-                return ResponseEntity.ok(response);
+                return ResponseEntity.badRequest().body(FlightSearchResponseBuilder.validationError(destinationValidation.getErrorMessage(), page, limit));
             }
 
-            // Parse date
-            LocalDate depDate;
-            try {
-                depDate = LocalDate.parse(departureDate);
-            } catch (Exception e) {
-                Map<String, Object> errorResponse = Map.of(
-                    "error", "Validation failed",
-                    "message", "Invalid departure date format. Expected YYYY-MM-DD",
-                    "flights", List.of(),
-                    "totalCount", 0,
-                    "page", page,
-                    "limit", limit,
-                    "hasMore", false
-                );
-                return ResponseEntity.badRequest().body(errorResponse);
+            if (!airlineValidation.isValid()) {
+                return ResponseEntity.badRequest().body(FlightSearchResponseBuilder.validationError(airlineValidation.getErrorMessage(), page, limit));
             }
 
-            // Parse fare class
-            FareClass fareClass;
-            try {
-                fareClass = FareClass.valueOf(seatClass);
-            } catch (Exception e) {
-                Map<String, Object> errorResponse = Map.of(
-                    "error", "Validation failed",
-                    "message", "Invalid seat class. Valid values are: ECONOMY, BUSINESS, FIRST",
-                    "flights", List.of(),
-                    "totalCount", 0,
-                    "page", page,
-                    "limit", limit,
-                    "hasMore", false
-                );
-                return ResponseEntity.badRequest().body(errorResponse);
+            if (minPrice != null && maxPrice != null && minPrice.compareTo(maxPrice) > 0) {
+                return ResponseEntity.badRequest().body(FlightSearchResponseBuilder.validationError("minPrice cannot be greater than maxPrice", page, limit));
             }
 
-            // Create pageable
-            Pageable pageable = PageRequest.of(page - 1, limit);
+            if (minDuration != null && maxDuration != null && minDuration > maxDuration) {
+                return ResponseEntity.badRequest().body(FlightSearchResponseBuilder.validationError("minDuration cannot be greater than maxDuration", page, limit));
+            }
 
-            // Parse return date if provided
-            LocalDate retDate = null;
-            if (returnDate != null && !returnDate.trim().isEmpty()) {
-                try {
-                    retDate = LocalDate.parse(returnDate);
-                } catch (Exception e) {
-                    Map<String, Object> errorResponse = Map.of(
-                        "error", "Validation failed",
-                        "message", "Invalid return date format. Expected YYYY-MM-DD",
-                        "flights", List.of(),
-                        "totalCount", 0,
-                        "page", page,
-                        "limit", limit,
-                        "hasMore", false
-                    );
-                    return ResponseEntity.badRequest().body(errorResponse);
+            if (StringUtils.hasText(airlineCode)) {
+                SearchValidation.ValidationResult codeValidation = SearchValidation.validateSearchQuery(airlineCode);
+                if (!codeValidation.isValid()) {
+                    return ResponseEntity.badRequest().body(FlightSearchResponseBuilder.validationError(codeValidation.getErrorMessage(), page, limit));
                 }
             }
 
-            // Search flights using the new service with integrated pricing
-            Page<FlightSearchResultDto> flightPage = flightSearchService.searchFlights(
-                    resolvedOrigin, resolvedDestination, depDate, 
-                    retDate,
-                    passengers, fareClass, pageable, sortBy, airlineId, departureAirportId);
+            String sanitizedOrigin = SearchValidation.sanitizeSearchQuery(origin);
+            String sanitizedDestination = SearchValidation.sanitizeSearchQuery(destination);
+            String sanitizedAirlineName = SearchValidation.sanitizeSearchQuery(airlineName);
+            String sanitizedAirlineCode = StringUtils.hasText(airlineCode) ? airlineCode.trim().toUpperCase() : null;
 
-            // Convert to response format
+            String resolvedOrigin = resolveCityToIataCode(sanitizedOrigin);
+            String resolvedDestination = resolveCityToIataCode(sanitizedDestination);
+
+            List<String> originTerms = buildLocationTerms(sanitizedOrigin, resolvedOrigin);
+            List<String> destinationTerms = buildLocationTerms(sanitizedDestination, resolvedDestination);
+
+            boolean hasSearchCriteria = StringUtils.hasText(resolvedOrigin)
+                || StringUtils.hasText(resolvedDestination)
+                || StringUtils.hasText(departureDate)
+                || StringUtils.hasText(sanitizedAirlineName)
+                || StringUtils.hasText(sanitizedAirlineCode)
+                || minPrice != null || maxPrice != null
+                || minDuration != null || maxDuration != null;
+
+            Pageable pageable = PageRequest.of(Math.max(page - 1, 0), limit);
+
+            if (!hasSearchCriteria) {
+                Page<Flight> flightPage = flightRepository.findAll(pageable);
+                List<Map<String, Object>> flights = flightPage.getContent().stream()
+                    .map(flightResponseAssembler::toFlightDetailMap)
+                    .collect(Collectors.toList());
+
+                Map<String, Object> response = Map.of(
+                    "flights", flights,
+                    "popularDestinations", FlightStaticData.POPULAR_DESTINATIONS,
+                    "origins", getOriginData(),
+                    "destinations", getDestinationData(),
+                    "totalCount", flightPage.getTotalElements(),
+                    "page", page,
+                    "limit", limit,
+                    "hasMore", flightPage.hasNext(),
+                    "filters", Map.of("applied", Map.of())
+                );
+
+                return ResponseEntity.ok(response);
+            }
+
+            LocalDate depDate;
+            try {
+                depDate = LocalDate.parse(departureDate);
+            } catch (DateTimeParseException | NullPointerException e) {
+                return ResponseEntity.badRequest().body(FlightSearchResponseBuilder.validationError("Invalid departure date format. Expected YYYY-MM-DD", page, limit));
+            }
+
+            LocalDate retDate = null;
+            if (StringUtils.hasText(returnDate)) {
+                try {
+                    retDate = LocalDate.parse(returnDate);
+                } catch (DateTimeParseException e) {
+                    return ResponseEntity.badRequest().body(FlightSearchResponseBuilder.validationError("Invalid return date format. Expected YYYY-MM-DD", page, limit));
+                }
+            }
+
+            FareClass fareClass;
+            try {
+                fareClass = FareClass.valueOf(seatClass.toUpperCase());
+            } catch (Exception e) {
+                return ResponseEntity.badRequest().body(FlightSearchResponseBuilder.validationError("Invalid seat class. Valid values are: ECONOMY, BUSINESS, FIRST", page, limit));
+            }
+
+            Page<FlightSearchResultDto> flightPage = flightSearchService.searchFlights(
+                resolvedOrigin,
+                resolvedDestination,
+                originTerms,
+                destinationTerms,
+                depDate,
+                retDate,
+                passengers,
+                fareClass,
+                pageable,
+                sortBy,
+                airlineId,
+                departureAirportId,
+                sanitizedAirlineName,
+                sanitizedAirlineCode,
+                minPrice,
+                maxPrice,
+                minDuration,
+                maxDuration
+            );
+
             List<Map<String, Object>> flights = flightPage.getContent().stream()
-                .map(this::convertSearchResultToResponse)
+                .map(flightResponseAssembler::toSearchResultMap)
                 .collect(Collectors.toList());
+
+            Map<String, Object> appliedFilters = new LinkedHashMap<>();
+            appliedFilters.put("origin", sanitizedOrigin);
+            appliedFilters.put("destination", sanitizedDestination);
+            appliedFilters.put("airlineName", sanitizedAirlineName);
+            appliedFilters.put("airlineCode", sanitizedAirlineCode);
+            appliedFilters.put("minPrice", minPrice);
+            appliedFilters.put("maxPrice", maxPrice);
+            appliedFilters.put("minDuration", minDuration);
+            appliedFilters.put("maxDuration", maxDuration);
+            appliedFilters.put("departureDate", depDate);
+            appliedFilters.put("returnDate", retDate);
 
             Map<String, Object> response = Map.of(
                 "flights", flights,
@@ -265,31 +267,16 @@ public class FlightController {
                 "page", page,
                 "limit", limit,
                 "hasMore", flightPage.hasNext(),
-                "filters", Map.of(
-                    "priceRange", Map.of("min", 1500000, "max", 5000000),
-                    "airlines", List.of("Vietnam Airlines", "VietJet Air", "Bamboo Airways"),
-                    "airports", Map.of(
-                        "origins", List.of(Map.of("code", origin, "name", getAirportName(origin), "city", getAirportCity(origin))),
-                        "destinations", List.of(Map.of("code", destination, "name", getAirportName(destination), "city", getAirportCity(destination)))
-                    )
-                )
+                "filters", Map.of("applied", appliedFilters)
             );
 
             log.info("Found {} flights for search criteria", flights.size());
             return ResponseEntity.ok(response);
 
         } catch (Exception e) {
+            e.printStackTrace();
             log.error("Error searching flights", e);
-            Map<String, Object> errorResponse = Map.of(
-                "error", "Failed to search flights",
-                "message", e.getMessage(),
-                "flights", List.of(),
-                "totalCount", 0,
-                "page", page,
-                "limit", limit,
-                "hasMore", false
-            );
-            return ResponseEntity.ok(errorResponse);
+            return ResponseEntity.ok(FlightSearchResponseBuilder.failureResponse(e.getMessage(), page, limit));
         }
     }
 
@@ -316,7 +303,7 @@ public class FlightController {
             }
 
             Flight flight = flightOpt.get();
-            Map<String, Object> response = convertFlightToResponse(flight);
+            Map<String, Object> response = flightResponseAssembler.toFlightDetailMap(flight);
 
             return ResponseEntity.ok(response);
         } catch (Exception e) {
@@ -414,37 +401,7 @@ public class FlightController {
         try {
             // For now, return static popular destinations
             // In production, this would be based on booking statistics
-            List<Map<String, Object>> destinations = List.of(
-                Map.of(
-                    "code", "SGN",
-                    "name", "Tan Son Nhat International Airport",
-                    "city", "Ho Chi Minh City",
-                    "country", "Vietnam",
-                    "image", "/destinations/hcmc.jpg",
-                    "averagePrice", 2200000,
-                    "currency", "VND"
-                ),
-                Map.of(
-                    "code", "DAD",
-                    "name", "Da Nang International Airport",
-                    "city", "Da Nang",
-                    "country", "Vietnam",
-                    "image", "/destinations/danang.jpg",
-                    "averagePrice", 1800000,
-                    "currency", "VND"
-                ),
-                Map.of(
-                    "code", "HAN",
-                    "name", "Noi Bai International Airport",
-                    "city", "Hanoi",
-                    "country", "Vietnam",
-                    "image", "/destinations/hanoi.jpg",
-                    "averagePrice", 2500000,
-                    "currency", "VND"
-                )
-            );
-
-            return ResponseEntity.ok(destinations);
+            return ResponseEntity.ok(FlightStaticData.POPULAR_DESTINATIONS);
         } catch (Exception e) {
             log.error("Error getting popular destinations", e);
             return ResponseEntity.ok(List.of());
@@ -630,28 +587,6 @@ public class FlightController {
         return cityDataService.getAllProvincesAndCities();
     }
 
-    /**
-     * Convert FlightSearchResultDto to response format
-     */
-    private Map<String, Object> convertSearchResultToResponse(FlightSearchResultDto result) {
-        Map<String, Object> response = new HashMap<>();
-        response.put("flightId", result.getFlightId());
-        response.put("airline", result.getAirline());
-        response.put("flightNumber", result.getFlightNumber());
-        response.put("origin", result.getOrigin());
-        response.put("destination", result.getDestination());
-        response.put("departureTime", result.getDepartureTime());
-        response.put("arrivalTime", result.getArrivalTime());
-        response.put("duration", result.getDuration());
-        response.put("price", result.getPrice());
-        response.put("currency", result.getCurrency());
-        response.put("formattedPrice", result.getFormattedPrice());
-        response.put("seatClass", result.getSeatClass());
-        response.put("availableSeats", result.getAvailableSeats());
-        response.put("aircraft", result.getAircraft());
-        return response;
-    }
-
     private ZonedDateTime parseDepartureDateTime(String departureDateTime) {
         try {
             return ZonedDateTime.parse(departureDateTime);
@@ -661,72 +596,6 @@ public class FlightController {
         }
     }
 
-    /**
-     * Convert Flight entity to response format
-     */
-    private Map<String, Object> convertFlightToResponse(Flight flight) {
-        Map<String, Object> response = new HashMap<>();
-        response.put("flightId", flight.getFlightId().toString());
-        response.put("airline", flight.getAirline() != null ? flight.getAirline().getName() : "Unknown Airline");
-        response.put("flightNumber", flight.getFlightNumber());
-        response.put("origin", flight.getDepartureAirport() != null ? flight.getDepartureAirport().getIataCode() : "");
-        response.put("destination", flight.getArrivalAirport() != null ? flight.getArrivalAirport().getIataCode() : "");
-        response.put("departureTime", "08:00"); // Mock time - in production, get from schedule
-        response.put("arrivalTime", "10:30");   // Mock time - in production, calculate from departure + duration
-        response.put("duration", formatDuration(flight.getBaseDurationMinutes()));
-        response.put("price", 2500000); // Default price - in production, get from pricing service
-        response.put("currency", "VND");
-        response.put("seatClass", "ECONOMY");
-        response.put("availableSeats", 100); // Default - in production, get from inventory
-        return response;
-    }
-//
-//    /**
-//     * Format duration from minutes to readable string
-//     */
-    private String formatDuration(Integer durationMinutes) {
-        if (durationMinutes == null) {
-            return "2h 30m"; // Default duration
-        }
-
-        int hours = durationMinutes / 60;
-        int minutes = durationMinutes % 60;
-
-        if (hours > 0 && minutes > 0) {
-            return String.format("%dh %dm", hours, minutes);
-        } else if (hours > 0) {
-            return String.format("%dh", hours);
-        } else {
-            return String.format("%dm", minutes);
-        }
-    }
-
-    /**
-     * Get airport name by IATA code
-     */
-    private String getAirportName(String iataCode) {
-        try {
-            return airportRepository.findByIataCode(iataCode)
-                .map(Airport::getName)
-                .orElse(iataCode + " Airport");
-        } catch (Exception e) {
-            return iataCode + " Airport";
-        }
-    }
-
-    /**
-     * Get airport city by IATA code
-     */
-    private String getAirportCity(String iataCode) {
-        try {
-            return airportRepository.findByIataCode(iataCode)
-                .map(Airport::getCity)
-                .orElse("Unknown City");
-        } catch (Exception e) {
-            return "Unknown City";
-        }
-    }
-    
     /**
      * Resolve city name to IATA code using the city mapping service
      * @param cityOrIataCode the city name or IATA code
@@ -755,26 +624,35 @@ public class FlightController {
         log.debug("Could not resolve city '{}' to IATA code, using original input", trimmed);
         return trimmed;
     }
-    
-    /**
-     * Get city suggestions for invalid city names
-     * @param invalidCity the invalid city name
-     * @return list of suggested cities
-     */
-    private List<Map<String, Object>> getCitySuggestions(String invalidCity) {
-        List<CityMappingService.CitySearchResult> suggestions = cityMappingService.searchCities(invalidCity);
-        return suggestions.stream()
-            .map(city -> {
-                Map<String, Object> result = new HashMap<>();
-                result.put("cityName", city.getCityName());
-                result.put("iataCode", city.getIataCode());
-                result.put("country", city.getCountry());
-                result.put("relevanceScore", city.getRelevanceScore());
-                return result;
-            })
-            .collect(Collectors.toList());
+
+    private List<String> buildLocationTerms(String rawValue, String resolvedValue) {
+        LinkedHashSet<String> terms = new LinkedHashSet<>();
+
+        if (StringUtils.hasText(rawValue)) {
+            String normalized = rawValue.trim().replaceAll("\\s+", " ");
+            if (StringUtils.hasText(normalized)) {
+                terms.add(normalized);
+
+                for (String part : normalized.split(",")) {
+                    String trimmed = part.trim();
+                    if (StringUtils.hasText(trimmed)) {
+                        terms.add(trimmed);
+                    }
+                }
+            }
+        }
+
+        if (StringUtils.hasText(resolvedValue)) {
+            String normalizedResolved = resolvedValue.trim();
+            if (StringUtils.hasText(normalizedResolved)) {
+                terms.add(normalizedResolved);
+                if (normalizedResolved.length() <= 3) {
+                    terms.add(normalizedResolved.toUpperCase());
+                }
+            }
+        }
+
+        return new ArrayList<>(terms);
     }
-    
-    
     
 }

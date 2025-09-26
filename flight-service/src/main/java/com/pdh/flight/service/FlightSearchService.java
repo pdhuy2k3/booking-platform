@@ -43,6 +43,8 @@ public class FlightSearchService {
      * 
      * @param origin Origin airport IATA code, city name, or country
      * @param destination Destination airport IATA code, city name, or country
+     * @param originTerms Additional origin search terms for flexible matching
+     * @param destinationTerms Additional destination search terms for flexible matching
      * @param departureDate Departure date
      * @param returnDate Return date (optional)
      * @param passengers Number of passengers
@@ -54,18 +56,28 @@ public class FlightSearchService {
      * @return Page of FlightSearchResultDto with pricing
      */
     public Page<FlightSearchResultDto> searchFlights(
-            String origin, String destination, LocalDate departureDate,
-            LocalDate returnDate, int passengers, FareClass fareClass,
-            Pageable pageable, String sortBy, Long airlineId, Long departureAirportId) {
-        
-        log.info("Searching flights: origin={}, destination={}, departureDate={}, passengers={}, fareClass={}, sortBy={}, airlineId={}, departureAirportId={}",
-                origin, destination, departureDate, passengers, fareClass, sortBy, airlineId, departureAirportId);
+            String origin, String destination, List<String> originTerms, List<String> destinationTerms,
+            LocalDate departureDate, LocalDate returnDate, int passengers, FareClass fareClass,
+            Pageable pageable, String sortBy, Long airlineId, Long departureAirportId,
+            String airlineName, String airlineCode, BigDecimal minPrice, BigDecimal maxPrice,
+            Integer minDuration, Integer maxDuration) {
+
+        log.info("Searching flights: origin={}, destination={}, originTerms={}, destinationTerms={}, departureDate={}, passengers={}, fareClass={}, sortBy={}, airlineId={}, departureAirportId={}, airlineName={}, airlineCode={}, minPrice={}, maxPrice={}, minDuration={}, maxDuration={}",
+                origin, destination, originTerms, destinationTerms, departureDate, passengers, fareClass, sortBy, airlineId, departureAirportId, airlineName, airlineCode, minPrice, maxPrice, minDuration, maxDuration);
         
         try {
             // Build search criteria for JPA Specifications
             FlightSearchSpecificationService.FlightSearchCriteria criteria = new FlightSearchSpecificationService.FlightSearchCriteria();
             criteria.setOrigin(origin);
+            criteria.setOriginTerms(originTerms);
             criteria.setDestination(destination);
+            criteria.setDestinationTerms(destinationTerms);
+            criteria.setAirlineName(airlineName);
+            criteria.setAirlineCode(airlineCode);
+            criteria.setMinPrice(minPrice);
+            criteria.setMaxPrice(maxPrice);
+            criteria.setMinDuration(minDuration);
+            criteria.setMaxDuration(maxDuration);
             
             // Set date range
             if (departureDate != null) {
@@ -162,6 +174,10 @@ public class FlightSearchService {
                 .destination(flight.getArrivalAirport() != null ? flight.getArrivalAirport().getIataCode() : "")
                 .originName(flight.getDepartureAirport() != null ? flight.getDepartureAirport().getName() : "")
                 .destinationName(flight.getArrivalAirport() != null ? flight.getArrivalAirport().getName() : "")
+                .originLatitude(flight.getDepartureAirport() != null ? flight.getDepartureAirport().getLatitude() : null)
+                .originLongitude(flight.getDepartureAirport() != null ? flight.getDepartureAirport().getLongitude() : null)
+                .destinationLatitude(flight.getArrivalAirport() != null ? flight.getArrivalAirport().getLatitude() : null)
+                .destinationLongitude(flight.getArrivalAirport() != null ? flight.getArrivalAirport().getLongitude() : null)
                 .departureTime(matchingSchedule.getDepartureTime().format(DateTimeFormatter.ofPattern("HH:mm")))
                 .arrivalTime(matchingSchedule.getArrivalTime().format(DateTimeFormatter.ofPattern("HH:mm")))
                 .departureDateTime(matchingSchedule.getDepartureTime())

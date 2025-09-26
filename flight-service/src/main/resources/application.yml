@@ -15,42 +15,8 @@ springdoc:
     authorization-url: ${KEYCLOAK_ISSUER_URI:http://localhost:9090}/protocol/openid-connect/auth
     token-url: ${KEYCLOAK_ISSUER_URI:http://localhost:9090}/protocol/openid-connect/token
   show-actuator: true
-  group-configs:
-    - group: 'public'
-      display-name: 'Public API'
-      paths-to-match: '/storefront/**'
-    - group: 'admin'
-      display-name: 'Admin API'
-      paths-to-match: '/backoffice/**'
-    - group: 'internal'
-      display-name: 'Internal API'
-      paths-to-match: ['/reserve', '/cancel-reservation', '/confirm-reservation']
-    - group: 'monitoring'
-      display-name: 'Monitoring & Health'
-      paths-to-match: '**/health'
 
-# API Documentation Properties
-api:
-  info:
-    title: Flight Service API
-    description: Flight search and booking API for the BookingSmart platform
-    version: '@project.version@'
-    contact:
-      name: BookingSmart Flight Team
-      email: flight-team@bookingsmart.com
-    license:
-      name: MIT License
-      url: https://opensource.org/licenses/MIT
-    oauth2:
-      authorization-url: http://localhost:8080/realms/bookingsmart/protocol/openid-connect/auth
-      token-url: http://localhost:8080/realms/bookingsmart/protocol/openid-connect/token
-      refresh-url: http://localhost:8080/realms/bookingsmart/protocol/openid-connect/token
-      scopes:
-        admin: Administrative access to flight management
-        customer: Customer access to flight search and booking
-        partner: Partner access to flight integration endpoints
-        public: Public access to flight search and information
-        internal: Internal service-to-service communication
+
 
 logging:
   level:
@@ -66,6 +32,10 @@ spring:
   threads:
     virtual:
       enabled: true
+  task:
+    scheduling:
+      pool:
+        size: 2  # Pool size for scheduled tasks
 
 ---
 
@@ -110,7 +80,20 @@ spring:
       resourceserver:
        jwt:
          issuer-uri: http://localhost:9090/realms/BookingSmart
-
+  ai:
+    mcp:
+      server:
+        enabled: true
+        stdio: false
+        name: flight-mcp-server
+        version: 1.0.0
+        type: sync
+        base-url: /flights
+        capabilities:
+          prompt: false
+          completion: false
+          resource: false
+          tool: true
   liquibase:
     enabled: true
     default-schema: public
@@ -172,7 +155,20 @@ spring:
       resourceserver:
         jwt:
           issuer-uri: ${JWT_ISSUER_URI}
-
+  ai:
+    mcp:
+      server:
+        enabled: true
+        stdio: false
+        name: flight-mcp-server
+        version: 1.0.0
+        type: sync
+        base-url: /flights
+        capabilities:
+          prompt: false
+          completion: false
+          resource: false
+          tool: true
   liquibase:
     enabled: true
     default-schema: public

@@ -14,7 +14,10 @@ import org.springframework.util.StringUtils;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.HashMap;
+import java.util.LinkedHashSet;
+import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * Service for flight search using JPA Specifications
@@ -194,10 +197,13 @@ public class FlightSearchSpecificationService {
             return FlightSpecification.isActive();
         }
         
+        Specification<Flight> originSpec = buildOriginSpecification(criteria);
+        Specification<Flight> destinationSpec = buildDestinationSpecification(criteria);
+
         return FlightSpecification.combine(
             FlightSpecification.isActive(),
-            StringUtils.hasText(criteria.getOrigin()) ? FlightSpecification.hasOriginDestination(criteria.getOrigin()) : null,
-            StringUtils.hasText(criteria.getDestination()) ? FlightSpecification.hasDestination(criteria.getDestination()) : null,
+            originSpec,
+            destinationSpec,
             StringUtils.hasText(criteria.getAirlineName()) ? FlightSpecification.hasAirline(criteria.getAirlineName()) : null,
             StringUtils.hasText(criteria.getAirlineCode()) ? FlightSpecification.hasAirlineCode(criteria.getAirlineCode()) : null,
             StringUtils.hasText(criteria.getFlightNumber()) ? FlightSpecification.hasFlightNumber(criteria.getFlightNumber()) : null,
@@ -212,12 +218,76 @@ public class FlightSearchSpecificationService {
         );
     }
 
+    private Specification<Flight> buildOriginSpecification(FlightSearchCriteria criteria) {
+        if (criteria == null) {
+            return null;
+        }
+
+        Set<String> terms = new LinkedHashSet<>();
+
+        if (criteria.getOriginTerms() != null) {
+            criteria.getOriginTerms().stream()
+                .filter(StringUtils::hasText)
+                .map(String::trim)
+                .forEach(terms::add);
+        }
+
+        if (StringUtils.hasText(criteria.getOrigin())) {
+            terms.add(criteria.getOrigin().trim());
+        }
+
+        if (terms.isEmpty()) {
+            return null;
+        }
+
+        Specification<Flight> combined = null;
+        for (String term : terms) {
+            Specification<Flight> termSpec = FlightSpecification.hasOriginDestination(term);
+            combined = combined == null ? Specification.where(termSpec) : combined.or(termSpec);
+        }
+
+        return combined;
+    }
+
+    private Specification<Flight> buildDestinationSpecification(FlightSearchCriteria criteria) {
+        if (criteria == null) {
+            return null;
+        }
+
+        Set<String> terms = new LinkedHashSet<>();
+
+        if (criteria.getDestinationTerms() != null) {
+            criteria.getDestinationTerms().stream()
+                .filter(StringUtils::hasText)
+                .map(String::trim)
+                .forEach(terms::add);
+        }
+
+        if (StringUtils.hasText(criteria.getDestination())) {
+            terms.add(criteria.getDestination().trim());
+        }
+
+        if (terms.isEmpty()) {
+            return null;
+        }
+
+        Specification<Flight> combined = null;
+        for (String term : terms) {
+            Specification<Flight> termSpec = FlightSpecification.hasDestination(term);
+            combined = combined == null ? Specification.where(termSpec) : combined.or(termSpec);
+        }
+
+        return combined;
+    }
+
     /**
      * Flight search criteria DTO
      */
     public static class FlightSearchCriteria {
         private String origin;
+        private List<String> originTerms;
         private String destination;
+        private List<String> destinationTerms;
         private String airlineName;
         private String airlineCode;
         private String flightNumber;
@@ -244,6 +314,12 @@ public class FlightSearchSpecificationService {
 
         public String getDestination() { return destination; }
         public void setDestination(String destination) { this.destination = destination; }
+
+        public List<String> getOriginTerms() { return originTerms; }
+        public void setOriginTerms(List<String> originTerms) { this.originTerms = originTerms; }
+
+        public List<String> getDestinationTerms() { return destinationTerms; }
+        public void setDestinationTerms(List<String> destinationTerms) { this.destinationTerms = destinationTerms; }
 
         public String getAirlineName() { return airlineName; }
         public void setAirlineName(String airlineName) { this.airlineName = airlineName; }
@@ -282,7 +358,9 @@ public class FlightSearchSpecificationService {
         public String toString() {
             return "FlightSearchCriteria{" +
                     "origin='" + origin + '\'' +
+                    ", originTerms=" + originTerms +
                     ", destination='" + destination + '\'' +
+                    ", destinationTerms=" + destinationTerms +
                     ", airlineName='" + airlineName + '\'' +
                     ", airlineCode='" + airlineCode + '\'' +
                     ", flightNumber='" + flightNumber + '\'' +

@@ -23,11 +23,4 @@ export type {
   ErrorResponse
 } from './type';
 
-// Export service types
-export type {
-  Province as ServiceProvince,
-  District as ServiceDistrict,
-  Ward as ServiceWard,
-  AdministrativeApiResponse as ServiceAdministrativeApiResponse,
-  FullAddressResponse as ServiceFullAddressResponse
-} from './service';
+

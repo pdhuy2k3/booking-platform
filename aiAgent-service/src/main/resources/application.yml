@@ -1,5 +1,5 @@
 server:
-  port: 8090
+  port: 8036
   servlet:
     context-path: /ai
 
@@ -15,13 +15,7 @@ springdoc:
     tagsSorter: alpha
     try-it-out-enabled: true
   show-actuator: true
-  group-configs:
-    - group: 'public'
-      display-name: 'Public API'
-      paths-to-match: '/chat/**'
-    - group: 'admin'
-      display-name: 'Admin API'
-      paths-to-match: '/admin/**'
+
 
 # API Documentation Properties
 api:
@@ -49,6 +43,45 @@ spring:
   config:
     activate:
       on-profile: local
+  datasource:
+    url: jdbc:postgresql://localhost:5432/ai_db
+    username: postgres
+    password: p0stgr3s
+    driver-class-name: org.postgresql.Driver
+  ai:
+    openai:
+      api-key: ${GEMINI_API_KEY}
+      chat:
+        base-url: https://generativelanguage.googleapis.com/v1beta/openai/
+        api-key: ${GEMINI_API_KEY}
+        
+        options:
+          model: gemini-2.5-flash
+    chat:
+      memory:
+        repository:
+          jdbc:
+            initialize-schema: always
+
+    mcp:
+      client:
+        enabled: true
+        name: llm-mcp-client-demo
+        version: 1.0.0
+
+        request-timeout: 120s
+        type: sync
+        root-change-notification: true
+        toolcallback.enabled: true
+        sse:
+          connections:
+            server1:
+              url: http://localhost:8082
+              sse-endpoint: /hotels/sse
+            server2:
+              url: http://localhost:8081
+              sse-endpoint: /flights/sse
+        initialized: true
   security:
     oauth2:
       resourceserver:
@@ -65,15 +98,18 @@ spring:
               - mcp
         provider:
           auth-server:
-            token-uri: http://localhost:9000/realms/BookingSmart/protocol/openid-connect/token
-  ai:
-    openai:
-      api-key: ${GEMINI_API_KEY}
+            token-uri: http://localhost:9090/realms/BookingSmart/protocol/openid-connect/token
+
 ---
 spring:
   config:
     activate:
       on-profile: docker
+  datasource:
+    url: ${DB_URL}
+    username: ${DB_USERNAME}
+    password: ${DB_PASSWORD}
+    driver-class-name: org.postgresql.Driver
   security:
     oauth2:
       resourceserver:
@@ -100,13 +136,19 @@ spring:
         api-key: ${GEMINI_API_KEY}
         
         options:
-          model: gemini-2.0-flash
+          model: gemini-2.5-flash
+    chat:
+      memory:
+        repository:
+          jdbc:
+            initialize-schema: always
+
     mcp:
       client:
         enabled: true
         name: llm-mcp-client-demo
         version: 1.0.0
-
+        type: sync
         request-timeout: 120s
   
         root-change-notification: true
@@ -114,8 +156,12 @@ spring:
         sse:
           connections:
             server1:
-              url: https://api-bookingsmart.huypd.dev
+              url: http://hotel-service
               sse-endpoint: /hotels/sse
+            server2:
+              url: http://flight-service
+              sse-endpoint: /flights/sse
+          # servers-configuration: classpath:mcp-servers.json
         initialized: true
 eureka:
   client:

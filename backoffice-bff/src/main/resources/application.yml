@@ -92,7 +92,7 @@ spring:
         
         # Default frontend route (lowest priority)
         - id: frontend-fallback
-          uri: http://localhost:3000
+          uri: http://localhost:3001
           predicates:
             - Path=/**
       default-filters:

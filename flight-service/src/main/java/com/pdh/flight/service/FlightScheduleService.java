@@ -2,6 +2,7 @@ package com.pdh.flight.service;
 
 import com.pdh.flight.dto.response.FlightScheduleDto;
 import com.pdh.flight.model.FlightSchedule;
+import com.pdh.flight.model.enums.ScheduleStatus;
 import com.pdh.flight.repository.FlightScheduleRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -103,7 +104,7 @@ public class FlightScheduleService {
         log.debug("Fetching schedule statistics for flight ID: {}", flightId);
         
         Long totalSchedules = flightScheduleRepository.countByFlightId(flightId);
-        Long activeSchedules = flightScheduleRepository.countByFlightIdAndStatus(flightId, "ACTIVE");
+        Long activeSchedules = flightScheduleRepository.countByFlightIdAndStatus(flightId, ScheduleStatus.ACTIVE);
         
         return Map.of(
                 "totalSchedules", totalSchedules,

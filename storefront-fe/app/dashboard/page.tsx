@@ -45,11 +45,11 @@ export default function DashboardPage() {
   if (!user) {
     return (
       <ProtectedRoute>
-        <div className="min-h-screen bg-gray-950 text-white p-6">
+        <div className="min-h-screen bg-gray-50 text-gray-900 p-6">
           <div className="max-w-6xl mx-auto">
             <div className="text-center py-12">
               <h1 className="text-2xl font-bold mb-4">Loading...</h1>
-              <p className="text-gray-400">Please wait while we load your dashboard.</p>
+              <p className="text-gray-600">Please wait while we load your dashboard.</p>
             </div>
           </div>
         </div>
@@ -59,49 +59,49 @@ export default function DashboardPage() {
 
   return (
     <ProtectedRoute>
-      <div className="min-h-screen bg-gray-950 text-white p-6">
+      <div className="min-h-screen bg-gray-50 text-gray-900 p-6">
         <div className="max-w-6xl mx-auto space-y-8">
           {/* Header */}
           <div className="flex items-center justify-between">
             <div>
-              <h1 className="text-3xl font-bold text-balance">Dashboard</h1>
-              <p className="text-gray-400 mt-2">Manage your account information and preferences</p>
+              <h1 className="text-3xl font-bold text-balance text-gray-900">Dashboard</h1>
+              <p className="text-gray-600 mt-2">Manage your account information and preferences</p>
             </div>
           </div>
 
           <Tabs value={activeTab} onValueChange={handleTabChange} className="space-y-6">
-            <TabsList className="grid w-full grid-cols-5 bg-gray-900/50 border border-gray-800">
+            <TabsList className="grid w-full grid-cols-5 bg-white border border-gray-200 rounded-lg p-1 shadow-sm">
               <TabsTrigger
                 value="profile"
-                className="data-[state=active]:bg-cyan-500/10 data-[state=active]:text-cyan-400"
+                className="data-[state=active]:bg-blue-500 data-[state=active]:text-white data-[state=active]:shadow-sm text-gray-600 hover:text-gray-900 hover:bg-gray-100 transition-all duration-200 rounded-md"
               >
                 <User className="h-4 w-4 mr-2" />
                 Profile
               </TabsTrigger>
               <TabsTrigger
                 value="address"
-                className="data-[state=active]:bg-cyan-500/10 data-[state=active]:text-cyan-400"
+                className="data-[state=active]:bg-blue-500 data-[state=active]:text-white data-[state=active]:shadow-sm text-gray-600 hover:text-gray-900 hover:bg-gray-100 transition-all duration-200 rounded-md"
               >
                 <MapPin className="h-4 w-4 mr-2" />
                 Address
               </TabsTrigger>
               <TabsTrigger
                 value="preferences"
-                className="data-[state=active]:bg-cyan-500/10 data-[state=active]:text-cyan-400"
+                className="data-[state=active]:bg-blue-500 data-[state=active]:text-white data-[state=active]:shadow-sm text-gray-600 hover:text-gray-900 hover:bg-gray-100 transition-all duration-200 rounded-md"
               >
                 <Settings className="h-4 w-4 mr-2" />
                 Preferences
               </TabsTrigger>
               <TabsTrigger
                 value="payments"
-                className="data-[state=active]:bg-cyan-500/10 data-[state=active]:text-cyan-400"
+                className="data-[state=active]:bg-blue-500 data-[state=active]:text-white data-[state=active]:shadow-sm text-gray-600 hover:text-gray-900 hover:bg-gray-100 transition-all duration-200 rounded-md"
               >
                 <CreditCard className="h-4 w-4 mr-2" />
                 Payment Methods
               </TabsTrigger>
               <TabsTrigger
                 value="bookings"
-                className="data-[state=active]:bg-cyan-500/10 data-[state=active]:text-cyan-400"
+                className="data-[state=active]:bg-blue-500 data-[state=active]:text-white data-[state=active]:shadow-sm text-gray-600 hover:text-gray-900 hover:bg-gray-100 transition-all duration-200 rounded-md"
               >
                 <Calendar className="h-4 w-4 mr-2" />
                 Booking History

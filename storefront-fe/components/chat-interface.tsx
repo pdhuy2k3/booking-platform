@@ -1,10 +1,7 @@
 "use client"
 
-import type React from "react"
-
-import Image from "next/image"
-import { useState, useEffect, useImperativeHandle, forwardRef } from "react"
-import { Send, Mic, Paperclip, ChevronDown } from "lucide-react"
+import React, { useState, useRef, useEffect, forwardRef, useImperativeHandle } from "react"
+import { Send, Mic, Plus } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { cn } from "@/lib/utils"
@@ -32,331 +29,252 @@ export const ChatInterface = forwardRef<any, ChatInterfaceProps>(function ChatIn
   const [messages, setMessages] = useState<ChatMessage[]>([
     {
       id: "1",
-      content:
-        "Hi! I'm your AI travel assistant. I can help you find flights, hotels, and plan your perfect trip. What can I help you with today?",
+      content: "Dưới đây là các lựa chọn chuyến bay từ 🛂 Tân Sơn Nhất đến 🛂 Đà Nẵng vào ngày 21/12/2025 mà tôi có thông tin:",
       isUser: false,
       timestamp: new Date(),
     },
   ])
   const [input, setInput] = useState("")
   const [isLoading, setIsLoading] = useState(false)
-  const [priceRange, setPriceRange] = useState([0, 2000])
-  const [sortBy, setSortBy] = useState("price")
-  const [isProcessingPrompt, setIsProcessingPrompt] = useState(false)
+  const messagesEndRef = useRef<HTMLDivElement>(null)
+  const inputRef = useRef<HTMLInputElement>(null)
 
-  const mockFlights = [
-    {
-      id: "1",
-      type: "flight",
-      airline: "Delta Airlines",
-      from: "New York (JFK)",
-      to: "Paris (CDG)",
-      departure: "2024-03-15 08:30",
-      arrival: "2024-03-15 21:45",
-      duration: "7h 15m",
-      price: 899,
-      stops: 0,
-      image: "/airplane-delta-airlines.png",
-    },
-    {
-      id: "2",
-      type: "flight",
-      airline: "Air France",
-      from: "New York (JFK)",
-      to: "Paris (CDG)",
-      departure: "2024-03-15 14:20",
-      arrival: "2024-03-16 03:35",
-      duration: "7h 15m",
-      price: 1299,
-      stops: 0,
-      image: "/airplane-air-france.png",
-    },
-  ]
-
-  const mockHotels = [
-    {
-      id: "1",
-      type: "hotel",
-      name: "Le Grand Hotel Paris",
-      location: "Paris, France",
-      rating: 4.8,
-      reviews: 1247,
-      price: 320,
-      amenities: ["WiFi", "Pool", "Spa", "Restaurant"],
-      image: "/luxury-hotel-paris-grand.png",
-    },
-    {
-      id: "2",
-      type: "hotel",
-      name: "Hotel des Arts Montmartre",
-      location: "Montmartre, Paris",
-      rating: 4.5,
-      reviews: 892,
-      price: 180,
-      amenities: ["WiFi", "Restaurant", "Bar"],
-      image: "/boutique-hotel-montmartre-paris.png",
-    },
-  ]
+  const scrollToBottom = () => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })
+  }
 
   useEffect(() => {
-    const userMessages = messages.filter((msg) => msg.isUser)
-    if (userMessages.length > 0) {
-      onChatStart()
-    }
-  }, [messages, onChatStart])
+    scrollToBottom()
+  }, [messages])
 
   useImperativeHandle(ref, () => ({
     handleExamplePrompt: (prompt: string) => {
-      if (isProcessingPrompt) return
-      setIsProcessingPrompt(true)
-
       setInput(prompt)
-      // Automatically send the prompt
-      setTimeout(() => {
-        handleSendWithPrompt(prompt)
-        setIsProcessingPrompt(false)
-      }, 100)
+      handleSubmit(undefined, prompt)
     },
   }))
 
-  const handleSend = async () => {
-    if (!input.trim() || isLoading) return
-    handleSendWithPrompt(input)
-  }
-
-  const handleSendWithPrompt = async (promptText: string) => {
-    if (isLoading) return
+  const handleSubmit = async (e?: React.FormEvent, promptText?: string) => {
+    e?.preventDefault()
+    
+    const messageContent = promptText || input
+    if (!messageContent.trim() || isLoading) return
 
     const userMessage: ChatMessage = {
       id: Date.now().toString(),
-      content: promptText,
+      content: messageContent,
       isUser: true,
       timestamp: new Date(),
     }
 
-    setMessages((prev) => [...prev, userMessage])
+    setMessages(prev => [...prev, userMessage])
     setInput("")
     setIsLoading(true)
 
     // Simulate AI response
     setTimeout(() => {
-      let aiResponse = ""
-      let results: any[] = []
-      let resultsType = ""
-
-      if (promptText.toLowerCase().includes("flight")) {
-        aiResponse = "I found some great flight options for you! Here are the best flights from New York to Paris:"
-        results = mockFlights
-        resultsType = "flights"
-        onSearchResults(results, "flights")
-      } else if (promptText.toLowerCase().includes("hotel")) {
-        aiResponse = "Here are some excellent hotel options in Paris:"
-        results = mockHotels
-        resultsType = "hotels"
-        onSearchResults(results, "hotels")
-      } else if (promptText.toLowerCase().includes("trip") || promptText.toLowerCase().includes("travel")) {
-        aiResponse = "I'd love to help you plan your trip! Let me show you some flight and hotel options:"
-        results = [...mockFlights, ...mockHotels]
-        resultsType = "mixed"
-        onSearchResults(results, "mixed")
-      } else {
-        aiResponse =
-          "I can help you find flights, hotels, or plan complete trips. Try asking me about flights to a specific destination or hotels in a city you'd like to visit!"
-      }
-
       const aiMessage: ChatMessage = {
         id: (Date.now() + 1).toString(),
-        content: aiResponse,
+        content: "Tôi đang tìm kiếm chuyến bay từ Tân Sơn Nhất đến Đà Nẵng cho bạn...",
         isUser: false,
         timestamp: new Date(),
-        results: results.length > 0 ? results : undefined,
-        resultsType: resultsType || undefined,
       }
-
-      setMessages((prev) => [...prev, aiMessage])
+      setMessages(prev => [...prev, aiMessage])
       setIsLoading(false)
-    }, 1500)
+    }, 1000)
   }
 
-  const handleKeyPress = (e: React.KeyboardEvent) => {
-    if (e.key === "Enter" && !e.shiftKey) {
-      e.preventDefault()
-      handleSend()
+  // Mock flight data
+  const mockFlights = [
+    {
+      id: "1",
+      airline: "VietJet Air (VJ 620)",
+      departure: "6:30 sáng từ 🛂 Tân Sơn Nhất",
+      arrival: "7:50 sáng tại 🛂 Đà Nẵng", 
+      duration: "1 giờ 20 phút",
+      price: "$51.50/người (2 người: $103.00, hạng phổ thông)",
+      type: "Không hủy (không dừng)",
+      badge: "Best"
+    },
+    {
+      id: "2", 
+      airline: "Vietnam Airlines (VN 112)",
+      departure: "8:05 sáng từ 🛂 Tân Sơn Nhất",
+      arrival: "9:20 sáng tại 🛂 Đà Nẵng",
+      duration: "1 giờ 15 phút", 
+      price: "Giá không có sẵn",
+      type: "Không hủy",
+      badge: "Cheapest"
     }
-  }
-
-  const handleCardClick = (item: any) => {
-    console.log("[v0] Card clicked:", item)
-    if (onItemSelect) {
-      onItemSelect(item)
-    }
-  }
-
-  const handlePriceRangeChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const value = Number.parseInt(event.target.value)
-    setPriceRange([0, value])
-    console.log("[v0] Price range changed:", [0, value])
-  }
-
-  const handleSortChange = () => {
-    const newSort = sortBy === "price" ? "rating" : "price"
-    setSortBy(newSort)
-    console.log("[v0] Sort changed to:", newSort)
-  }
+  ]
 
   return (
-    <div className="flex flex-col h-full bg-card" data-chat-interface>
-      <div className="flex-1 overflow-y-auto p-4 space-y-4 min-h-0">
+    <div className="flex flex-col h-full bg-white">
+      {/* Header with trip info */}
+      <div className="p-4 border-b border-gray-200 bg-white">
+        <div className="flex items-center gap-2 text-sm text-gray-600">
+          <span>🛪 tìm kiếm chuyến bay đến đà nẵng từ sân bay Tân Sơn Nhất</span>
+        </div>
+      </div>
+
+      {/* Chat Messages */}
+      <div className="flex-1 overflow-y-auto p-4 space-y-4">
         {messages.map((message) => (
-          <div key={message.id} className="space-y-3">
-            <div className={cn("flex", message.isUser ? "justify-end" : "justify-start")}>
-              <div
-                className={cn(
-                  "max-w-xs lg:max-w-md px-4 py-2 rounded-lg text-sm",
-                  message.isUser ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground",
-                )}
-              >
-                {message.content}
-              </div>
-            </div>
-
-            {!message.isUser && message.results && message.results.length > 0 && (
-              <div className="ml-0">
-                <div className="flex items-center justify-between mb-3">
-                  <div className="flex items-center gap-2">
-                    <h3 className="text-lg font-semibold text-foreground">Travel Results</h3>
-                    <span className="text-sm text-muted-foreground">{message.results.length} options found</span>
-                  </div>
-                  <Button variant="outline" size="sm" className="gap-1 bg-transparent" onClick={handleSortChange}>
-                    {sortBy === "price" ? "Price" : "Rating"} <ChevronDown className="h-3 w-3" />
-                  </Button>
-                </div>
-
-                <div className="mb-4 p-3 bg-card border border-border rounded-lg">
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="text-sm font-medium text-foreground">Price Range</span>
-                  </div>
-                  <div className="relative">
-                    <input
-                      type="range"
-                      min="0"
-                      max="2000"
-                      value={priceRange[1]}
-                      onChange={handlePriceRangeChange}
-                      className="w-full h-2 bg-muted rounded-lg appearance-none cursor-pointer slider"
-                    />
-                    <div className="flex justify-between mt-1 text-xs text-muted-foreground">
-                      <span>$0</span>
-                      <span>${priceRange[1]}</span>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="grid gap-4 md:grid-cols-2">
-                  {message.results
-                    .filter((result) => result.price <= priceRange[1])
-                    .map((result) => (
-                      <div
-                        key={result.id}
-                        className="bg-card border border-border rounded-lg overflow-hidden hover:border-primary/50 transition-colors cursor-pointer"
-                        onClick={() => handleCardClick(result)}
-                      >
-                        <div className="aspect-video relative">
-                          <Image
-                            src={result.image || "/placeholder.svg"}
-                            alt={result.type === "flight" ? result.airline : result.name}
-                            fill
-                            className="object-cover"
-                            sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
-                            unoptimized
-                          />
-                          {result.type === "hotel" && (
-                            <div className="absolute bottom-2 right-2">
-                              <span className="bg-primary text-primary-foreground px-2 py-1 rounded text-xs font-medium">
-                                hotels
-                              </span>
-                            </div>
-                          )}
-                        </div>
-                        <div className="p-4">
-                          {result.type === "flight" ? (
-                            <>
-                              <div className="flex items-center justify-between mb-2">
-                                <h4 className="font-semibold text-foreground">{result.airline}</h4>
-                                <span className="text-lg font-bold text-foreground">${result.price}</span>
-                              </div>
-                              <div className="text-sm text-muted-foreground mb-1">
-                                {result.from} → {result.to}
-                              </div>
-                              <div className="text-sm text-muted-foreground">
-                                {result.departure} • {result.duration} •{" "}
-                                {result.stops === 0 ? "Direct" : `${result.stops} stops`}
-                              </div>
-                            </>
-                          ) : (
-                            <>
-                              <div className="flex items-center justify-between mb-2">
-                                <h4 className="font-semibold text-foreground">{result.name}</h4>
-                                <span className="text-lg font-bold text-foreground">${result.price}</span>
-                              </div>
-                              <div className="text-sm text-muted-foreground mb-1">{result.location}</div>
-                              <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                                <span>★ {result.rating}</span>
-                                <span>({result.reviews} reviews)</span>
-                              </div>
-                            </>
-                          )}
-                        </div>
-                      </div>
-                    ))}
-                </div>
-              </div>
+          <div
+            key={message.id}
+            className={cn(
+              "flex",
+              message.isUser ? "justify-end" : "justify-start"
             )}
+          >
+            <div
+              className={cn(
+                "max-w-[80%] rounded-2xl px-4 py-3 text-sm",
+                message.isUser
+                  ? "bg-blue-600 text-white ml-auto"
+                  : "bg-gray-100 text-gray-900"
+              )}
+            >
+              {message.content}
+            </div>
           </div>
         ))}
+
+        {/* Flight results section */}
+        <div className="space-y-4">
+          <div className="text-lg font-semibold text-gray-900">
+            Các lựa chọn bay thẳng (không dừng) ✈️
+          </div>
+
+          {mockFlights.map((flight) => (
+            <div key={flight.id} className="bg-white border border-gray-200 rounded-xl p-4 hover:shadow-md transition-shadow">
+              <div className="flex items-start justify-between mb-3">
+                <div className="flex gap-2">
+                  {flight.badge === "Best" && (
+                    <span className="bg-blue-100 text-blue-800 text-xs px-2 py-1 rounded-full font-medium">
+                      Best
+                    </span>
+                  )}
+                  {flight.badge === "Cheapest" && (
+                    <span className="bg-green-100 text-green-800 text-xs px-2 py-1 rounded-full font-medium">
+                      Cheapest
+                    </span>
+                  )}
+                </div>
+                <div className="text-right">
+                  <div className="text-lg font-bold text-gray-900">
+                    {flight.price.includes("$") ? flight.price.split("(")[0] : flight.price}
+                  </div>
+                  {flight.price.includes("per person") && (
+                    <div className="text-sm text-gray-500">per person</div>
+                  )}
+                  {flight.price.includes("$103") && (
+                    <div className="text-sm text-gray-500">$103 total</div>
+                  )}
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <div className="flex items-center gap-4">
+                  <div className="text-sm font-medium text-gray-900">
+                    Sun, Dec 21
+                  </div>
+                  <div className="text-sm font-medium text-gray-900">
+                    6:30 AM-7:50 AM
+                  </div>
+                  <div className="text-sm text-gray-500">
+                    1h 20m
+                  </div>
+                  <div className="text-sm text-gray-500">
+                    Nonstop
+                  </div>
+                </div>
+                
+                <div className="flex items-center justify-between">
+                  <div className="text-sm text-gray-600">
+                    {flight.airline.split("(")[0]}
+                  </div>
+                  <div className="text-sm text-gray-600">
+                    SGN-DAD
+                  </div>
+                </div>
+              </div>
+
+              <div className="mt-3 pt-3 border-t border-gray-100">
+                <div className="flex items-center justify-between">
+                  <div className="text-xs text-red-600">
+                    ❌ {flight.type}
+                  </div>
+                  <Button 
+                    size="sm" 
+                    className="bg-blue-600 text-white hover:bg-blue-700 rounded-full px-6"
+                    onClick={() => onItemSelect?.(flight)}
+                  >
+                    Book
+                  </Button>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+
         {isLoading && (
           <div className="flex justify-start">
-            <div className="bg-muted text-muted-foreground px-4 py-2 rounded-lg text-sm">
-              <div className="flex space-x-1">
-                <div className="w-2 h-2 bg-current rounded-full animate-bounce"></div>
-                <div
-                  className="w-2 h-2 bg-current rounded-full animate-bounce"
-                  style={{ animationDelay: "0.1s" }}
-                ></div>
-                <div
-                  className="w-2 h-2 bg-current rounded-full animate-bounce"
-                  style={{ animationDelay: "0.2s" }}
-                ></div>
+            <div className="bg-gray-100 rounded-2xl px-4 py-3 text-sm text-gray-700">
+              <div className="flex items-center gap-2">
+                <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"></div>
+                <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: "0.1s" }}></div>
+                <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: "0.2s" }}></div>
               </div>
             </div>
           </div>
         )}
+
+        <div ref={messagesEndRef} />
       </div>
 
-      <div className="flex-shrink-0 p-4 border-t border-border bg-card sticky bottom-0 z-10">
-        <div className="flex space-x-2">
+      {/* Message Input */}
+      <div className="p-4 border-t border-gray-200 bg-white">
+        <form onSubmit={handleSubmit} className="flex items-center gap-3">
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            className="h-10 w-10 rounded-full hover:bg-gray-100"
+          >
+            <Plus className="h-5 w-5 text-gray-600" />
+          </Button>
+
           <div className="flex-1 relative">
             <Input
+              ref={inputRef}
               value={input}
               onChange={(e) => setInput(e.target.value)}
-              onKeyPress={handleKeyPress}
-              placeholder="Ask about flights, hotels, or travel plans..."
-              className="pr-20"
-              disabled={false}
+              placeholder="Ask anything..."
+              className="w-full rounded-full border-gray-300 pr-20 h-12 text-sm"
+              disabled={isLoading}
             />
-            <div className="absolute right-2 top-1/2 -translate-y-1/2 flex space-x-1">
-              <Button size="sm" variant="ghost" className="h-6 w-6 p-0">
-                <Paperclip className="h-4 w-4" />
+            <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-2">
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8 rounded-full hover:bg-gray-100"
+              >
+                <Mic className="h-4 w-4 text-gray-600" />
               </Button>
-              <Button size="sm" variant="ghost" className="h-6 w-6 p-0">
-                <Mic className="h-4 w-4" />
+              <Button
+                type="submit"
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8 rounded-full hover:bg-gray-100"
+                disabled={isLoading || !input.trim()}
+              >
+                <Send className="h-4 w-4 text-gray-600" />
               </Button>
             </div>
           </div>
-          <Button onClick={handleSend} disabled={!input.trim() || isLoading}>
-            <Send className="h-4 w-4" />
-          </Button>
-        </div>
+        </form>
       </div>
     </div>
   )

@@ -15,40 +15,8 @@ springdoc:
     authorization-url: ${KEYCLOAK_ISSUER_URI:http://localhost:9090}/protocol/openid-connect/auth
     token-url: ${KEYCLOAK_ISSUER_URI:http://localhost:9090}/protocol/openid-connect/token
   show-actuator: true
-  group-configs:
-    - group: 'public'
-      display-name: 'Public API'
-      paths-to-match: '/storefront/**'
-    - group: 'admin'
-      display-name: 'Admin API'
-      paths-to-match: '/backoffice/**'
-    - group: 'internal'
-      display-name: 'Internal API'
-      paths-to-match: ['/reserve', '/cancel-reservation', '/confirm-reservation']
-    - group: 'monitoring'
-      display-name: 'Monitoring & Health'
-      paths-to-match: '**/health'
 
-# API Documentation Properties
-api:
-  info:
-    title: Hotel Service API
-    description: Hotel management and booking API for the BookingSmart platform
-    version: '@project.version@'
-    contact:
-      name: BookingSmart Hotel Team
-      email: hotel-team@bookingsmart.com
-    license:
-      name: MIT License
-      url: https://opensource.org/licenses/MIT
-    oauth2:
-      authorization-url: http://localhost:8080/realms/BookingSmart/protocol/openid-connect/auth
-      token-url: http://localhost:8080/realms/BookingSmart/protocol/openid-connect/token
-      refresh-url: http://localhost:8080/realms/BookingSmart/protocol/openid-connect/token
-      scopes:
-        admin: Administrative access to hotel management
-        customer: Customer access to hotel search and booking
-        partner: Partner access to hotel integration endpoints
+
 
 
 spring:

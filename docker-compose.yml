@@ -9,8 +9,8 @@ services:
       KC_HOSTNAME: https://identity-bookingsmart.huypd.dev
       KC_DB: postgres
       KC_DB_URL: jdbc:postgresql://postgres:5432/keycloak_db
-      KC_DB_USERNAME: postgres
-      KC_DB_PASSWORD: p0stgr3s
+      KC_DB_USERNAME: ${DB_USERNAME}
+      KC_DB_PASSWORD: ${DB_PASSWORD}
       KC_HEALTH_ENABLED: true
       KC_HTTP_PORT: 80
     volumes:
@@ -25,8 +25,8 @@ services:
     image: debezium/postgres:17-alpine
     user: postgres
     environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: p0stgr3s
+      POSTGRES_USER: ${DB_USERNAME}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
     healthcheck:
       test: ["CMD-SHELL", "pg_isready"]
       interval: 10s
@@ -109,19 +109,19 @@ services:
       - ./debezium:/kafka/connect/debezium-connectors
 
   # Kafka UI
-  kafka-ui:
-    image: provectuslabs/kafka-ui:latest
+  # kafka-ui:
+  #   image: provectuslabs/kafka-ui:latest
 
-    ports:
-      - "8091:8080"
-    depends_on:
-      - kafka
-    networks:
-      - booking-network
-    environment:
-      KAFKA_CLUSTERS_0_NAME: local
-      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:29092
-      KAFKA_CLUSTERS_0_ZOOKEEPER: zookeeper:2181
+  #   ports:
+  #     - "8091:8080"
+  #   depends_on:
+  #     - kafka
+  #   networks:
+  #     - booking-network
+  #   environment:
+  #     KAFKA_CLUSTERS_0_NAME: local
+  #     KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:29092
+  #     KAFKA_CLUSTERS_0_ZOOKEEPER: zookeeper:2181
 
   # Discovery Service (Eureka)
   discovery-service:
@@ -217,8 +217,8 @@ services:
       - SPRING_PROFILES_ACTIVE=docker
       - EUREKA_URI
       - DB_URL=jdbc:postgresql://postgres:5432/flight_db
-      - DB_USERNAME=postgres
-      - DB_PASSWORD=p0stgr3s
+      - DB_USERNAME
+      - DB_PASSWORD
       - JWT_ISSUER_URI
       - KAFKA_BOOTSTRAP_SERVERS
       - SERVER_PORT
@@ -239,6 +239,9 @@ services:
       - KEYCLOAK_HOST
       - BOOKING_SMART_AI_CLIENT_SECRET
       - SERVER_PORT
+      - DB_URL=jdbc:postgresql://postgres:5432/ai_db
+      - DB_USERNAME
+      - DB_PASSWORD
       - GEMINI_API_KEY
     networks:
       - booking-network
@@ -256,8 +259,8 @@ services:
       - SPRING_PROFILES_ACTIVE=docker
       - EUREKA_URI
       - DB_URL=jdbc:postgresql://postgres:5432/hotel_db
-      - DB_USERNAME=postgres
-      - DB_PASSWORD=p0stgr3s
+      - DB_USERNAME
+      - DB_PASSWORD
       - JWT_ISSUER_URI
       - KAFKA_BOOTSTRAP_SERVERS
       - SERVER_PORT
@@ -277,8 +280,8 @@ services:
       - SPRING_PROFILES_ACTIVE=docker
       - EUREKA_URI
       - DB_URL=jdbc:postgresql://postgres:5432/booking_db
-      - DB_USERNAME=postgres
-      - DB_PASSWORD=p0stgr3s
+      - DB_USERNAME
+      - DB_PASSWORD
       - JWT_ISSUER_URI
       - KAFKA_BOOTSTRAP_SERVERS
       - SERVER_PORT
@@ -298,8 +301,8 @@ services:
       - SPRING_PROFILES_ACTIVE=docker
       - EUREKA_URI
       - DB_URL=jdbc:postgresql://postgres:5432/payment_db
-      - DB_USERNAME=postgres
-      - DB_PASSWORD=p0stgr3s
+      - DB_USERNAME
+      - DB_PASSWORD
       - JWT_ISSUER_URI
       - KAFKA_BOOTSTRAP_SERVERS
       - SERVER_PORT
@@ -324,8 +327,8 @@ services:
       - KEYCLOAK_HOST
       - KEYCLOAK_CLIENT_SECRET_CUSTOMER_MANAGEMENT
       - DB_URL=jdbc:postgresql://postgres:5432/customer_db
-      - DB_USERNAME=postgres
-      - DB_PASSWORD=p0stgr3s
+      - DB_USERNAME
+      - DB_PASSWORD
       - SERVER_PORT
     networks:
       - booking-network
@@ -347,31 +350,10 @@ services:
       - CLOUDINARY_API_KEY
       - CLOUDINARY_API_SECRET
       - DB_URL=jdbc:postgresql://postgres:5432/media_db
-      - DB_USERNAME=postgres
-      - DB_PASSWORD=p0stgr3s
+      - DB_USERNAME
+      - DB_PASSWORD
     networks:
       - booking-network
-  # Transport Service - Temporarily disabled (not built in Maven)
-  #  transport-service:
-  #    profiles:
-  #      - app
-  #    build:
-  #      context: ./transport-service
-  #      dockerfile: Dockerfile
-  #    ports:
-  #      - "8088:8088"
-  #    depends_on:
-  #      postgres:
-  #        condition: service_healthy
-  #    environment:
-  #      - SPRING_PROFILES_ACTIVE=docker
-  #      - EUREKA_URI=http://discovery-service:8761/eureka
-  #      - DB_URL=jdbc:postgresql://postgres:5432/transport_db
-  #      - DB_USERNAME=postgres
-  #      - DB_PASSWORD=p0stgr3s
-  #    networks:
-  #      - booking-network
-
 
 
   # Nginx Reverse Proxy - API Gateway for Cloudflare Tunnel
@@ -435,5 +417,6 @@ networks:
 volumes:
   postgres_data:
   redis_data:
+  n8n_data:
 #    ollama_data:
 #    pgadmin_data:

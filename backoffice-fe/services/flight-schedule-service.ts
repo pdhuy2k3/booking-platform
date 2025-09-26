@@ -283,4 +283,77 @@ export class FlightScheduleService {
         return 'bg-gray-100 text-gray-800';
     }
   }
+
+  // Flight Data Generation Methods
+
+  /**
+   * Generate daily flight data for a specific date
+   */
+  static async generateDailyFlightData(targetDate?: string): Promise<any> {
+    try {
+      const params = new URLSearchParams();
+      if (targetDate) {
+        params.append("targetDate", targetDate);
+      }
+
+      const url = `${this.BASE_PATH}/generate-daily${params.toString() ? `?${params.toString()}` : ""}`;
+      const response: ApiResponse<any> = await apiClient.post(url);
+      return response.data;
+    } catch (error) {
+      console.error("Error generating daily flight data:", error);
+      throw error;
+    }
+  }
+
+  /**
+   * Generate flight data for a range of dates
+   */
+  static async generateFlightDataRange(startDate: string, endDate: string): Promise<any> {
+    try {
+      const params = new URLSearchParams();
+      params.append("startDate", startDate);
+      params.append("endDate", endDate);
+
+      const url = `${this.BASE_PATH}/generate-range?${params.toString()}`;
+      const response: ApiResponse<any> = await apiClient.post(url);
+      return response.data;
+    } catch (error) {
+      console.error("Error generating flight data range:", error);
+      throw error;
+    }
+  }
+
+  /**
+   * Generate data for the next N days
+   */
+  static async generateDataForNextDays(numberOfDays: number = 7): Promise<any> {
+    try {
+      const params = new URLSearchParams();
+      params.append("numberOfDays", numberOfDays.toString());
+
+      const url = `${this.BASE_PATH}/generate-next-days?${params.toString()}`;
+      const response: ApiResponse<any> = await apiClient.post(url);
+      return response.data;
+    } catch (error) {
+      console.error("Error generating data for next days:", error);
+      throw error;
+    }
+  }
+
+  /**
+   * Clean up old flight data
+   */
+  static async cleanupOldFlightData(daysToKeep: number = 30): Promise<any> {
+    try {
+      const params = new URLSearchParams();
+      params.append("daysToKeep", daysToKeep.toString());
+
+      const url = `${this.BASE_PATH}/cleanup?${params.toString()}`;
+      const response: ApiResponse<any> = await apiClient.delete(url);
+      return response.data;
+    } catch (error) {
+      console.error("Error cleaning up old flight data:", error);
+      throw error;
+    }
+  }
 }

@@ -6,18 +6,18 @@ import com.pdh.hotel.dto.HotelBookingDetailsDto;
 import com.pdh.hotel.dto.response.RoomResponseDto;
 import com.pdh.hotel.model.Hotel;
 import com.pdh.hotel.repository.HotelRepository;
-import com.pdh.hotel.repository.RoomRepository;
 import com.pdh.hotel.service.AmenityService;
 import com.pdh.hotel.service.HotelService;
 import com.pdh.hotel.service.HotelSearchSpecificationService;
-import com.pdh.hotel.service.ImageService;
 import com.pdh.hotel.service.RoomService;
-import com.pdh.hotel.service.RoomTypeService;
 import com.pdh.hotel.mapper.HotelMapper;
 import com.pdh.common.dto.SearchResponse;
 import com.pdh.common.dto.DestinationSearchResult;
 import com.pdh.common.dto.ErrorResponse;
 import com.pdh.common.validation.SearchValidation;
+import com.pdh.hotel.util.HotelSearchResponseBuilder;
+import com.pdh.hotel.util.HotelSearchUtils;
+import com.pdh.hotel.util.HotelStaticData;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.media.Content;
@@ -28,20 +28,26 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
+import org.springframework.ai.tool.annotation.Tool;
+import org.springframework.ai.tool.annotation.ToolParam;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.*;
 
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
-import java.util.UUID;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.UUID;
 import java.util.stream.Collectors;
 
 import jakarta.persistence.EntityNotFoundException;
@@ -60,14 +66,11 @@ import jakarta.persistence.EntityNotFoundException;
 public class HotelController {
 
     private final HotelRepository hotelRepository;
-    private final RoomRepository roomRepository;
     private final HotelService hotelService;
     private final HotelSearchSpecificationService hotelSearchSpecificationService;
     private final RoomService roomService;
-    private final RoomTypeService roomTypeService;
     private final AmenityService amenityService;
     private final ObjectMapper objectMapper;
-    private final ImageService imageService;
     private final HotelMapper hotelMapper;
     
 
@@ -126,133 +129,190 @@ public class HotelController {
      * Search hotels for storefront
      * GET /hotels/storefront/search?destination=Ho Chi Minh City&checkInDate=2024-02-15&checkOutDate=2024-02-17&guests=2&rooms=1
      */
-    @Operation(
-        summary = "Search hotels",
-        description = "Search for hotels based on destination, dates, and guest requirements. Returns paginated results with availability and pricing information.",
-        tags = {"Public API", "Search"}
-    )
-    @ApiResponses(value = {
-        @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "Hotels found successfully",
-            content = @Content(schema = @Schema(implementation = Map.class))
-        ),
-        @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400", description = "Invalid search parameters")
-    })
     @GetMapping("/storefront/search")
+    @Tool(name = "search_hotels", description = "Search hotels by destination(required = false), stay dates (required = false), price range (required = false), room type (required = false), " +
+            "amenities (required = false), and rating (required = false) " +
+            "filters with pagination (default if user not provide: guests=2 rooms=1, page=1, page_size=20) support.")
     public ResponseEntity<Map<String, Object>> searchHotels(
-            @Parameter(description = "Destination city or location", example = "Ho Chi Minh City")
+            @ToolParam(description = "Destination city",required = false)
             @RequestParam(required = false) String destination,
-            @Parameter(description = "Check-in date in YYYY-MM-DD format", example = "2024-02-15")
+            @ToolParam(description = "Hotel name", required = false)
+            @RequestParam(required = false) String hotelName,
+            @ToolParam(description = "Room type", required = false)
+            @RequestParam(required = false) String roomType,
+            @ToolParam(description = "List of amenities", required = false)
+            @RequestParam(required = false) List<String> amenities,
+            @ToolParam(description = "Minimum price", required = false)
+            @RequestParam(required = false) BigDecimal minPrice,
+            @ToolParam(description = "Maximum price", required = false)
+            @RequestParam(required = false) BigDecimal maxPrice,
+            @ToolParam(description = "Minimum rating", required = false)
+            @RequestParam(required = false) BigDecimal minRating,
+            @ToolParam(description = "Maximum rating", required = false)
+            @RequestParam(required = false) BigDecimal maxRating,
+            @ToolParam(description = "Check-in date (YYYY-MM-DD)", required = false)
             @RequestParam(required = false) String checkInDate,
-            @Parameter(description = "Check-out date in YYYY-MM-DD format", example = "2024-02-17")
+            @ToolParam(description = "Check-out date (YYYY-MM-DD)", required = false)
             @RequestParam(required = false) String checkOutDate,
-            @Parameter(description = "Number of guests", example = "2")
-            @RequestParam(defaultValue = "2") int guests,
-            @Parameter(description = "Number of rooms", example = "1")
-            @RequestParam(defaultValue = "1") int rooms,
-            @Parameter(description = "Page number (1-based)", example = "1")
-            @RequestParam(defaultValue = "1") int page,
-            @Parameter(description = "Number of results per page", example = "20")
-            @RequestParam(defaultValue = "20") int limit) {
+            @ToolParam(description = "Number of guests (default: 2)")
+            @RequestParam(defaultValue = "2") Integer guests,
+            @ToolParam(description = "Number of rooms (default: 1)")
+            @RequestParam(defaultValue = "1") Integer rooms,
+            @ToolParam(description = "Page number (1-based, default: 1)")
+            @RequestParam(defaultValue = "1") Integer page,
+            @ToolParam(description = "Number of results per page (default: 20)")
+            @RequestParam(defaultValue = "20") Integer limit) {
 
-        log.info("Hotel search request: destination={}, checkIn={}, checkOut={}, guests={}, rooms={}",
-                destination, checkInDate, checkOutDate, guests, rooms);
+        log.info("Hotel search request: destination={}, hotelName={}, roomType={}, minPrice={}, maxPrice={}, checkIn={}, checkOut={}, guests={}, rooms={}",
+                destination, hotelName, roomType, minPrice, maxPrice, checkInDate, checkOutDate, guests, rooms);
 
         try {
-            // Validate destination parameter if provided
-            if (destination != null && !destination.trim().isEmpty()) {
-                SearchValidation.ValidationResult destinationValidation = SearchValidation.validateSearchQuery(destination);
-                if (!destinationValidation.isValid()) {
-                    log.warn("Invalid destination parameter: {}", destinationValidation.getErrorMessage());
-                    return ResponseEntity.badRequest().body(Map.of(
-                        "error", "VALIDATION_ERROR",
-                        "message", "Invalid destination: " + destinationValidation.getErrorMessage(),
-                        "hotels", List.of(),
-                        "totalCount", 0
-                    ));
-                }
+            Integer effectiveGuests = (guests != null && guests > 0) ? guests : 2;
+            Integer effectiveRooms = (rooms != null && rooms > 0) ? rooms : 1;
+            Integer effectivePage = (page != null && page > 0) ? page : 1;
+            Integer effectiveLimit = (limit != null && limit > 0) ? limit : 20;
+
+            // Validate textual inputs
+            SearchValidation.ValidationResult destinationValidation = SearchValidation.validateSearchQuery(destination);
+            if (!destinationValidation.isValid()) {
+                return ResponseEntity.badRequest().body(HotelSearchResponseBuilder.validationError("Invalid destination: " + destinationValidation.getErrorMessage()));
             }
-            
-            // Sanitize destination
+
+            SearchValidation.ValidationResult hotelValidation = SearchValidation.validateSearchQuery(hotelName);
+            if (!hotelValidation.isValid()) {
+                return ResponseEntity.badRequest().body(HotelSearchResponseBuilder.validationError("Invalid hotel name: " + hotelValidation.getErrorMessage()));
+            }
+
+            SearchValidation.ValidationResult roomTypeValidation = SearchValidation.validateSearchQuery(roomType);
+            if (!roomTypeValidation.isValid()) {
+                return ResponseEntity.badRequest().body(HotelSearchResponseBuilder.validationError("Invalid room type: " + roomTypeValidation.getErrorMessage()));
+            }
+
+            if (minPrice != null && maxPrice != null && minPrice.compareTo(maxPrice) > 0) {
+                return ResponseEntity.badRequest().body(HotelSearchResponseBuilder.validationError("minPrice cannot be greater than maxPrice"));
+            }
+
+            if (minRating != null && maxRating != null && minRating.compareTo(maxRating) > 0) {
+                return ResponseEntity.badRequest().body(HotelSearchResponseBuilder.validationError("minRating cannot be greater than maxRating"));
+            }
+
             String sanitizedDestination = SearchValidation.sanitizeSearchQuery(destination);
-            
-            // Check if this is a search request or initial data request
-            boolean isSearchRequest = sanitizedDestination != null && !sanitizedDestination.trim().isEmpty() && 
-                                    checkInDate != null && !checkInDate.trim().isEmpty() && 
-                                    checkOutDate != null && !checkOutDate.trim().isEmpty();
+            List<String> destinationTerms = HotelSearchUtils.extractDestinationTerms(sanitizedDestination);
+            String sanitizedHotelName = SearchValidation.sanitizeSearchQuery(hotelName);
+            String sanitizedRoomType = SearchValidation.sanitizeSearchQuery(roomType);
 
-            if (!isSearchRequest) {
-                // Return initial data - all hotels without search filters
-                log.info("Returning initial hotel data without search filters");
-                
-                // Create pageable for hotels
-                Pageable pageable = PageRequest.of(page - 1, limit);
-                
-                // Get all hotels (without search filters) for initial display
-                Page<Hotel> hotelPage = hotelRepository.findAll(pageable);
-                
-                // Convert hotels to response format using mapper
-                List<Map<String, Object>> hotels = hotelPage.getContent().stream()
-                    .map(hotel -> hotelMapper.toStorefrontSearchResponse(hotel, LocalDate.now(), LocalDate.now().plusDays(1), 2, 1))
-                    .collect(Collectors.toList());
-                Map<String, Object> response = Map.of(
-                    "hotels", hotels,
-                    "totalCount", hotelPage.getTotalElements(),
-                    "page", page,
-                    "limit", limit,
-                    "hasMore", hotelPage.hasNext()
-                );
-                
-                return ResponseEntity.ok(response);
+            List<String> sanitizedAmenities = HotelSearchUtils.sanitizeAmenities(amenities);
+
+            LocalDate effectiveCheckIn;
+            LocalDate effectiveCheckOut;
+            try {
+                effectiveCheckIn = StringUtils.hasText(checkInDate) ? LocalDate.parse(checkInDate) : LocalDate.now();
+                effectiveCheckOut = StringUtils.hasText(checkOutDate) ? LocalDate.parse(checkOutDate) : effectiveCheckIn.plusDays(1);
+            } catch (DateTimeParseException ex) {
+                return ResponseEntity.badRequest().body(HotelSearchResponseBuilder.validationError("Invalid date format. Expected YYYY-MM-DD"));
             }
 
-            // Parse dates for search request
-            LocalDate checkIn = LocalDate.parse(checkInDate);
-            LocalDate checkOut = LocalDate.parse(checkOutDate);
+            if (!effectiveCheckOut.isAfter(effectiveCheckIn)) {
+                return ResponseEntity.badRequest().body(HotelSearchResponseBuilder.validationError("checkOutDate must be after checkInDate"));
+            }
 
-            // Create pageable
-            Pageable pageable = PageRequest.of(page - 1, limit);
+            boolean hasFilters = StringUtils.hasText(sanitizedDestination)
+                || StringUtils.hasText(sanitizedHotelName)
+                || StringUtils.hasText(sanitizedRoomType)
+                || (minPrice != null)
+                || (maxPrice != null)
+                || (minRating != null)
+                || (maxRating != null)
+                || !sanitizedAmenities.isEmpty();
 
-            // Search hotels using JPA Specifications
+            Pageable pageable = PageRequest.of(Math.max(effectivePage - 1, 0), effectiveLimit);
+
+            if (!hasFilters) {
+                log.info("Returning initial hotel data without filters");
+                Page<Hotel> hotelPage = hotelRepository.findAll(pageable);
+                List<Map<String, Object>> hotels = hotelPage.getContent().stream()
+                    .map(hotel -> hotelMapper.toStorefrontSearchResponse(
+                        hotel,
+                        effectiveCheckIn,
+                        effectiveCheckOut,
+                        effectiveGuests,
+                        effectiveRooms))
+                    .collect(Collectors.toList());
+
+                Map<String, Object> availableFilters = Map.of(
+                    "destinations", hotels.stream()
+                        .map(entry -> (String) entry.getOrDefault("city", ""))
+                        .filter(StringUtils::hasText)
+                        .distinct()
+                        .collect(Collectors.toList())
+                );
+
+                return ResponseEntity.ok(HotelSearchResponseBuilder.pagedResponse(
+                    hotels,
+                    hotelPage.getTotalElements(),
+                    effectivePage,
+                    effectiveLimit,
+                    hotelPage.hasNext(),
+                    Map.of(),
+                    availableFilters
+                ));
+            }
+
             HotelSearchSpecificationService.HotelSearchCriteria criteria = new HotelSearchSpecificationService.HotelSearchCriteria();
             criteria.setDestination(sanitizedDestination);
-            
+            criteria.setDestinationTerms(destinationTerms);
+            criteria.setName(sanitizedHotelName);
+            criteria.setRoomType(sanitizedRoomType);
+            criteria.setAmenities(sanitizedAmenities);
+            criteria.setMinPrice(minPrice);
+            criteria.setMaxPrice(maxPrice);
+            criteria.setMinRating(minRating);
+            criteria.setMaxRating(maxRating);
+
             Page<Hotel> hotelPage = hotelSearchSpecificationService.searchHotels(criteria, pageable);
 
-            // Convert to response format using mapper
             List<Map<String, Object>> hotels = hotelPage.getContent().stream()
-                .map(hotel -> hotelMapper.toStorefrontSearchResponse(hotel, checkIn, checkOut, guests, rooms))
+                .map(hotel -> hotelMapper.toStorefrontSearchResponse(
+                    hotel,
+                    effectiveCheckIn,
+                    effectiveCheckOut,
+                    effectiveGuests,
+                    effectiveRooms))
                 .collect(Collectors.toList());
 
-            Map<String, Object> response = Map.of(
-                "hotels", hotels,
-                "totalCount", hotelPage.getTotalElements(),
-                "page", page,
-                "limit", limit,
-                "hasMore", hotelPage.hasNext(),
-                "filters", Map.of(
-                    "priceRange", Map.of("min", 500000, "max", 5000000),
-                    "starRatings", List.of(3, 4, 5),
-                    "amenities", List.of("WiFi", "Pool", "Spa", "Gym", "Restaurant", "Bar"),
-                    "propertyTypes", List.of("Hotel", "Resort", "Apartment"),
-                    "neighborhoods", List.of("District 1", "District 3", "District 7")
-                )
+            Map<String, Object> appliedFilters = new LinkedHashMap<>();
+            appliedFilters.put("destination", sanitizedDestination);
+            appliedFilters.put("hotelName", sanitizedHotelName);
+            appliedFilters.put("roomType", sanitizedRoomType);
+            appliedFilters.put("minPrice", minPrice);
+            appliedFilters.put("maxPrice", maxPrice);
+            appliedFilters.put("minRating", minRating);
+            appliedFilters.put("maxRating", maxRating);
+            appliedFilters.put("amenities", sanitizedAmenities);
+
+            Map<String, Object> availableFilters = Map.of(
+                "amenities", amenityService.getActiveAmenities().stream()
+                    .map(dto -> dto.getName())
+                    .collect(Collectors.toList())
             );
 
             log.info("Found {} hotels for search criteria", hotels.size());
-            return ResponseEntity.ok(response);
+            return ResponseEntity.ok(HotelSearchResponseBuilder.pagedResponse(
+                hotels,
+                hotelPage.getTotalElements(),
+                effectivePage,
+                effectiveLimit,
+                hotelPage.hasNext(),
+                appliedFilters,
+                availableFilters
+            ));
 
         } catch (Exception e) {
+            e.printStackTrace();
             log.error("Error searching hotels", e);
-            Map<String, Object> errorResponse = Map.of(
-                "error", "Failed to search hotels",
-                "message", e.getMessage(),
-                "hotels", List.of(),
-                "totalCount", 0,
-                "page", page,
-                "limit", limit,
-                "hasMore", false
-            );
-            return ResponseEntity.ok(errorResponse);
+            int effectivePage = (page != null && page > 0) ? page : 1;
+            int effectiveLimit = (limit != null && limit > 0) ? limit : 20;
+            return ResponseEntity.ok(HotelSearchResponseBuilder.searchFailure(e.getMessage(), effectivePage, effectiveLimit));
         }
     }
 
@@ -470,40 +530,7 @@ public class HotelController {
      */
     @GetMapping("/storefront/origins")
     public ResponseEntity<Map<String, Object>> getPopularOrigins() {
-        return ResponseEntity.ok(Map.of(
-            "origins", List.of(
-                Map.of(
-                    "name", "Ho Chi Minh City",
-                    "code", "SGN",
-                    "type", "Thành phố",
-                    "country", "Vietnam"
-                ),
-                Map.of(
-                    "name", "Hanoi",
-                    "code", "HAN",
-                    "type", "Thành phố",
-                    "country", "Vietnam"
-                ),
-                Map.of(
-                    "name", "Da Nang",
-                    "code", "DAD",
-                    "type", "Thành phố",
-                    "country", "Vietnam"
-                ),
-                Map.of(
-                    "name", "Nha Trang",
-                    "code", "CXR",
-                    "type", "Thành phố",
-                    "country", "Vietnam"
-                ),
-                Map.of(
-                    "name", "Phu Quoc",
-                    "code", "PQC",
-                    "type", "Đảo",
-                    "country", "Vietnam"
-                )
-            )
-        ));
+        return ResponseEntity.ok(Map.of("origins", HotelStaticData.POPULAR_ORIGINS));
     }
     
     /**
@@ -568,23 +595,17 @@ public class HotelController {
                     .limit(20)
                     .collect(Collectors.toList());
             } else {
-                // Return popular destinations when no query
-                destinations = List.of(
-                    DestinationSearchResult.city("Ho Chi Minh City", "Vietnam", null),
-                    DestinationSearchResult.city("Hanoi", "Vietnam", null),
-                    DestinationSearchResult.city("Da Nang", "Vietnam", null),
-                    DestinationSearchResult.city("Nha Trang", "Vietnam", null),
-                    DestinationSearchResult.builder()
-                        .name("Phu Quoc")
-                        .type("Đảo")
-                        .country("Vietnam")
-                        .category("island")
+                // Return popular destinations when no query using static catalogue
+                destinations = HotelStaticData.POPULAR_DESTINATIONS.stream()
+                    .map(entry -> DestinationSearchResult.builder()
+                        .name((String) entry.get("name"))
+                        .type((String) entry.get("type"))
+                        .country((String) entry.get("country"))
+                        .category(((String) entry.get("type")).toLowerCase())
+                        .iataCode((String) entry.get("code"))
                         .relevanceScore(1.0)
-                        .build(),
-                    DestinationSearchResult.city("Da Lat", "Vietnam", null),
-                    DestinationSearchResult.city("Hue", "Vietnam", null),
-                    DestinationSearchResult.city("Hoi An", "Vietnam", null)
-                );
+                        .build())
+                    .collect(Collectors.toList());
             }
             
             long executionTime = System.currentTimeMillis() - startTime;
@@ -685,4 +706,5 @@ public class HotelController {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(errorResponse);
         }
     }
+
 }

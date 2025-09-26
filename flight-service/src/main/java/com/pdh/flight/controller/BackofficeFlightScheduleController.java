@@ -6,6 +6,7 @@ import com.pdh.flight.dto.request.FlightScheduleUpdateDto;
 import com.pdh.flight.dto.response.FlightScheduleDto;
 import com.pdh.flight.service.BackofficeFlightScheduleService;
 import com.pdh.flight.service.FlightScheduleService;
+import com.pdh.flight.service.FlightDataGeneratorService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -15,7 +16,6 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDate;
@@ -33,6 +33,7 @@ public class BackofficeFlightScheduleController {
 
     private final BackofficeFlightScheduleService backofficeFlightScheduleService;
     private final FlightScheduleService flightScheduleService;
+    private final FlightDataGeneratorService flightDataGeneratorService;
 
     /**
      * Get all flight schedules with pagination and filtering
@@ -215,6 +216,119 @@ public class BackofficeFlightScheduleController {
             log.error("Error fetching schedules for flight: {}", flightId, e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                     .body(ApiResponse.error("Failed to fetch schedules for flight", e.getMessage()));
+        }
+    }
+
+    // Flight Data Generation Endpoints
+    
+    /**
+     * Generate flight schedules and fares for a specific date
+     */
+    @Operation(summary = "Generate daily flight data", description = "Generate flight schedules and fares for a specific date")
+    @PostMapping("/generate-daily")
+    public ResponseEntity<ApiResponse<Map<String, Object>>> generateDailyFlightData(
+            @RequestParam(required = false) 
+            @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate targetDate) {
+        
+        log.info("Generating daily flight data for date: {}", targetDate);
+        
+        try {
+            Integer schedulesCreated = flightDataGeneratorService.generateDailyFlightData(targetDate);
+            
+            Map<String, Object> response = new HashMap<>();
+            response.put("target_date", targetDate != null ? targetDate.toString() : LocalDate.now().plusDays(1).toString());
+            response.put("schedules_created", schedulesCreated);
+            response.put("message", "Flight data generated successfully");
+            
+            log.info("Generated {} schedules for date: {}", schedulesCreated, targetDate);
+            return ResponseEntity.ok(ApiResponse.success(response));
+        } catch (Exception e) {
+            log.error("Error generating daily flight data for date: {}", targetDate, e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(ApiResponse.error("Failed to generate flight data", e.getMessage()));
+        }
+    }
+
+    /**
+     * Generate flight data for a range of dates
+     */
+    @Operation(summary = "Generate flight data range", description = "Generate flight data for a range of dates")
+    @PostMapping("/generate-range")
+    public ResponseEntity<ApiResponse<Map<String, Object>>> generateFlightDataRange(
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate) {
+        
+        log.info("Generating flight data range from {} to {}", startDate, endDate);
+        
+        try {
+            Map<String, Object> result = flightDataGeneratorService.generateFlightDataRange(startDate, endDate);
+            
+            Map<String, Object> response = new HashMap<>();
+            response.put("start_date", startDate.toString());
+            response.put("end_date", endDate.toString());
+            response.put("data", result);
+            response.put("message", "Flight data range generated successfully");
+            
+            log.info("Generated flight data for date range: {} to {}", startDate, endDate);
+            return ResponseEntity.ok(ApiResponse.success(response));
+        } catch (Exception e) {
+            log.error("Error generating flight data range from {} to {}", startDate, endDate, e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(ApiResponse.error("Failed to generate flight data range", e.getMessage()));
+        }
+    }
+
+    /**
+     * Generate data for the next N days
+     */
+    @Operation(summary = "Generate data for next days", description = "Generate flight data for the next N days")
+    @PostMapping("/generate-next-days")
+    public ResponseEntity<ApiResponse<Map<String, Object>>> generateDataForNextDays(
+            @RequestParam(defaultValue = "7") Integer numberOfDays) {
+        
+        log.info("Generating flight data for next {} days", numberOfDays);
+        
+        try {
+            Map<String, Object> result = flightDataGeneratorService.generateDataForNextDays(numberOfDays);
+            
+            Map<String, Object> response = new HashMap<>();
+            response.put("number_of_days", numberOfDays);
+            response.put("data", result);
+            response.put("message", "Flight data generated for next " + numberOfDays + " days");
+            
+            log.info("Generated flight data for next {} days", numberOfDays);
+            return ResponseEntity.ok(ApiResponse.success(response));
+        } catch (Exception e) {
+            log.error("Error generating flight data for next {} days", numberOfDays, e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(ApiResponse.error("Failed to generate flight data", e.getMessage()));
+        }
+    }
+
+    /**
+     * Clean up old flight data
+     */
+    @Operation(summary = "Clean up old flight data", description = "Clean up old flight data")
+    @DeleteMapping("/cleanup")
+    public ResponseEntity<ApiResponse<Map<String, Object>>> cleanupOldFlightData(
+            @RequestParam(defaultValue = "30") Integer daysToKeep) {
+        
+        log.info("Cleaning up old flight data, keeping {} days", daysToKeep);
+        
+        try {
+            Integer deletedSchedules = flightDataGeneratorService.cleanupOldFlightData(daysToKeep);
+            
+            Map<String, Object> response = new HashMap<>();
+            response.put("days_kept", daysToKeep);
+            response.put("deleted_schedules", deletedSchedules);
+            response.put("message", "Old flight data cleaned up successfully");
+            
+            log.info("Cleaned up {} old flight schedules", deletedSchedules);
+            return ResponseEntity.ok(ApiResponse.success(response));
+        } catch (Exception e) {
+            log.error("Error cleaning up old flight data", e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(ApiResponse.error("Failed to cleanup flight data", e.getMessage()));
         }
     }
 }
