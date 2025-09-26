@@ -33,7 +33,7 @@ public class HotelServiceClient {
      * Check if hotel inventory is available for booking
      * 
      * @param hotelId The hotel ID to check
-     * @param roomId The room ID to check (optional)
+     * @param roomTypeId The room type ID to check (optional)
      * @param checkInDate Check-in date
      * @param checkOutDate Check-out date
      * @param numberOfRooms Number of rooms requested
@@ -43,7 +43,7 @@ public class HotelServiceClient {
     @Retry(name = "hotel-service")
     public ValidationResult checkHotelAvailability(
             String hotelId,
-            String roomId,
+            String roomTypeId,
             LocalDate checkInDate,
             LocalDate checkOutDate,
             Integer numberOfRooms) {

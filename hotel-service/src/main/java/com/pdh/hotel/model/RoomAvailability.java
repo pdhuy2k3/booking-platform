@@ -28,6 +28,7 @@ public class RoomAvailability extends AbstractAuditEntity {
     
     @Column(name = "date", nullable = false)
     private LocalDate date;
+
     
     @Column(name = "total_inventory", nullable = false)
     private Integer totalInventory;
@@ -39,4 +40,5 @@ public class RoomAvailability extends AbstractAuditEntity {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "room_type_id", insertable = false, updatable = false)
     private RoomType roomType;
+
 }

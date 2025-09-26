@@ -466,7 +466,7 @@ public class AsyncInventoryValidationService {
             log.info("Checking actual hotel inventory availability for hotel: {}", hotelDetails.getHotelId());
             ValidationResult availabilityResult = hotelServiceClient.checkHotelAvailability(
                 hotelDetails.getHotelId(),
-                hotelDetails.getRoomId(),
+                hotelDetails.getRoomTypeId(),
                 hotelDetails.getCheckInDate(),
                 hotelDetails.getCheckOutDate(),
                 hotelDetails.getNumberOfRooms()

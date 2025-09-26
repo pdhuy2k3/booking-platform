@@ -7,12 +7,16 @@ import com.pdh.hotel.repository.RoomRepository;
 import com.pdh.hotel.repository.RoomTypeRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
+import java.util.stream.Collectors;
 
 /**
  * Service for managing hotel room inventory and reservations
@@ -56,9 +60,9 @@ public class HotelInventoryService {
             // Check and reserve availability for each date in the stay period
             LocalDate currentDate = checkInDate;
             while (currentDate.isBefore(checkOutDate)) {
-                if (!reserveRoomForDate(roomType.getRoomTypeId(), currentDate, roomCount)) {
+                if (!reserveRoomForDate(roomType, currentDate, roomCount)) {
                     // If any date fails, rollback previous reservations
-                    rollbackReservations(roomType.getRoomTypeId(), checkInDate, currentDate, roomCount);
+                    rollbackReservations(roomType, checkInDate, currentDate, roomCount);
                     return false;
                 }
                 currentDate = currentDate.plusDays(1);
@@ -104,7 +108,7 @@ public class HotelInventoryService {
             // Release availability for each date in the stay period
             LocalDate currentDate = checkInDate;
             while (currentDate.isBefore(checkOutDate)) {
-                releaseRoomForDate(roomType.getRoomTypeId(), currentDate, roomCount);
+                releaseRoomForDate(roomType, currentDate, roomCount);
                 currentDate = currentDate.plusDays(1);
             }
             
@@ -146,7 +150,7 @@ public class HotelInventoryService {
             // Check availability for each date in the stay period
             LocalDate currentDate = checkInDate;
             while (currentDate.isBefore(checkOutDate)) {
-                if (!isRoomAvailableForDate(roomType.getRoomTypeId(), currentDate, roomCount)) {
+                if (!isRoomAvailableForDate(roomType, currentDate, roomCount)) {
                     return false;
                 }
                 currentDate = currentDate.plusDays(1);
@@ -202,82 +206,156 @@ public class HotelInventoryService {
     /**
      * Reserve room for a specific date
      */
-    private boolean reserveRoomForDate(Long roomTypeId, LocalDate date, Integer roomCount) {
-        Optional<RoomAvailability> availabilityOpt = roomAvailabilityRepository
-            .findByRoomTypeIdAndDate(roomTypeId, date);
-        
+    private boolean reserveRoomForDate(RoomType roomType, LocalDate date, Integer roomCount) {
+        int roomsToReserve = normalizeRoomCount(roomCount);
+
+        Optional<RoomAvailability> availabilityOpt = getAvailabilityRecord(roomType, date, true);
+
         if (availabilityOpt.isEmpty()) {
-            log.warn("No availability record found for room type {} on date {}", roomTypeId, date);
+            log.warn("Unable to initialize availability for room type {} on {}", roomType.getRoomTypeId(), date);
             return false;
         }
-        
+
         RoomAvailability availability = availabilityOpt.get();
-        
-        // Check if enough rooms are available
-        int availableRooms = availability.getTotalInventory() - availability.getTotalReserved();
-        if (availableRooms < roomCount) {
-            log.warn("Insufficient rooms available on {}. Required: {}, Available: {}", 
-                    date, roomCount, availableRooms);
+
+        int availableRooms = remainingRooms(availability);
+        if (availableRooms < roomsToReserve) {
+            log.warn("Insufficient rooms available on {}. Required: {}, Available: {}",
+                    date, roomsToReserve, availableRooms);
             return false;
         }
-        
-        // Reserve rooms
-        availability.setTotalReserved(availability.getTotalReserved() + roomCount);
+
+        availability.setTotalReserved(Optional.ofNullable(availability.getTotalReserved()).orElse(0) + roomsToReserve);
         roomAvailabilityRepository.save(availability);
-        
-        log.debug("Reserved {} rooms for room type {} on date {}", roomCount, roomTypeId, date);
+
+        log.debug("Reserved {} rooms for room type {} on date {}", roomsToReserve, roomType.getRoomTypeId(), date);
         return true;
     }
 
     /**
      * Release room for a specific date
      */
-    private void releaseRoomForDate(Long roomTypeId, LocalDate date, Integer roomCount) {
-        Optional<RoomAvailability> availabilityOpt = roomAvailabilityRepository
-            .findByRoomTypeIdAndDate(roomTypeId, date);
-        
-        if (availabilityOpt.isPresent()) {
-            RoomAvailability availability = availabilityOpt.get();
-            
-            // Release rooms (ensure we don't go below 0)
-            int newReservedRooms = Math.max(0, availability.getTotalReserved() - roomCount);
-            availability.setTotalReserved(newReservedRooms);
-            roomAvailabilityRepository.save(availability);
-            
-            log.debug("Released {} rooms for room type {} on date {}", roomCount, roomTypeId, date);
-        } else {
-            log.warn("No availability record found for room type {} on date {}", roomTypeId, date);
+    private void releaseRoomForDate(RoomType roomType, LocalDate date, Integer roomCount) {
+        int roomsToRelease = normalizeRoomCount(roomCount);
+
+        Optional<RoomAvailability> availabilityOpt = getAvailabilityRecord(roomType, date, false);
+
+        if (availabilityOpt.isEmpty()) {
+            log.warn("No availability record found for room type {} on date {}", roomType.getRoomTypeId(), date);
+            return;
         }
+
+        RoomAvailability availability = availabilityOpt.get();
+        int currentReserved = Optional.ofNullable(availability.getTotalReserved()).orElse(0);
+        int newReservedRooms = Math.max(0, currentReserved - roomsToRelease);
+        availability.setTotalReserved(newReservedRooms);
+        roomAvailabilityRepository.save(availability);
+
+        log.debug("Released {} rooms for room type {} on date {}", roomsToRelease, roomType.getRoomTypeId(), date);
     }
 
     /**
      * Check if room is available for a specific date
      */
-    private boolean isRoomAvailableForDate(Long roomTypeId, LocalDate date, Integer roomCount) {
-        Optional<RoomAvailability> availabilityOpt = roomAvailabilityRepository
-            .findByRoomTypeIdAndDate(roomTypeId, date);
-        
+    private boolean isRoomAvailableForDate(RoomType roomType, LocalDate date, Integer roomCount) {
+        int roomsRequested = normalizeRoomCount(roomCount);
+
+        Optional<RoomAvailability> availabilityOpt = getAvailabilityRecord(roomType, date, false);
+
         if (availabilityOpt.isEmpty()) {
-            return false;
+            int fallbackInventory = calculateTotalInventory(roomType);
+            return fallbackInventory >= roomsRequested;
         }
-        
+
         RoomAvailability availability = availabilityOpt.get();
-        int availableRooms = availability.getTotalInventory() - availability.getTotalReserved();
-        
-        return availableRooms >= roomCount;
+        int availableRooms = remainingRooms(availability);
+
+        return availableRooms >= roomsRequested;
     }
 
     /**
      * Rollback reservations for failed booking
      */
-    private void rollbackReservations(Long roomTypeId, LocalDate startDate, LocalDate endDate, Integer roomCount) {
-        log.warn("Rolling back room reservations for room type {} from {} to {}", roomTypeId, startDate, endDate);
+    private void rollbackReservations(RoomType roomType, LocalDate startDate, LocalDate endDate, Integer roomCount) {
+        log.warn("Rolling back room reservations for room type {} from {} to {}", roomType.getRoomTypeId(), startDate, endDate);
         
         LocalDate currentDate = startDate;
         while (currentDate.isBefore(endDate)) {
-            releaseRoomForDate(roomTypeId, currentDate, roomCount);
+            releaseRoomForDate(roomType, currentDate, roomCount);
             currentDate = currentDate.plusDays(1);
         }
+    }
+
+    @Transactional(readOnly = true)
+    public AvailabilitySummary getAvailabilitySummary(Long hotelId, String roomTypeName, Integer roomCount,
+                                                      LocalDate checkInDate, LocalDate checkOutDate) {
+        int roomsRequested = normalizeRoomCount(roomCount);
+
+        if (checkInDate == null || checkOutDate == null || !checkOutDate.isAfter(checkInDate)) {
+            return AvailabilitySummary.unavailable("checkOutDate must be after checkInDate", roomsRequested, List.of());
+        }
+
+        Optional<RoomType> roomTypeOpt = roomTypeRepository.findByHotelIdAndTypeName(hotelId, roomTypeName);
+        if (roomTypeOpt.isEmpty()) {
+            return AvailabilitySummary.unavailable("Room type not found for hotel", roomsRequested, List.of());
+        }
+
+        RoomType roomType = roomTypeOpt.get();
+        LocalDate endDate = checkOutDate.minusDays(1);
+
+        List<RoomAvailability> availabilityRange = roomAvailabilityRepository
+                .findByRoomTypeIdAndDateBetween(roomType.getRoomTypeId(), checkInDate, endDate);
+
+        Map<LocalDate, RoomAvailability> availabilityByDate = availabilityRange.stream()
+                .collect(Collectors.toMap(RoomAvailability::getDate, ra -> ra, (existing, replacement) -> existing));
+
+        List<AvailabilityDetail> details = new ArrayList<>();
+
+        int totalInventory = calculateTotalInventory(roomType);
+        int minRemaining = Integer.MAX_VALUE;
+
+        LocalDate cursor = checkInDate;
+        while (!cursor.isAfter(endDate)) {
+            RoomAvailability availability = availabilityByDate.get(cursor);
+
+            int inventoryForDate = availability != null
+                    ? Optional.ofNullable(availability.getTotalInventory()).orElse(totalInventory)
+                    : totalInventory;
+
+            int reservedForDate = availability != null
+                    ? Optional.ofNullable(availability.getTotalReserved()).orElse(0)
+                    : 0;
+
+            int remaining = Math.max(inventoryForDate - reservedForDate, 0);
+            minRemaining = Math.min(minRemaining, remaining);
+
+            details.add(new AvailabilityDetail(cursor, inventoryForDate, reservedForDate, remaining));
+
+            cursor = cursor.plusDays(1);
+        }
+
+        if (details.isEmpty()) {
+            // No records yet; treat as full inventory if rooms exist
+            if (totalInventory <= 0) {
+                return AvailabilitySummary.unavailable("No active rooms configured for this room type", roomsRequested, List.of());
+            }
+
+            LocalDate tempCursor = checkInDate;
+            while (tempCursor.isBefore(checkOutDate)) {
+                details.add(new AvailabilityDetail(tempCursor, totalInventory, 0, totalInventory));
+                tempCursor = tempCursor.plusDays(1);
+            }
+            minRemaining = totalInventory;
+        } else if (minRemaining == Integer.MAX_VALUE) {
+            minRemaining = totalInventory;
+        }
+
+        boolean available = minRemaining >= roomsRequested && minRemaining > 0;
+        String message = available
+                ? "Rooms available for the requested stay"
+                : "Only %d room(s) available across the requested dates".formatted(Math.max(minRemaining, 0));
+
+        return new AvailabilitySummary(available, roomsRequested, Math.max(minRemaining, 0), details, message);
     }
 
     /**
@@ -290,20 +368,98 @@ public class HotelInventoryService {
     @Transactional(readOnly = true)
     public int getAvailableRooms(Long roomTypeId, LocalDate date) {
         try {
-            Optional<RoomAvailability> availabilityOpt = roomAvailabilityRepository
-                .findByRoomTypeIdAndDate(roomTypeId, date);
-            
-            if (availabilityOpt.isEmpty()) {
+            Optional<RoomType> roomTypeOpt = roomTypeRepository.findById(roomTypeId);
+            if (roomTypeOpt.isEmpty()) {
                 return 0;
             }
-            
+
+            Optional<RoomAvailability> availabilityOpt = getAvailabilityRecord(roomTypeOpt.get(), date, false);
+
+            if (availabilityOpt.isEmpty()) {
+                return calculateTotalInventory(roomTypeOpt.get());
+            }
+
             RoomAvailability availability = availabilityOpt.get();
-            return availability.getTotalInventory() - availability.getTotalReserved();
+            return remainingRooms(availability);
             
         } catch (Exception e) {
             log.error("Error getting available rooms for room type {} on date {}: {}", 
                     roomTypeId, date, e.getMessage(), e);
             return 0;
         }
+    }
+
+    private Optional<RoomAvailability> getAvailabilityRecord(RoomType roomType, LocalDate date, boolean createWhenMissing) {
+        if (roomType == null || roomType.getRoomTypeId() == null) {
+            return Optional.empty();
+        }
+
+        Optional<RoomAvailability> existing = roomAvailabilityRepository
+                .findByRoomTypeIdAndDate(roomType.getRoomTypeId(), date);
+
+        if (existing.isPresent() || !createWhenMissing) {
+            return existing;
+        }
+
+        int totalInventory = calculateTotalInventory(roomType);
+        if (totalInventory <= 0) {
+            log.warn("Cannot initialize availability for room type {} on {} because total inventory is {}", roomType.getRoomTypeId(), date, totalInventory);
+            return Optional.empty();
+        }
+
+        RoomAvailability availability = new RoomAvailability();
+        availability.setRoomTypeId(roomType.getRoomTypeId());
+        availability.setDate(date);
+        availability.setTotalInventory(totalInventory);
+        availability.setTotalReserved(0);
+
+        try {
+            return Optional.of(roomAvailabilityRepository.save(availability));
+        } catch (DataIntegrityViolationException ex) {
+            log.debug("Availability record for room type {} on {} already exists, re-fetching",
+                    roomType.getRoomTypeId(), date);
+            return roomAvailabilityRepository.findByRoomTypeIdAndDate(roomType.getRoomTypeId(), date);
+        }
+    }
+
+    private int calculateTotalInventory(RoomType roomType) {
+        if (roomType == null || roomType.getRoomTypeId() == null) {
+            return 0;
+        }
+
+        long activeRooms = roomRepository.countActiveRoomsByRoomType(roomType.getRoomTypeId());
+        if (activeRooms > Integer.MAX_VALUE) {
+            log.warn("Room type {} has more rooms than supported integer range ({}). Capping value.", roomType.getRoomTypeId(), activeRooms);
+            return Integer.MAX_VALUE;
+        }
+
+        return (int) activeRooms;
+    }
+
+    private int normalizeRoomCount(Integer roomCount) {
+        return (roomCount == null || roomCount < 1) ? 1 : roomCount;
+    }
+
+    public record AvailabilityDetail(LocalDate date, int totalInventory, int totalReserved, int remaining) {}
+
+    public record AvailabilitySummary(boolean available, int requestedRooms, int roomsAvailable,
+                                      List<AvailabilityDetail> dailyDetails, String message) {
+
+        public static AvailabilitySummary unavailable(String message, int requestedRooms, List<AvailabilityDetail> details) {
+            return new AvailabilitySummary(false, requestedRooms, 0, details, message);
+        }
+    }
+
+    @Transactional
+    public void refreshAvailabilityForRange(RoomType roomType, LocalDate startDate, LocalDate endDateInclusive) {
+        if (roomType == null || roomType.getRoomTypeId() == null) {
+            return;
+        }
+
+        LocalDate effectiveStart = Optional.ofNullable(startDate).orElse(LocalDate.now());
+        LocalDate effectiveEnd = Optional.ofNullable(endDateInclusive).orElse(effectiveStart);
+        LocalDate checkOutDate = effectiveEnd.plusDays(1);
+
+        refreshRoomAvailabilityFlag(roomType, effectiveStart, checkOutDate);
     }
 }

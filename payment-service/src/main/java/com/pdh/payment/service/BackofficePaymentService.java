@@ -1,6 +1,7 @@
 package com.pdh.payment.service;
 
 import com.pdh.common.outbox.service.OutboxEventService;
+import com.pdh.common.utils.AuthenticationUtils;
 import com.pdh.payment.dto.*;
 import com.pdh.payment.model.Payment;
 import com.pdh.payment.model.PaymentMethod;
@@ -339,13 +340,10 @@ public class BackofficePaymentService {
         double successRate = totalPayments > 0 ? (double) successfulPayments / totalPayments * 100 : 0;
         stats.put("successRate", Math.round(successRate * 100.0) / 100.0);
 
-        // For amount calculations, we'll use a simple approach with existing methods
-        // This is a simplified version - in production you'd want more specific queries
         BigDecimal totalAmount = BigDecimal.ZERO;
         try {
-            // Using a dummy user ID to get total amounts - this should be replaced with proper queries
-            UUID dummyUserId = UUID.fromString("00000000-0000-0000-0000-000000000000");
-            totalAmount = paymentRepository.getTotalAmountByUserAndDateRange(dummyUserId, startDateTime, endDateTime);
+            UUID userId = AuthenticationUtils.getCurrentUserIdFromContext();
+            totalAmount = paymentRepository.getTotalAmountByUserAndDateRange(userId, startDateTime, endDateTime);
         } catch (Exception e) {
             log.warn("Could not calculate total amount: {}", e.getMessage());
             totalAmount = BigDecimal.ZERO;

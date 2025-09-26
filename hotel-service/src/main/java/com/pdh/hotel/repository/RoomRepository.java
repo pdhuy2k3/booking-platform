@@ -16,6 +16,7 @@ import java.util.List;
  * Repository interface for Room entity
  */
 @Repository
+@Deprecated
 public interface RoomRepository extends JpaRepository<Room, Long> {
 
     /**
@@ -127,6 +128,19 @@ public interface RoomRepository extends JpaRepository<Room, Long> {
     @Modifying(clearAutomatically = true, flushAutomatically = true)
     @Query("UPDATE Room r SET r.isAvailable = :available WHERE r.roomType.roomTypeId = :roomTypeId AND (r.isDeleted IS NULL OR r.isDeleted = false)")
     int updateAvailabilityByRoomType(@Param("roomTypeId") Long roomTypeId, @Param("available") boolean available);
+
+    /**
+     * Count active (non-deleted) rooms for a specific room type.
+     *
+     * @param roomTypeId the room type identifier
+     * @return number of rooms assigned to the room type and not soft-deleted
+     */
+    @Query("""
+        SELECT COUNT(r) FROM Room r
+        WHERE r.roomType.roomTypeId = :roomTypeId
+          AND (r.isDeleted IS NULL OR r.isDeleted = false)
+        """)
+    long countActiveRoomsByRoomType(@Param("roomTypeId") Long roomTypeId);
 
 
 }

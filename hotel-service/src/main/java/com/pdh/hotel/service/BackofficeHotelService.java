@@ -5,11 +5,13 @@ import com.pdh.hotel.dto.request.HotelRequestDto;
 import com.pdh.hotel.model.Amenity;
 import com.pdh.hotel.model.Hotel;
 import com.pdh.hotel.model.HotelAmenity;
-import com.pdh.hotel.model.Room;
+import com.pdh.hotel.model.RoomAvailability;
+import com.pdh.hotel.model.RoomType;
 import com.pdh.hotel.repository.AmenityRepository;
 import com.pdh.hotel.repository.HotelAmenityRepository;
 import com.pdh.hotel.repository.HotelRepository;
-import com.pdh.hotel.repository.RoomRepository;
+import com.pdh.hotel.repository.RoomAvailabilityRepository;
+import com.pdh.hotel.repository.RoomTypeRepository;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -21,7 +23,14 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
-import java.util.*;
+import java.time.LocalDate;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Optional;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 @Service
@@ -31,9 +40,10 @@ import java.util.stream.Collectors;
 public class BackofficeHotelService {
 
     private final HotelRepository hotelRepository;
-    private final RoomRepository roomRepository;
     private final AmenityRepository amenityRepository;
     private final HotelAmenityRepository hotelAmenityRepository;
+    private final RoomTypeRepository roomTypeRepository;
+    private final RoomAvailabilityRepository roomAvailabilityRepository;
     private final ImageService imageService;
 
     @Transactional(readOnly = true)
@@ -71,17 +81,10 @@ public class BackofficeHotelService {
 
     @Transactional(readOnly = true)
     public Map<String, Object> getHotel(Long id) {
-        Hotel hotel = hotelRepository.findById(id).orElseThrow(() -> new EntityNotFoundException("Hotel not found with ID: " + id));
-        Map<String, Object> response = convertHotelToResponse(hotel);
+        Hotel hotel = hotelRepository.findById(id)
+            .orElseThrow(() -> new EntityNotFoundException("Hotel not found with ID: " + id));
 
-        Pageable pageable = PageRequest.of(0, 50);
-        Page<Room> roomPage = roomRepository.findAvailableRoomsByHotelId(id, pageable);
-        List<Map<String, Object>> rooms = roomPage.getContent().stream()
-            .map(this::convertRoomToResponse)
-            .collect(Collectors.toList());
-
-        response.put("rooms", rooms);
-        return response;
+        return convertHotelToResponse(hotel);
     }
 
     public Map<String, Object> createHotel(HotelRequestDto hotelRequestDto) {
@@ -97,25 +100,24 @@ public class BackofficeHotelService {
         hotel.setIsActive(true);
 
         Hotel savedHotel = hotelRepository.save(hotel);
-        
-        // Handle media association if provided
+
         if (hotelRequestDto.getMedia() != null && !hotelRequestDto.getMedia().isEmpty()) {
             try {
                 imageService.updateHotelImagesWithMediaResponse(savedHotel.getHotelId(), hotelRequestDto.getMedia());
                 log.info("Associated {} media items with hotel ID: {}", hotelRequestDto.getMedia().size(), savedHotel.getHotelId());
             } catch (Exception e) {
                 log.error("Error associating media with hotel {}: {}", savedHotel.getHotelId(), e.getMessage());
-                // Don't fail the hotel creation if media association fails
             }
         }
-        
+
         Map<String, Object> response = convertHotelToResponse(savedHotel);
         response.put("message", "Hotel created successfully");
         return response;
     }
 
     public Map<String, Object> updateHotel(Long id, HotelRequestDto hotelRequestDto) {
-        Hotel hotel = hotelRepository.findById(id).orElseThrow(() -> new EntityNotFoundException("Hotel not found with ID: " + id));
+        Hotel hotel = hotelRepository.findById(id)
+            .orElseThrow(() -> new EntityNotFoundException("Hotel not found with ID: " + id));
 
         hotel.setName(hotelRequestDto.getName());
         hotel.setAddress(hotelRequestDto.getAddress());
@@ -127,40 +129,44 @@ public class BackofficeHotelService {
         hotel.setLongitude(hotelRequestDto.getLongitude());
 
         Hotel updatedHotel = hotelRepository.save(hotel);
-        
-        // Handle media association if provided
+
         if (hotelRequestDto.getMedia() != null) {
             try {
                 imageService.updateHotelImagesWithMediaResponse(id, hotelRequestDto.getMedia());
                 log.info("Updated {} media items for hotel ID: {}", hotelRequestDto.getMedia().size(), id);
             } catch (Exception e) {
                 log.error("Error updating media for hotel {}: {}", id, e.getMessage());
-                // Don't fail the hotel update if media association fails
             }
         }
-        
+
         Map<String, Object> response = convertHotelToResponse(updatedHotel);
         response.put("message", "Hotel updated successfully");
         return response;
     }
 
     public void deleteHotel(Long id) {
-        Hotel hotel = hotelRepository.findById(id).orElseThrow(() -> new EntityNotFoundException("Hotel not found with ID: " + id));
-        // Soft delete to preserve referential integrity
+        Hotel hotel = hotelRepository.findById(id)
+            .orElseThrow(() -> new EntityNotFoundException("Hotel not found with ID: " + id));
         hotel.setIsActive(false);
         hotelRepository.save(hotel);
     }
 
     public Map<String, Object> updateHotelAmenities(Long hotelId, List<Long> amenityIds) {
-        Hotel hotel = hotelRepository.findById(hotelId).orElseThrow(() -> new EntityNotFoundException("Hotel not found with ID: " + hotelId));
+        Hotel hotel = hotelRepository.findById(hotelId)
+            .orElseThrow(() -> new EntityNotFoundException("Hotel not found with ID: " + hotelId));
 
-        if (amenityIds == null) amenityIds = Collections.emptyList();
+        if (amenityIds == null) {
+            amenityIds = Collections.emptyList();
+        }
 
-        // Validate amenity IDs exist and active
-        List<Amenity> amenities = amenityIds.isEmpty() ? Collections.emptyList() : amenityRepository.findActiveAmenitiesByIds(amenityIds);
-        Set<Long> validIds = amenities.stream().map(Amenity::getAmenityId).collect(Collectors.toSet());
+        List<Amenity> amenities = amenityIds.isEmpty()
+            ? Collections.emptyList()
+            : amenityRepository.findActiveAmenitiesByIds(amenityIds);
 
-        // Replace existing mappings
+        Set<Long> validIds = amenities.stream()
+            .map(Amenity::getAmenityId)
+            .collect(Collectors.toSet());
+
         hotelAmenityRepository.deleteByHotelId(hotelId);
         if (!validIds.isEmpty()) {
             List<HotelAmenity> mappings = validIds.stream()
@@ -174,7 +180,6 @@ public class BackofficeHotelService {
         return response;
     }
 
-    // === Helper mapping methods ===
     private Map<String, Object> convertHotelToResponse(Hotel hotel) {
         Map<String, Object> response = new HashMap<>();
         response.put("id", hotel.getHotelId());
@@ -184,82 +189,116 @@ public class BackofficeHotelService {
         response.put("country", hotel.getCountry() != null ? hotel.getCountry() : "");
         response.put("starRating", hotel.getStarRating() != null ? hotel.getStarRating().doubleValue() : 0.0);
         response.put("description", hotel.getDescription() != null ? hotel.getDescription() : "");
-        response.put("isActive", hotel.getIsActive() != null ? hotel.getIsActive() : true);
+        response.put("isActive", hotel.getIsActive() != null ? hotel.getIsActive() : Boolean.TRUE);
+        response.put("status", hotel.getIsActive() != null && hotel.getIsActive() ? "ACTIVE" : "INACTIVE");
 
-        Long availableRooms = roomRepository.countAvailableRoomsByHotelId(hotel.getHotelId());
-        response.put("availableRooms", availableRooms != null ? availableRooms : 0);
+        List<RoomType> roomTypes = roomTypeRepository.findByHotelId(hotel.getHotelId());
+        response.put("availableRooms", calculateAvailableRooms(roomTypes));
+        response.put("minPrice", determineMinPrice(roomTypes));
+        response.put("maxPrice", determineMaxPrice(roomTypes));
+        response.put("roomTypeCount", roomTypes.size());
 
-        BigDecimal minPrice = roomRepository.findMinPriceByHotelId(hotel.getHotelId());
-        response.put("minPrice", minPrice != null ? minPrice.doubleValue() : 0.0);
+        List<Map<String, Object>> roomTypeSummaries = roomTypes.stream()
+            .map(this::convertRoomTypeSummary)
+            .collect(Collectors.toList());
+        response.put("roomTypes", roomTypeSummaries);
 
-        // Add amenities list
         List<Amenity> amenities = hotelAmenityRepository.findAmenitiesByHotelId(hotel.getHotelId());
         if (amenities != null && !amenities.isEmpty()) {
-            List<Map<String, Object>> amenityList = amenities.stream().map(this::convertAmenityToResponse).collect(Collectors.toList());
+            List<Map<String, Object>> amenityList = amenities.stream()
+                .map(this::convertAmenityToResponse)
+                .collect(Collectors.toList());
             response.put("amenities", amenityList);
         } else {
             response.put("amenities", Collections.emptyList());
         }
 
-        // Get images via ImageService - return complete media responses for frontend
         List<MediaResponse> mediaResponses = imageService.getHotelMedia(hotel.getHotelId());
         response.put("media", mediaResponses);
-        
-        // Extract image URLs and set primary image
+
         List<String> imageUrls = mediaResponses.stream()
             .sorted((a, b) -> {
-                // Primary images first
                 if (Boolean.TRUE.equals(a.getIsPrimary()) && !Boolean.TRUE.equals(b.getIsPrimary())) {
                     return -1;
                 }
                 if (!Boolean.TRUE.equals(a.getIsPrimary()) && Boolean.TRUE.equals(b.getIsPrimary())) {
                     return 1;
                 }
-                // Then by display order
                 return Integer.compare(
                     a.getDisplayOrder() != null ? a.getDisplayOrder() : 0,
                     b.getDisplayOrder() != null ? b.getDisplayOrder() : 0
                 );
             })
             .map(media -> media.getSecureUrl() != null ? media.getSecureUrl() : media.getUrl())
-            .filter(url -> url != null && !url.isEmpty())
+            .filter(Objects::nonNull)
+            .filter(url -> !url.isEmpty())
             .collect(Collectors.toList());
-        
+
         response.put("images", imageUrls);
         response.put("primaryImage", imageUrls.isEmpty() ? null : imageUrls.get(0));
 
         return response;
     }
 
-   private Map<String, Object> convertRoomToResponse(Room room) {
-       Map<String, Object> response = new HashMap<>();
-       response.put("id", room.getId());
-       response.put("roomNumber", room.getRoomNumber());
-       response.put("description", room.getDescription() != null ? room.getDescription() : "");
-       response.put("price", room.getPrice() != null ? room.getPrice().doubleValue() : 0.0);
-       response.put("maxOccupancy", room.getMaxOccupancy() != null ? room.getMaxOccupancy() : 0);
-       response.put("bedType", room.getBedType() != null ? room.getBedType() : "");
-       response.put("roomSize", room.getRoomSize() != null ? room.getRoomSize() : 0);
-       response.put("isAvailable", room.getIsAvailable() != null ? room.getIsAvailable() : false);
+    private int calculateAvailableRooms(List<RoomType> roomTypes) {
+        if (roomTypes == null || roomTypes.isEmpty()) {
+            return 0;
+        }
 
-       if (room.getRoomType() != null) {
-           Map<String, Object> rt = new HashMap<>();
-           rt.put("id", room.getRoomType().getRoomTypeId());
-           rt.put("name", room.getRoomType().getName());
-           rt.put("description", room.getRoomType().getDescription());
-           response.put("roomType", rt);
-       }
+        LocalDate today = LocalDate.now();
+        return roomTypes.stream()
+            .map(RoomType::getRoomTypeId)
+            .filter(Objects::nonNull)
+            .map(roomTypeId -> roomAvailabilityRepository.findByRoomTypeIdAndDate(roomTypeId, today))
+            .map(optional -> optional.orElse(null))
+            .mapToInt(this::remainingInventory)
+            .sum();
+    }
 
-       return response;
-   }
+    private double determineMinPrice(List<RoomType> roomTypes) {
+        return roomTypes.stream()
+            .map(RoomType::getBasePrice)
+            .filter(Objects::nonNull)
+            .mapToDouble(BigDecimal::doubleValue)
+            .min()
+            .orElse(0.0);
+    }
 
-   private Map<String, Object> convertAmenityToResponse(Amenity amenity) {
-       Map<String, Object> response = new HashMap<>();
-       response.put("id", amenity.getAmenityId());
-       response.put("name", amenity.getName());
-       response.put("iconUrl", amenity.getIconUrl());
-       response.put("isActive", amenity.getIsActive() != null ? amenity.getIsActive() : Boolean.TRUE);
-       response.put("displayOrder", amenity.getDisplayOrder());
-       return response;
-   }
+    private Double determineMaxPrice(List<RoomType> roomTypes) {
+        return roomTypes.stream()
+            .map(RoomType::getBasePrice)
+            .filter(Objects::nonNull)
+            .map(BigDecimal::doubleValue)
+            .max(Double::compare)
+            .orElse(null);
+    }
+
+    private int remainingInventory(RoomAvailability availability) {
+        if (availability == null) {
+            return 0;
+        }
+        int totalInventory = Optional.ofNullable(availability.getTotalInventory()).orElse(0);
+        int totalReserved = Optional.ofNullable(availability.getTotalReserved()).orElse(0);
+        return Math.max(totalInventory - totalReserved, 0);
+    }
+
+    private Map<String, Object> convertRoomTypeSummary(RoomType roomType) {
+        Map<String, Object> summary = new HashMap<>();
+        summary.put("id", roomType.getRoomTypeId());
+        summary.put("name", roomType.getName());
+        summary.put("description", roomType.getDescription());
+        summary.put("capacityAdults", roomType.getCapacityAdults());
+        summary.put("basePrice", roomType.getBasePrice() != null ? roomType.getBasePrice().doubleValue() : null);
+        return summary;
+    }
+
+    private Map<String, Object> convertAmenityToResponse(Amenity amenity) {
+        Map<String, Object> response = new HashMap<>();
+        response.put("id", amenity.getAmenityId());
+        response.put("name", amenity.getName());
+        response.put("iconUrl", amenity.getIconUrl());
+        response.put("isActive", amenity.getIsActive() != null ? amenity.getIsActive() : Boolean.TRUE);
+        response.put("displayOrder", amenity.getDisplayOrder());
+        return response;
+    }
 }

@@ -2,6 +2,8 @@ package com.pdh.hotel.service;
 
 import com.pdh.hotel.dto.request.RoomTypeRequestDto;
 import com.pdh.hotel.dto.response.RoomTypeResponseDto;
+import com.pdh.common.dto.response.MediaResponse;
+import com.pdh.hotel.dto.response.RoomResponseDto;
 import com.pdh.hotel.mapper.RoomTypeMapper;
 import com.pdh.hotel.model.Hotel;
 import com.pdh.hotel.model.RoomType;
@@ -13,6 +15,8 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.util.Collections;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -22,11 +26,14 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 @Slf4j
 public class RoomTypeService {
-    
+
+    private static final BigDecimal DEFAULT_PRICE = BigDecimal.valueOf(500000L);
+
     private final RoomTypeRepository roomTypeRepository;
     private final HotelRepository hotelRepository;
     private final RoomTypeMapper roomTypeMapper;
     private final ImageService imageService;
+    private final HotelInventoryService hotelInventoryService;
     
     /**
      * Get all room types for a hotel
@@ -191,5 +198,80 @@ public class RoomTypeService {
         
         roomTypeRepository.delete(roomType);
         log.info("Room type deleted successfully with ID: {}", id);
+    }
+
+    /**
+     * Build a lightweight room view from a room type. Used by storefront endpoints once
+     * physical room entities are no longer managed.
+     */
+    @Transactional(readOnly = true)
+    public RoomResponseDto getRoomDetails(Long roomTypeId, LocalDate checkIn, LocalDate checkOut, Integer roomCount) {
+        if (roomTypeId == null) {
+            throw new EntityNotFoundException("Room type ID must be provided");
+        }
+
+        RoomType roomType = roomTypeRepository.findById(roomTypeId)
+            .orElseThrow(() -> new EntityNotFoundException("Room type not found with ID: " + roomTypeId));
+
+        Hotel hotel = roomType.getHotel();
+        if (hotel == null) {
+            throw new EntityNotFoundException("Room type " + roomTypeId + " is not associated with any hotel");
+        }
+
+        LocalDate normalizedCheckIn = checkIn != null ? checkIn : LocalDate.now();
+        LocalDate normalizedCheckOut = (checkOut != null && checkOut.isAfter(normalizedCheckIn))
+            ? checkOut
+            : normalizedCheckIn.plusDays(1);
+        int normalizedRoomCount = (roomCount != null && roomCount > 0) ? roomCount : 1;
+
+        boolean available = true;
+        try {
+            HotelInventoryService.AvailabilitySummary summary = hotelInventoryService.getAvailabilitySummary(
+                hotel.getHotelId(),
+                roomType.getName(),
+                normalizedRoomCount,
+                normalizedCheckIn,
+                normalizedCheckOut
+            );
+            available = summary.available();
+        } catch (Exception e) {
+            log.warn("Unable to compute availability for room type {}: {}", roomTypeId, e.getMessage());
+        }
+
+        List<MediaResponse> media = imageService.getRoomTypeMedia(roomTypeId);
+        if (media == null) {
+            media = Collections.emptyList();
+        }
+        MediaResponse primaryImage = media.stream()
+            .filter(MediaResponse::getIsPrimary)
+            .findFirst()
+            .orElse(media.isEmpty() ? null : media.get(0));
+
+        BigDecimal price = roomType.getBasePrice() != null ? roomType.getBasePrice() : DEFAULT_PRICE;
+
+        return RoomResponseDto.builder()
+            .id(roomType.getRoomTypeId())
+            .hotelId(hotel.getHotelId())
+            .hotelName(hotel.getName())
+            .roomNumber(roomType.getName())
+            .description(roomType.getDescription())
+            .price(price)
+            .maxOccupancy(roomType.getCapacityAdults())
+            .bedType(null)
+            .roomSize(null)
+            .isAvailable(available)
+            .roomType(RoomResponseDto.RoomTypeDto.builder()
+                .id(roomType.getRoomTypeId())
+                .name(roomType.getName())
+                .description(roomType.getDescription())
+                .build())
+            .amenities(Collections.emptyList())
+            .media(media)
+            .primaryImage(primaryImage)
+            .hasMedia(!media.isEmpty())
+            .mediaCount(media.size())
+            .createdAt(roomType.getCreatedAt())
+            .updatedAt(roomType.getUpdatedAt())
+            .build();
     }
 }

@@ -6,7 +6,6 @@ class ApiClient {
 
   constructor() {
     this.client = axios.create({
-      baseURL: process.env.NEXT_PUBLIC_BFF_BASE_URL || "http://localhost:9080",
       timeout: 30000,
       headers: {
         "Content-Type": "application/json",
