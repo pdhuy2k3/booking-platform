@@ -4,6 +4,9 @@ import com.pdh.booking.model.Booking;
 import com.pdh.booking.model.enums.BookingStatus;
 import com.pdh.booking.model.enums.BookingType;
 import com.pdh.booking.service.BackofficeBookingService;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
@@ -14,6 +17,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
+import jakarta.validation.Valid;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
@@ -253,5 +257,89 @@ public class BackofficeBookingController {
                 startDate, endDate, groupBy);
         
         return ResponseEntity.ok(analytics);
+    }
+
+    /**
+     * Update booking status (Admin only)
+     */
+    @Operation(summary = "Update booking status", 
+               description = "Update booking status with reason (Admin only)")
+    @Tag(name = "Admin Booking Management")
+    @PutMapping("/{bookingId}/status")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<Booking> updateBookingStatus(
+            @Parameter(description = "Booking ID", required = true)
+            @PathVariable UUID bookingId,
+            @Parameter(description = "New status", required = true)
+            @RequestParam BookingStatus status,
+            @Parameter(description = "Reason for status change")
+            @RequestParam(required = false) String reason) {
+        
+        log.info("Admin updating booking {} status to {} with reason: {}", 
+                bookingId, status, reason);
+        
+        Booking updatedBooking = backofficeBookingService.updateBookingStatus(
+                bookingId, status, reason);
+        
+        return ResponseEntity.ok(updatedBooking);
+    }
+
+    /**
+     * Cancel booking (Admin only)
+     */
+    @Operation(summary = "Cancel booking", 
+               description = "Cancel booking with reason (Admin only)")
+    @Tag(name = "Admin Booking Management")
+    @PutMapping("/{bookingId}/cancel")
+    public ResponseEntity<Booking> cancelBooking(
+            @Parameter(description = "Booking ID", required = true)
+            @PathVariable UUID bookingId,
+            @Parameter(description = "Cancellation reason")
+            @RequestParam(required = false) String reason) {
+        
+        log.info("Admin cancelling booking {} with reason: {}", bookingId, reason);
+        
+        Booking cancelledBooking = backofficeBookingService.cancelBooking(bookingId, reason);
+        
+        return ResponseEntity.ok(cancelledBooking);
+    }
+
+    /**
+     * Search bookings with text search
+     */
+    @Operation(summary = "Search bookings", 
+               description = "Search bookings by text (booking reference, customer info, etc.)")
+    @GetMapping("/search")
+    public ResponseEntity<Page<Booking>> searchBookings(
+            @Parameter(description = "Search term")
+            @RequestParam String q,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size) {
+        
+        log.info("Searching bookings with term: {}", q);
+        
+        Pageable pageable = PageRequest.of(page, size);
+        Page<Booking> bookings = backofficeBookingService.searchBookings(q, pageable);
+        
+        return ResponseEntity.ok(bookings);
+    }
+
+    /**
+     * Get booking summary for dashboard
+     */
+    @Operation(summary = "Get booking summary", 
+               description = "Get booking summary statistics for dashboard")
+    @GetMapping("/summary")
+    public ResponseEntity<Map<String, Object>> getBookingSummary(
+            @Parameter(description = "Start date")
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
+            @Parameter(description = "End date")
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate) {
+        
+        log.info("Fetching booking summary for period: {} to {}", startDate, endDate);
+        
+        Map<String, Object> summary = backofficeBookingService.getBookingSummary(startDate, endDate);
+        
+        return ResponseEntity.ok(summary);
     }
 }

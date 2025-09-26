@@ -70,6 +70,14 @@ class ApiClient {
     const response: AxiosResponse<T> = await this.client.patch(url, data, config)
     return response.data
   }
+
+  async getBlob(url: string, config?: AxiosRequestConfig): Promise<Blob> {
+    const response: AxiosResponse<Blob> = await this.client.get(url, {
+      ...config,
+      responseType: 'blob'
+    })
+    return response.data
+  }
 }
 
 export const apiClient = new ApiClient()

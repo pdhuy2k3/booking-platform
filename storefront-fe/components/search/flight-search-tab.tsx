@@ -14,7 +14,7 @@ import Image from "next/image"
 import { formatPrice } from "@/lib/currency"
 import { useBooking } from "@/contexts/booking-context"
 import { flightService } from "@/modules/flight/service"
-import type { InitialFlightData, FareClass } from "@/modules/flight/type"
+import type { InitialFlightData, FareClass, FlightDetails } from "@/modules/flight/type"
 import { FlightCardSkeleton } from "@/modules/flight/component/FlightCardSkeleton"
 import FlightDetailsModal from "@/modules/flight/component/FlightDetailsModal"
 import { FlightDestinationModal } from "@/modules/flight/component/FlightDestinationModal"
@@ -134,7 +134,7 @@ export function FlightSearchTab() {
         city: flight.destination,
       },
       duration: flight.duration || '',
-      stops: flight.stops && flight.stops > 0 ? `${flight.stops} stop${flight.stops === 1 ? '' : 's'}` : 'Non-stop',
+      stops: flight.stops && flight.stops > 0 ? `${flight.stops} ${flight.stops === 1 ? 'điểm dừng' : 'điểm dừng'}` : 'Bay thẳng',
       price: flight.price,
       class: flight.seatClass || 'ECONOMY',
       rating: 4.5,
@@ -164,8 +164,8 @@ export function FlightSearchTab() {
     setDestination(city)
   }
 
-  const handleBookFlight = (flight: any) => {
-    if (!hasSearched) {
+  const startFlightBooking = (flight: any, options: { allowWithoutSearch?: boolean } = {}) => {
+    if (!hasSearched && !options.allowWithoutSearch) {
       scrollToSearch()
       return
     }
@@ -178,9 +178,19 @@ export function FlightSearchTab() {
       return
     }
 
-    const departureDateTime = resolveDateTime(flightData.departureDateTime, departDate, flightData.departureTime)
-    const arrivalDateTime = resolveDateTime(flightData.arrivalDateTime, departDate, flightData.arrivalTime)
+    const departureDateTime = resolveDateTime(
+      flightData.departureDateTime,
+      departDate,
+      typeof flightData.departureTime === 'string' ? flightData.departureTime : undefined,
+    )
+    const arrivalDateTime = resolveDateTime(
+      flightData.arrivalDateTime,
+      departDate,
+      typeof flightData.arrivalTime === 'string' ? flightData.arrivalTime : undefined,
+    )
     const airlineLogo = flight?.logo || flightData.airlineLogo
+    const normalizedSeatClass = (flightData.seatClass || flight?.seatClass || flight?.class || 'ECONOMY').toString().toUpperCase()
+    const ticketPrice = Number(flightData.price ?? flight?.price ?? 0)
 
     resetBooking()
     setBookingType('flight')
@@ -193,19 +203,49 @@ export function FlightSearchTab() {
       departureTime: departureDateTime || flightData.departureTime,
       arrivalTime: arrivalDateTime || flightData.arrivalTime,
       duration: flightData.duration,
-      price: flightData.price,
+      price: ticketPrice,
       currency: flightData.currency || 'VND',
-      seatClass: flightData.seatClass,
+      seatClass: normalizedSeatClass,
       logo: airlineLogo,
     })
     updateBookingData({
       bookingType: 'FLIGHT',
-      totalAmount: 0,
+      totalAmount: ticketPrice,
       currency: flightData.currency || 'VND',
       productDetails: undefined,
     })
     setStep('passengers')
     router.push('/bookings')
+  }
+
+  const handleModalBookFlight = (details: FlightDetails) => {
+    const departureIso = resolveDateTime(details.departureTime, departDate, details.departureTime)
+    const arrivalIso = resolveDateTime(details.arrivalTime, departDate, details.arrivalTime)
+
+    const normalized = {
+      raw: {
+        flightId: details.flightId,
+        flightNumber: details.flightNumber,
+        airline: details.airline,
+        origin: details.origin,
+        destination: details.destination,
+        departureDateTime: departureIso || details.departureTime,
+        arrivalDateTime: arrivalIso || details.arrivalTime,
+        duration: details.duration,
+        price: details.price,
+        currency: details.currency,
+        seatClass: details.seatClass,
+        airlineLogo: '/airplane-generic.png',
+        departureTime: details.departureTime,
+        arrivalTime: details.arrivalTime,
+      },
+      logo: '/airplane-generic.png',
+      departureDateTime: departureIso || details.departureTime,
+      arrivalDateTime: arrivalIso || details.arrivalTime,
+    }
+
+    startFlightBooking(normalized, { allowWithoutSearch: true })
+    handleCloseModal()
   }
 
   async function loadInitialData() {
@@ -694,7 +734,7 @@ export function FlightSearchTab() {
                             <Button 
                               size="sm" 
                               className="w-full bg-blue-600 text-white hover:bg-blue-700"
-                              onClick={() => handleBookFlight(flight)}
+                              onClick={() => startFlightBooking(flight)}
                               disabled={!hasSearched}
                             >
                               {hasSearched ? "Đặt ngay" : "Tìm kiếm để đặt"}
@@ -711,12 +751,12 @@ export function FlightSearchTab() {
                   <div className="text-center py-20">
                     <div className="text-6xl mb-4">✈️</div>
                     <h2 className="text-2xl font-semibold mb-2">
-                      {hasSearched ? "Không tìm thấy chuyến bay" : "Let&apos;s find your flight!"}
+                      {hasSearched ? "Không tìm thấy chuyến bay" : "Bắt đầu tìm chuyến bay của bạn"}
                     </h2>
                     <p className="text-muted-foreground">
-                      {hasSearched 
-                        ? "Thử thay đổi điều kiện tìm kiếm hoặc ngày khởi hành khác" 
-                        : "To display available flights, please select your search options."
+                      {hasSearched
+                        ? "Hãy thử điều chỉnh lại tiêu chí hoặc chọn ngày khởi hành khác."
+                        : "Vui lòng nhập thông tin tìm kiếm để xem các chuyến bay phù hợp."
                       }
                     </p>
                   </div>
@@ -732,6 +772,9 @@ export function FlightSearchTab() {
         flightId={selectedFlightId}
         isOpen={isModalOpen}
         onClose={handleCloseModal}
+        onBookFlight={handleModalBookFlight}
+        canBook={hasSearched}
+        onPromptSearch={scrollToSearch}
       />
 
       <FlightDestinationModal

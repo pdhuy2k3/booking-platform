@@ -319,6 +319,7 @@ public class HotelSearchSpecificationService {
             destinationSpecifications.add(HotelSpecification.hasCity(term));
             destinationSpecifications.add(HotelSpecification.hasCountry(term));
             destinationSpecifications.add(HotelSpecification.hasAddress(term));
+            destinationSpecifications.add(HotelSpecification.hasName(term));
         }
 
         if (destinationSpecifications.isEmpty()) {

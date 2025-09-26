@@ -10,13 +10,36 @@ import { flightService } from "../service"
 import type { FlightDetails } from "../type"
 import { formatPrice } from "@/lib/currency"
 
+const seatClassLabels: Record<string, string> = {
+  ECONOMY: "Phổ thông",
+  PREMIUM_ECONOMY: "Phổ thông cao cấp",
+  BUSINESS: "Thương gia",
+  FIRST: "Hạng nhất",
+}
+
+const formatSeatClass = (seatClass?: string) => {
+  if (!seatClass) return "Phổ thông"
+  const key = seatClass.toUpperCase()
+  return seatClassLabels[key] || key
+}
+
 interface FlightDetailsModalProps {
   flightId: string | null
   isOpen: boolean
   onClose: () => void
+  onBookFlight?: (flight: FlightDetails) => void
+  canBook?: boolean
+  onPromptSearch?: () => void
 }
 
-export default function FlightDetailsModal({ flightId, isOpen, onClose }: FlightDetailsModalProps) {
+export default function FlightDetailsModal({
+  flightId,
+  isOpen,
+  onClose,
+  onBookFlight,
+  canBook = true,
+  onPromptSearch,
+}: FlightDetailsModalProps) {
   const [flight, setFlight] = useState<FlightDetails | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -85,15 +108,15 @@ export default function FlightDetailsModal({ flightId, isOpen, onClose }: Flight
       <div className="relative w-[90%] h-[90%] bg-background rounded-lg shadow-2xl overflow-hidden">
         {/* Header */}
         <div className="flex items-center justify-between p-6 border-b border-border">
-          <div className="flex items-center space-x-4">
-            <div className="relative w-10 h-10">
-              <Image src="/airplane-generic.png" alt={flight.airline} fill className="object-contain" />
+            <div className="flex items-center space-x-4">
+              <div className="relative w-10 h-10">
+                <Image src="/airplane-generic.png" alt={flight.airline} fill className="object-contain" />
+              </div>
+              <div>
+                <h2 className="text-2xl font-bold text-foreground">{flight.airline}</h2>
+                <p className="text-muted-foreground">Hạng {formatSeatClass(flight.seatClass)}</p>
+              </div>
             </div>
-            <div>
-              <h2 className="text-2xl font-bold text-foreground">{flight.airline}</h2>
-              <p className="text-muted-foreground">Hạng {flight.seatClass}</p>
-            </div>
-          </div>
           <Button variant="ghost" size="icon" onClick={onClose} className="h-10 w-10">
             <X className="h-6 w-6" />
           </Button>
@@ -211,41 +234,47 @@ export default function FlightDetailsModal({ flightId, isOpen, onClose }: Flight
                 </CardHeader>
                 <CardContent className="space-y-4">
                   <div className="text-center">
-                    <div className="text-4xl font-bold text-primary">{formatPrice(flight.price)}</div>
+                    <div className="text-4xl font-bold text-primary">{formatPrice(Number(flight.price ?? 0))}</div>
                     <div className="text-sm text-muted-foreground">mỗi người</div>
                   </div>
 
-                  <div className="space-y-2 text-sm">
-                    <div className="flex justify-between">
-                      <span className="text-muted-foreground">Giá vé cơ bản:</span>
-                      <span>{formatPrice(flight.price - 150000)}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-muted-foreground">Thuế & Phí:</span>
-                      <span>{formatPrice(150000)}</span>
-                    </div>
-                    <div className="border-t border-border pt-2 flex justify-between font-medium">
-                      <span>Tổng cộng:</span>
-                      <span>{formatPrice(flight.price)}</span>
-                    </div>
+                  <div className="border-t border-border pt-2 flex justify-between font-medium text-sm">
+                    <span>Tổng cộng:</span>
+                    <span>{formatPrice(Number(flight.price ?? 0))}</span>
                   </div>
 
                   <div className="space-y-2">
                     <Badge variant="secondary" className="w-full justify-center">
-                      Hạng {flight.seatClass}
+                      Hạng {formatSeatClass(flight.seatClass)}
                     </Badge>
                     <Badge variant="outline" className="w-full justify-center">
                       Có thể hoàn tiền
                     </Badge>
                   </div>
 
-                  <Button className="w-full" size="lg">
-                    Đặt chuyến bay này
+                  <Button
+                    className="w-full"
+                    size="lg"
+                    disabled={!canBook}
+                    onClick={() => {
+                      if (!canBook) {
+                        onPromptSearch?.()
+                        return
+                      }
+                      onBookFlight?.(flight)
+                    }}
+                  >
+                    Đặt ngay
                   </Button>
 
                   <div className="text-xs text-muted-foreground text-center">
                     Giá có thể thay đổi dựa trên tình trạng còn chỗ
                   </div>
+                  {!canBook && (
+                    <div className="text-xs text-destructive text-center">
+                      Vui lòng hoàn tất tìm kiếm để tiếp tục đặt chỗ
+                    </div>
+                  )}
                 </CardContent>
               </Card>
             </div>

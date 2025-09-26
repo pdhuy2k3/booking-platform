@@ -189,23 +189,29 @@ export interface Room {
 }
 
 export interface Booking {
-  id: string
-  customerId: string
-  customerName: string
-  customerEmail: string
-  type: "FLIGHT" | "HOTEL" | "COMBO"
-  flightId?: string
-  hotelId?: string
-  roomId?: string
-  checkIn?: string
-  checkOut?: string
-  passengers?: number
+  bookingId: string
+  bookingReference: string
+  userId: string
   totalAmount: number
   currency: string
-  status: "PENDING" | "CONFIRMED" | "CANCELLED" | "COMPLETED"
-  paymentStatus: "PENDING" | "PAID" | "FAILED" | "REFUNDED"
-  createdAt: string
-  updatedAt: string
+  status: "VALIDATION_PENDING" | "PENDING" | "CONFIRMED" | "PAYMENT_PENDING" | "PAID" | "PAYMENT_FAILED" | "CANCELLED" | "FAILED" | "VALIDATION_FAILED"
+  bookingType: "FLIGHT" | "HOTEL" | "COMBO"
+  sagaState: string
+  sagaId: string
+  confirmationNumber?: string
+  cancelledAt?: number | null
+  cancellationReason?: string | null
+  compensationReason?: string | null
+  productDetailsJson: string
+  notes?: string | null
+  bookingSource: "STOREFRONT" | "BACKOFFICE" | "API"
+  createdAt: number
+  createdBy: string
+  updatedAt: number
+  updatedBy: string
+  deletedAt?: number | null
+  deletedBy?: string | null
+  deleted: boolean
 }
 
 export interface Customer {
@@ -299,4 +305,194 @@ export interface FlightScheduleUpdateRequest {
   arrivalTime?: string
   aircraftId?: number
   status?: "SCHEDULED" | "ACTIVE" | "DELAYED" | "CANCELLED" | "COMPLETED"
+}
+
+// Payment related interfaces
+export interface Payment {
+  paymentId: string
+  paymentReference: string
+  bookingId: string
+  userId: string
+  customerId?: string
+  sagaId: string
+  sagaStep?: string
+  amount: number
+  currency: string
+  description?: string
+  status: PaymentStatus
+  methodType: PaymentMethodType
+  provider: PaymentProvider
+  paymentMethodId?: string
+  gatewayTransactionId?: string
+  gatewayResponse?: string
+  gatewayStatus?: string
+  metadata?: string
+  ipAddress?: string
+  userAgent?: string
+  createdAt: number
+  updatedAt: number
+  createdBy: string
+  updatedBy: string
+  deletedAt?: number | null
+  deletedBy?: string | null
+  deleted: boolean
+  transactions?: PaymentTransaction[]
+}
+
+export interface PaymentTransaction {
+  transactionId: string
+  paymentId: string
+  transactionReference: string
+  transactionType: PaymentTransactionType
+  amount: number
+  currency: string
+  status: PaymentStatus
+  provider: PaymentProvider
+  sagaId: string
+  sagaStep?: string
+  originalTransactionId?: string
+  gatewayTransactionId?: string
+  gatewayResponse?: string
+  gatewayStatus?: string
+  description?: string
+  metadata?: string
+  processedAt?: number
+  confirmedAt?: number
+  createdAt: number
+  updatedAt: number
+  createdBy: string
+  updatedBy: string
+}
+
+export interface PaymentMethod {
+  paymentMethodId: string
+  userId: string
+  methodType: PaymentMethodType
+  provider: PaymentProvider
+  gatewayMethodId?: string
+  last4?: string
+  cardType?: string
+  expiryMonth?: number
+  expiryYear?: number
+  holderName?: string
+  isDefault: boolean
+  isActive: boolean
+  metadata?: string
+  createdAt: number
+  updatedAt: number
+}
+
+export interface PaymentSagaLog {
+  logId: string
+  sagaId: string
+  paymentId: string
+  step: string
+  status: string
+  request?: string
+  response?: string
+  errorMessage?: string
+  retryCount: number
+  createdAt: number
+}
+
+export type PaymentStatus = 
+  | "PENDING"
+  | "PROCESSING"
+  | "COMPLETED"
+  | "CONFIRMED"
+  | "FAILED"
+  | "DECLINED"
+  | "CANCELLED"
+  | "REFUND_PENDING"
+  | "REFUND_PROCESSING"
+  | "REFUND_COMPLETED"
+  | "REFUND_FAILED"
+  | "TIMEOUT"
+  | "ERROR"
+  | "COMPENSATION_PENDING"
+  | "COMPENSATION_COMPLETED"
+  | "COMPENSATION_FAILED"
+
+export type PaymentMethodType =
+  | "CREDIT_CARD"
+  | "DEBIT_CARD"
+  | "BANK_TRANSFER"
+  | "E_WALLET"
+  | "QR_CODE"
+  | "CASH"
+
+export type PaymentProvider =
+  | "STRIPE"
+  | "VIETQR"
+  | "MOMO"
+  | "ZALOPAY"
+  | "VNPAY"
+  | "PAYPAL"
+  | "MANUAL"
+
+export type PaymentTransactionType =
+  | "PAYMENT"
+  | "REFUND"
+  | "CHARGEBACK"
+  | "COMPENSATION"
+
+export interface PaymentProcessRequest {
+  bookingId: string
+  amount: number
+  currency?: string
+  description?: string
+  methodType: PaymentMethodType
+  provider: PaymentProvider
+  paymentMethodData?: Record<string, any>
+  additionalData?: Record<string, any>
+}
+
+export interface PaymentRefundRequest {
+  paymentId: string
+  amount?: number
+  reason?: string
+}
+
+export interface PaymentFilters {
+  search?: string
+  status?: PaymentStatus
+  provider?: PaymentProvider
+  methodType?: PaymentMethodType
+  bookingId?: string
+  userId?: string
+  dateFrom?: string
+  dateTo?: string
+  amountFrom?: number
+  amountTo?: number
+  page?: number
+  size?: number
+  sort?: string
+  direction?: "ASC" | "DESC"
+}
+
+export interface PaymentStats {
+  totalPayments: number
+  totalAmount: number
+  successfulPayments: number
+  failedPayments: number
+  pendingPayments: number
+  refundedAmount: number
+  averageAmount: number
+  conversionRate: number
+  topProviders: Array<{
+    provider: PaymentProvider
+    count: number
+    amount: number
+  }>
+  statusDistribution: Array<{
+    status: PaymentStatus
+    count: number
+    percentage: number
+  }>
+  monthlyTrends: Array<{
+    month: string
+    totalAmount: number
+    totalCount: number
+    successRate: number
+  }>
 }

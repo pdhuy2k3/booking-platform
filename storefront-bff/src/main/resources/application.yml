@@ -129,15 +129,6 @@ spring:
       server:
         webflux:
           routes:
-            - id: sse
-              uri: ${API_URL}
-              predicates:
-                - Path=/mcp/**
-              filters:
-                - RewritePath=/mcp/(?<segment>.*), /$\{segment}
-                - TokenRelay=
-                - SetResponseHeader=Cache-Control, no-cache, no-transform
-                - AddResponseHeader=Connection, keep-alive
             - id: api
               uri: ${API_URL}
               predicates:

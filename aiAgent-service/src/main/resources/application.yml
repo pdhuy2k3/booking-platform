@@ -142,7 +142,7 @@ spring:
         repository:
           jdbc:
             initialize-schema: always
-            platform: postgres
+
     mcp:
       client:
         enabled: true
@@ -156,10 +156,10 @@ spring:
         sse:
           connections:
             server1:
-              url: https://api-bookingsmart.huypd.dev
+              url: http://hotel-service
               sse-endpoint: /hotels/sse
             server2:
-              url: https://api-bookingsmart.huypd.dev
+              url: http://flight-service
               sse-endpoint: /flights/sse
           # servers-configuration: classpath:mcp-servers.json
         initialized: true

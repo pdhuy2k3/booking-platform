@@ -8,10 +8,14 @@ import { Badge } from "@/components/ui/badge"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Search, MoreHorizontal, Eye, Edit, X, Calendar, DollarSign, Users, AlertTriangle } from "lucide-react"
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { Textarea } from "@/components/ui/textarea"
+import { Search, MoreHorizontal, Eye, Edit, X, Calendar, DollarSign, Users, AlertTriangle, RefreshCw } from "lucide-react"
 import { AdminLayout } from "@/components/admin/admin-layout"
+import { BookingDetailDialog } from "@/components/admin/booking-detail-dialog"
 import { BookingService } from "@/services/booking-service"
 import type { Booking, PaginatedResponse } from "@/types/api"
+import { toast } from "@/hooks/use-toast"
 
 export default function AdminBookings() {
   const [bookings, setBookings] = useState<PaginatedResponse<Booking> | null>(null)
@@ -19,10 +23,25 @@ export default function AdminBookings() {
   const [searchTerm, setSearchTerm] = useState("")
   const [statusFilter, setStatusFilter] = useState<string>("all")
   const [typeFilter, setTypeFilter] = useState<string>("all")
+  const [currentPage, setCurrentPage] = useState(1)
+  const [pageSize] = useState(20)
+  
+  // Dialog states
+  const [selectedBooking, setSelectedBooking] = useState<Booking | null>(null)
+  const [showDetailDialog, setShowDetailDialog] = useState(false)
+  const [showStatusDialog, setShowStatusDialog] = useState(false)
+  const [showCancelDialog, setShowCancelDialog] = useState(false)
+  const [newStatus, setNewStatus] = useState<string>("")
+  const [reason, setReason] = useState("")
+  const [actionLoading, setActionLoading] = useState(false)
+
+  useEffect(() => {
+    setCurrentPage(1) // Reset to first page when filters change
+  }, [searchTerm, statusFilter, typeFilter])
 
   useEffect(() => {
     loadBookings()
-  }, [searchTerm, statusFilter, typeFilter])
+  }, [currentPage, searchTerm, statusFilter, typeFilter])
 
   const loadBookings = async () => {
     try {
@@ -31,15 +50,93 @@ export default function AdminBookings() {
         search: searchTerm || undefined,
         status: statusFilter === "all" ? undefined : statusFilter,
         type: typeFilter === "all" ? undefined : typeFilter,
-        page: 1,
-        size: 20,
+        page: currentPage,
+        size: pageSize,
       })
       setBookings(data)
     } catch (error) {
       console.error("Failed to load bookings:", error)
+      toast({
+        title: "Error",
+        description: "Failed to load bookings. Please try again.",
+        variant: "destructive",
+      })
     } finally {
       setLoading(false)
     }
+  }
+
+  const handleStatusUpdate = async () => {
+    if (!selectedBooking || !newStatus) return
+    
+    try {
+      setActionLoading(true)
+      await BookingService.updateBookingStatus(selectedBooking.bookingId, newStatus as Booking["status"], reason)
+      
+      toast({
+        title: "Success",
+        description: "Booking status updated successfully",
+      })
+      
+      setShowStatusDialog(false)
+      setReason("")
+      setNewStatus("")
+      setSelectedBooking(null)
+      loadBookings() // Refresh the list
+    } catch (error) {
+      console.error("Failed to update booking status:", error)
+      toast({
+        title: "Error",
+        description: "Failed to update booking status. Please try again.",
+        variant: "destructive",
+      })
+    } finally {
+      setActionLoading(false)
+    }
+  }
+
+  const handleCancelBooking = async () => {
+    if (!selectedBooking) return
+    
+    try {
+      setActionLoading(true)
+      await BookingService.cancelBooking(selectedBooking.bookingId, reason)
+      
+      toast({
+        title: "Success",
+        description: "Booking cancelled successfully",
+      })
+      
+      setShowCancelDialog(false)
+      setReason("")
+      setSelectedBooking(null)
+      loadBookings() // Refresh the list
+    } catch (error) {
+      console.error("Failed to cancel booking:", error)
+      toast({
+        title: "Error",
+        description: "Failed to cancel booking. Please try again.",
+        variant: "destructive",
+      })
+    } finally {
+      setActionLoading(false)
+    }
+  }
+
+  const openDetailDialog = (booking: Booking) => {
+    setSelectedBooking(booking)
+    setShowDetailDialog(true)
+  }
+
+  const openStatusDialog = (booking: Booking) => {
+    setSelectedBooking(booking)
+    setNewStatus(booking.status)
+    setShowStatusDialog(true)
+  }
+
+  const openCancelDialog = (booking: Booking) => {
+    setSelectedBooking(booking)
+    setShowCancelDialog(true)
   }
 
   const getStatusBadge = (status: string) => {
@@ -48,17 +145,27 @@ export default function AdminBookings() {
         return <Badge className="bg-green-100 text-green-800">Đã xác nhận</Badge>
       case "PENDING":
         return <Badge className="bg-yellow-100 text-yellow-800">Chờ xử lý</Badge>
+      case "VALIDATION_PENDING":
+        return <Badge className="bg-orange-100 text-orange-800">Chờ xác thực</Badge>
+      case "PAYMENT_PENDING":
+        return <Badge className="bg-blue-100 text-blue-800">Chờ thanh toán</Badge>
+      case "PAID":
+        return <Badge className="bg-green-100 text-green-800">Đã thanh toán</Badge>
+      case "PAYMENT_FAILED":
+        return <Badge className="bg-red-100 text-red-800">Thanh toán thất bại</Badge>
       case "CANCELLED":
         return <Badge className="bg-red-100 text-red-800">Đã hủy</Badge>
-      case "COMPLETED":
-        return <Badge className="bg-blue-100 text-blue-800">Hoàn thành</Badge>
+      case "FAILED":
+        return <Badge className="bg-red-100 text-red-800">Thất bại</Badge>
+      case "VALIDATION_FAILED":
+        return <Badge className="bg-red-100 text-red-800">Xác thực thất bại</Badge>
       default:
         return <Badge variant="secondary">{status}</Badge>
     }
   }
 
-  const getTypeBadge = (type: string) => {
-    switch (type) {
+  const getTypeBadge = (bookingType: string) => {
+    switch (bookingType) {
       case "FLIGHT":
         return (
           <Badge variant="outline" className="text-blue-600 border-blue-200">
@@ -78,7 +185,7 @@ export default function AdminBookings() {
           </Badge>
         )
       default:
-        return <Badge variant="outline">{type}</Badge>
+        return <Badge variant="outline">{bookingType}</Badge>
     }
   }
 
@@ -90,8 +197,8 @@ export default function AdminBookings() {
   }
 
   const totalBookings = bookings?.totalElements || 0
-  const confirmedBookings = bookings?.content.filter((b) => b.status === "CONFIRMED").length || 0
-  const pendingBookings = bookings?.content.filter((b) => b.status === "PENDING").length || 0
+  const confirmedBookings = bookings?.content.filter((b) => b.status === "CONFIRMED" || b.status === "PAID").length || 0
+  const pendingBookings = bookings?.content.filter((b) => b.status === "PENDING" || b.status === "VALIDATION_PENDING" || b.status === "PAYMENT_PENDING").length || 0
   const totalRevenue = bookings?.content.reduce((sum, booking) => sum + booking.totalAmount, 0) || 0
 
   return (
@@ -175,10 +282,15 @@ export default function AdminBookings() {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">Tất cả</SelectItem>
+                  <SelectItem value="VALIDATION_PENDING">Chờ xác thực</SelectItem>
                   <SelectItem value="PENDING">Chờ xử lý</SelectItem>
                   <SelectItem value="CONFIRMED">Đã xác nhận</SelectItem>
+                  <SelectItem value="PAYMENT_PENDING">Chờ thanh toán</SelectItem>
+                  <SelectItem value="PAID">Đã thanh toán</SelectItem>
+                  <SelectItem value="PAYMENT_FAILED">Thanh toán thất bại</SelectItem>
                   <SelectItem value="CANCELLED">Đã hủy</SelectItem>
-                  <SelectItem value="COMPLETED">Hoàn thành</SelectItem>
+                  <SelectItem value="FAILED">Thất bại</SelectItem>
+                  <SelectItem value="VALIDATION_FAILED">Xác thực thất bại</SelectItem>
                 </SelectContent>
               </Select>
               <Select value={typeFilter} onValueChange={setTypeFilter}>
@@ -192,6 +304,15 @@ export default function AdminBookings() {
                   <SelectItem value="COMBO">Combo</SelectItem>
                 </SelectContent>
               </Select>
+              <Button
+                variant="outline"
+                onClick={loadBookings}
+                disabled={loading}
+                className="flex items-center gap-2"
+              >
+                <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
+                Làm mới
+              </Button>
             </div>
           </div>
         </CardHeader>
@@ -228,37 +349,50 @@ export default function AdminBookings() {
                   </TableRow>
                 ) : (
                   bookings?.content.map((booking) => (
-                    <TableRow key={booking.id}>
-                      <TableCell className="font-medium">{booking.id}</TableCell>
+                    <TableRow key={booking.bookingId}>
+                      <TableCell className="font-medium">{booking.bookingReference}</TableCell>
                       <TableCell>
                         <div>
-                          <div className="font-medium">{booking.customerName}</div>
-                          <div className="text-sm text-gray-500">{booking.customerEmail}</div>
+                          <div className="font-medium">
+                            {(() => {
+                              try {
+                                const productDetails = JSON.parse(booking.productDetailsJson);
+                                const primaryGuest = productDetails.guests?.find((guest: any) => guest.guestType === "PRIMARY");
+                                return primaryGuest ? `${primaryGuest.firstName} ${primaryGuest.lastName}` : booking.userId;
+                              } catch {
+                                return booking.userId;
+                              }
+                            })()}
+                          </div>
+                          <div className="text-sm text-gray-500">
+                            {(() => {
+                              try {
+                                const productDetails = JSON.parse(booking.productDetailsJson);
+                                const primaryGuest = productDetails.guests?.find((guest: any) => guest.guestType === "PRIMARY");
+                                return primaryGuest?.email || `Saga: ${booking.sagaState}`;
+                              } catch {
+                                return `Saga: ${booking.sagaState}`;
+                              }
+                            })()}
+                          </div>
                         </div>
                       </TableCell>
-                      <TableCell>{getTypeBadge(booking.type)}</TableCell>
+                      <TableCell>{getTypeBadge(booking.bookingType)}</TableCell>
                       <TableCell>
                         <div className="text-sm">
-                          {booking.type === "FLIGHT" && booking.flightId && <span>Chuyến bay: {booking.flightId}</span>}
-                          {booking.type === "HOTEL" && booking.hotelId && (
+                          {booking.productDetailsJson && (
                             <div>
-                              <div>Khách sạn: {booking.hotelId}</div>
-                              {booking.checkIn && booking.checkOut && (
-                                <div className="text-gray-500">
-                                  {booking.checkIn} - {booking.checkOut}
-                                </div>
-                              )}
-                            </div>
-                          )}
-                          {booking.type === "COMBO" && (
-                            <div>
-                              <div>Flight: {booking.flightId}</div>
-                              <div>Hotel: {booking.hotelId}</div>
+                              <div className="text-gray-600">Chi tiết sản phẩm</div>
+                              <div className="text-xs text-gray-500 max-w-xs truncate">
+                                {JSON.parse(booking.productDetailsJson).hotelName || 
+                                 JSON.parse(booking.productDetailsJson).flightNumber || 
+                                 "Thông tin chi tiết"}
+                              </div>
                             </div>
                           )}
                         </div>
                       </TableCell>
-                      <TableCell>{new Date(booking.createdAt).toLocaleDateString("vi-VN")}</TableCell>
+                      <TableCell>{new Date(booking.createdAt * 1000).toLocaleDateString("vi-VN")}</TableCell>
                       <TableCell className="font-medium">{formatCurrency(booking.totalAmount)}</TableCell>
                       <TableCell>{getStatusBadge(booking.status)}</TableCell>
                       <TableCell>
@@ -269,16 +403,19 @@ export default function AdminBookings() {
                             </Button>
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end">
-                            <DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => openDetailDialog(booking)}>
                               <Eye className="mr-2 h-4 w-4" />
                               Xem chi tiết
                             </DropdownMenuItem>
-                            <DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => openStatusDialog(booking)}>
                               <Edit className="mr-2 h-4 w-4" />
-                              Chỉnh sửa
+                              Cập nhật trạng thái
                             </DropdownMenuItem>
-                            {booking.status === "PENDING" && (
-                              <DropdownMenuItem className="text-red-600">
+                            {booking.status !== "CANCELLED" && booking.status !== "FAILED" && (
+                              <DropdownMenuItem 
+                                className="text-red-600"
+                                onClick={() => openCancelDialog(booking)}
+                              >
                                 <X className="mr-2 h-4 w-4" />
                                 Hủy đặt chỗ
                               </DropdownMenuItem>
@@ -292,8 +429,164 @@ export default function AdminBookings() {
               </TableBody>
             </Table>
           </div>
+
+          {/* Pagination */}
+          {bookings && bookings.totalPages > 1 && (
+            <div className="flex items-center justify-between px-2">
+              <div className="text-sm text-muted-foreground">
+                Hiển thị {((currentPage - 1) * pageSize) + 1} đến {Math.min(currentPage * pageSize, bookings.totalElements)} trong tổng {bookings.totalElements} kết quả
+              </div>
+              <div className="flex items-center space-x-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setCurrentPage(1)}
+                  disabled={currentPage === 1}
+                >
+                  Đầu
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setCurrentPage(currentPage - 1)}
+                  disabled={currentPage === 1}
+                >
+                  Trước
+                </Button>
+                <div className="flex items-center space-x-1">
+                  <span className="text-sm">Trang</span>
+                  <span className="text-sm font-medium">{currentPage}</span>
+                  <span className="text-sm">của</span>
+                  <span className="text-sm font-medium">{bookings.totalPages}</span>
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setCurrentPage(currentPage + 1)}
+                  disabled={currentPage === bookings.totalPages}
+                >
+                  Sau
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setCurrentPage(bookings.totalPages)}
+                  disabled={currentPage === bookings.totalPages}
+                >
+                  Cuối
+                </Button>
+              </div>
+            </div>
+          )}
         </CardContent>
       </Card>
+
+      {/* Booking Detail Dialog */}
+      <BookingDetailDialog
+        booking={selectedBooking}
+        open={showDetailDialog}
+        onOpenChange={setShowDetailDialog}
+      />
+
+      {/* Status Update Dialog */}
+      <Dialog open={showStatusDialog} onOpenChange={setShowStatusDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Cập nhật trạng thái đặt chỗ</DialogTitle>
+            <DialogDescription>
+              Cập nhật trạng thái cho đặt chỗ {selectedBooking?.bookingReference}
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-4">
+            <div>
+              <label className="text-sm font-medium">Trạng thái mới</label>
+              <Select value={newStatus} onValueChange={setNewStatus}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Chọn trạng thái" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="VALIDATION_PENDING">Chờ xác thực</SelectItem>
+                  <SelectItem value="PENDING">Chờ xử lý</SelectItem>
+                  <SelectItem value="CONFIRMED">Đã xác nhận</SelectItem>
+                  <SelectItem value="PAYMENT_PENDING">Chờ thanh toán</SelectItem>
+                  <SelectItem value="PAID">Đã thanh toán</SelectItem>
+                  <SelectItem value="PAYMENT_FAILED">Thanh toán thất bại</SelectItem>
+                  <SelectItem value="CANCELLED">Đã hủy</SelectItem>
+                  <SelectItem value="FAILED">Thất bại</SelectItem>
+                  <SelectItem value="VALIDATION_FAILED">Xác thực thất bại</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            
+            <div>
+              <label className="text-sm font-medium">Lý do (tùy chọn)</label>
+              <Textarea
+                placeholder="Nhập lý do cập nhật trạng thái..."
+                value={reason}
+                onChange={(e) => setReason(e.target.value)}
+                rows={3}
+              />
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setShowStatusDialog(false)}
+              disabled={actionLoading}
+            >
+              Hủy
+            </Button>
+            <Button
+              onClick={handleStatusUpdate}
+              disabled={actionLoading || !newStatus}
+            >
+              {actionLoading ? "Đang cập nhật..." : "Cập nhật"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Cancel Booking Dialog */}
+      <Dialog open={showCancelDialog} onOpenChange={setShowCancelDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Hủy đặt chỗ</DialogTitle>
+            <DialogDescription>
+              Bạn có chắc chắn muốn hủy đặt chỗ {selectedBooking?.bookingReference}?
+              Thao tác này không thể hoàn tác.
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div>
+            <label className="text-sm font-medium">Lý do hủy (tùy chọn)</label>
+            <Textarea
+              placeholder="Nhập lý do hủy đặt chỗ..."
+              value={reason}
+              onChange={(e) => setReason(e.target.value)}
+              rows={3}
+            />
+          </div>
+
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setShowCancelDialog(false)}
+              disabled={actionLoading}
+            >
+              Không hủy
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={handleCancelBooking}
+              disabled={actionLoading}
+            >
+              {actionLoading ? "Đang hủy..." : "Hủy đặt chỗ"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </AdminLayout>
   )
 }

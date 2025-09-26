@@ -32,7 +32,7 @@ export function BookingReview({
 }: BookingReviewProps) {
   const renderFlightDetails = (details: FlightBookingDetails) => (
     <div className="space-y-4">
-      <h3 className="text-lg font-semibold">Flight Details</h3>
+      <h3 className="text-lg font-semibold">Thông tin chuyến bay</h3>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-4 bg-muted rounded-lg">
         <div>
           <p className="font-medium">{details.airline} - {details.flightNumber}</p>
@@ -42,29 +42,29 @@ export function BookingReview({
         </div>
         <div>
           <p className="text-sm">
-            <span className="font-medium">Departure:</span> {format(new Date(details.departureDateTime), 'PPP p')}
+            <span className="font-medium">Khởi hành:</span> {format(new Date(details.departureDateTime), 'PPP p')}
           </p>
           <p className="text-sm">
-            <span className="font-medium">Arrival:</span> {format(new Date(details.arrivalDateTime), 'PPP p')}
-          </p>
-        </div>
-        <div>
-          <p className="text-sm">
-            <span className="font-medium">Class:</span> {details.seatClass}
-          </p>
-          <p className="text-sm">
-            <span className="font-medium">Passengers:</span> {details.passengerCount}
+            <span className="font-medium">Hạ cánh:</span> {format(new Date(details.arrivalDateTime), 'PPP p')}
           </p>
         </div>
         <div>
           <p className="text-sm">
-            <span className="font-medium">Price:</span> {formatCurrency(details.totalFlightPrice, 'VND')}
+            <span className="font-medium">Hạng ghế:</span> {details.seatClass}
+          </p>
+          <p className="text-sm">
+            <span className="font-medium">Số hành khách:</span> {details.passengerCount}
+          </p>
+        </div>
+        <div>
+          <p className="text-sm">
+            <span className="font-medium">Tổng chi phí:</span> {formatCurrency(details.totalFlightPrice, 'VND')}
           </p>
         </div>
       </div>
 
       <div>
-        <h4 className="font-medium mb-2">Passengers</h4>
+        <h4 className="font-medium mb-2">Danh sách hành khách</h4>
         {details.passengers.map((passenger, index) => (
           <div key={index} className="border-b py-2 last:border-b-0">
             <p className="font-medium">{passenger.title} {passenger.firstName} {passenger.lastName}</p>
@@ -80,63 +80,72 @@ export function BookingReview({
     </div>
   )
 
-  const renderHotelDetails = (details: HotelBookingDetails) => (
-    <div className="space-y-4">
-      <h3 className="text-lg font-semibold">Hotel Details</h3>
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-4 bg-muted rounded-lg">
-        <div>
-          <p className="font-medium">{details.hotelName}</p>
-          <p className="text-sm text-muted-foreground">
-            {details.hotelAddress}, {details.city}, {details.country}
+  const renderHotelDetails = (details: HotelBookingDetails) => {
+    const nights = Math.max(details.numberOfNights || 1, 1)
+    const rooms = Math.max(details.numberOfRooms || 1, 1)
+    const baseNightlyPrice = details.pricePerNight || details.totalRoomPrice / (nights * rooms)
+
+    return (
+      <div className="space-y-4">
+        <h3 className="text-lg font-semibold">Thông tin khách sạn</h3>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-4 bg-muted rounded-lg">
+          <div>
+            <p className="font-medium">{details.hotelName}</p>
+            <p className="text-sm text-muted-foreground">
+              {details.hotelAddress}, {details.city}, {details.country}
           </p>
           <div className="flex items-center mt-1">
             {[...Array(details.starRating || 0)].map((_, i) => (
               <span key={i} className="text-yellow-500">★</span>
             ))}
           </div>
-        </div>
-        <div>
-          <p className="text-sm">
-            <span className="font-medium">Room:</span> {details.roomName} ({details.roomType})
-          </p>
-          <p className="text-sm">
-            <span className="font-medium">Dates:</span> {format(new Date(details.checkInDate), 'PPP')} - {format(new Date(details.checkOutDate), 'PPP')}
-          </p>
-        </div>
-        <div>
-          <p className="text-sm">
-            <span className="font-medium">Guests:</span> {details.numberOfGuests}
-          </p>
-          <p className="text-sm">
-            <span className="font-medium">Rooms:</span> {details.numberOfRooms}
-          </p>
-        </div>
-        <div>
-          <p className="text-sm">
-            <span className="font-medium">Price:</span> {formatCurrency(details.totalRoomPrice, 'VND')}
-          </p>
-        </div>
-      </div>
-
-      <div>
-        <h4 className="font-medium mb-2">Guests</h4>
-        {details.guests.map((guest, index) => (
-          <div key={index} className="border-b py-2 last:border-b-0">
-            <p className="font-medium">
-              {guest.title} {guest.firstName} {guest.lastName}
-              {guest.guestType === 'PRIMARY' && <span className="text-xs bg-primary text-primary-foreground rounded px-2 py-1 ml-2">Contact</span>}
-            </p>
-            <p className="text-sm text-muted-foreground">
-              {format(new Date(guest.dateOfBirth), 'PPP')} • {guest.nationality}
-            </p>
-            {guest.email && (
-              <p className="text-sm">{guest.email}</p>
-            )}
           </div>
-        ))}
+          <div>
+            <p className="text-sm">
+              <span className="font-medium">Phòng:</span> {details.roomName} ({details.roomType})
+            </p>
+            <p className="text-sm">
+              <span className="font-medium">Thời gian lưu trú:</span> {format(new Date(details.checkInDate), 'PPP')} - {format(new Date(details.checkOutDate), 'PPP')} ({nights} đêm)
+            </p>
+          </div>
+          <div>
+            <p className="text-sm">
+              <span className="font-medium">Số khách:</span> {details.numberOfGuests}
+            </p>
+            <p className="text-sm">
+              <span className="font-medium">Số phòng:</span> {details.numberOfRooms}
+            </p>
+          </div>
+          <div>
+            <p className="text-sm">
+              <span className="font-medium">Giá mỗi đêm (1 phòng):</span> {formatCurrency(baseNightlyPrice, 'VND')}
+            </p>
+            <p className="text-sm">
+              <span className="font-medium">Thành tiền:</span> {formatCurrency(details.totalRoomPrice, 'VND')} ({rooms} phòng × {nights} đêm)
+            </p>
+          </div>
+        </div>
+
+        <div>
+          <h4 className="font-medium mb-2">Danh sách khách</h4>
+          {details.guests.map((guest, index) => (
+            <div key={index} className="border-b py-2 last:border-b-0">
+              <p className="font-medium">
+                {guest.title} {guest.firstName} {guest.lastName}
+                {guest.guestType === 'PRIMARY' && <span className="text-xs bg-primary text-primary-foreground rounded px-2 py-1 ml-2">Liên hệ chính</span>}
+              </p>
+              <p className="text-sm text-muted-foreground">
+                {format(new Date(guest.dateOfBirth), 'PPP')} • {guest.nationality}
+              </p>
+              {guest.email && (
+                <p className="text-sm">{guest.email}</p>
+              )}
+            </div>
+          ))}
+        </div>
       </div>
-    </div>
-  )
+    )
+  }
 
   const calculateTotalAmount = () => {
     let total = 0
@@ -158,7 +167,7 @@ export function BookingReview({
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Review Your Booking</CardTitle>
+        <CardTitle>Xem lại thông tin đặt chỗ</CardTitle>
       </CardHeader>
       <CardContent className="space-y-6">
         {bookingType === 'FLIGHT' && flightDetails && renderFlightDetails(flightDetails)}
@@ -170,7 +179,7 @@ export function BookingReview({
             {comboDetails.comboDiscount && (
               <div className="border-t pt-4">
                 <p className="text-right">
-                  <span className="font-medium">Combo Discount:</span> -{formatCurrency(comboDetails.comboDiscount, 'VND')}
+                  <span className="font-medium">Giảm giá gói:</span> -{formatCurrency(comboDetails.comboDiscount, 'VND')}
                 </p>
               </div>
             )}
@@ -179,7 +188,7 @@ export function BookingReview({
 
         <div className="border-t pt-4">
           <div className="flex justify-between items-center">
-            <span className="text-lg font-semibold">Total Amount:</span>
+            <span className="text-lg font-semibold">Tổng chi phí:</span>
             <span className="text-xl font-bold text-primary">
               {formatCurrency(totalAmount, 'VND')}
             </span>
@@ -188,14 +197,14 @@ export function BookingReview({
 
         <div className="flex justify-between">
           <Button type="button" variant="outline" onClick={onEdit}>
-            Edit Details
+            Chỉnh sửa thông tin
           </Button>
           <div className="space-x-2">
             <Button type="button" variant="outline" onClick={onCancel}>
-              Cancel
+              Hủy
             </Button>
             <Button type="button" onClick={onConfirm}>
-              Confirm Booking
+              Xác nhận đặt chỗ
             </Button>
           </div>
         </div>

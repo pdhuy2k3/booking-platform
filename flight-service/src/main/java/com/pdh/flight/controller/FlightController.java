@@ -30,6 +30,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.tool.annotation.Tool;
+import org.springframework.ai.tool.annotation.ToolParam;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -48,6 +49,7 @@ import java.time.ZoneOffset;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
@@ -83,54 +85,44 @@ public class FlightController {
      * Search flights for storefront
      * GET /flights/storefront/search?origin=HAN&destination=SGN&departureDate=2024-02-15&passengers=1&seatClass=ECONOMY
      */
-    @Operation(
-        summary = "Search flights",
-        description = "Search for flights by route, travel dates, airline, price range, and duration filters with pagination support.",
-        tags = {"Public API", "Search"}
-    )
-    @ApiResponses(value = {
-        @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "Flights found successfully",
-            content = @Content(schema = @Schema(implementation = Map.class))
-        ),
-        @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400", description = "Invalid search parameters")
-    })
+
     @GetMapping("/storefront/search")
     @Tool(name = "search_flights", description = "Search flights with filters for origin, destination, dates, airline, price range, and duration.")
     public ResponseEntity<Map<String, Object>> searchFlights(
-            @Parameter(description = "Origin airport, city, or IATA code", example = "HAN")
+            @ToolParam(description = "Origin airport, city, or IATA code", required = false)
             @RequestParam(required = false) String origin,
-            @Parameter(description = "Destination airport, city, or IATA code", example = "SGN")
+            @ToolParam(description = "Destination airport, city, or IATA code", required = false)
             @RequestParam(required = false) String destination,
-            @Parameter(description = "Airline name filter", example = "Vietnam Airlines")
+            @ToolParam(description = "Airline name filter", required = false)
             @RequestParam(required = false) String airlineName,
-            @Parameter(description = "Airline IATA code filter", example = "VN")
+            @ToolParam(description = "Airline IATA code filter", required = false)
             @RequestParam(required = false) String airlineCode,
-            @Parameter(description = "Departure date in YYYY-MM-DD format", example = "2024-02-15")
+            @ToolParam(description = "Departure date in YYYY-MM-DD format", required = false)
             @RequestParam(required = false) String departureDate,
-            @Parameter(description = "Return date in YYYY-MM-DD format (for round-trip)", example = "2024-02-20")
+            @ToolParam(description = "Return date in YYYY-MM-DD format (for round-trip)",  required = false)
             @RequestParam(required = false) String returnDate,
-            @Parameter(description = "Number of passengers", example = "1")
-            @RequestParam(defaultValue = "1") int passengers,
-            @Parameter(description = "Seat class", example = "ECONOMY")
+            @ToolParam(description = "Number of passengers")
+            @RequestParam(defaultValue = "1") Integer passengers,
+            @ToolParam(description = "Seat class")
             @RequestParam(defaultValue = "ECONOMY") String seatClass,
-            @Parameter(description = "Minimum total fare", example = "1500000")
+            @ToolParam(description = "Minimum total fare")
             @RequestParam(required = false) BigDecimal minPrice,
-            @Parameter(description = "Maximum total fare", example = "5000000")
+            @ToolParam(description = "Maximum total fare")
             @RequestParam(required = false) BigDecimal maxPrice,
-            @Parameter(description = "Minimum duration in minutes", example = "60")
+            @ToolParam(description = "Minimum duration in minutes")
             @RequestParam(required = false) Integer minDuration,
-            @Parameter(description = "Maximum duration in minutes", example = "240")
+            @ToolParam(description = "Maximum duration in minutes")
             @RequestParam(required = false) Integer maxDuration,
-            @Parameter(description = "Sort by criteria (price, duration, departure, arrival)", example = "departure")
+            @ToolParam(description = "Sort by criteria (price, duration, departure, arrival")
             @RequestParam(defaultValue = "departure") String sortBy,
-            @Parameter(description = "Filter by airline ID", example = "1")
+            @ToolParam(description = "Filter by airline ID")
             @RequestParam(required = false) Long airlineId,
-            @Parameter(description = "Filter by departure airport ID", example = "1")
+            @ToolParam(description = "Filter by departure airport ID")
             @RequestParam(required = false) Long departureAirportId,
-            @Parameter(description = "Page number (1-based)", example = "1")
-            @RequestParam(defaultValue = "1") int page,
-            @Parameter(description = "Number of results per page", example = "20")
-            @RequestParam(defaultValue = "20") int limit) {
+            @ToolParam(description = "Page number (1-based)")
+            @RequestParam(defaultValue = "1") Integer page,
+            @ToolParam(description = "Number of results per page")
+            @RequestParam(defaultValue = "20") Integer limit) {
 
         log.info("Flight search request: origin={}, destination={}, departureDate={}, airlineName={}, minPrice={}, maxPrice={}, seatClass={}",
                 origin, destination, departureDate, airlineName, minPrice, maxPrice, seatClass);
@@ -257,32 +249,32 @@ public class FlightController {
                 .map(flightResponseAssembler::toSearchResultMap)
                 .collect(Collectors.toList());
 
+            Map<String, Object> appliedFilters = new LinkedHashMap<>();
+            appliedFilters.put("origin", sanitizedOrigin);
+            appliedFilters.put("destination", sanitizedDestination);
+            appliedFilters.put("airlineName", sanitizedAirlineName);
+            appliedFilters.put("airlineCode", sanitizedAirlineCode);
+            appliedFilters.put("minPrice", minPrice);
+            appliedFilters.put("maxPrice", maxPrice);
+            appliedFilters.put("minDuration", minDuration);
+            appliedFilters.put("maxDuration", maxDuration);
+            appliedFilters.put("departureDate", depDate);
+            appliedFilters.put("returnDate", retDate);
+
             Map<String, Object> response = Map.of(
                 "flights", flights,
                 "totalCount", flightPage.getTotalElements(),
                 "page", page,
                 "limit", limit,
                 "hasMore", flightPage.hasNext(),
-                "filters", Map.of(
-                    "applied", Map.of(
-                        "origin", sanitizedOrigin,
-                        "destination", sanitizedDestination,
-                        "airlineName", sanitizedAirlineName,
-                        "airlineCode", sanitizedAirlineCode,
-                        "minPrice", minPrice,
-                        "maxPrice", maxPrice,
-                        "minDuration", minDuration,
-                        "maxDuration", maxDuration,
-                        "departureDate", depDate,
-                        "returnDate", retDate
-                    )
-                )
+                "filters", Map.of("applied", appliedFilters)
             );
 
             log.info("Found {} flights for search criteria", flights.size());
             return ResponseEntity.ok(response);
 
         } catch (Exception e) {
+            e.printStackTrace();
             log.error("Error searching flights", e);
             return ResponseEntity.ok(FlightSearchResponseBuilder.failureResponse(e.getMessage(), page, limit));
         }

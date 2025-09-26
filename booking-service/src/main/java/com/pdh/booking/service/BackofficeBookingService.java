@@ -12,6 +12,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
+import java.time.ZonedDateTime;
 import java.util.*;
 
 /**
@@ -33,7 +34,16 @@ public class BackofficeBookingService {
                                        BookingStatus status, LocalDate startDate, LocalDate endDate) {
         log.debug("Fetching bookings with filters - type: {}, status: {}, dates: {} to {}",
                 bookingType, status, startDate, endDate);
-
+        if(bookingType == null && status == null && startDate == null && endDate == null) {
+            return bookingRepository.findAll(pageable);
+        }
+        if(bookingType != null && status == null && startDate == null && endDate == null) {
+            return bookingRepository.findByBookingType(bookingType, pageable);
+        }
+        if(status != null && bookingType == null && startDate == null && endDate == null) {
+            return bookingRepository.findByStatus(status, pageable);
+        }
+        
         return bookingRepository.findBookingsWithFilters(
                 bookingType, status, startDate, endDate, pageable);
     }
@@ -232,5 +242,146 @@ public class BackofficeBookingService {
         }
         
         return analytics;
+    }
+
+    /**
+     * Update booking status (Admin operation)
+     */
+    @Transactional
+    public Booking updateBookingStatus(UUID bookingId, BookingStatus newStatus, String reason) {
+        log.info("Updating booking {} status to {} with reason: {}", bookingId, newStatus, reason);
+        
+        Booking booking = getBookingById(bookingId);
+        
+        // Validate status transition
+        if (!isValidStatusTransition(booking.getStatus(), newStatus)) {
+            throw new IllegalArgumentException(
+                    String.format("Invalid status transition from %s to %s", booking.getStatus(), newStatus));
+        }
+        
+        booking.setStatus(newStatus);
+        booking.setUpdatedAt(ZonedDateTime.now());
+        
+        if (reason != null && !reason.trim().isEmpty()) {
+            booking.setNotes(booking.getNotes() != null ? 
+                    booking.getNotes() + "\nStatus updated: " + reason : 
+                    "Status updated: " + reason);
+        }
+        
+        return bookingRepository.save(booking);
+    }
+
+    /**
+     * Cancel booking (Admin operation)
+     */
+    @Transactional
+    public Booking cancelBooking(UUID bookingId, String reason) {
+        log.info("Cancelling booking {} with reason: {}", bookingId, reason);
+        
+        Booking booking = getBookingById(bookingId);
+        
+        // Check if booking can be cancelled
+        if (booking.getStatus() == BookingStatus.CANCELLED) {
+            throw new IllegalStateException("Booking is already cancelled");
+        }
+        
+        if (booking.getStatus() == BookingStatus.PAID) {
+            throw new IllegalStateException("Cannot cancel paid booking without refund process");
+        }
+        
+        booking.setStatus(BookingStatus.CANCELLED);
+        booking.setUpdatedAt(ZonedDateTime.now());
+        
+        if (reason != null && !reason.trim().isEmpty()) {
+            booking.setNotes(booking.getNotes() != null ? 
+                    booking.getNotes() + "\nCancelled: " + reason : 
+                    "Cancelled: " + reason);
+        }
+        
+        return bookingRepository.save(booking);
+    }
+
+    /**
+     * Search bookings with text search (searches in booking reference, customer info, and product details)
+     */
+    @Transactional(readOnly = true)
+    public Page<Booking> searchBookings(String searchTerm, Pageable pageable) {
+        log.debug("Searching bookings with term: {}", searchTerm);
+        
+        if (searchTerm == null || searchTerm.trim().isEmpty()) {
+            return bookingRepository.findAll(pageable);
+        }
+        
+        return bookingRepository.searchBookings(searchTerm.trim(), pageable);
+    }
+
+    /**
+     * Get booking summary for dashboard
+     */
+    @Transactional(readOnly = true)
+    public Map<String, Object> getBookingSummary(LocalDate startDate, LocalDate endDate) {
+        log.debug("Generating booking summary for period: {} to {}", startDate, endDate);
+        
+        Map<String, Object> summary = new HashMap<>();
+        
+        // Basic counts
+        Long totalBookings = bookingRepository.countBookingsInPeriod(startDate, endDate);
+        Long confirmedBookings = bookingRepository.countBookingsByStatusInPeriod(
+                BookingStatus.CONFIRMED, startDate, endDate);
+        Long pendingBookings = bookingRepository.countBookingsByStatusInPeriod(
+                BookingStatus.PENDING, startDate, endDate);
+        Long cancelledBookings = bookingRepository.countBookingsByStatusInPeriod(
+                BookingStatus.CANCELLED, startDate, endDate);
+        
+        summary.put("totalBookings", totalBookings);
+        summary.put("confirmedBookings", confirmedBookings);
+        summary.put("pendingBookings", pendingBookings);
+        summary.put("cancelledBookings", cancelledBookings);
+        
+        // Type breakdown
+        Map<String, Long> typeBreakdown = new HashMap<>();
+        for (BookingType type : BookingType.values()) {
+            Long count = bookingRepository.countBookingsByTypeInPeriod(type, startDate, endDate);
+            typeBreakdown.put(type.name(), count);
+        }
+        summary.put("typeBreakdown", typeBreakdown);
+        
+        // Revenue
+        Double totalRevenue = bookingRepository.getTotalRevenueInPeriod(startDate, endDate);
+        summary.put("totalRevenue", totalRevenue != null ? totalRevenue : 0.0);
+        
+        return summary;
+    }
+
+    /**
+     * Validate status transitions
+     */
+    private boolean isValidStatusTransition(BookingStatus currentStatus, BookingStatus newStatus) {
+        if (currentStatus == newStatus) {
+            return true;
+        }
+        
+        switch (currentStatus) {
+            case PENDING:
+                return newStatus == BookingStatus.CONFIRMED || 
+                       newStatus == BookingStatus.CANCELLED;
+            case CONFIRMED:
+                return newStatus == BookingStatus.PAYMENT_PENDING || 
+                       newStatus == BookingStatus.PAID ||
+                       newStatus == BookingStatus.CANCELLED;
+            case PAYMENT_PENDING:
+                return newStatus == BookingStatus.PAID ||
+                       newStatus == BookingStatus.PAYMENT_FAILED ||
+                       newStatus == BookingStatus.CANCELLED;
+            case CANCELLED:
+                return false; // Cannot change from cancelled
+            case PAID:
+                return false; // Cannot change from paid without special process
+            case PAYMENT_FAILED:
+                return newStatus == BookingStatus.PAYMENT_PENDING ||
+                       newStatus == BookingStatus.CANCELLED;
+            default:
+                return false;
+        }
     }
 }

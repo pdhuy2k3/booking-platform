@@ -55,6 +55,8 @@ public class Flight extends AbstractAuditEntity {
     @JoinColumn(name = "aircraft_id")
     private Aircraft aircraft;
 
+    @OneToMany(mappedBy = "flight", fetch = FetchType.LAZY)
+    private List<FlightSchedule> flightSchedules;
     @Column(name = "is_active", nullable = false)
     private Boolean isActive = true;
 

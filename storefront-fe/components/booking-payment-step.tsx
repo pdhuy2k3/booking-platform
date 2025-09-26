@@ -34,11 +34,11 @@ export function BookingPaymentStep({ onPaymentSuccess, onBack, onCancel }: Booki
   } = useBooking()
   const [paymentError, setPaymentError] = useState<string | null>(null)
   const amount = bookingData.totalAmount || 0
-  const currency = (bookingData.currency || 'USD').toLowerCase()
+  const currency = (bookingData.currency || 'VND').toUpperCase()
   const bookingId = bookingResponse?.bookingId
 
   const status = (bookingStatus?.status || bookingResponse?.status || (isLoading ? 'VALIDATION_PENDING' : 'UNKNOWN')).toUpperCase()
-  const message = bookingStatus?.message || bookingResponse?.message || 'Processing your booking...'
+  const message = bookingStatus?.message || bookingResponse?.message || 'Đang xử lý đặt chỗ...'
   const lastUpdated = bookingStatus?.lastUpdated
   const estimatedCompletion = bookingStatus?.estimatedCompletion
 
@@ -48,8 +48,8 @@ export function BookingPaymentStep({ onPaymentSuccess, onBack, onCancel }: Booki
         icon: CheckCircle2,
         tone: 'text-green-600',
         bg: 'bg-green-50 border-green-200',
-        title: 'Booking Confirmed',
-        description: message || 'Booking confirmed successfully!',
+        title: 'Đặt chỗ thành công',
+        description: message || 'Đặt chỗ đã được xác nhận.',
       }
     }
 
@@ -58,8 +58,8 @@ export function BookingPaymentStep({ onPaymentSuccess, onBack, onCancel }: Booki
         icon: AlertCircle,
         tone: 'text-red-600',
         bg: 'bg-red-50 border-red-200',
-        title: 'Booking Issue',
-        description: message || 'There was a problem processing your booking.',
+        title: 'Có lỗi với đơn đặt chỗ',
+        description: message || 'Có sự cố khi xử lý đơn đặt chỗ của bạn.',
       }
     }
 
@@ -68,8 +68,8 @@ export function BookingPaymentStep({ onPaymentSuccess, onBack, onCancel }: Booki
         icon: CreditCard,
         tone: 'text-amber-600',
         bg: 'bg-amber-50 border-amber-200',
-        title: 'Ready for Payment',
-        description: message || 'Inventory locked, proceed to payment.',
+        title: 'Sẵn sàng thanh toán',
+        description: message || 'Đã giữ chỗ thành công, hãy tiến hành thanh toán.',
       }
     }
 
@@ -78,8 +78,8 @@ export function BookingPaymentStep({ onPaymentSuccess, onBack, onCancel }: Booki
         icon: Clock3,
         tone: 'text-blue-600',
         bg: 'bg-blue-50 border-blue-200',
-        title: 'Validating Booking',
-        description: message || 'Checking inventory availability...',
+        title: 'Đang kiểm tra',
+        description: message || 'Đang kiểm tra tình trạng chỗ trống...',
       }
     }
 
@@ -87,8 +87,8 @@ export function BookingPaymentStep({ onPaymentSuccess, onBack, onCancel }: Booki
       icon: Loader2,
       tone: 'text-muted-foreground',
       bg: 'bg-muted/40 border-muted',
-      title: 'Processing',
-      description: message || 'Processing your booking...',
+      title: 'Đang xử lý',
+      description: message || 'Đang xử lý đơn đặt chỗ của bạn...',
     }
   }, [message, status])
 
@@ -125,9 +125,9 @@ export function BookingPaymentStep({ onPaymentSuccess, onBack, onCancel }: Booki
   return (
     <Card className="shadow-sm">
       <CardHeader className="space-y-1">
-        <CardTitle>Complete Your Payment</CardTitle>
+        <CardTitle>Hoàn tất thanh toán</CardTitle>
         <p className="text-sm text-muted-foreground">
-          We&apos;re finalizing your booking. You can proceed with payment once inventory is locked.
+          Chúng tôi đang hoàn tất đặt chỗ. Bạn có thể thanh toán ngay khi hệ thống giữ chỗ thành công.
         </p>
       </CardHeader>
       <CardContent className="space-y-6">
@@ -150,9 +150,9 @@ export function BookingPaymentStep({ onPaymentSuccess, onBack, onCancel }: Booki
 
         {!bookingId && !isLoading && (
           <Alert variant="destructive">
-            <AlertTitle>Missing booking information</AlertTitle>
+            <AlertTitle>Thiếu thông tin đặt chỗ</AlertTitle>
             <AlertDescription>
-              We could not find a booking reference for this payment. Please go back and submit your booking again.
+              Không tìm thấy mã đặt chỗ cho yêu cầu này. Vui lòng quay lại bước trước và gửi lại đơn đặt chỗ.
             </AlertDescription>
           </Alert>
         )}
@@ -160,13 +160,13 @@ export function BookingPaymentStep({ onPaymentSuccess, onBack, onCancel }: Booki
         {isLoading && (
           <div className="flex items-center justify-center gap-3 rounded-lg border border-dashed p-6 text-sm text-muted-foreground">
             <Loader2 className="h-5 w-5 animate-spin" />
-            <span>Creating booking request...</span>
+            <span>Đang khởi tạo yêu cầu đặt chỗ...</span>
           </div>
         )}
 
         {paymentError && (
           <Alert variant="destructive">
-            <AlertTitle>Payment failed</AlertTitle>
+            <AlertTitle>Thanh toán thất bại</AlertTitle>
             <AlertDescription>{paymentError}</AlertDescription>
           </Alert>
         )}
@@ -174,17 +174,17 @@ export function BookingPaymentStep({ onPaymentSuccess, onBack, onCancel }: Booki
         {isFailure && (
           <div className="space-y-4 rounded-lg border border-destructive/40 bg-destructive/5 p-6 text-sm">
             <p className="font-medium text-destructive">
-              {statusMeta.description || 'The booking could not be completed.'}
+              {statusMeta.description || 'Không thể hoàn tất đơn đặt chỗ.'}
             </p>
             <p className="text-muted-foreground">
-              You can return to the previous step to review your details or start over.
+              Bạn có thể quay lại bước trước để kiểm tra hoặc bắt đầu lại quy trình.
             </p>
             <div className="flex flex-col gap-2 sm:flex-row">
               <Button variant="outline" onClick={onBack}>
-                Review booking
+                Xem lại đơn đặt chỗ
               </Button>
               <Button variant="destructive" onClick={onCancel}>
-                Start over
+                Bắt đầu lại
               </Button>
             </div>
           </div>
@@ -193,22 +193,22 @@ export function BookingPaymentStep({ onPaymentSuccess, onBack, onCancel }: Booki
         {isSuccess && !isLoading && (
           <div className="space-y-4 rounded-lg border border-green-200 bg-green-50 p-6 text-sm">
             <p className="font-medium text-green-700">
-              Payment completed. Redirecting you to confirmation...
+              Thanh toán thành công. Đang chuyển tới trang xác nhận...
             </p>
-            <Button onClick={onPaymentSuccess}>Continue</Button>
+            <Button onClick={onPaymentSuccess}>Tiếp tục</Button>
           </div>
         )}
 
             {bookingId && !isLoading && isPaymentReady && !isSuccess && !isFailure && (
               <div className="space-y-6">
                 <div className="rounded-lg border bg-muted/30 p-4 text-sm">
-                  <p className="font-medium">Booking Reference</p>
+                  <p className="font-medium">Mã đặt chỗ</p>
                   <p className="text-muted-foreground">
                     {bookingResponse?.bookingReference || bookingId}
                   </p>
-                  <p className="mt-3 font-medium">Amount due</p>
+                  <p className="mt-3 font-medium">Số tiền cần thanh toán</p>
                   <p className="text-lg font-semibold">
-                    {formatCurrency(amount, bookingData.currency || 'VND')}
+                    {formatCurrency(amount, currency)}
                   </p>
                 </div>
 
@@ -218,15 +218,15 @@ export function BookingPaymentStep({ onPaymentSuccess, onBack, onCancel }: Booki
                     sagaId={bookingResponse?.sagaId}
                     amount={amount}
                     currency={currency}
-                    description={`Booking payment ${bookingResponse?.bookingReference || ''}`.trim()}
+                    description={`Thanh toán đặt chỗ ${bookingResponse?.bookingReference || ''}`.trim()}
                     onSuccess={handlePaymentSuccess}
                     onError={handlePaymentError}
                 onBack={onBack}
               />
             ) : (
               <div className="space-y-4 rounded-lg border border-dashed p-6 text-sm text-muted-foreground">
-                <p>No payment is required for this booking.</p>
-                <Button onClick={handlePaymentSuccess}>Continue</Button>
+                <p>Đơn đặt chỗ này không cần thanh toán.</p>
+                <Button onClick={handlePaymentSuccess}>Tiếp tục</Button>
               </div>
             )}
           </div>
@@ -235,18 +235,18 @@ export function BookingPaymentStep({ onPaymentSuccess, onBack, onCancel }: Booki
         {!isPaymentReady && !isSuccess && !isFailure && !isLoading && bookingId && PENDING_STATUSES.has(status) && (
           <div className="space-y-4 rounded-lg border border-dashed p-6 text-sm text-muted-foreground">
             <p>
-              We&apos;re validating availability for your booking. This usually takes a few seconds.
-              You&apos;ll be able to proceed to payment as soon as the inventory is locked.
+              Chúng tôi đang kiểm tra lại tình trạng chỗ trống cho đơn đặt chỗ. Quá trình này thường chỉ mất vài giây.
+              Bạn sẽ có thể thanh toán ngay khi hệ thống giữ chỗ xong.
             </p>
           </div>
         )}
 
         <div className="flex flex-col gap-2 pt-2 sm:flex-row">
           <Button variant="outline" onClick={onBack}>
-            Back to review
+            Quay lại bước xem lại
           </Button>
           <Button variant="ghost" onClick={onCancel}>
-            Cancel booking
+            Hủy đơn đặt chỗ
           </Button>
         </div>
       </CardContent>

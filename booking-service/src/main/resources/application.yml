@@ -15,41 +15,8 @@ springdoc:
     authorization-url: ${KEYCLOAK_ISSUER_URI:http://localhost:9090}/protocol/openid-connect/auth
     token-url: ${KEYCLOAK_ISSUER_URI:http://localhost:9090}/protocol/openid-connect/token
   show-actuator: true
-  group-configs:
-    - group: 'public'
-      display-name: 'Public API'
-      paths-to-match: '/storefront/**'
-    - group: 'admin'
-      display-name: 'Admin API'
-      paths-to-match: ['/backoffice/**', '/saga/**']
-    - group: 'internal'
-      display-name: 'Internal API'
-      paths-to-match: '/internal/**'
-    - group: 'monitoring'
-      display-name: 'Monitoring & Health'
-      paths-to-match: '**/health'
 
-# API Documentation Properties
-api:
-  info:
-    title: Booking Service API
-    description: Booking orchestration and management API for the BookingSmart platform
-    version: '@project.version@'
-    contact:
-      name: BookingSmart Booking Team
-      email: booking-team@bookingsmart.com
-    license:
-      name: MIT License
-      url: https://opensource.org/licenses/MIT
-    oauth2:
-      authorization-url: http://localhost:9090/realms/bookingsmart/protocol/openid-connect/auth
-      token-url: http://localhost:9090/realms/bookingsmart/protocol/openid-connect/token
-      refresh-url: http://localhost:9090/realms/bookingsmart/protocol/openid-connect/token
-      scopes:
-        admin: Administrative access to booking management
-        customer: Customer access to booking creation and tracking
-        partner: Partner access to booking integration endpoints
-        internal: Internal service-to-service communication
+
 
 spring:
   profiles:

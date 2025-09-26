@@ -32,11 +32,11 @@ export const PaymentSummary: React.FC<PaymentSummaryProps> = ({
   discount = 0,
   totalAmount,
   paymentMethod,
-  processingTime = '2-3 business days',
+  processingTime = '2-3 ngày làm việc',
   className,
 }) => {
   const formatCurrency = (value: number) => {
-    return new Intl.NumberFormat('en-US', {
+    return new Intl.NumberFormat('vi-VN', {
       style: 'currency',
       currency: currency.toUpperCase(),
     }).format(value)
@@ -51,10 +51,10 @@ export const PaymentSummary: React.FC<PaymentSummaryProps> = ({
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
           <Receipt className="h-5 w-5" />
-          Payment Summary
+          Tóm tắt thanh toán
         </CardTitle>
         <CardDescription>
-          Review your payment details before proceeding
+          Kiểm tra thông tin thanh toán trước khi tiếp tục
         </CardDescription>
       </CardHeader>
       
@@ -79,27 +79,27 @@ export const PaymentSummary: React.FC<PaymentSummaryProps> = ({
         {/* Amount Breakdown */}
         <div className="space-y-2">
           <div className="flex justify-between text-sm">
-            <span>Subtotal</span>
+            <span>Tạm tính</span>
             <span>{formatCurrency(amount)}</span>
           </div>
           
           {fees > 0 && (
             <div className="flex justify-between text-sm text-gray-600">
-              <span>Processing fee</span>
+              <span>Phí xử lý</span>
               <span>{formatCurrency(fees)}</span>
             </div>
           )}
           
           {taxes > 0 && (
             <div className="flex justify-between text-sm text-gray-600">
-              <span>Taxes</span>
+              <span>Thuế</span>
               <span>{formatCurrency(taxes)}</span>
             </div>
           )}
           
           {discount > 0 && (
             <div className="flex justify-between text-sm text-green-600">
-              <span>Discount</span>
+              <span>Giảm giá</span>
               <span>-{formatCurrency(discount)}</span>
             </div>
           )}
@@ -107,7 +107,7 @@ export const PaymentSummary: React.FC<PaymentSummaryProps> = ({
           <Separator />
           
           <div className="flex justify-between font-semibold text-lg">
-            <span>Total</span>
+            <span>Tổng cộng</span>
             <span>{formatCurrency(totalAmount)}</span>
           </div>
         </div>
@@ -116,23 +116,23 @@ export const PaymentSummary: React.FC<PaymentSummaryProps> = ({
         <div className="space-y-3 pt-4 border-t">
           <div className="flex items-center gap-2 text-sm text-gray-600">
             <Shield className="h-4 w-4" />
-            <span>Secured by Stripe</span>
+            <span>An toàn bởi Stripe</span>
             <Badge variant="secondary" className="text-xs">
-              SSL Encrypted
+              Mã hóa SSL
             </Badge>
           </div>
           
           <div className="flex items-center gap-2 text-sm text-gray-600">
             <Clock className="h-4 w-4" />
-            <span>Processing time: {processingTime}</span>
+            <span>Thời gian xử lý: {processingTime}</span>
           </div>
         </div>
 
         {/* Currency Note */}
         <div className="text-xs text-gray-500 bg-blue-50 p-2 rounded">
           <p>
-            <strong>Note:</strong> All amounts are in {currency.toUpperCase()}. 
-            Your bank may charge additional fees for international transactions.
+            <strong>Lưu ý:</strong> Các khoản phí được hiển thị bằng {currency.toUpperCase()}. 
+            Ngân hàng của bạn có thể thu thêm phụ phí cho giao dịch quốc tế.
           </p>
         </div>
       </CardContent>

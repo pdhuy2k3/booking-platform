@@ -174,7 +174,7 @@ export function BookingFlowManager({ onBookingComplete, showSelection = true }: 
 
       {step === 'passengers' && bookingType === 'both' && (
         <div className="space-y-8">
-          <h2 className="text-2xl font-bold text-center">Package Booking</h2>
+          <h2 className="text-2xl font-bold text-center">Đặt gói chuyến đi</h2>
           {flight && (
             <FlightBookingForm 
               flight={flight} 

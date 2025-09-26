@@ -10,7 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Slider } from "@/components/ui/slider"
 import { flightService } from "@/modules/flight/service"
-import type { FareClass, InitialFlightData } from "@/modules/flight/type"
+import type { FareClass, FlightDetails, InitialFlightData } from "@/modules/flight/type"
 import { format } from "date-fns"
 import { FlightCardSkeleton } from "@/modules/flight/component/FlightCardSkeleton"
 import { CityComboBox } from "@/modules/flight/component/CityComboBox"
@@ -159,8 +159,8 @@ export default function FlightsPage() {
     searchSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
   }
 
-  const handleBookFlight = (flight: any) => {
-    if (!hasSearched) {
+  const startFlightBooking = (flight: any, options: { allowWithoutSearch?: boolean } = {}) => {
+    if (!hasSearched && !options.allowWithoutSearch) {
       scrollToSearch()
       return
     }
@@ -201,6 +201,29 @@ export default function FlightsPage() {
     })
     setStep('passengers')
     router.push('/bookings')
+  }
+
+  const handleModalBookFlight = (details: FlightDetails) => {
+    const normalized = {
+      raw: {
+        flightId: details.flightId,
+        flightNumber: details.flightNumber,
+        airline: details.airline,
+        origin: details.origin,
+        destination: details.destination,
+        departureDateTime: details.departureTime,
+        arrivalDateTime: details.arrivalTime,
+        duration: details.duration,
+        price: details.price,
+        currency: details.currency,
+        seatClass: details.seatClass,
+        airlineLogo: '/airplane-generic.png',
+      },
+      logo: '/airplane-generic.png',
+    }
+
+    startFlightBooking(normalized, { allowWithoutSearch: true })
+    handleCloseModal()
   }
 
   // Add a ref to track if we're already loading initial data
@@ -730,7 +753,7 @@ export default function FlightsPage() {
                           <span className="text-sm">{flight.rating}</span>
                         </div>
                         <div className="space-y-2">
-                          <Button className="w-full" disabled={!hasSearched} onClick={() => handleBookFlight(flight)}>
+                          <Button className="w-full" disabled={!hasSearched} onClick={() => startFlightBooking(flight)}>
                             Đặt ngay
                           </Button>
                           <Button
@@ -763,6 +786,9 @@ export default function FlightsPage() {
         flightId={selectedFlightId}
         isOpen={isModalOpen}
         onClose={handleCloseModal}
+        onBookFlight={handleModalBookFlight}
+        canBook={hasSearched}
+        onPromptSearch={scrollToSearch}
       />
 
       {/* Origin Selection Modal */}

@@ -373,17 +373,22 @@ export function HotelSearchTab() {
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
                 <div className="space-y-2">
                   <label className="text-sm font-medium">Điểm đến</label>
-                  <Button
-                    variant="outline"
-                    className="w-full justify-start text-left font-normal h-8 border-2 text-sm"
-                    onClick={() => setIsDestinationModalOpen(true)}
-                  >
-                    {destination ? (
-                      <span className="truncate">{destination}</span>
-                    ) : (
-                      <span className="text-muted-foreground">Tên thành phố hoặc khách sạn...</span>
-                    )}
-                  </Button>
+                  <div className="flex gap-2">
+                    <Input
+                      value={destination}
+                      onChange={(e) => setDestination(e.target.value)}
+                      placeholder="Nhập thành phố, khách sạn hoặc địa chỉ..."
+                      className="h-8 border-2 text-sm"
+                    />
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="h-8 border-2 text-sm whitespace-nowrap"
+                      onClick={() => setIsDestinationModalOpen(true)}
+                    >
+                      Gợi ý
+                    </Button>
+                  </div>
                 </div>
 
                 <div className="space-y-2">
@@ -627,12 +632,12 @@ export function HotelSearchTab() {
                   <div className="text-center py-20">
                     <div className="text-6xl mb-4">🏨</div>
                     <h2 className="text-2xl font-semibold mb-2">
-                      {hasSearched ? "Không tìm thấy khách sạn" : "Let&apos;s find your hotel!"}
+                      {hasSearched ? "Không tìm thấy khách sạn" : "Hãy bắt đầu tìm khách sạn phù hợp"}
                     </h2>
                     <p className="text-muted-foreground">
-                      {hasSearched 
-                        ? "Thử thay đổi điều kiện tìm kiếm hoặc ngày khác" 
-                        : "To display available hotels, please select your search options."
+                      {hasSearched
+                        ? "Thử thay đổi bộ lọc hoặc chọn ngày lưu trú khác."
+                        : "Vui lòng nhập thông tin tìm kiếm để xem danh sách khách sạn phù hợp."
                       }
                     </p>
                   </div>

@@ -9,6 +9,7 @@ import { Badge } from "@/components/ui/badge"
 import { Separator } from "@/components/ui/separator"
 import { hotelService } from "../service"
 import type { HotelDetails } from "../type"
+import { formatPrice } from "@/lib/currency"
 
 interface HotelDetailsModalProps {
   hotelId: string | null
@@ -183,24 +184,23 @@ export default function HotelDetailsModal({ hotelId, isOpen, onClose, onBookRoom
                     <span className="text-muted-foreground">(0 reviews)</span>
                   </div>
                   <Badge variant="secondary" className="text-sm">
-                    Excellent
+                    Tuyệt vời
                   </Badge>
                 </div>
 
                 {/* Description */}
                 <div>
-                  <h2 className="text-xl font-semibold mb-3">About this hotel</h2>
+                  <h2 className="text-xl font-semibold mb-3">Giới thiệu khách sạn</h2>
                   <p className="text-muted-foreground leading-relaxed">
-                    {hotel.description}. Experience luxury and comfort in the heart of the city with world-class
-                    amenities, exceptional service, and stunning views. Our hotel offers the perfect blend of modern
-                    sophistication and timeless elegance, making it an ideal choice for both business and leisure
-                    travelers.
+                    {hotel.description}. Tận hưởng sự tiện nghi và đẳng cấp ngay trung tâm thành phố với hệ thống tiện
+                    ích đầy đủ, dịch vụ chu đáo và tầm nhìn ấn tượng. Khách sạn mang đến sự kết hợp hài hòa giữa phong
+                    cách hiện đại và nét tinh tế, phù hợp cho cả khách đi công tác lẫn du lịch nghỉ dưỡng.
                   </p>
                 </div>
 
                 {/* Amenities */}
                 <div>
-                  <h2 className="text-xl font-semibold mb-4">Hotel Amenities</h2>
+                  <h2 className="text-xl font-semibold mb-4">Tiện nghi nổi bật</h2>
                   <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
                     {hotel.amenities.map((amenity) => {
                       const IconComponent = amenityIcons[amenity] || Building2
@@ -216,7 +216,7 @@ export default function HotelDetailsModal({ hotelId, isOpen, onClose, onBookRoom
 
                 {/* Room Selection */}
                 <div>
-                  <h2 className="text-xl font-semibold mb-4">Choose Your Room</h2>
+                  <h2 className="text-xl font-semibold mb-4">Chọn hạng phòng</h2>
                   <div className="space-y-4">
                     {roomTypes.map((room) => (
                       <Card
@@ -239,11 +239,11 @@ export default function HotelDetailsModal({ hotelId, isOpen, onClose, onBookRoom
                               <div className="flex justify-between items-start mb-2">
                                 <h3 className="font-semibold">{room.name}</h3>
                                 <div className="text-right">
-                                  <div className="text-sm text-muted-foreground line-through">
-                                    ${room.originalPrice}
-                                  </div>
-                                  <div className="text-lg font-bold text-primary">${room.price}</div>
-                                  <div className="text-xs text-muted-foreground">per night</div>
+                                <div className="text-sm text-muted-foreground line-through">
+                                  {formatPrice(Number(room.originalPrice ?? room.price ?? 0))}
+                                </div>
+                                <div className="text-lg font-bold text-primary">{formatPrice(Number(room.price ?? 0))}</div>
+                                <div className="text-xs text-muted-foreground">mỗi đêm</div>
                                 </div>
                               </div>
                               <div className="flex flex-wrap gap-2">
@@ -263,27 +263,27 @@ export default function HotelDetailsModal({ hotelId, isOpen, onClose, onBookRoom
 
                 {/* Policies */}
                 <div>
-                  <h2 className="text-xl font-semibold mb-4">Hotel Policies</h2>
+                  <h2 className="text-xl font-semibold mb-4">Chính sách khách sạn</h2>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <div>
-                      <h3 className="font-medium mb-2">Check-in/Check-out</h3>
+                      <h3 className="font-medium mb-2">Giờ nhận / trả phòng</h3>
                       <div className="space-y-1 text-sm text-muted-foreground">
                         <div className="flex items-center space-x-2">
                           <Calendar className="h-4 w-4" />
-                          <span>Check-in: 3:00 PM</span>
+                          <span>Nhận phòng: 15:00</span>
                         </div>
                         <div className="flex items-center space-x-2">
                           <Calendar className="h-4 w-4" />
-                          <span>Check-out: 11:00 AM</span>
+                          <span>Trả phòng: 11:00</span>
                         </div>
                       </div>
                     </div>
                     <div>
-                      <h3 className="font-medium mb-2">Cancellation</h3>
+                      <h3 className="font-medium mb-2">Chính sách hủy</h3>
                       <div className="space-y-1 text-sm text-muted-foreground">
                         <div className="flex items-center space-x-2">
                           <Check className="h-4 w-4 text-green-500" />
-                          <span>Free cancellation until 24 hours before check-in</span>
+                          <span>Hủy miễn phí trước 24 giờ so với thời gian nhận phòng</span>
                         </div>
                       </div>
                     </div>
@@ -300,46 +300,35 @@ export default function HotelDetailsModal({ hotelId, isOpen, onClose, onBookRoom
                   <CardContent className="space-y-4">
                     <div className="space-y-2">
                       <div className="flex justify-between">
-                        <span className="text-sm">Room Type:</span>
+                        <span className="text-sm">Loại phòng:</span>
                         <span className="text-sm font-medium">{selectedRoomData.name}</span>
                       </div>
                       <div className="flex justify-between">
-                        <span className="text-sm">Check-in:</span>
+                        <span className="text-sm">Nhận phòng:</span>
                         <span className="text-sm">Dec 15, 2024</span>
                       </div>
                       <div className="flex justify-between">
-                        <span className="text-sm">Check-out:</span>
+                        <span className="text-sm">Trả phòng:</span>
                         <span className="text-sm">Dec 18, 2024</span>
                       </div>
                       <div className="flex justify-between">
-                        <span className="text-sm">Guests:</span>
-                        <span className="text-sm">2 Adults</span>
+                        <span className="text-sm">Khách:</span>
+                        <span className="text-sm">2 người lớn</span>
                       </div>
                       <div className="flex justify-between">
-                        <span className="text-sm">Nights:</span>
+                        <span className="text-sm">Số đêm:</span>
                         <span className="text-sm">3</span>
                       </div>
                     </div>
 
                     <Separator />
 
-                    <div className="space-y-2">
-                      <div className="flex justify-between">
-                        <span className="text-sm">Room (3 nights)</span>
-                        <span className="text-sm">${selectedRoomData.price * 3}</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-sm">Taxes & fees</span>
-                        <span className="text-sm">${Math.round(selectedRoomData.price * 3 * 0.12)}</span>
-                      </div>
-                    </div>
-
                     <Separator />
 
                     <div className="flex justify-between font-semibold">
-                      <span>Total</span>
+                      <span>Tổng cộng</span>
                       <span className="text-lg text-primary">
-                        ${selectedRoomData.price * 3 + Math.round(selectedRoomData.price * 3 * 0.12)}
+                        {formatPrice(Number(selectedRoomData.price ?? 0) * 3)}
                       </span>
                     </div>
 
@@ -357,11 +346,11 @@ export default function HotelDetailsModal({ hotelId, isOpen, onClose, onBookRoom
                         }
                       }}
                     >
-                      Book Now
+                      Đặt ngay
                     </Button>
 
                     <div className="text-xs text-muted-foreground text-center">
-                      Free cancellation until 24 hours before check-in
+                      Hủy miễn phí đến 24 giờ trước thời gian nhận phòng
                     </div>
                     {!canBook && (
                       <div className="text-xs text-destructive text-center">

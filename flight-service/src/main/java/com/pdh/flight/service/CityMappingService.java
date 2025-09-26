@@ -186,8 +186,11 @@ public class CityMappingService {
         Map<String, String> abbreviations = Map.of(
             "ho chi minh", "hcm",
             "hcm", "ho chi minh",
+            "thanh pho ho chi minh", "hcm",
+            "tp ho chi minh", "hcm", 
             "hanoi", "hn",
             "hn", "hanoi",
+            "ha noi", "hanoi",
             "da nang", "dn",
             "dn", "da nang"
         );
@@ -245,7 +248,7 @@ public class CityMappingService {
     private Map<String, List<String>> initializeCityToIataMapping() {
         Map<String, List<String>> mapping = new HashMap<>();
         
-        // Vietnam cities
+        // Vietnam cities - English names
         mapping.put("ho chi minh city", List.of("SGN"));
         mapping.put("hcm", List.of("SGN"));
         mapping.put("saigon", List.of("SGN"));
@@ -260,6 +263,24 @@ public class CityMappingService {
         mapping.put("da lat", List.of("DLI"));
         mapping.put("quang ninh", List.of("VDO"));
         mapping.put("buon ma thuot", List.of("BMV"));
+        
+        // Vietnam cities - Vietnamese names with special characters
+        mapping.put("thành phố hồ chí minh", List.of("SGN"));
+        mapping.put("tp hồ chí minh", List.of("SGN"));
+        mapping.put("tp.hcm", List.of("SGN"));
+        mapping.put("hồ chí minh", List.of("SGN"));
+        mapping.put("sài gòn", List.of("SGN"));
+        mapping.put("hà nội", List.of("HAN"));
+        mapping.put("hải phòng", List.of("HPH"));
+        mapping.put("đà nẵng", List.of("DAD"));
+        mapping.put("nha trang", List.of("CXR"));
+        mapping.put("cần thơ", List.of("VCA"));
+        mapping.put("huế", List.of("HUI"));
+        mapping.put("vinh", List.of("VII"));
+        mapping.put("phú quốc", List.of("PQC"));
+        mapping.put("đà lạt", List.of("DLI"));
+        mapping.put("quảng ninh", List.of("VDO"));
+        mapping.put("buôn ma thuột", List.of("BMV"));
         
         // International cities (examples)
         mapping.put("bangkok", List.of("BKK"));

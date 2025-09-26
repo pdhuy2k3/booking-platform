@@ -12,6 +12,7 @@ import lombok.EqualsAndHashCode;
 import lombok.NoArgsConstructor;
 
 import java.time.ZonedDateTime;
+import java.util.Set;
 import java.util.UUID;
 
 @Entity
@@ -65,6 +66,8 @@ public class FlightSchedule extends AbstractAuditEntity {
     @JoinColumn(name = "aircraft_id", insertable = false, updatable = false)
     private Aircraft aircraft;
     
+    @OneToMany(mappedBy = "flightSchedule", fetch = FetchType.LAZY)
+    private Set<FlightFare> flightFares;
     // Validation methods
     @AssertTrue(message = "Arrival time must be after departure time")
     public boolean isArrivalTimeAfterDepartureTime() {

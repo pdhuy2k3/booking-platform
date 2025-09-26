@@ -25,7 +25,7 @@ import { cn } from "@/lib/utils"
 import { FlightBookingDetails, PassengerDetails } from '@/modules/booking/types'
 
 const formatDateTimeLabel = (value?: string) => {
-  if (!value) return 'N/A'
+  if (!value) return 'Chưa có'
   const parsed = new Date(value)
   if (Number.isNaN(parsed.getTime())) return value
   return format(parsed, 'PPP p')
@@ -110,7 +110,7 @@ export function FlightBookingForm({ flight, onSubmit, onCancel }: FlightBookingF
     )
     
     if (!isValid) {
-      alert('Please fill in all required passenger information')
+      alert('Vui lòng điền đầy đủ thông tin bắt buộc của hành khách')
       return
     }
 
@@ -135,7 +135,7 @@ export function FlightBookingForm({ flight, onSubmit, onCancel }: FlightBookingF
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Flight Booking Details</CardTitle>
+        <CardTitle>Thông tin đặt vé máy bay</CardTitle>
       </CardHeader>
       <CardContent>
         <form onSubmit={handleSubmit} className="space-y-6">
@@ -149,10 +149,10 @@ export function FlightBookingForm({ flight, onSubmit, onCancel }: FlightBookingF
             </div>
             <div>
               <p className="text-sm">
-                <span className="font-medium">Departure:</span> {formatDateTimeLabel(flight.departureTime)}
+                <span className="font-medium">Khởi hành:</span> {formatDateTimeLabel(flight.departureTime)}
               </p>
               <p className="text-sm">
-                <span className="font-medium">Arrival:</span> {formatDateTimeLabel(flight.arrivalTime)}
+                <span className="font-medium">Hạ cánh:</span> {formatDateTimeLabel(flight.arrivalTime)}
               </p>
             </div>
           </div>
@@ -160,18 +160,18 @@ export function FlightBookingForm({ flight, onSubmit, onCancel }: FlightBookingF
           {/* Booking Options */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <Label htmlFor="passengerCount">Number of Passengers</Label>
+              <Label htmlFor="passengerCount">Số hành khách</Label>
               <Select 
                 value={passengerCount.toString()} 
                 onValueChange={(value) => setPassengerCount(parseInt(value))}
               >
                 <SelectTrigger>
-                  <SelectValue placeholder="Select passengers" />
+                  <SelectValue placeholder="Chọn số lượng" />
                 </SelectTrigger>
                 <SelectContent>
                   {[1, 2, 3, 4, 5, 6, 7, 8, 9].map(num => (
                     <SelectItem key={num} value={num.toString()}>
-                      {num} {num === 1 ? 'Passenger' : 'Passengers'}
+                      {num} {num === 1 ? 'hành khách' : 'hành khách'}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -179,22 +179,22 @@ export function FlightBookingForm({ flight, onSubmit, onCancel }: FlightBookingF
             </div>
 
             <div>
-              <Label htmlFor="seatClass">Seat Class</Label>
+              <Label htmlFor="seatClass">Hạng ghế</Label>
               <Select value={seatClass} onValueChange={setSeatClass}>
                 <SelectTrigger>
-                  <SelectValue placeholder="Select seat class" />
+                  <SelectValue placeholder="Chọn hạng ghế" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="ECONOMY">Economy</SelectItem>
-                  <SelectItem value="PREMIUM_ECONOMY">Premium Economy</SelectItem>
-                  <SelectItem value="BUSINESS">Business</SelectItem>
-                  <SelectItem value="FIRST">First Class</SelectItem>
+                  <SelectItem value="ECONOMY">Phổ thông</SelectItem>
+                  <SelectItem value="PREMIUM_ECONOMY">Phổ thông cao cấp</SelectItem>
+                  <SelectItem value="BUSINESS">Thương gia</SelectItem>
+                  <SelectItem value="FIRST">Hạng nhất</SelectItem>
                 </SelectContent>
               </Select>
             </div>
 
             <div>
-              <Label htmlFor="departureDate">Departure Date</Label>
+              <Label htmlFor="departureDate">Ngày khởi hành</Label>
               <Popover>
                 <PopoverTrigger asChild>
                   <Button
@@ -205,7 +205,7 @@ export function FlightBookingForm({ flight, onSubmit, onCancel }: FlightBookingF
                     )}
                   >
                     <CalendarIcon className="mr-2 h-4 w-4" />
-                    {departureDate ? format(departureDate, "PPP") : <span>Pick a date</span>}
+                    {departureDate ? format(departureDate, "PPP") : <span>Chọn ngày</span>}
                   </Button>
                 </PopoverTrigger>
                 <PopoverContent className="w-auto p-0">
@@ -222,11 +222,11 @@ export function FlightBookingForm({ flight, onSubmit, onCancel }: FlightBookingF
 
           {/* Passenger Information */}
           <div>
-            <h3 className="text-lg font-semibold mb-4">Passenger Information</h3>
+            <h3 className="text-lg font-semibold mb-4">Thông tin hành khách</h3>
             {passengers.map((passenger, index) => (
               <div key={index} className="border rounded-lg p-4 mb-4">
                 <div className="flex justify-between items-center mb-3">
-                  <h4 className="font-medium">Passenger {index + 1}</h4>
+                  <h4 className="font-medium">Hành khách {index + 1}</h4>
                   {passengers.length > 1 && (
                     <Button 
                       type="button" 
@@ -234,70 +234,70 @@ export function FlightBookingForm({ flight, onSubmit, onCancel }: FlightBookingF
                       size="sm" 
                       onClick={() => handleRemovePassenger(index)}
                     >
-                      Remove
+                      Xóa
                     </Button>
                   )}
                 </div>
                 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
-                    <Label htmlFor={`title-${index}`}>Title *</Label>
+                    <Label htmlFor={`title-${index}`}>Danh xưng *</Label>
                     <Select 
                       value={passenger.title} 
                       onValueChange={(value) => handlePassengerChange(index, 'title', value)}
                     >
                       <SelectTrigger>
-                        <SelectValue placeholder="Select title" />
+                        <SelectValue placeholder="Chọn danh xưng" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="MR">Mr.</SelectItem>
-                        <SelectItem value="MRS">Mrs.</SelectItem>
-                        <SelectItem value="MS">Ms.</SelectItem>
-                        <SelectItem value="MISS">Miss</SelectItem>
-                        <SelectItem value="DR">Dr.</SelectItem>
+                        <SelectItem value="MR">Ông (Mr.)</SelectItem>
+                        <SelectItem value="MRS">Bà (Mrs.)</SelectItem>
+                        <SelectItem value="MS">Cô (Ms.)</SelectItem>
+                        <SelectItem value="MISS">Cô gái (Miss)</SelectItem>
+                        <SelectItem value="DR">Tiến sĩ (Dr.)</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
 
                   <div>
-                    <Label htmlFor={`passengerType-${index}`}>Passenger Type *</Label>
+                    <Label htmlFor={`passengerType-${index}`}>Loại hành khách *</Label>
                     <Select 
                       value={passenger.passengerType} 
                       onValueChange={(value) => handlePassengerChange(index, 'passengerType', value as any)}
                     >
                       <SelectTrigger>
-                        <SelectValue placeholder="Select type" />
+                        <SelectValue placeholder="Chọn loại" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="ADULT">Adult</SelectItem>
-                        <SelectItem value="CHILD">Child</SelectItem>
-                        <SelectItem value="INFANT">Infant</SelectItem>
+                        <SelectItem value="ADULT">Người lớn</SelectItem>
+                        <SelectItem value="CHILD">Trẻ em</SelectItem>
+                        <SelectItem value="INFANT">Em bé</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
 
                   <div>
-                    <Label htmlFor={`firstName-${index}`}>First Name *</Label>
+                    <Label htmlFor={`firstName-${index}`}>Tên *</Label>
                     <Input
                       id={`firstName-${index}`}
                       value={passenger.firstName}
                       onChange={(e) => handlePassengerChange(index, 'firstName', e.target.value)}
-                      placeholder="First name"
+                      placeholder="Tên"
                     />
                   </div>
 
                   <div>
-                    <Label htmlFor={`lastName-${index}`}>Last Name *</Label>
+                    <Label htmlFor={`lastName-${index}`}>Họ *</Label>
                     <Input
                       id={`lastName-${index}`}
                       value={passenger.lastName}
                       onChange={(e) => handlePassengerChange(index, 'lastName', e.target.value)}
-                      placeholder="Last name"
+                      placeholder="Họ"
                     />
                   </div>
 
                   <div>
-                    <Label htmlFor={`dateOfBirth-${index}`}>Date of Birth *</Label>
+                    <Label htmlFor={`dateOfBirth-${index}`}>Ngày sinh *</Label>
                     <Input
                       id={`dateOfBirth-${index}`}
                       type="date"
@@ -307,28 +307,28 @@ export function FlightBookingForm({ flight, onSubmit, onCancel }: FlightBookingF
                   </div>
 
                   <div>
-                    <Label htmlFor={`gender-${index}`}>Gender *</Label>
+                    <Label htmlFor={`gender-${index}`}>Giới tính *</Label>
                     <Select 
                       value={passenger.gender} 
                       onValueChange={(value) => handlePassengerChange(index, 'gender', value as any)}
                     >
                       <SelectTrigger>
-                        <SelectValue placeholder="Select gender" />
+                        <SelectValue placeholder="Chọn giới tính" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="M">Male</SelectItem>
-                        <SelectItem value="F">Female</SelectItem>
+                        <SelectItem value="M">Nam</SelectItem>
+                        <SelectItem value="F">Nữ</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
 
                   <div>
-                    <Label htmlFor={`nationality-${index}`}>Nationality *</Label>
+                    <Label htmlFor={`nationality-${index}`}>Quốc tịch *</Label>
                     <Input
                       id={`nationality-${index}`}
                       value={passenger.nationality}
                       onChange={(e) => handlePassengerChange(index, 'nationality', e.target.value)}
-                      placeholder="Country code (e.g., VN)"
+                      placeholder="Mã quốc gia (vd: VN)"
                     />
                   </div>
 
@@ -339,17 +339,17 @@ export function FlightBookingForm({ flight, onSubmit, onCancel }: FlightBookingF
                       type="email"
                       value={passenger.email}
                       onChange={(e) => handlePassengerChange(index, 'email', e.target.value)}
-                      placeholder="Email address"
+                      placeholder="Địa chỉ email"
                     />
                   </div>
 
                   <div>
-                    <Label htmlFor={`phoneNumber-${index}`}>Phone Number</Label>
+                    <Label htmlFor={`phoneNumber-${index}`}>Số điện thoại</Label>
                     <Input
                       id={`phoneNumber-${index}`}
                       value={passenger.phoneNumber}
                       onChange={(e) => handlePassengerChange(index, 'phoneNumber', e.target.value)}
-                      placeholder="Phone number"
+                      placeholder="Số điện thoại"
                     />
                   </div>
                 </div>
@@ -363,19 +363,19 @@ export function FlightBookingForm({ flight, onSubmit, onCancel }: FlightBookingF
                 onClick={handleAddPassenger}
                 className="mt-2"
               >
-                Add Another Passenger
+                Thêm hành khách
               </Button>
             )}
           </div>
 
           {/* Special Requests */}
           <div>
-            <Label htmlFor="specialRequests">Special Requests</Label>
+            <Label htmlFor="specialRequests">Yêu cầu đặc biệt</Label>
             <Textarea
               id="specialRequests"
               value={specialRequests}
               onChange={(e) => setSpecialRequests(e.target.value)}
-              placeholder="Any special requests or requirements"
+              placeholder="Nhập yêu cầu hoặc ghi chú đặc biệt"
               rows={3}
             />
           </div>
@@ -383,10 +383,10 @@ export function FlightBookingForm({ flight, onSubmit, onCancel }: FlightBookingF
           {/* Actions */}
           <div className="flex justify-between">
             <Button type="button" variant="outline" onClick={onCancel}>
-              Cancel
+              Hủy
             </Button>
             <Button type="submit">
-              Continue to Review
+              Tiếp tục xem lại
             </Button>
           </div>
         </form>

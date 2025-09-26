@@ -9,19 +9,22 @@ import { Separator } from '@/components/ui/separator'
 import { Badge } from '@/components/ui/badge'
 import { useBooking } from '@/contexts/booking-context'
 import { BookingFlowManager } from '@/components/booking-flow-manager'
+import { useAuth } from '@/contexts/auth-context'
+import { toast } from '@/hooks/use-toast'
+import { ToastAction } from '@/components/ui/toast'
 import { format } from 'date-fns'
 import { formatCurrency, formatPrice } from '@/lib/currency'
 import { Plane, Building2, Clock, MapPin, Users, Calendar as CalendarIcon, RefreshCcw, ArrowRight } from 'lucide-react'
 
 const formatDateTime = (value?: string) => {
-  if (!value) return 'N/A'
+  if (!value) return 'Chưa có'
   const parsed = new Date(value)
   if (Number.isNaN(parsed.getTime())) return value
   return format(parsed, 'PPP p')
 }
 
 const formatDate = (value?: string) => {
-  if (!value) return 'N/A'
+  if (!value) return 'Chưa có'
   const parsed = new Date(value)
   if (Number.isNaN(parsed.getTime())) return value
   return format(parsed, 'PPP')
@@ -42,6 +45,7 @@ export function BookingSummaryView() {
   } = useBooking()
   const [showFlow, setShowFlow] = useState(step !== 'selection')
   const [initialized, setInitialized] = useState(false)
+  const { isAuthenticated, isLoading: authLoading, login } = useAuth()
 
   const derivedType = useMemo(() => {
     if (bookingType) return bookingType
@@ -83,7 +87,21 @@ export function BookingSummaryView() {
   }
 
   const handleProceed = () => {
-    if (!canProceed) return
+    if (!canProceed || authLoading) return
+
+    if (!isAuthenticated) {
+      toast({
+        title: 'Yêu cầu đăng nhập',
+        description: 'Vui lòng đăng nhập để tiếp tục đặt chỗ.',
+        action: (
+          <ToastAction altText="Đăng nhập" onClick={login}>
+            Đăng nhập
+          </ToastAction>
+        ),
+      })
+      return
+    }
+
     ensureBookingType()
     setStep('passengers')
     setShowFlow(true)
@@ -121,15 +139,15 @@ export function BookingSummaryView() {
             <div className="flex h-9 w-9 items-center justify-center rounded-full bg-primary/10">
               <Plane className="h-5 w-5 text-primary" />
             </div>
-            <CardTitle className="text-xl">Selected Flight</CardTitle>
+            <CardTitle className="text-xl">Chuyến bay đã chọn</CardTitle>
           </div>
           <div className="flex gap-2">
             <Button variant="outline" size="sm" onClick={() => router.push('/?tab=search&searchTab=flights')}>
-              Change flight
+              Đổi chuyến bay
             </Button>
             <Button variant="ghost" size="icon" onClick={() => router.push('/?tab=search&searchTab=flights')}>
               <RefreshCcw className="h-4 w-4" />
-              <span className="sr-only">Change flight</span>
+              <span className="sr-only">Đổi chuyến bay</span>
             </Button>
           </div>
         </CardHeader>
@@ -157,7 +175,7 @@ export function BookingSummaryView() {
               </div>
             </div>
             <div className="text-right">
-              <p className="text-xs uppercase text-muted-foreground">Estimated fare</p>
+              <p className="text-xs uppercase text-muted-foreground">Giá ước tính</p>
               <p className="text-lg font-semibold">{formatCurrency(selectedFlight.price || 0, selectedFlight.currency || 'VND')}</p>
             </div>
           </div>
@@ -165,28 +183,28 @@ export function BookingSummaryView() {
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="rounded-lg border bg-muted/30 p-4">
               <p className="flex items-center gap-2 text-sm text-muted-foreground">
-                <Clock className="h-4 w-4" /> Duration
+                <Clock className="h-4 w-4" /> Thời gian bay
               </p>
-              <p className="mt-1 font-medium">{selectedFlight.duration || 'N/A'}</p>
+              <p className="mt-1 font-medium">{selectedFlight.duration || 'Chưa có'}</p>
             </div>
             <div className="rounded-lg border bg-muted/30 p-4">
               <p className="flex items-center gap-2 text-sm text-muted-foreground">
-                <Users className="h-4 w-4" /> Cabin
+                <Users className="h-4 w-4" /> Hạng ghế
               </p>
-              <p className="mt-1 font-medium">{selectedFlight.seatClass || 'N/A'}</p>
+              <p className="mt-1 font-medium">{selectedFlight.seatClass || 'Chưa có'}</p>
             </div>
           </div>
 
           <div className="grid gap-4 md:grid-cols-2">
             <div className="rounded-lg border p-4">
               <p className="flex items-center gap-2 text-xs uppercase tracking-wide text-muted-foreground">
-                <CalendarIcon className="h-4 w-4" /> Departure
+                <CalendarIcon className="h-4 w-4" /> Giờ khởi hành
               </p>
               <p className="mt-1 text-sm font-medium">{formatDateTime(selectedFlight.departureTime)}</p>
             </div>
             <div className="rounded-lg border p-4">
               <p className="flex items-center gap-2 text-xs uppercase tracking-wide text-muted-foreground">
-                <CalendarIcon className="h-4 w-4" /> Arrival
+                <CalendarIcon className="h-4 w-4" /> Giờ hạ cánh
               </p>
               <p className="mt-1 text-sm font-medium">{formatDateTime(selectedFlight.arrivalTime)}</p>
             </div>
@@ -205,15 +223,15 @@ export function BookingSummaryView() {
             <div className="flex h-9 w-9 items-center justify-center rounded-full bg-primary/10">
               <Building2 className="h-5 w-5 text-primary" />
             </div>
-            <CardTitle className="text-xl">Selected Stay</CardTitle>
+            <CardTitle className="text-xl">Khách sạn đã chọn</CardTitle>
           </div>
           <div className="flex gap-2">
             <Button variant="outline" size="sm" onClick={() => router.push('/?tab=search&searchTab=hotels')}>
-              Change room
+              Đổi khách sạn
             </Button>
             <Button variant="ghost" size="icon" onClick={() => router.push('/?tab=search&searchTab=hotels')}>
               <RefreshCcw className="h-4 w-4" />
-              <span className="sr-only">Change room</span>
+              <span className="sr-only">Đổi khách sạn</span>
             </Button>
           </div>
         </CardHeader>
@@ -228,7 +246,7 @@ export function BookingSummaryView() {
               </div>
             </div>
             <div className="text-right">
-              <p className="text-xs uppercase text-muted-foreground">Nightly rate</p>
+              <p className="text-xs uppercase text-muted-foreground">Giá mỗi đêm</p>
               <p className="text-lg font-semibold">{formatPrice(selectedHotel.price || 0)}</p>
             </div>
           </div>
@@ -237,18 +255,18 @@ export function BookingSummaryView() {
 
           <div className="grid gap-4 md:grid-cols-3">
             <div className="rounded-lg border p-4">
-              <p className="text-xs uppercase tracking-wide text-muted-foreground">Room Type</p>
+              <p className="text-xs uppercase tracking-wide text-muted-foreground">Hạng phòng</p>
               <p className="mt-1 font-medium">{selectedHotel.roomName}</p>
               <Badge variant="secondary" className="mt-2 text-xs">
                 {selectedHotel.roomType}
               </Badge>
             </div>
             <div className="rounded-lg border p-4">
-              <p className="text-xs uppercase tracking-wide text-muted-foreground">Check-in</p>
+              <p className="text-xs uppercase tracking-wide text-muted-foreground">Nhận phòng</p>
               <p className="mt-1 font-medium">{formatDate(selectedHotel.checkInDate)}</p>
             </div>
             <div className="rounded-lg border p-4">
-              <p className="text-xs uppercase tracking-wide text-muted-foreground">Check-out</p>
+              <p className="text-xs uppercase tracking-wide text-muted-foreground">Trả phòng</p>
               <p className="mt-1 font-medium">{formatDate(selectedHotel.checkOutDate)}</p>
             </div>
           </div>
@@ -272,15 +290,15 @@ export function BookingSummaryView() {
       <CardContent className="flex flex-col items-center justify-center gap-4 py-12 text-center">
         <Building2 className="h-10 w-10 text-muted-foreground" />
         <div>
-          <h2 className="text-xl font-semibold">No selections yet</h2>
+          <h2 className="text-xl font-semibold">Chưa có lựa chọn nào</h2>
           <p className="mt-1 text-muted-foreground">
-            Choose a flight or hotel to start your booking. You can come back here anytime to complete the process.
+            Hãy chọn chuyến bay hoặc khách sạn để bắt đầu đặt chỗ. Bạn có thể quay lại trang này bất cứ lúc nào để hoàn tất.
           </p>
         </div>
         <div className="flex flex-col gap-2 sm:flex-row">
-          <Button onClick={() => router.push('/?tab=search&searchTab=flights')}>Find flights</Button>
+          <Button onClick={() => router.push('/?tab=search&searchTab=flights')}>Tìm chuyến bay</Button>
           <Button variant="outline" onClick={() => router.push('/?tab=search&searchTab=hotels')}>
-            Browse hotels
+            Tìm khách sạn
           </Button>
         </div>
       </CardContent>
@@ -292,17 +310,17 @@ export function BookingSummaryView() {
       <div className="container mx-auto max-w-6xl space-y-6">
         <div className="flex flex-wrap items-center justify-between gap-4">
           <div>
-            <h1 className="text-3xl font-bold tracking-tight">Review Your Trip</h1>
+            <h1 className="text-3xl font-bold tracking-tight">Xem lại hành trình</h1>
             <p className="text-muted-foreground">
-              Confirm your selected flight and stay before entering passenger and guest details.
+              Kiểm tra chuyến bay và nơi lưu trú đã chọn trước khi nhập thông tin hành khách.
             </p>
           </div>
           <div className="flex items-center gap-2">
             <Button variant="ghost" onClick={() => { router.push('/'); }}>
-              Back to assistant
+              Quay lại trợ lý
             </Button>
             <Button variant="outline" onClick={handleReset}>
-              Reset selections
+              Xóa lựa chọn
             </Button>
           </div>
         </div>
@@ -315,16 +333,16 @@ export function BookingSummaryView() {
               <Card>
                 <CardContent className="flex flex-col gap-4 p-6 sm:flex-row sm:items-center sm:justify-between">
                   <div>
-                    <p className="text-xs uppercase text-muted-foreground">Estimated total</p>
+                    <p className="text-xs uppercase text-muted-foreground">Tổng chi phí dự kiến</p>
                     <p className="text-2xl font-semibold">{totalEstimated}</p>
                   </div>
                   <Button
                     size="lg"
                     className="gap-2"
-                    disabled={!canProceed}
+                    disabled={!canProceed || authLoading}
                     onClick={handleProceed}
                   >
-                    Continue to booking
+                    Tiếp tục đặt chỗ
                     <ArrowRight className="h-4 w-4" />
                   </Button>
                 </CardContent>

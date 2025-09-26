@@ -32,7 +32,7 @@ export default function RootLayout({
               <BookingProvider>
                 <div className="flex h-full bg-background">
                   <Sidebar />
-                  <main className="flex-1 flex flex-col relative overflow-hidden bg-background">
+                  <main className="flex-1 flex flex-col relative overflow-y-auto bg-background">
                     <Suspense fallback={
                       <div className="flex items-center justify-center h-full">
                         <div className="text-sm text-muted-foreground">Loading...</div>
