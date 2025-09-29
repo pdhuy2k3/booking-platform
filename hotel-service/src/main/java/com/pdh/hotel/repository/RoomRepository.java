@@ -16,7 +16,7 @@ import java.util.List;
  * Repository interface for Room entity
  */
 @Repository
-@Deprecated
+
 public interface RoomRepository extends JpaRepository<Room, Long> {
 
     /**

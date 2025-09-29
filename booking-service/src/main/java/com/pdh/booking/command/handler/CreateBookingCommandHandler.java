@@ -5,7 +5,7 @@ import com.pdh.booking.model.Booking;
 import com.pdh.booking.model.enums.BookingStatus;
 import com.pdh.booking.service.BookingItemService;
 import com.pdh.booking.service.BookingPassengerService;
-import com.pdh.booking.service.BookingSagaService;
+import com.pdh.booking.service.BookingService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
@@ -15,14 +15,14 @@ import java.util.UUID;
 
 /**
  * Command handler for creating bookings
- * This handler starts the saga orchestration process
+ * Persists the booking and creates related records
  */
 @Component
 @RequiredArgsConstructor
 @Slf4j
 public class CreateBookingCommandHandler {
     
-    private final BookingSagaService bookingSagaService;
+    private final BookingService bookingService;
     private final BookingItemService bookingItemService;
     private final BookingPassengerService bookingPassengerService;
     
@@ -47,8 +47,8 @@ public class CreateBookingCommandHandler {
             // Generate booking reference
             booking.setBookingReference(generateBookingReference());
             
-            // Start saga orchestration first to save the booking
-            Booking createdBooking = bookingSagaService.startBookingSaga(booking);
+            // Persist booking record before creating related entities
+            Booking createdBooking = bookingService.createBooking(booking);
             
             // Create booking items and passengers after booking is saved
             bookingItemService.createBookingItems(createdBooking);

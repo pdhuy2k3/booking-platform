@@ -104,6 +104,8 @@ export type FlightDetails = {
   destination: string
   departureTime: string
   arrivalTime: string
+  departureDateTime?: string
+  arrivalDateTime?: string
   duration: string
   price: number
   currency: string

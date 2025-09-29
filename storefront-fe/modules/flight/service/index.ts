@@ -3,6 +3,41 @@ import type { FlightDetails, FlightFareDetails, FlightSearchParams, FlightSearch
 import { apiClient } from '@/lib/api-client';
 import { destinationService } from '../../destination/service';
 
+// Helper to map fare details to flight details
+function mapFareToFlightDetails(fareDetails: FlightFareDetails, flightId: string): FlightDetails {
+  let duration = '';
+  try {
+    const departure = new Date(fareDetails.departureTime);
+    const arrival = new Date(fareDetails.arrivalTime);
+    const diffMs = arrival.getTime() - departure.getTime();
+    const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
+    const diffMins = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
+    duration = `${diffHours}h ${diffMins}m`;
+  } catch (e) {
+    // Could not parse dates
+  }
+
+  const departure = new Date(fareDetails.departureTime);
+  const arrival = new Date(fareDetails.arrivalTime);
+
+  return {
+    flightId: flightId,
+    airline: fareDetails.airline || 'Unknown Airline',
+    flightNumber: fareDetails.flightNumber || 'N/A',
+    origin: fareDetails.originAirport || 'N/A',
+    destination: fareDetails.destinationAirport || 'N/A',
+    departureTime: departure.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+    arrivalTime: arrival.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+    departureDateTime: fareDetails.departureTime,
+    arrivalDateTime: fareDetails.arrivalTime,
+    duration: duration,
+    price: Number(fareDetails.price),
+    currency: fareDetails.currency,
+    seatClass: fareDetails.seatClass,
+    availableSeats: fareDetails.availableSeats || 0,
+  };
+}
+
 export const flightService = {
   search(params: FlightSearchParams) {
     // Backend expects: origin, destination, departureDate, returnDate?, passengers, seatClass, page, limit
@@ -13,10 +48,11 @@ export const flightService = {
   get(id: string) {
     return apiClient.get<FlightDetails>(`/flights/storefront/${encodeURIComponent(id)}`)
   },
-  getFareDetails(flightId: string | number, params: { seatClass: string; departureDateTime: string }) {
-    return apiClient.get<FlightFareDetails>(`/flights/storefront/${encodeURIComponent(String(flightId))}/fare-details`, {
-      params
-    })
+  async getFareDetails(flightId: string, params: { seatClass: string, departureDateTime: string }): Promise<FlightDetails> {
+    const fareDetails = await apiClient.get<FlightFareDetails>(`/flights/storefront/${encodeURIComponent(flightId)}/fare-details`, {
+      params: params
+    });
+    return mapFareToFlightDetails(fareDetails, flightId);
   },
   // Use the new destination service for better Vietnamese administrative units integration
   async searchAirports(search?: string) {

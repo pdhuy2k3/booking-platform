@@ -6,14 +6,18 @@ import com.pdh.payment.dto.*;
 import com.pdh.payment.model.Payment;
 import com.pdh.payment.model.PaymentMethod;
 import com.pdh.payment.model.PaymentTransaction;
+import com.pdh.payment.model.enums.PaymentMethodType;
+import com.pdh.payment.model.enums.PaymentProvider;
 import com.pdh.payment.model.enums.PaymentStatus;
 import com.pdh.payment.model.enums.PaymentTransactionType;
+import com.pdh.payment.repository.PaymentMethodRepository;
 import com.pdh.payment.repository.PaymentRepository;
 import com.pdh.payment.repository.PaymentTransactionRepository;
-import com.pdh.payment.repository.PaymentMethodRepository;
+import jakarta.persistence.criteria.Predicate;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.*;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -23,9 +27,14 @@ import java.io.PrintWriter;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.UUID;
 import java.util.stream.Collectors;
 
 /**
@@ -46,7 +55,7 @@ public class BackofficePaymentService {
      * Get paginated payments with filters
      */
     @Transactional(readOnly = true)
-    public Page<Payment> getPayments(PaymentFiltersDto filters) {
+    public Page<BackofficePaymentDto> getPayments(PaymentFiltersDto filters) {
         log.info("Getting payments with filters: {}", filters);
 
         Pageable pageable = PageRequest.of(
@@ -55,24 +64,70 @@ public class BackofficePaymentService {
             buildSort(filters.getSort(), filters.getDirection())
         );
 
-        // Use existing repository methods instead of Specification
-        if (filters.getStatus() != null) {
-            List<Payment> payments = paymentRepository.findByStatusOrderByCreatedAtDesc(filters.getStatus());
-            int start = (int) pageable.getOffset();
-            int end = Math.min((start + pageable.getPageSize()), payments.size());
-            List<Payment> pageContent = payments.subList(start, end);
-            return new PageImpl<>(pageContent, pageable, payments.size());
-        } else if (filters.getUserId() != null) {
-            return paymentRepository.findByUserIdOrderByCreatedAtDesc(filters.getUserId(), pageable);
-        } else if (filters.getBookingId() != null) {
-            List<Payment> payments = paymentRepository.findByBookingIdOrderByCreatedAtDesc(filters.getBookingId());
-            int start = (int) pageable.getOffset();
-            int end = Math.min((start + pageable.getPageSize()), payments.size());
-            List<Payment> pageContent = payments.subList(start, end);
-            return new PageImpl<>(pageContent, pageable, payments.size());
-        } else {
-            return paymentRepository.findAll(pageable);
-        }
+        Specification<Payment> spec = (root, query, cb) -> {
+            List<Predicate> predicates = new ArrayList<>();
+
+            if (filters.getSearch() != null && !filters.getSearch().isBlank()) {
+                String searchPattern = "%" + filters.getSearch().toLowerCase() + "%";
+                predicates.add(cb.or(
+                    cb.like(cb.lower(root.get("paymentReference")), searchPattern),
+                    cb.like(cb.lower(root.get("gatewayTransactionId")), searchPattern),
+                    cb.like(cb.lower(root.get("bookingId").as(String.class)), searchPattern)
+                ));
+            }
+            if (filters.getStatus() != null) {
+                predicates.add(cb.equal(root.get("status"), filters.getStatus()));
+            }
+            if (filters.getProvider() != null && !filters.getProvider().isBlank()) {
+                try {
+                    PaymentProvider providerEnum = PaymentProvider.valueOf(filters.getProvider().toUpperCase());
+                    predicates.add(cb.equal(root.get("provider"), providerEnum));
+                } catch (IllegalArgumentException e) {
+                    log.warn("Invalid payment provider filter: {}", filters.getProvider());
+                }
+            }
+            if (filters.getMethodType() != null && !filters.getMethodType().isBlank()) {
+                try {
+                    PaymentMethodType methodTypeEnum = PaymentMethodType.valueOf(filters.getMethodType().toUpperCase());
+                    predicates.add(cb.equal(root.get("methodType"), methodTypeEnum));
+                } catch (IllegalArgumentException e) {
+                    log.warn("Invalid payment method type filter: {}", filters.getMethodType());
+                }
+            }
+            if (filters.getBookingId() != null) {
+                predicates.add(cb.equal(root.get("bookingId"), filters.getBookingId()));
+            }
+            if (filters.getUserId() != null) {
+                predicates.add(cb.equal(root.get("userId"), filters.getUserId()));
+            }
+            if (filters.getDateFrom() != null) {
+                predicates.add(cb.greaterThanOrEqualTo(root.get("createdAt"), filters.getDateFrom().atStartOfDay(ZoneId.systemDefault())));
+            }
+            if (filters.getDateTo() != null) {
+                predicates.add(cb.lessThanOrEqualTo(root.get("createdAt"), filters.getDateTo().plusDays(1).atStartOfDay(ZoneId.systemDefault())));
+            }
+            if (filters.getAmountFrom() != null) {
+                predicates.add(cb.greaterThanOrEqualTo(root.get("amount"), filters.getAmountFrom()));
+            }
+            if (filters.getAmountTo() != null) {
+                predicates.add(cb.lessThanOrEqualTo(root.get("amount"), filters.getAmountTo()));
+            }
+
+            return cb.and(predicates.toArray(new Predicate[0]));
+        };
+
+        Page<Payment> paymentsPage = paymentRepository.findAll(spec, pageable);
+
+        return paymentsPage.map(p -> new BackofficePaymentDto(
+            p.getPaymentId(),
+            p.getPaymentReference(),
+            p.getBookingId(),
+            p.getAmount(),
+            p.getProvider(),
+            p.getMethodType(),
+            p.getStatus(),
+            p.getCreatedAt()
+        ));
     }
 
     /**

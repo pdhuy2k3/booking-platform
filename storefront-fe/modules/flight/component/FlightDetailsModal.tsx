@@ -25,6 +25,8 @@ const formatSeatClass = (seatClass?: string) => {
 
 interface FlightDetailsModalProps {
   flightId: string | null
+  seatClass: string | null
+  departureDateTime: string | null
   isOpen: boolean
   onClose: () => void
   onBookFlight?: (flight: FlightDetails) => void
@@ -34,6 +36,8 @@ interface FlightDetailsModalProps {
 
 export default function FlightDetailsModal({
   flightId,
+  seatClass,
+  departureDateTime,
   isOpen,
   onClose,
   onBookFlight,
@@ -46,10 +50,10 @@ export default function FlightDetailsModal({
 
   // Fetch flight details when modal opens and flightId is provided
   useEffect(() => {
-    if (isOpen && flightId) {
+    if (isOpen && flightId && seatClass && departureDateTime) {
       setLoading(true)
       setError(null)
-      flightService.get(flightId)
+      flightService.getFareDetails(flightId, { seatClass, departureDateTime })
         .then((flightData) => {
           setFlight(flightData)
         })
@@ -59,10 +63,23 @@ export default function FlightDetailsModal({
         .finally(() => {
           setLoading(false)
         })
+    } else if (isOpen && flightId) {
+        setLoading(true)
+        setError(null)
+        flightService.get(flightId)
+          .then((flightData) => {
+            setFlight(flightData)
+          })
+          .catch((err) => {
+            setError(err.message || "Không thể tải thông tin chuyến bay")
+          })
+          .finally(() => {
+            setLoading(false)
+          })
     } else {
       setFlight(null)
     }
-  }, [isOpen, flightId])
+  }, [isOpen, flightId, seatClass, departureDateTime])
 
   if (!isOpen || !flightId) return null
 

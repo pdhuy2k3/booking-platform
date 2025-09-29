@@ -62,7 +62,7 @@ export function FlightSearchTab() {
   const [initialData, setInitialData] = useState<InitialFlightData | null>(null)
 
   // Modals
-  const [selectedFlightId, setSelectedFlightId] = useState<string | null>(null)
+  const [selectedFlightForModal, setSelectedFlightForModal] = useState<any | null>(null)
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [isOriginModalOpen, setIsOriginModalOpen] = useState(false)
   const [isDestinationModalOpen, setIsDestinationModalOpen] = useState(false)
@@ -147,13 +147,13 @@ export function FlightSearchTab() {
   }
 
   const handleViewDetails = (flight: any) => {
-    setSelectedFlightId(flight.id)
+    setSelectedFlightForModal(flight)
     setIsModalOpen(true)
   }
 
   const handleCloseModal = () => {
     setIsModalOpen(false)
-    setSelectedFlightId(null)
+    setSelectedFlightForModal(null)
   }
 
   const handleOriginSelect = (city: City) => {
@@ -219,8 +219,8 @@ export function FlightSearchTab() {
   }
 
   const handleModalBookFlight = (details: FlightDetails) => {
-    const departureIso = resolveDateTime(details.departureTime, departDate, details.departureTime)
-    const arrivalIso = resolveDateTime(details.arrivalTime, departDate, details.arrivalTime)
+    const departureIso = resolveDateTime(details.departureDateTime, departDate, details.departureTime)
+    const arrivalIso = resolveDateTime(details.arrivalDateTime, departDate, details.arrivalTime)
 
     const normalized = {
       raw: {
@@ -769,7 +769,9 @@ export function FlightSearchTab() {
 
       {/* Modals */}
       <FlightDetailsModal
-        flightId={selectedFlightId}
+        flightId={selectedFlightForModal?.id}
+        seatClass={selectedFlightForModal?.class}
+        departureDateTime={selectedFlightForModal?.raw?.departureDateTime}
         isOpen={isModalOpen}
         onClose={handleCloseModal}
         onBookFlight={handleModalBookFlight}

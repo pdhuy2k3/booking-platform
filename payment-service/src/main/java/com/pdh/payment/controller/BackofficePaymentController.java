@@ -46,7 +46,7 @@ public class BackofficePaymentController {
      */
     @Operation(summary = "Get payments", description = "Get paginated list of payments with filtering")
     @GetMapping("/payments")
-    public ResponseEntity<ApiResponse<Page<Payment>>> getPayments(
+    public ResponseEntity<ApiResponse<Page<BackofficePaymentDto>>> getPayments(
             @Parameter(description = "Page number") @RequestParam(defaultValue = "0") int page,
             @Parameter(description = "Page size") @RequestParam(defaultValue = "20") int size,
             @Parameter(description = "Search term") @RequestParam(required = false) String search,
@@ -83,7 +83,7 @@ public class BackofficePaymentController {
                     .direction(direction)
                     .build();
 
-            Page<Payment> payments = backofficePaymentService.getPayments(filters);
+            Page<BackofficePaymentDto> payments = backofficePaymentService.getPayments(filters);
             return ResponseEntity.ok(ApiResponse.success(payments));
 
         } catch (Exception e) {

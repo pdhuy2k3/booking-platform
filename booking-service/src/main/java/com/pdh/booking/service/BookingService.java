@@ -5,7 +5,6 @@ import com.pdh.booking.model.enums.BookingStatus;
 import com.pdh.booking.model.enums.BookingType;
 import com.pdh.booking.repository.BookingRepository;
 import com.pdh.common.utils.AuthenticationUtils;
-import com.pdh.common.outbox.service.OutboxEventService;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.pdh.common.saga.SagaState;
@@ -15,8 +14,6 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.HashMap;
-import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -24,8 +21,8 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 
 /**
- * Booking service using CQRS pattern with Kafka events
- * Replaces direct REST calls with event-driven communication for saga orchestration
+ * Booking service using CQRS pattern
+ * Handles core booking lifecycle without saga orchestration
  */
 @Service
 @Slf4j
@@ -33,71 +30,29 @@ import org.springframework.data.domain.Pageable;
 public class BookingService {
 
     private final BookingRepository bookingRepository;
-    private final OutboxEventService eventPublisher;
     private final AnalyticsEventService analyticsEventService;
     private final ObjectMapper objectMapper;
 
     /**
-     * Create booking entity and publish initial saga command
-     * This method only creates the booking entity and initiates the saga
-     * Actual processing is handled by the saga orchestrator via Kafka events
+     * Create booking entity and emit analytics signal
      */
     @Transactional
     public Booking createBooking(Booking booking) {
         log.info("Creating booking with reference: {}", booking.getBookingReference());
-        
+
         // Set user ID from authentication context
         booking.setUserId(UUID.fromString(AuthenticationUtils.extractUserId()));
-        booking.setStatus(BookingStatus.VALIDATION_PENDING);
-        
+        booking.setStatus(BookingStatus.PENDING);
+
         // Save booking first
         Booking savedBooking = bookingRepository.save(booking);
-        
+
         // Publish analytics event for booking initiated
         analyticsEventService.publishBookingAnalyticsEvent(savedBooking, "booking.initiated");
-        
-        // Publish validation command to start the async validation process
-        publishValidationCommand(savedBooking);
-        
-        log.info("Booking {} created and validation command published", savedBooking.getBookingReference());
-        
+
+        log.info("Booking {} created", savedBooking.getBookingReference());
+
         return savedBooking;
-    }
-
-    /**
-     * Publish validation command for async processing
-     * This follows the "Listen to Yourself" pattern where we publish an event
-     * that we also consume to trigger async processing
-     */
-    private void publishValidationCommand(Booking booking) {
-        try {
-            // Create a simple payload with just basic information
-            Map<String, Object> payloadMap = new HashMap<>();
-            payloadMap.put("eventType", "ValidateInventoryCommand");
-            payloadMap.put("bookingId", booking.getBookingId().toString());
-            payloadMap.put("bookingType", booking.getBookingType().name());
-            payloadMap.put("totalAmount", booking.getTotalAmount());
-            payloadMap.put("currency", booking.getCurrency());
-            payloadMap.put("customerId", booking.getUserId().toString());
-            payloadMap.put("sagaId", booking.getSagaId()); // Add sagaId to payload
-
-            if (booking.getProductDetailsJson() != null && !booking.getProductDetailsJson().isBlank()) {
-                JsonNode productDetailsNode = objectMapper.readTree(booking.getProductDetailsJson());
-                payloadMap.put("productDetails", productDetailsNode);
-            }
-
-            eventPublisher.publishEvent(
-                "ValidateInventoryCommand",
-                "Booking",
-                booking.getBookingId().toString(),
-                payloadMap
-            );
-            
-            log.debug("Validation command published for booking: {}", booking.getBookingReference());
-        } catch (Exception e) {
-            log.error("Error publishing validation command for booking: {}", booking.getBookingReference(), e);
-            throw new BookingProcessingException("Failed to publish validation command: " + e.getMessage(), e);
-        }
     }
 
     // Utility methods
@@ -241,12 +196,5 @@ public class BookingService {
             }
         }
         return builder.length() == 0 ? null : builder.toString();
-    }
-
-    // Exception class
-    public static class BookingProcessingException extends RuntimeException {
-        public BookingProcessingException(String message, Throwable cause) {
-            super(message, cause);
-        }
     }
 }
