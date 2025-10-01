@@ -35,6 +35,8 @@ function mapFareToFlightDetails(fareDetails: FlightFareDetails, flightId: string
     currency: fareDetails.currency,
     seatClass: fareDetails.seatClass,
     availableSeats: fareDetails.availableSeats || 0,
+    scheduleId: fareDetails.scheduleId,
+    fareId: fareDetails.fareId,
   };
 }
 
@@ -48,11 +50,17 @@ export const flightService = {
   get(id: string) {
     return apiClient.get<FlightDetails>(`/flights/storefront/${encodeURIComponent(id)}`)
   },
-  async getFareDetails(flightId: string, params: { seatClass: string, departureDateTime: string }): Promise<FlightDetails> {
-    const fareDetails = await apiClient.get<FlightFareDetails>(`/flights/storefront/${encodeURIComponent(flightId)}/fare-details`, {
-      params: params
-    });
-    return mapFareToFlightDetails(fareDetails, flightId);
+  async getFareDetails(
+    flightId: string,
+    params: { seatClass?: string; departureDateTime?: string; scheduleId?: string; fareId?: string }
+  ): Promise<FlightDetails> {
+    const fareDetails = await apiClient.get<FlightFareDetails>(
+      `/flights/storefront/${encodeURIComponent(flightId)}/fare-details`,
+      {
+        params,
+      }
+    )
+    return mapFareToFlightDetails(fareDetails, flightId)
   },
   // Use the new destination service for better Vietnamese administrative units integration
   async searchAirports(search?: string) {

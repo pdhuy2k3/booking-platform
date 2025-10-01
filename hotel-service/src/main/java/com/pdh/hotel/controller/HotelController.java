@@ -370,13 +370,13 @@ public class HotelController {
                     checkIn,
                     checkOut);
 
-            List<Map<String, Object>> dailyAvailability = summary.dailyDetails().stream()
+            List<Map<String, Object>> dailyAvailability = summary.getDailyDetails().stream()
                     .map(detail -> {
                         Map<String, Object> detailMap = new LinkedHashMap<>();
-                        detailMap.put("date", detail.date().toString());
-                        detailMap.put("totalInventory", detail.totalInventory());
-                        detailMap.put("totalReserved", detail.totalReserved());
-                        detailMap.put("remaining", detail.remaining());
+                        detailMap.put("date", detail.getDate().toString());
+                        detailMap.put("totalInventory", detail.getTotalInventory());
+                        detailMap.put("totalReserved", detail.getTotalReserved());
+                        detailMap.put("remaining", detail.getRemaining());
                         return detailMap;
                     })
                     .collect(Collectors.toList());
@@ -386,10 +386,10 @@ public class HotelController {
             response.put("roomType", roomType.trim());
             response.put("checkIn", checkIn.toString());
             response.put("checkOut", checkOut.toString());
-            response.put("roomsRequested", summary.requestedRooms());
-            response.put("roomsAvailable", summary.roomsAvailable());
-            response.put("available", summary.available());
-            response.put("message", summary.message());
+            response.put("roomsRequested", summary.getRequestedRooms());
+            response.put("roomsAvailable", summary.getRoomsAvailable());
+            response.put("available", summary.isAvailable());
+            response.put("message", summary.getMessage());
             response.put("dailyAvailability", dailyAvailability);
 
             return ResponseEntity.ok(response);
@@ -498,9 +498,10 @@ public class HotelController {
                     "bookingId", bookingId,
                     "sagaId", sagaId,
                     "hotelId", hotelDetails.getHotelId(),
+                    "roomTypeId", hotelDetails.getRoomTypeId(),
                     "roomId", hotelDetails.getRoomId(),
-                    "guests", hotelDetails.getGuests(),
-                    "rooms", hotelDetails.getRooms()
+                    "guests", hotelDetails.getNumberOfGuests(),
+                    "rooms", hotelDetails.getNumberOfRooms()
                 );
 
                 log.info("Detailed hotel reservation response: {}", response);

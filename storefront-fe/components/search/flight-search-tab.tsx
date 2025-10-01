@@ -123,6 +123,8 @@ export function FlightSearchTab() {
       currency: flight.currency || 'VND',
       seatClass: flight.seatClass || 'ECONOMY',
       logo: flight.airlineLogo || '/airplane-generic.png',
+      scheduleId: flight.scheduleId,
+      fareId: flight.fareId,
       departure: {
         time: getDisplayTime(departureDateTime, flight.departureTime),
         airport: flight.origin,
@@ -138,7 +140,11 @@ export function FlightSearchTab() {
       price: flight.price,
       class: flight.seatClass || 'ECONOMY',
       rating: 4.5,
-      raw: flight,
+      raw: {
+        ...flight,
+        departureDateTime,
+        arrivalDateTime,
+      },
     }
   }
 
@@ -207,10 +213,12 @@ export function FlightSearchTab() {
       currency: flightData.currency || 'VND',
       seatClass: normalizedSeatClass,
       logo: airlineLogo,
+      scheduleId: flightData.scheduleId,
+      fareId: flightData.fareId,
     })
     updateBookingData({
       bookingType: 'FLIGHT',
-      totalAmount: ticketPrice,
+      totalAmount: 0,
       currency: flightData.currency || 'VND',
       productDetails: undefined,
     })
@@ -238,8 +246,23 @@ export function FlightSearchTab() {
         airlineLogo: '/airplane-generic.png',
         departureTime: details.departureTime,
         arrivalTime: details.arrivalTime,
+        scheduleId: details.scheduleId,
+        fareId: details.fareId,
       },
+      id: details.flightId,
+      airline: details.airline,
+      flightNumber: details.flightNumber,
+      origin: details.origin,
+      destination: details.destination,
+      departureTime: departureIso || details.departureTime,
+      arrivalTime: arrivalIso || details.arrivalTime,
+      duration: details.duration,
+      price: details.price,
+      currency: details.currency,
+      seatClass: details.seatClass,
       logo: '/airplane-generic.png',
+      scheduleId: details.scheduleId,
+      fareId: details.fareId,
       departureDateTime: departureIso || details.departureTime,
       arrivalDateTime: arrivalIso || details.arrivalTime,
     }
@@ -772,6 +795,8 @@ export function FlightSearchTab() {
         flightId={selectedFlightForModal?.id}
         seatClass={selectedFlightForModal?.class}
         departureDateTime={selectedFlightForModal?.raw?.departureDateTime}
+        scheduleId={selectedFlightForModal?.raw?.scheduleId}
+        fareId={selectedFlightForModal?.raw?.fareId}
         isOpen={isModalOpen}
         onClose={handleCloseModal}
         onBookFlight={handleModalBookFlight}

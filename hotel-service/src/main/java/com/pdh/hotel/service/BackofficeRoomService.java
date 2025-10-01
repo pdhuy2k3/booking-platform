@@ -24,6 +24,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
 import java.util.*;
+import java.util.concurrent.ThreadLocalRandom;
 import java.util.stream.Collectors;
 
 @Service
@@ -549,6 +550,74 @@ public class BackofficeRoomService {
             .activeRoomCount(normalizedActiveRooms)
             .availability(availability)
             .build();
+    }
+
+    public RoomAvailabilityResponseDto generateRandomAvailability(Long hotelId,
+                                                                  Long roomTypeId,
+                                                                  LocalDate startDate,
+                                                                  LocalDate endDate,
+                                                                  Integer minInventory,
+                                                                  Integer maxInventory,
+                                                                  Integer minReserved,
+                                                                  Integer maxReserved) {
+
+        LocalDate effectiveStart = Optional.ofNullable(startDate).orElse(LocalDate.now());
+        LocalDate effectiveEnd = Optional.ofNullable(endDate).orElse(effectiveStart.plusDays(29));
+
+        if (effectiveEnd.isBefore(effectiveStart)) {
+            throw new IllegalArgumentException("endDate must be on or after startDate");
+        }
+
+        RoomType roomType = roomTypeRepository.findById(roomTypeId)
+            .orElseThrow(() -> new EntityNotFoundException("Room type not found with ID: " + roomTypeId));
+
+        if (roomType.getHotel() == null || !Objects.equals(roomType.getHotel().getHotelId(), hotelId)) {
+            throw new EntityNotFoundException("Room type does not belong to the specified hotel");
+        }
+
+        int normalizedActiveRooms = (int) Math.min(roomRepository.countActiveRoomsByRoomType(roomTypeId), (long) Integer.MAX_VALUE);
+        int fallbackMaxInventory = normalizedActiveRooms > 0 ? normalizedActiveRooms : 10;
+        int resolvedMinInventory = Math.max(1, Optional.ofNullable(minInventory).orElse(Math.max(1, fallbackMaxInventory / 2)));
+        int resolvedMaxInventory = Optional.ofNullable(maxInventory).orElse(fallbackMaxInventory);
+        if (resolvedMinInventory > resolvedMaxInventory) {
+            resolvedMinInventory = resolvedMaxInventory;
+        }
+
+        int resolvedMinReserved = Math.max(0, Optional.ofNullable(minReserved).orElse(0));
+        int resolvedMaxReserved = Optional.ofNullable(maxReserved)
+            .orElse(Math.max(resolvedMinReserved, (int) Math.round(resolvedMaxInventory * 0.7)));
+
+        List<RoomAvailability> existingRecords = roomAvailabilityRepository
+            .findByRoomTypeIdAndDateBetween(roomTypeId, effectiveStart, effectiveEnd);
+
+        Map<LocalDate, RoomAvailability> existingByDate = existingRecords.stream()
+            .collect(Collectors.toMap(RoomAvailability::getDate, record -> record));
+
+        ThreadLocalRandom random = ThreadLocalRandom.current();
+        LocalDate cursor = effectiveStart;
+        while (!cursor.isAfter(effectiveEnd)) {
+            int inventory = random.nextInt(resolvedMinInventory, resolvedMaxInventory + 1);
+            int maxReservedForDay = Math.min(resolvedMaxReserved, inventory);
+            int minReservedForDay = Math.min(resolvedMinReserved, maxReservedForDay);
+            int reserved = maxReservedForDay >= minReservedForDay
+                ? random.nextInt(minReservedForDay, maxReservedForDay + 1)
+                : minReservedForDay;
+
+            RoomAvailability record = existingByDate.get(cursor);
+            if (record == null) {
+                record = new RoomAvailability();
+                record.setRoomTypeId(roomTypeId);
+                record.setDate(cursor);
+            }
+
+            record.setTotalInventory(inventory);
+            record.setTotalReserved(reserved);
+            roomAvailabilityRepository.save(record);
+
+            cursor = cursor.plusDays(1);
+        }
+
+        return getRoomAvailability(hotelId, roomTypeId, effectiveStart, effectiveEnd);
     }
 
     public RoomAvailabilityResponseDto updateRoomAvailability(Long hotelId, Long roomTypeId,

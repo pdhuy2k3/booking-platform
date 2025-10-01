@@ -1,19 +1,14 @@
-curl -i -X PUT -H  "Content-Type:application/json" \
-    http://localhost:8083/connectors/flight-connector/config \
-    -d @debezium/flight-db-connector.json
+#!/usr/bin/env bash
 
-curl -i -X PUT -H  "Content-Type:application/json" \
-    http://localhost:8083/connectors/booking-connector/config \
-    -d @debezium/booking-saga-outbox-connector.json
 
-curl -i -X PUT -H  "Content-Type:application/json" \
-    http://localhost:8083/connectors/hotel-connector/config \
-    -d @debezium/hotel-db-connector.json
+# Flight
+curl -i -X PUT -H "Content-Type: application/json" --data-binary /tmp/connectors/flight-db-connector.json http://connect:8083/connectors/flight-connector/config
 
-curl -i -X PUT -H  "Content-Type:application/json" \
-    http://localhost:8083/connectors/payment-connector/config \
-    -d @debezium/payment-db-connector.json
+# Booking (saga outbox)
+curl -i -X PUT -H "Content-Type: application/json" --data-binary /tmp/connectors/booking-saga-outbox-connector.json http://connect:8083/connectors/booking-connector/config
 
-curl -i -X PUT -H  "Content-Type:application/json" \
-    http://localhost:8083/connectors/notification-connector/config \
-    -d @debezium/notification-db-connector.json
+# Hotel
+curl -i -X PUT -H "Content-Type: application/json" --data-binary /tmp/connectors/hotel-db-connector.json http://connect:8083/connectors/hotel-connector/config
+
+# Payment
+curl -i -X PUT -H "Content-Type: application/json" --data-binary /tmp/connectors/payment-db-connector.json http://connect:8083/connectors/payment-connector/config

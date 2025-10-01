@@ -129,7 +129,8 @@ export default function HotelsPage() {
       ? hotel.amenities
       : []
 
-    const roomId = room.id || room.roomId
+    const roomTypeId = (room as any)?.roomTypeId || room.id || room.roomId
+    const roomId = room.roomId || room.id || roomTypeId
     const roomName = room.name || room.roomType || 'Selected Room'
     const roomType = room.roomType || room.name || 'Room'
     const price = Number(room.price ?? room.pricePerNight ?? hotel.pricePerNight) || 0
@@ -149,6 +150,7 @@ export default function HotelsPage() {
       city: hotel.city || '',
       country: hotel.country || '',
       rating: hotel.starRating ?? hotel.rating,
+      roomTypeId: roomTypeId ? String(roomTypeId) : '',
       roomId: roomId,
       roomType,
       roomName,

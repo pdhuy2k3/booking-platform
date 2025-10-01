@@ -72,6 +72,10 @@ public class FlightBookingDetailsDto {
      */
     @NotBlank(message = "Seat class is required")
     private String seatClass;
+
+    private String scheduleId;
+
+    private String fareId;
     
     /**
      * Number of passengers

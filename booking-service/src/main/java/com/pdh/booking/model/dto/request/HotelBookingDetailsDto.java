@@ -64,6 +64,11 @@ public class HotelBookingDetailsDto {
      */
     @NotBlank(message = "Room type ID is required")
     private String roomTypeId;
+
+    /**
+     * Selected room ID (optional)
+     */
+    private String roomId;
     
     /**
      * Room type (Standard, Deluxe, Suite, etc.)

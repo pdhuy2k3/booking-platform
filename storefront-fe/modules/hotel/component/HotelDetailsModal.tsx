@@ -18,9 +18,24 @@ interface HotelDetailsModalProps {
   onBookRoom?: (payload: { hotel: HotelDetails; room: any }) => void
   canBook?: boolean
   onPromptSearch?: () => void
+  checkInDate?: string
+  checkOutDate?: string
+  guestCount?: number
+  roomCount?: number
 }
 
-export default function HotelDetailsModal({ hotelId, isOpen, onClose, onBookRoom, canBook = true, onPromptSearch }: HotelDetailsModalProps) {
+export default function HotelDetailsModal({
+  hotelId,
+  isOpen,
+  onClose,
+  onBookRoom,
+  canBook = true,
+  onPromptSearch,
+  checkInDate,
+  checkOutDate,
+  guestCount,
+  roomCount,
+}: HotelDetailsModalProps) {
   const [selectedRoom, setSelectedRoom] = useState("standard")
   const [hotel, setHotel] = useState<HotelDetails | null>(null)
   const [loading, setLoading] = useState(false)
@@ -133,6 +148,17 @@ export default function HotelDetailsModal({ hotelId, isOpen, onClose, onBookRoom
   }
 
   const selectedRoomData = roomTypes.find((room) => room.id === selectedRoom) || roomTypes[0]
+
+  const parsedCheckIn = checkInDate ? new Date(checkInDate) : null
+  const parsedCheckOut = checkOutDate ? new Date(checkOutDate) : null
+  const nights = parsedCheckIn && parsedCheckOut && !Number.isNaN(parsedCheckIn.valueOf()) && !Number.isNaN(parsedCheckOut.valueOf()) && parsedCheckOut > parsedCheckIn
+    ? Math.max(1, Math.round((parsedCheckOut.getTime() - parsedCheckIn.getTime()) / (1000 * 60 * 60 * 24)))
+    : 1
+  const formattedCheckIn = parsedCheckIn ? parsedCheckIn.toLocaleDateString('vi-VN', { day: 'numeric', month: 'short', year: 'numeric' }) : 'Chưa chọn'
+  const formattedCheckOut = parsedCheckOut ? parsedCheckOut.toLocaleDateString('vi-VN', { day: 'numeric', month: 'short', year: 'numeric' }) : 'Chưa chọn'
+  const effectiveGuestCount = guestCount && guestCount > 0 ? guestCount : 2
+  const effectiveRoomCount = roomCount && roomCount > 0 ? roomCount : 1
+  const totalPrice = Number(selectedRoomData.price ?? 0) * nights * effectiveRoomCount
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
@@ -305,19 +331,19 @@ export default function HotelDetailsModal({ hotelId, isOpen, onClose, onBookRoom
                       </div>
                       <div className="flex justify-between">
                         <span className="text-sm">Nhận phòng:</span>
-                        <span className="text-sm">Dec 15, 2024</span>
+                        <span className="text-sm">{formattedCheckIn}</span>
                       </div>
                       <div className="flex justify-between">
                         <span className="text-sm">Trả phòng:</span>
-                        <span className="text-sm">Dec 18, 2024</span>
+                        <span className="text-sm">{formattedCheckOut}</span>
                       </div>
                       <div className="flex justify-between">
-                        <span className="text-sm">Khách:</span>
-                        <span className="text-sm">2 người lớn</span>
+                        <span className="text-sm">Khách / Phòng:</span>
+                        <span className="text-sm">{effectiveGuestCount} khách · {effectiveRoomCount} phòng</span>
                       </div>
                       <div className="flex justify-between">
                         <span className="text-sm">Số đêm:</span>
-                        <span className="text-sm">3</span>
+                        <span className="text-sm">{nights}</span>
                       </div>
                     </div>
 
@@ -328,7 +354,7 @@ export default function HotelDetailsModal({ hotelId, isOpen, onClose, onBookRoom
                     <div className="flex justify-between font-semibold">
                       <span>Tổng cộng</span>
                       <span className="text-lg text-primary">
-                        {formatPrice(Number(selectedRoomData.price ?? 0) * 3)}
+                        {formatPrice(totalPrice)}
                       </span>
                     </div>
 

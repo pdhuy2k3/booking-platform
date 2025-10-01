@@ -133,7 +133,8 @@ export function HotelSearchTab() {
       ? hotel.amenities
       : []
 
-    const roomId = room.id || room.roomId
+    const roomTypeId = (room as any)?.roomTypeId || room.id || room.roomId
+    const roomId = room.roomId || room.id || roomTypeId
     const roomName = room.name || room.roomType || 'Selected Room'
     const roomType = room.roomType || room.name || 'Room'
     const price = Number(room.price ?? room.pricePerNight ?? hotel.pricePerNight) || 0
@@ -153,6 +154,7 @@ export function HotelSearchTab() {
       city: hotel.city || '',
       country: hotel.country || '',
       rating: hotel.starRating ?? hotel.rating,
+      roomTypeId: roomTypeId ? String(roomTypeId) : '',
       roomId: roomId,
       roomType,
       roomName,
@@ -338,6 +340,10 @@ export function HotelSearchTab() {
   const toggleSearchCollapse = () => {
     setIsSearchCollapsed(!isSearchCollapsed)
   }
+
+  const [guestCountRaw, roomCountRaw] = guests.split('-')
+  const selectedGuestCount = parseInt(guestCountRaw || '2', 10) || undefined
+  const selectedRoomCount = parseInt(roomCountRaw || '1', 10) || undefined
 
   return (
     <div className="flex flex-col h-full bg-gray-50">
@@ -656,6 +662,10 @@ export function HotelSearchTab() {
         onBookRoom={handleRoomBooking}
         canBook={hasSearched}
         onPromptSearch={scrollToSearch}
+        checkInDate={checkInDate || undefined}
+        checkOutDate={checkOutDate || undefined}
+        guestCount={selectedGuestCount}
+        roomCount={selectedRoomCount}
       />
 
       <HotelDestinationModal

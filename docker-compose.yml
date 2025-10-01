@@ -4,7 +4,7 @@ services:
     depends_on:
       - postgres
     image: quay.io/keycloak/keycloak:26.2.4
-    command: 'start --import-realm --http-enabled=true'
+    command: "start --import-realm --http-enabled=true"
     environment:
       KC_HOSTNAME: https://identity-bookingsmart.huypd.dev
       KC_DB: postgres
@@ -16,7 +16,6 @@ services:
     volumes:
       - ./identity/bookingsmart-keycloak-theme.jar:/opt/keycloak/providers/bookingsmart-keycloak-theme.jar
       - ./identity/realm-export.json:/opt/keycloak/data/import/realm-export.json
-
 
     networks:
       - booking-network
@@ -84,8 +83,6 @@ services:
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
       KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
 
-
-
   # Debezium Connect
   connect:
     image: quay.io/debezium/connect:3.2.0.Final
@@ -105,9 +102,55 @@ services:
       CONNECT_KEY_CONVERTER: org.apache.kafka.connect.json.JsonConverter
       CONNECT_VALUE_CONVERTER: org.apache.kafka.connect.json.JsonConverter
       CONNECT_REST_ADVERTISED_HOST_NAME: connect
-    volumes:
-      - ./debezium:/kafka/connect/debezium-connectors
 
+  kafka-setup:
+    image: confluentinc/cp-kafka:7.7.1
+    container_name: kafka-setup
+    depends_on:
+      - kafka
+      - connect
+    volumes:
+      - ./debezium:/tmp/connectors
+    command: >
+      bash -lc '
+        set -e
+        echo "Waiting for Kafka Connect..." 
+        sleep 20
+
+        echo "Deploy flight connector"
+        curl -i -X PUT -H "Accept: application/json" -H "Content-Type: application/json" \
+          --data-binary @/tmp/connectors/flight-db-connector.json \
+          http://connect:8083/connectors/flight-connector/config
+
+        echo "Deploy booking connector"
+        curl -i -X PUT -H "Accept: application/json" -H "Content-Type: application/json" \
+          --data-binary @/tmp/connectors/booking-saga-outbox-connector.json \
+          http://connect:8083/connectors/booking-connector/config
+
+        echo "Deploy hotel connector"
+        curl -i -X PUT -H "Accept: application/json" -H "Content-Type: application/json" \
+          --data-binary @/tmp/connectors/hotel-db-connector.json \
+          http://connect:8083/connectors/hotel-connector/config
+
+        echo "Deploy payment connector"
+        curl -i -X PUT -H "Accept: application/json" -H "Content-Type: application/json" \
+          --data-binary @/tmp/connectors/payment-db-connector.json \
+          http://connect:8083/connectors/payment-connector/config
+      '
+    environment:
+      KAFKA_BROKER_ID: ignored
+      KAFKA_ZOOKEEPER_CONNECT: ignored
+    networks:
+      - booking-network
+      
+  debezium-ui:
+    image: quay.io/debezium/debezium-ui:2.1.2.Final
+    ports:
+      - "8077:8080"
+    environment:
+      KAFKA_CONNECT_URIS: http://connect:8083
+    networks:
+      - booking-network
   # Kafka UI
   # kafka-ui:
   #   image: provectuslabs/kafka-ui:latest
@@ -143,9 +186,18 @@ services:
       dockerfile: Dockerfile
     image: phamduyhuyuit/bookingsmart-backoffice:latest
     depends_on:
-      - postgres  # Chỉ đợi postgres healthy
+      - postgres # Chỉ đợi postgres healthy
       - identity
-    entrypoint: ["/wait-for-it.sh", "identity:80", "--timeout=140", "--", "java", "-jar", "/app.jar"]
+    entrypoint:
+      [
+        "/wait-for-it.sh",
+        "identity:80",
+        "--timeout=140",
+        "--",
+        "java",
+        "-jar",
+        "/app.jar",
+      ]
     environment:
       - SPRING_PROFILES_ACTIVE=docker
       - EUREKA_URI
@@ -165,7 +217,16 @@ services:
     depends_on:
       - postgres
       - identity
-    entrypoint: ["/wait-for-it.sh", "identity:80", "--timeout=140", "--", "java", "-jar", "/app.jar"]
+    entrypoint:
+      [
+        "/wait-for-it.sh",
+        "identity:80",
+        "--timeout=140",
+        "--",
+        "java",
+        "-jar",
+        "/app.jar",
+      ]
 
     environment:
       - SPRING_PROFILES_ACTIVE=docker
@@ -231,7 +292,16 @@ services:
       context: ./aiAgent-service
       dockerfile: Dockerfile
     image: phamduyhuyuit/bookingsmart-ai-agent-service:latest
-    entrypoint: ["/wait-for-it.sh", "identity:80", "--timeout=140", "--", "java", "-jar", "/app.jar"]
+    entrypoint:
+      [
+        "/wait-for-it.sh",
+        "identity:80",
+        "--timeout=140",
+        "--",
+        "java",
+        "-jar",
+        "/app.jar",
+      ]
     environment:
       - SPRING_PROFILES_ACTIVE=docker
       - EUREKA_URI
@@ -355,7 +425,6 @@ services:
     networks:
       - booking-network
 
-
   # Nginx Reverse Proxy - API Gateway for Cloudflare Tunnel
   nginx:
     image: nginx:1.25-alpine
@@ -408,7 +477,6 @@ services:
 #    restart: unless-stopped
 #    networks:
 #      - booking-network
-
 
 networks:
   booking-network:

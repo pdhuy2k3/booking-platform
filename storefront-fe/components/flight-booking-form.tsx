@@ -123,6 +123,8 @@ export function FlightBookingForm({ flight, onSubmit, onCancel }: FlightBookingF
       departureDateTime: departureDate ? departureDate.toISOString() : new Date().toISOString(),
       arrivalDateTime: flight.arrivalTime,
       seatClass,
+      scheduleId: flight.scheduleId,
+      fareId: flight.fareId,
       passengerCount,
       passengers,
       pricePerPassenger: flight.price,

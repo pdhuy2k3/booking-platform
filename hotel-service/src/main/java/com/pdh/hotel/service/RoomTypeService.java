@@ -233,7 +233,7 @@ public class RoomTypeService {
                 normalizedCheckIn,
                 normalizedCheckOut
             );
-            available = summary.available();
+            available = summary.isAvailable();
         } catch (Exception e) {
             log.warn("Unable to compute availability for room type {}: {}", roomTypeId, e.getMessage());
         }

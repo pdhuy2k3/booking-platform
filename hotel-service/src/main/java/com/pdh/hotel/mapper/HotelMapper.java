@@ -271,7 +271,7 @@ public class HotelMapper {
             try {
                 HotelInventoryService.AvailabilitySummary summary = hotelInventoryService.getAvailabilitySummary(
                     hotel.getHotelId(), roomType.getName(), roomsRequested, checkIn, checkOut);
-                available = summary.available();
+                available = summary.isAvailable();
             } catch (Exception e) {
                 log.warn("Unable to compute availability for hotel {} room type {}: {}",
                     hotel.getHotelId(), roomType.getName(), e.getMessage());

@@ -33,7 +33,7 @@ export const useStripeContext = () => {
 export const StripeProvider: React.FC<StripeProviderProps> = ({
   children,
   amount = 0,
-  currency = 'usd',
+  currency = 'vnd',
   mode = 'payment',
   appearance,
 }) => {

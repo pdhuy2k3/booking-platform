@@ -68,14 +68,16 @@ public class FlightSearchResultDto {
     private Double price;
     private String currency;
     private String formattedPrice; // Formatted price with currency symbol
-    
+
     /**
      * Seat information
      */
     private String seatClass;
     private Integer availableSeats;
     private Integer totalSeats;
-    
+    private String scheduleId;
+    private String fareId;
+
     /**
      * Aircraft information
      */

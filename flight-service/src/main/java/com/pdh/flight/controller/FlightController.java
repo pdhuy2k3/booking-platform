@@ -321,55 +321,128 @@ public class FlightController {
     @GetMapping("/storefront/{flightId}/fare-details")
     public ResponseEntity<FlightFareDetailsResponse> getFareDetails(
             @PathVariable Long flightId,
-            @RequestParam(name = "seatClass") String seatClass,
-            @RequestParam(name = "departureDateTime") String departureDateTime) {
+            @RequestParam(name = "seatClass", required = false) String seatClass,
+            @RequestParam(name = "departureDateTime", required = false) String departureDateTime,
+            @RequestParam(name = "scheduleId", required = false) UUID scheduleId,
+            @RequestParam(name = "fareId", required = false) UUID fareId) {
 
-        log.info("Fare details request flightId={}, seatClass={}, departureDateTime={}", flightId, seatClass, departureDateTime);
+        log.info("Fare details request flightId={}, seatClass={}, departureDateTime={}, scheduleId={}, fareId={}",
+                flightId, seatClass, departureDateTime, scheduleId, fareId);
 
         try {
-            FareClass fareClass = FareClass.valueOf(seatClass.toUpperCase());
-            final ZonedDateTime departureTime = parseDepartureDateTime(departureDateTime);
+            FlightSchedule schedule = null;
+            FlightFare fare = null;
 
-            List<FlightSchedule> schedules = flightScheduleRepository.findByFlightId(flightId);
-            if (schedules.isEmpty()) {
+            FareClass requestedFareClass = null;
+            if (seatClass != null && !seatClass.isBlank()) {
+                try {
+                    requestedFareClass = FareClass.valueOf(seatClass.toUpperCase());
+                } catch (IllegalArgumentException ignored) {
+                    // leave null so we can fall back gracefully
+                }
+            }
+
+            UUID resolvedScheduleId = scheduleId;
+
+            if (fareId != null) {
+                Optional<FlightFare> fareOptional = flightFareRepository.findById(fareId);
+                if (fareOptional.isEmpty()) {
+                    return ResponseEntity.notFound().build();
+                }
+
+                FlightFare resolvedFare = fareOptional.get();
+                if (resolvedFare.isDeleted()) {
+                    return ResponseEntity.notFound().build();
+                }
+
+                if (resolvedScheduleId != null && !resolvedFare.getScheduleId().equals(resolvedScheduleId)) {
+                    log.warn("Requested fare {} does not belong to schedule {}", fareId, resolvedScheduleId);
+                    return ResponseEntity.status(HttpStatus.BAD_REQUEST).build();
+                }
+
+                resolvedScheduleId = resolvedFare.getScheduleId();
+                fare = resolvedFare;
+
+                if (requestedFareClass != null && fare.getFareClass() != null && fare.getFareClass() != requestedFareClass) {
+                    log.debug("Seat class {} requested but fare {} is {}. Using fare's class.",
+                            requestedFareClass, fareId, fare.getFareClass());
+                }
+
+                if (fare.getFareClass() != null) {
+                    requestedFareClass = fare.getFareClass();
+                }
+            }
+
+            if (resolvedScheduleId != null) {
+                schedule = flightScheduleRepository.findById(resolvedScheduleId).orElse(null);
+                if (schedule == null || schedule.isDeleted() || !schedule.getFlightId().equals(flightId)) {
+                    return ResponseEntity.notFound().build();
+                }
+            }
+
+            if (schedule == null && departureDateTime != null) {
+                final ZonedDateTime departureTime = parseDepartureDateTime(departureDateTime);
+
+                List<FlightSchedule> schedules = flightScheduleRepository.findByFlightId(flightId);
+                if (schedules.isEmpty()) {
+                    return ResponseEntity.notFound().build();
+                }
+
+                schedule = schedules.stream()
+                        .min(Comparator.comparingLong(sched -> Math.abs(Duration.between(departureTime, sched.getDepartureTime()).toMinutes())))
+                        .orElse(null);
+
+                if (schedule == null) {
+                    return ResponseEntity.notFound().build();
+                }
+
+                long minutesDifference = Math.abs(Duration.between(departureTime, schedule.getDepartureTime()).toMinutes());
+                if (minutesDifference > 360) {
+                    return ResponseEntity.notFound().build();
+                }
+            }
+
+            if (schedule == null) {
                 return ResponseEntity.notFound().build();
             }
 
-            FlightSchedule matchedSchedule = schedules.stream()
-                .min(Comparator.comparingLong(schedule -> Math.abs(Duration.between(departureTime, schedule.getDepartureTime()).toMinutes())))
-                .orElse(null);
-
-            if (matchedSchedule == null) {
-                return ResponseEntity.notFound().build();
-            }
-
-            long minutesDifference = Math.abs(Duration.between(departureTime, matchedSchedule.getDepartureTime()).toMinutes());
-            if (minutesDifference > 360) {
-                return ResponseEntity.notFound().build();
-            }
-
-            FlightFare fare = flightFareRepository.findByScheduleIdAndFareClass(matchedSchedule.getScheduleId(), fareClass);
             if (fare == null) {
+                if (requestedFareClass != null) {
+                    fare = flightFareRepository.findByScheduleIdAndFareClass(schedule.getScheduleId(), requestedFareClass);
+                    if (fare == null) {
+                        return ResponseEntity.notFound().build();
+                    }
+                } else {
+                    List<FlightFare> scheduleFares = flightFareRepository.findByScheduleId(schedule.getScheduleId());
+                    fare = scheduleFares.stream()
+                            .min(Comparator.comparing(FlightFare::getPrice))
+                            .orElse(null);
+                }
+            }
+
+            if (fare == null || fare.isDeleted()) {
                 return ResponseEntity.notFound().build();
             }
 
-            Flight flight = flightRepository.findById(flightId).orElse(null);
+            Flight flight = flightRepository.findById(flightId)
+                    .filter(f -> !f.isDeleted())
+                    .orElse(null);
 
             FlightFareDetailsResponse response = FlightFareDetailsResponse.builder()
-                .fareId(fare.getFareId())
-                .scheduleId(matchedSchedule.getScheduleId())
-                .seatClass(fareClass.name())
-                .price(fare.getPrice())
-                .currency("VND")
-                .availableSeats(fare.getAvailableSeats())
-                .departureTime(matchedSchedule.getDepartureTime().toString())
-                .arrivalTime(matchedSchedule.getArrivalTime().toString())
-                .flightNumber(flight != null ? flight.getFlightNumber() : null)
-                .airline(flight != null && flight.getAirline() != null ? flight.getAirline().getName() : null)
-                .originAirport(flight != null && flight.getDepartureAirport() != null ? flight.getDepartureAirport().getIataCode() : null)
-                .destinationAirport(flight != null && flight.getArrivalAirport() != null ? flight.getArrivalAirport().getIataCode() : null)
-                .aircraftType(matchedSchedule.getAircraftType())
-                .build();
+                    .fareId(fare.getFareId())
+                    .scheduleId(schedule.getScheduleId())
+                    .seatClass(fare.getFareClass() != null ? fare.getFareClass().name() : null)
+                    .price(fare.getPrice())
+                    .currency("VND")
+                    .availableSeats(fare.getAvailableSeats())
+                    .departureTime(schedule.getDepartureTime().toString())
+                    .arrivalTime(schedule.getArrivalTime().toString())
+                    .flightNumber(flight != null ? flight.getFlightNumber() : null)
+                    .airline(flight != null && flight.getAirline() != null ? flight.getAirline().getName() : null)
+                    .originAirport(flight != null && flight.getDepartureAirport() != null ? flight.getDepartureAirport().getIataCode() : null)
+                    .destinationAirport(flight != null && flight.getArrivalAirport() != null ? flight.getArrivalAirport().getIataCode() : null)
+                    .aircraftType(schedule.getAircraftType())
+                    .build();
 
             return ResponseEntity.ok(response);
 

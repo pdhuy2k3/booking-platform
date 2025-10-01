@@ -1,66 +1,83 @@
 package com.pdh.hotel.kafka.consumer;
 
-import com.pdh.common.kafka.cdc.BaseCdcConsumer;
-import com.pdh.common.kafka.cdc.message.BookingCdcMessage;
-import com.pdh.common.kafka.cdc.message.BookingMsgKey;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.pdh.common.saga.SagaCommand;
+import com.pdh.hotel.dto.HotelBookingDetailsDto;
 import com.pdh.hotel.service.HotelService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.kafka.annotation.KafkaListener;
-import org.springframework.messaging.handler.annotation.Header;
+import org.springframework.kafka.support.Acknowledgment;
 import org.springframework.messaging.handler.annotation.Payload;
 import org.springframework.stereotype.Component;
 
-import static org.springframework.kafka.support.KafkaHeaders.RECEIVED_KEY;
-import static org.springframework.kafka.support.KafkaHeaders.RECEIVED_TOPIC;
+import java.util.UUID;
 
 /**
- * Hotel Event Consumer
- * Listens to booking-related events from Kafka
+ * Handles hotel saga commands emitted by booking-service.
  */
 @Component
 @RequiredArgsConstructor
 @Slf4j
-public class HotelEventConsumer extends BaseCdcConsumer<BookingMsgKey, BookingCdcMessage> {
+public class HotelEventConsumer {
 
     private final HotelService hotelService;
+    private final ObjectMapper objectMapper;
 
     @KafkaListener(
-        topics = "booking-db-server.public.booking_outbox_events",
-        containerFactory = "hotelEventListenerContainerFactory"
+        topics = "booking-saga-commands",
+        groupId = "hotel-service-saga-group",
+        containerFactory = "sagaCommandListenerContainerFactory"
     )
-    public void processHotelEvent(
-        @Payload BookingCdcMessage message,
-        @Header(RECEIVED_KEY) BookingMsgKey key,
-        @Header(RECEIVED_TOPIC) String topic
-    ) {
-        log.info("Received hotel event from topic {}: {}", topic, message);
-
+    public void handleSagaCommand(@Payload String message, Acknowledgment acknowledgment) {
         try {
-            handleCdcMessage(key, message, message.getOp());
-        } catch (Exception e) {
-            log.error("Error processing hotel event: {}", message, e);
-            // Here you could implement dead letter queue or retry logic
+            SagaCommand command = objectMapper.readValue(message, SagaCommand.class);
+            if (command == null || command.getAction() == null) {
+                acknowledgment.acknowledge();
+                return;
+            }
+
+            switch (command.getAction()) {
+                case "RESERVE_HOTEL" -> reserveHotel(command);
+                case "CANCEL_HOTEL_RESERVATION" -> cancelHotel(command);
+                default -> {
+                    acknowledgment.acknowledge();
+                    return;
+                }
+            }
+
+            acknowledgment.acknowledge();
+        } catch (Exception ex) {
+            log.error("Error processing hotel saga command: {}", message, ex);
         }
     }
 
-    @Override
-    protected void handleCreate(BookingMsgKey key, BookingCdcMessage message) {
-        log.info("Processing hotel booking creation for booking: {}", key.getId());
-        hotelService.reserveHotel(key.getId());
+    private void reserveHotel(SagaCommand command) {
+        UUID bookingId = command.getBookingId();
+        String sagaId = command.getSagaId();
+        HotelBookingDetailsDto details = convertHotelDetails(command);
+
+        if (details != null) {
+            hotelService.reserveHotel(bookingId, sagaId, details);
+        } else {
+            hotelService.reserveHotel(bookingId);
+        }
     }
 
-    @Override
-    protected void handleUpdate(BookingMsgKey key, BookingCdcMessage message) {
-        log.info("Processing hotel booking update for booking: {}", key.getId());
-        // For this example, we assume an update means a re-reservation.
-        // In a real-world scenario, you would have more specific logic.
-        hotelService.reserveHotel(key.getId());
+    private void cancelHotel(SagaCommand command) {
+        UUID bookingId = command.getBookingId();
+        HotelBookingDetailsDto details = convertHotelDetails(command);
+        if (details != null) {
+            hotelService.cancelHotelReservation(bookingId, command.getSagaId(), details);
+        } else {
+            hotelService.cancelHotelReservation(bookingId);
+        }
     }
 
-    @Override
-    protected void handleDelete(BookingMsgKey key, BookingCdcMessage message) {
-        log.info("Processing hotel booking cancellation for booking: {}", key.getId());
-        hotelService.cancelHotelReservation(key.getId());
+    private HotelBookingDetailsDto convertHotelDetails(SagaCommand command) {
+        if (command == null || command.getHotelDetails() == null) {
+            return null;
+        }
+        return objectMapper.convertValue(command.getHotelDetails(), HotelBookingDetailsDto.class);
     }
 }

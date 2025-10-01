@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
-import { Loader2, RefreshCw, Save, AlertTriangle } from "lucide-react"
+import { Loader2, RefreshCw, Save, AlertTriangle, Sparkles } from "lucide-react"
 import { format } from "date-fns"
 import { RoomAvailabilityService } from "@/services/room-availability-service"
 import type { RoomAvailabilityDay, RoomAvailabilityResponse, RoomAvailabilityUpdate } from "@/types/api"
@@ -44,6 +44,7 @@ export function RoomAvailabilityDialog({
   )
   const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
+  const [generating, setGenerating] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [availability, setAvailability] = useState<RoomAvailabilityDay[]>([])
   const [activeRoomCount, setActiveRoomCount] = useState<number>(0)
@@ -164,10 +165,40 @@ export function RoomAvailabilityDialog({
                 min={startDate}
               />
             </div>
-            <div className="flex items-end">
-              <Button variant="outline" onClick={loadAvailability} disabled={loading} className="w-full md:w-auto">
+            <div className="flex items-end gap-2">
+              <Button variant="outline" onClick={loadAvailability} disabled={loading || generating} className="w-full md:w-auto">
                 {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RefreshCw className="mr-2 h-4 w-4" />}
                 Làm mới dữ liệu
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={async () => {
+                  try {
+                    setGenerating(true)
+                    setError(null)
+                    const response = await RoomAvailabilityService.generateRandomAvailability(hotelId, roomTypeId, {
+                      startDate,
+                      endDate,
+                    })
+                    setAvailability(response.availability)
+                    setActiveRoomCount(response.activeRoomCount)
+                    setIsDirty(false)
+                    toast.success("Đã sinh dữ liệu tồn kho ngẫu nhiên")
+                  } catch (err: any) {
+                    console.error("Failed to generate availability", err)
+                    const message = err?.response?.data?.message || err?.message || "Không thể sinh dữ liệu tồn kho"
+                    setError(message)
+                    toast.error(message)
+                  } finally {
+                    setGenerating(false)
+                  }
+                }}
+                disabled={loading || generating}
+                className="w-full md:w-auto"
+              >
+                {generating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Sparkles className="mr-2 h-4 w-4" />}
+                Tạo dữ liệu mẫu
               </Button>
             </div>
           </div>

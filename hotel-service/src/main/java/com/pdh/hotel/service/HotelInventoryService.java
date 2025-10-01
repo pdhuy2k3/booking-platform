@@ -42,20 +42,16 @@ public class HotelInventoryService {
      * @return true if reservation successful, false otherwise
      */
     @Transactional
-    public boolean reserveRooms(Long hotelId, String roomTypeName, Integer roomCount, 
+    public boolean reserveRooms(Long hotelId, Long roomTypeId, String roomTypeName, Integer roomCount,
                                LocalDate checkInDate, LocalDate checkOutDate) {
-        log.info("Attempting to reserve {} rooms of type {} for hotel {} from {} to {}", 
-                roomCount, roomTypeName, hotelId, checkInDate, checkOutDate);
-        
+        log.info("Attempting to reserve {} rooms (typeId={}, typeName={}) for hotel {} from {} to {}",
+                roomCount, roomTypeId, roomTypeName, hotelId, checkInDate, checkOutDate);
+
         try {
-            // Find room type
-            Optional<RoomType> roomTypeOpt = roomTypeRepository.findByHotelIdAndTypeName(hotelId, roomTypeName);
-            if (roomTypeOpt.isEmpty()) {
-                log.warn("Room type {} not found for hotel {}", roomTypeName, hotelId);
+            RoomType roomType = resolveRoomType(hotelId, roomTypeId, roomTypeName);
+            if (roomType == null) {
                 return false;
             }
-            
-            RoomType roomType = roomTypeOpt.get();
             
             // Check and reserve availability for each date in the stay period
             LocalDate currentDate = checkInDate;
@@ -90,20 +86,16 @@ public class HotelInventoryService {
      * @param checkOutDate Check-out date
      */
     @Transactional
-    public void releaseRooms(Long hotelId, String roomTypeName, Integer roomCount, 
+    public void releaseRooms(Long hotelId, Long roomTypeId, String roomTypeName, Integer roomCount,
                             LocalDate checkInDate, LocalDate checkOutDate) {
-        log.info("Releasing {} rooms of type {} for hotel {} from {} to {}", 
-                roomCount, roomTypeName, hotelId, checkInDate, checkOutDate);
-        
+        log.info("Releasing {} rooms (typeId={}, typeName={}) for hotel {} from {} to {}",
+                roomCount, roomTypeId, roomTypeName, hotelId, checkInDate, checkOutDate);
+
         try {
-            // Find room type
-            Optional<RoomType> roomTypeOpt = roomTypeRepository.findByHotelIdAndTypeName(hotelId, roomTypeName);
-            if (roomTypeOpt.isEmpty()) {
-                log.warn("Room type {} not found for hotel {}", roomTypeName, hotelId);
+            RoomType roomType = resolveRoomType(hotelId, roomTypeId, roomTypeName);
+            if (roomType == null) {
                 return;
             }
-            
-            RoomType roomType = roomTypeOpt.get();
             
             // Release availability for each date in the stay period
             LocalDate currentDate = checkInDate;
@@ -440,13 +432,74 @@ public class HotelInventoryService {
         return (roomCount == null || roomCount < 1) ? 1 : roomCount;
     }
 
-    public record AvailabilityDetail(LocalDate date, int totalInventory, int totalReserved, int remaining) {}
+    public static final class AvailabilityDetail {
+        private final LocalDate date;
+        private final int totalInventory;
+        private final int totalReserved;
+        private final int remaining;
 
-    public record AvailabilitySummary(boolean available, int requestedRooms, int roomsAvailable,
-                                      List<AvailabilityDetail> dailyDetails, String message) {
+        public AvailabilityDetail(LocalDate date, int totalInventory, int totalReserved, int remaining) {
+            this.date = date;
+            this.totalInventory = totalInventory;
+            this.totalReserved = totalReserved;
+            this.remaining = remaining;
+        }
+
+        public LocalDate getDate() {
+            return date;
+        }
+
+        public int getTotalInventory() {
+            return totalInventory;
+        }
+
+        public int getTotalReserved() {
+            return totalReserved;
+        }
+
+        public int getRemaining() {
+            return remaining;
+        }
+    }
+
+    public static final class AvailabilitySummary {
+        private final boolean available;
+        private final int requestedRooms;
+        private final int roomsAvailable;
+        private final List<AvailabilityDetail> dailyDetails;
+        private final String message;
+
+        public AvailabilitySummary(boolean available, int requestedRooms, int roomsAvailable,
+                                   List<AvailabilityDetail> dailyDetails, String message) {
+            this.available = available;
+            this.requestedRooms = requestedRooms;
+            this.roomsAvailable = roomsAvailable;
+            this.dailyDetails = dailyDetails;
+            this.message = message;
+        }
 
         public static AvailabilitySummary unavailable(String message, int requestedRooms, List<AvailabilityDetail> details) {
             return new AvailabilitySummary(false, requestedRooms, 0, details, message);
+        }
+
+        public boolean isAvailable() {
+            return available;
+        }
+
+        public int getRequestedRooms() {
+            return requestedRooms;
+        }
+
+        public int getRoomsAvailable() {
+            return roomsAvailable;
+        }
+
+        public List<AvailabilityDetail> getDailyDetails() {
+            return dailyDetails;
+        }
+
+        public String getMessage() {
+            return message;
         }
     }
 
@@ -461,5 +514,26 @@ public class HotelInventoryService {
         LocalDate checkOutDate = effectiveEnd.plusDays(1);
 
         refreshRoomAvailabilityFlag(roomType, effectiveStart, checkOutDate);
+    }
+
+    private RoomType resolveRoomType(Long hotelId, Long roomTypeId, String roomTypeName) {
+        Optional<RoomType> roomTypeOpt = Optional.empty();
+
+        if (roomTypeId != null) {
+            roomTypeOpt = roomTypeRepository.findById(roomTypeId)
+                .filter(rt -> rt.getHotel() != null && (hotelId == null || hotelId.equals(rt.getHotel().getHotelId())));
+            if (roomTypeOpt.isEmpty()) {
+                log.warn("Room type id {} not found or not associated with hotel {}", roomTypeId, hotelId);
+            }
+        }
+
+        if (roomTypeOpt.isEmpty() && roomTypeName != null) {
+            roomTypeOpt = roomTypeRepository.findByHotelIdAndTypeName(hotelId, roomTypeName);
+            if (roomTypeOpt.isEmpty()) {
+                log.warn("Room type name {} not found for hotel {}", roomTypeName, hotelId);
+            }
+        }
+
+        return roomTypeOpt.orElse(null);
     }
 }

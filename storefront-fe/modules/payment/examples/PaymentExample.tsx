@@ -39,7 +39,7 @@ export const PaymentExample: React.FC = () => {
       <PaymentPage
         bookingId="booking-123"
         amount={299.99}
-        currency="usd"
+        currency="vnd"
         description="Flight booking from NYC to LAX"
         onSuccess={handlePaymentSuccess}
         onError={handlePaymentError}

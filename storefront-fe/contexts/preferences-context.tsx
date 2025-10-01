@@ -14,8 +14,8 @@ interface PreferencesContextType {
 }
 
 const defaultPreferences: UserPreferences = {
-  language: 'en',
-  currency: 'USD',
+  language: 'vn',
+  currency: 'vnd',
   theme: 'auto',
   density: 'comfortable',
   notifications: 'email'

@@ -1,5 +1,8 @@
 package com.pdh.hotel.dto;
 
+import com.fasterxml.jackson.annotation.JsonFormat;
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -16,8 +19,9 @@ import java.util.List;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
+@JsonIgnoreProperties(ignoreUnknown = true)
 public class HotelBookingDetailsDto {
-    
+
     /**
      * Selected hotel ID from hotel service
      */
@@ -49,14 +53,20 @@ public class HotelBookingDetailsDto {
     private Integer starRating;
     
     /**
-     * Selected room ID
+     * Selected room type ID (from booking-service)
      */
-    private String roomId;
-    
+    @JsonProperty("roomTypeId")
+    private String roomTypeId;
+
     /**
      * Room type (Standard, Deluxe, Suite, etc.)
      */
     private String roomType;
+
+    /**
+     * Selected room ID (optional, if specific room allocated)
+     */
+    private String roomId;
     
     /**
      * Room name/description
@@ -66,31 +76,39 @@ public class HotelBookingDetailsDto {
     /**
      * Check-in date
      */
+    @JsonProperty("checkInDate")
+    @JsonFormat(shape = JsonFormat.Shape.ARRAY)
     private LocalDate checkInDate;
     
     /**
      * Check-out date
      */
+    @JsonProperty("checkOutDate")
+    @JsonFormat(shape = JsonFormat.Shape.ARRAY)
     private LocalDate checkOutDate;
     
     /**
      * Number of nights
      */
-    private Integer nights;
-    
+    @JsonProperty("numberOfNights")
+    private Integer numberOfNights;
+
     /**
      * Number of guests
      */
-    private Integer guests;
-    
+    @JsonProperty("numberOfGuests")
+    private Integer numberOfGuests;
+
     /**
      * Number of rooms
      */
-    private Integer rooms;
-    
+    @JsonProperty("numberOfRooms")
+    private Integer numberOfRooms;
+
     /**
      * Guest information
      */
+    @JsonProperty("guests")
     private List<GuestDto> guestDetails;
     
     /**
@@ -135,17 +153,37 @@ public class HotelBookingDetailsDto {
     @Builder
     @NoArgsConstructor
     @AllArgsConstructor
+    @JsonIgnoreProperties(ignoreUnknown = true)
     public static class GuestDto {
+        @JsonProperty("guestType")
+        private String guestType;
+
+        private String title;
         private String firstName;
         private String lastName;
+        @JsonFormat(shape = JsonFormat.Shape.ARRAY)
         private LocalDate dateOfBirth;
-        private String title;
+
+        @JsonProperty("gender")
+        private String gender;
+
         private String email;
+
+        @JsonProperty("phoneNumber")
         private String phone;
+
         private String nationality;
+
+        @JsonProperty("idNumber")
         private String passportNumber;
+
         private String specialRequests;
+
+        @JsonProperty("isPrimaryGuest")
         private Boolean isPrimaryGuest;
+
+        @JsonProperty("loyaltyNumber")
+        private String loyaltyNumber;
     }
     
     /**

@@ -76,7 +76,7 @@ class BookingApiService {
     try {
       const response = await apiClient.post(
         `/bookings/commands/${bookingId}/cancel`,
-        {},
+        undefined,
         { params: { reason } }
       );
       return response;

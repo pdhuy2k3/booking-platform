@@ -16,6 +16,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.CrossOrigin;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -82,6 +83,42 @@ public class BackofficeRoomController {
             log.error("Error updating room availability for hotel {} and room type {}", hotelId, roomTypeId, e);
             return ResponseEntity.internalServerError()
                 .body(ApiResponse.error("Failed to update room availability: " + e.getMessage()));
+        }
+    }
+
+    @PostMapping("/hotels/{hotelId}/room-types/{roomTypeId}/availability/generate")
+    @Operation(summary = "Generate random room availability", description = "Seed availability with random data for a date range")
+    public ResponseEntity<ApiResponse<RoomAvailabilityResponseDto>> generateRandomAvailability(
+            @Parameter(description = "Hotel ID", required = true) @PathVariable Long hotelId,
+            @Parameter(description = "Room type ID", required = true) @PathVariable Long roomTypeId,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate,
+            @RequestParam(required = false, defaultValue = "15") Integer minInventory,
+            @RequestParam(required = false, defaultValue = "50") Integer maxInventory,
+            @RequestParam(required = false) Integer minReserved,
+            @RequestParam(required = false) Integer maxReserved) {
+
+        log.info("Generating random availability for hotel {} roomType {} between {} and {}", hotelId, roomTypeId, startDate, endDate);
+
+        try {
+            RoomAvailabilityResponseDto response = backofficeRoomService.generateRandomAvailability(
+                hotelId,
+                roomTypeId,
+                startDate,
+                endDate,
+                minInventory,
+                maxInventory,
+                minReserved,
+                maxReserved
+            );
+            return ResponseEntity.ok(ApiResponse.success(response, "Generated random availability successfully"));
+        } catch (IllegalArgumentException ex) {
+            log.warn("Invalid request when generating availability for hotel {} roomType {}: {}", hotelId, roomTypeId, ex.getMessage());
+            return ResponseEntity.badRequest().body(ApiResponse.error(ex.getMessage()));
+        } catch (Exception e) {
+            log.error("Error generating availability for hotel {} roomType {}", hotelId, roomTypeId, e);
+            return ResponseEntity.internalServerError()
+                .body(ApiResponse.error("Failed to generate availability: " + e.getMessage()));
         }
     }
 

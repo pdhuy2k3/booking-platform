@@ -8,6 +8,7 @@ import com.pdh.hotel.repository.HotelOutboxEventRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
@@ -23,7 +24,7 @@ public class HotelOutboxEventService implements OutboxEventService {
     private final ObjectMapper objectMapper;
 
     @Override
-    @Transactional
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void publishEvent(String eventType, String aggregateType, String aggregateId, Object eventPayload) {
         try {
             String payload = objectMapper.writeValueAsString(eventPayload);

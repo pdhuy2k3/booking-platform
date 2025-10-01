@@ -55,7 +55,7 @@ function formatCurrency(amount?: number | string | null, currency?: string | nul
   if (amount == null) return "—"
   const numeric = typeof amount === "string" ? Number(amount) : amount
   if (!Number.isFinite(numeric)) return amount?.toString() ?? "—"
-  const resolvedCurrency = currency ? currency.toUpperCase() : "USD"
+  const resolvedCurrency = currency ? currency.toUpperCase() : "VND"
   try {
     return new Intl.NumberFormat(undefined, {
       style: "currency",
@@ -69,10 +69,19 @@ function formatCurrency(amount?: number | string | null, currency?: string | nul
   }
 }
 
+const normalizeIsoDateTime = (value?: string | null) => {
+  if (!value) return null
+  if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2}(\.\d+)?)?$/.test(value)) {
+    return `${value}Z`
+  }
+  return value
+}
+
 function formatDateTime(timestamp?: string | null) {
-  if (!timestamp) return "—"
-  const date = new Date(timestamp)
-  if (Number.isNaN(date.getTime())) return timestamp
+  const normalized = normalizeIsoDateTime(timestamp)
+  if (!normalized) return "—"
+  const date = new Date(normalized)
+  if (Number.isNaN(date.getTime())) return timestamp || "—"
   return date.toLocaleString(undefined, {
     year: "numeric",
     month: "short",
@@ -83,9 +92,10 @@ function formatDateTime(timestamp?: string | null) {
 }
 
 function formatDateOnly(timestamp?: string | null) {
-  if (!timestamp) return "—"
-  const date = new Date(timestamp)
-  if (Number.isNaN(date.getTime())) return timestamp
+  const normalized = normalizeIsoDateTime(timestamp)
+  if (!normalized) return "—"
+  const date = new Date(normalized)
+  if (Number.isNaN(date.getTime())) return timestamp || "—"
   return date.toLocaleDateString(undefined, {
     year: "numeric",
     month: "long",
@@ -319,6 +329,8 @@ export function BookingHistoryTab() {
           detail.flight = await flightService.getFareDetails(flightInfo.flightId, {
             seatClass: ensureSeatClass(flightInfo.seatClass),
             departureDateTime: flightInfo.departureDateTime,
+            scheduleId: (flightInfo as any).scheduleId,
+            fareId: (flightInfo as any).fareId,
           })
         }
       }
