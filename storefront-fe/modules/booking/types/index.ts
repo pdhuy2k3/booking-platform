@@ -9,6 +9,8 @@ export interface FlightBookingDetails {
   departureDateTime: string; // ISO format
   arrivalDateTime: string; // ISO format
   seatClass: string;
+  scheduleId?: string;
+  fareId?: string;
   passengerCount: number;
   passengers: PassengerDetails[];
   selectedSeats?: string[];
@@ -26,7 +28,8 @@ export interface HotelBookingDetails {
   city: string;
   country: string;
   starRating?: number;
-  roomId: string;
+  roomTypeId?: string;
+  roomId?: string;
   roomType: string;
   roomName: string;
   checkInDate: string; // YYYY-MM-DD

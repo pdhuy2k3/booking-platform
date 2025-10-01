@@ -1,10 +1,14 @@
 package com.pdh.flight.dto;
 
+import com.fasterxml.jackson.annotation.JsonFormat;
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 
@@ -16,6 +20,7 @@ import java.util.List;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
+@JsonIgnoreProperties(ignoreUnknown = true)
 public class FlightBookingDetailsDto {
     
     /**
@@ -32,6 +37,18 @@ public class FlightBookingDetailsDto {
      * Airline code (e.g., VN for Vietnam Airlines)
      */
     private String airline;
+
+    /**
+     * Saga schedule identifier (optional)
+     */
+    @JsonProperty("scheduleId")
+    private String scheduleId;
+
+    /**
+     * Fare identifier selected for reservation (optional)
+     */
+    @JsonProperty("fareId")
+    private String fareId;
     
     /**
      * Origin airport code (e.g., HAN)
@@ -46,11 +63,15 @@ public class FlightBookingDetailsDto {
     /**
      * Departure date and time
      */
+    @JsonProperty("departureDateTime")
+    @JsonFormat(shape = JsonFormat.Shape.ARRAY)
     private LocalDateTime departureDateTime;
     
     /**
      * Arrival date and time
      */
+    @JsonProperty("arrivalDateTime")
+    @JsonFormat(shape = JsonFormat.Shape.ARRAY)
     private LocalDateTime arrivalDateTime;
     
     /**
@@ -95,16 +116,36 @@ public class FlightBookingDetailsDto {
     @Builder
     @NoArgsConstructor
     @AllArgsConstructor
+    @JsonIgnoreProperties(ignoreUnknown = true)
     public static class PassengerDetailsDto {
+        @JsonProperty("passengerType")
+        private String passengerType;
+
         private String firstName;
         private String lastName;
-        private String dateOfBirth;
+        @JsonProperty("dateOfBirth")
+        @JsonFormat(shape = JsonFormat.Shape.ARRAY)
+        private LocalDate dateOfBirth;
         private String title;
         private String email;
+        @JsonProperty("phoneNumber")
         private String phone;
         private String nationality;
+        @JsonProperty("idNumber")
         private String passportNumber;
+        @JsonProperty("passportExpiryDate")
+        @JsonFormat(shape = JsonFormat.Shape.ARRAY)
+        private LocalDate passportExpiryDate;
+        @JsonProperty("passportIssuingCountry")
+        private String passportIssuingCountry;
+        @JsonProperty("specialAssistance")
+        private String specialAssistance;
+        @JsonProperty("mealPreference")
+        private String mealPreference;
+        @JsonProperty("seatPreference")
+        private String seatPreference;
         private String specialRequests;
+        @JsonProperty("isPrimaryPassenger")
         private Boolean isPrimaryPassenger;
     }
     
@@ -118,7 +159,11 @@ public class FlightBookingDetailsDto {
     public static class ReturnFlightDetailsDto {
         private String flightId;
         private String flightNumber;
+        @JsonProperty("departureDateTime")
+        @JsonFormat(shape = JsonFormat.Shape.ARRAY)
         private LocalDateTime departureDateTime;
+        @JsonProperty("arrivalDateTime")
+        @JsonFormat(shape = JsonFormat.Shape.ARRAY)
         private LocalDateTime arrivalDateTime;
         private String seatClass;
         private List<String> selectedSeats;

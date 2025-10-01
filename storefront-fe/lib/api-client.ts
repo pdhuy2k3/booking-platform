@@ -8,7 +8,8 @@ class ApiClient {
     this.BASE_URL = process.env.NEXT_PUBLIC_BASE_URL || "http://localhost:8086"
 
     this.client = axios.create({
-      baseURL: `${this.BASE_URL.replace(/\/$/, "")}/api`,
+      baseURL: `/api`,
+      
       timeout: 30000,
     })
 

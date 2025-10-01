@@ -17,6 +17,7 @@ import { paymentPollingService } from '../service/PaymentPollingService'
 import { StripePaymentFormData } from '../type/stripe'
 import { getStripeErrorMessage } from '../config/stripe'
 import { useAuth } from '@/contexts/auth-context'
+import { formatCurrency } from '@/lib/currency'
 
 // Form validation schema
 const paymentFormSchema = z.object({
@@ -54,7 +55,7 @@ export const StripePaymentForm: React.FC<StripePaymentFormProps> = ({
   bookingId,
   sagaId,
   amount,
-  currency = 'usd',
+  currency = 'vnd',
   description,
   onSuccess,
   onError,
@@ -456,7 +457,7 @@ export const StripePaymentForm: React.FC<StripePaymentFormProps> = ({
                   Processing...
                 </>
               ) : (
-                `Pay $${amount.toFixed(2)} ${currency.toUpperCase()}`
+                `Thanh toán $${formatCurrency(amount)} ${currency.toUpperCase()}`
               )}
             </Button>
             

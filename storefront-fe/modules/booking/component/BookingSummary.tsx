@@ -6,7 +6,7 @@ type Props = {
   currency?: string
 }
 
-export function BookingSummary({ items, currency = items[0]?.currency || "USD" }: Props) {
+export function BookingSummary({ items, currency = items[0]?.currency || "VND" }: Props) {
   const total = items.reduce((sum, it) => sum + (it.price || 0), 0)
   return (
     <Card>

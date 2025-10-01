@@ -16,17 +16,37 @@ import { format } from 'date-fns'
 import { formatCurrency, formatPrice } from '@/lib/currency'
 import { Plane, Building2, Clock, MapPin, Users, Calendar as CalendarIcon, RefreshCcw, ArrowRight } from 'lucide-react'
 
-const formatDateTime = (value?: string) => {
-  if (!value) return 'Chưa có'
+const parseDateValue = (value?: string) => {
+  if (!value) return null
+
+  const dateOnlyMatch = /^\d{4}-\d{2}-\d{2}$/.exec(value)
+  if (dateOnlyMatch) {
+    const [year, month, day] = value.split('-').map((part) => Number(part))
+    if ([year, month, day].every((part) => Number.isInteger(part))) {
+      return new Date(year, month - 1, day)
+    }
+  }
+
   const parsed = new Date(value)
-  if (Number.isNaN(parsed.getTime())) return value
+  if (Number.isNaN(parsed.getTime())) {
+    return null
+  }
+  return parsed
+}
+
+const formatDateTime = (value?: string) => {
+  const parsed = parseDateValue(value)
+  if (!parsed) {
+    return value || 'Chưa có'
+  }
   return format(parsed, 'PPP p')
 }
 
 const formatDate = (value?: string) => {
-  if (!value) return 'Chưa có'
-  const parsed = new Date(value)
-  if (Number.isNaN(parsed.getTime())) return value
+  const parsed = parseDateValue(value)
+  if (!parsed) {
+    return value || 'Chưa có'
+  }
   return format(parsed, 'PPP')
 }
 
@@ -61,6 +81,41 @@ export function BookingSummaryView() {
     if (derivedType === 'hotel') return Boolean(selectedHotel)
     return false
   }, [derivedType, selectedFlight, selectedHotel])
+
+  const hotelPricing = useMemo(() => {
+    if (!selectedHotel) return null
+
+    const pricePerNight = Number(selectedHotel.price ?? 0)
+    const rooms = Math.max(1, Number(selectedHotel.rooms ?? 1))
+
+    let nights = Number(selectedHotel.nights ?? 0)
+    if (!Number.isFinite(nights) || nights <= 0) {
+      const { checkInDate, checkOutDate } = selectedHotel
+      const checkIn = parseDateValue(checkInDate)
+      const checkOut = parseDateValue(checkOutDate)
+
+      if (checkIn && checkOut) {
+        const diffMs = checkOut.getTime() - checkIn.getTime()
+        const dayInMs = 1000 * 60 * 60 * 24
+        if (diffMs > 0) {
+          nights = Math.max(1, Math.round(diffMs / dayInMs))
+        }
+      }
+    }
+
+    if (!Number.isFinite(nights) || nights <= 0) {
+      nights = 1
+    }
+
+    const total = pricePerNight * nights * rooms
+
+    return {
+      pricePerNight,
+      nights,
+      rooms,
+      total,
+    }
+  }, [selectedHotel])
 
   useEffect(() => {
     if (!initialized) {
@@ -117,18 +172,22 @@ export function BookingSummaryView() {
   }
 
   const totalEstimated = useMemo(() => {
-    const currency = selectedFlight?.currency || 'VND'
-    if (derivedType === 'both' && selectedFlight && selectedHotel) {
-      return formatCurrency((selectedFlight.price || 0) + (selectedHotel.price || 0), currency)
+    const currency = selectedFlight?.currency || selectedHotel?.currency || 'VND'
+
+    if (derivedType === 'both' && selectedFlight && hotelPricing) {
+      return formatCurrency((selectedFlight.price || 0) + hotelPricing.total, currency)
     }
+
     if (derivedType === 'flight' && selectedFlight) {
       return formatCurrency(selectedFlight.price || 0, currency)
     }
-    if (derivedType === 'hotel' && selectedHotel) {
-      return formatPrice(selectedHotel.price || 0)
+
+    if (derivedType === 'hotel' && hotelPricing) {
+      return formatCurrency(hotelPricing.total, selectedHotel?.currency || 'VND')
     }
+
     return null
-  }, [derivedType, selectedFlight, selectedHotel])
+  }, [derivedType, selectedFlight, selectedHotel, hotelPricing])
 
   const renderFlightCard = () => {
     if (!selectedFlight) return null
@@ -216,6 +275,7 @@ export function BookingSummaryView() {
 
   const renderHotelCard = () => {
     if (!selectedHotel) return null
+    const pricing = hotelPricing
     return (
       <Card className="shadow-sm">
         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4">
@@ -247,7 +307,17 @@ export function BookingSummaryView() {
             </div>
             <div className="text-right">
               <p className="text-xs uppercase text-muted-foreground">Giá mỗi đêm</p>
-              <p className="text-lg font-semibold">{formatPrice(selectedHotel.price || 0)}</p>
+              <p className="text-lg font-semibold">{formatPrice(pricing?.pricePerNight || selectedHotel.price || 0)}</p>
+              {pricing && (
+                <>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    {pricing.rooms} phòng · {pricing.nights} đêm
+                  </p>
+                  <p className="mt-2 text-sm font-semibold text-primary">
+                    Tổng: {formatPrice(pricing.total)}
+                  </p>
+                </>
+              )}
             </div>
           </div>
 
@@ -270,6 +340,27 @@ export function BookingSummaryView() {
               <p className="mt-1 font-medium">{formatDate(selectedHotel.checkOutDate)}</p>
             </div>
           </div>
+
+          {pricing && (
+            <div className="grid gap-4 md:grid-cols-3">
+              <div className="rounded-lg border bg-muted/30 p-4">
+                <p className="text-xs uppercase tracking-wide text-muted-foreground">Giá mỗi đêm</p>
+                <p className="mt-1 font-semibold">{formatPrice(pricing.pricePerNight)}</p>
+              </div>
+              <div className="rounded-lg border bg-muted/30 p-4">
+                <p className="text-xs uppercase tracking-wide text-muted-foreground">Số đêm</p>
+                <p className="mt-1 font-semibold">{pricing.nights}</p>
+                <p className="text-xs text-muted-foreground">
+                  {pricing.rooms} phòng
+                  {selectedHotel.guests ? ` · ${selectedHotel.guests} khách` : ''}
+                </p>
+              </div>
+              <div className="rounded-lg border bg-primary/10 p-4 text-right md:text-left">
+                <p className="text-xs uppercase tracking-wide text-muted-foreground">Tổng giá</p>
+                <p className="mt-1 text-lg font-semibold text-primary">{formatPrice(pricing.total)}</p>
+              </div>
+            </div>
+          )}
 
           {selectedHotel.amenities?.length ? (
             <div className="flex flex-wrap gap-2">

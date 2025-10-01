@@ -32,7 +32,7 @@ const toStripeAmount = (amount: number, currency: string): number => {
 // Default Stripe Elements options
 export const defaultStripeElementsOptions: StripeElementsOptions = {
   mode: 'payment',
-  currency: 'usd',
+  currency: 'vnd',
   paymentMethodTypes: ['card'],
   appearance: {
     theme: 'stripe',
@@ -52,7 +52,7 @@ export const defaultStripeElementsOptions: StripeElementsOptions = {
 // Payment-specific Elements options
 export const createPaymentElementsOptions = (
   amount: number,
-  currency: string = 'usd',
+  currency: string = 'vnd',
   customAppearance?: Partial<StripeElementsOptions['appearance']>
 ): StripeElementsOptions => ({
   ...defaultStripeElementsOptions,

@@ -16,6 +16,7 @@ import java.math.BigDecimal;
 @AllArgsConstructor
 public class HotelReservationData {
     private String hotelId;
+    private String roomTypeId;
     private String roomId;
     private String reservationId;
     private String checkInDate;

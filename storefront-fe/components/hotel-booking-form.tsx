@@ -121,6 +121,7 @@ export function HotelBookingForm({ hotel, onSubmit, onCancel }: HotelBookingForm
       city: hotel.city,
       country: hotel.country,
       starRating: hotel.rating,
+      roomTypeId: hotel.roomTypeId,
       roomId: hotel.roomId,
       roomType: hotel.roomType,
       roomName: hotel.roomName,

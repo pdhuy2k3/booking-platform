@@ -122,7 +122,7 @@ public class FlightSearchService {
                     .filter(Objects::nonNull)
                     .collect(Collectors.toList());
             
-            return new PageImpl<>(searchResults, pageable, flightPage.getTotalElements());
+            return new PageImpl<>(searchResults, pageable, searchResults.size());
             
         } catch (Exception e) {
             log.error("Error searching flights", e);
@@ -150,20 +150,28 @@ public class FlightSearchService {
         
         // Get fares for this schedule
         List<FlightFareDto> fares = faresMap.getOrDefault(matchingSchedule.getScheduleId(), new ArrayList<>());
-        
+
+        if (fares.isEmpty()) {
+            return null;
+        }
+
         // Find fare for requested class or get the cheapest available
         FlightFareDto selectedFare = fares.stream()
-                .filter(fare -> fareClass == null || 
+                .filter(fare -> fareClass == null ||
                         (fare.getFareClass() != null && fare.getFareClass().equals(fareClass.name())))
                 .min(Comparator.comparing(FlightFareDto::getPrice))
                 .orElse(null);
-        
-        // If no fare found, calculate price
-        BigDecimal price = selectedFare != null && selectedFare.getPrice() != null
-                ? selectedFare.getPrice().multiply(BigDecimal.valueOf(passengers))
-                : pricingService.calculatePrice(matchingSchedule, fareClass, LocalDate.now(), 
-                                              matchingSchedule.getDepartureTime().toLocalDate(), passengers);
-        
+
+        if (selectedFare == null || selectedFare.getPrice() == null) {
+            return null;
+        }
+
+        BigDecimal price = selectedFare.getPrice().multiply(BigDecimal.valueOf(passengers));
+
+        String resolvedSeatClass = selectedFare.getFareClass() != null
+                ? selectedFare.getFareClass()
+                : fareClass != null ? fareClass.name() : "ECONOMY";
+
         // Build result DTO
         return FlightSearchResultDto.builder()
                 .flightId(flight.getFlightId().toString())
@@ -187,9 +195,11 @@ public class FlightSearchService {
                 .price(price.doubleValue())
                 .currency("VND")
                 .formattedPrice(formatPrice(price))
-                .seatClass(fareClass != null ? fareClass.name() : "ECONOMY")
-                .availableSeats(selectedFare != null ? selectedFare.getAvailableSeats() : 100)
+                .seatClass(resolvedSeatClass)
+                .availableSeats(selectedFare.getAvailableSeats() != null ? selectedFare.getAvailableSeats() : 0)
                 .totalSeats(getTotalSeats(flight.getAircraft()))
+                .scheduleId(matchingSchedule.getScheduleId() != null ? matchingSchedule.getScheduleId().toString() : null)
+                .fareId(selectedFare != null && selectedFare.getFareId() != null ? selectedFare.getFareId().toString() : null)
                 .aircraft(flight.getAircraft() != null ? flight.getAircraft().getModel() : "Unknown")
                 .aircraftType(flight.getAircraftType())
                 .stops(0) // Direct flight

@@ -54,6 +54,8 @@ public class FlightResponseAssembler {
         response.put("seatClass", result.getSeatClass());
         response.put("availableSeats", result.getAvailableSeats());
         response.put("aircraft", result.getAircraft());
+        response.put("scheduleId", result.getScheduleId());
+        response.put("fareId", result.getFareId());
         return response;
     }
 
@@ -80,6 +82,7 @@ public class FlightResponseAssembler {
             response.put("arrivalTime", schedule.getArrivalTime().format(TIME_FORMATTER));
             response.put("departureDateTime", schedule.getDepartureTime().toString());
             response.put("arrivalDateTime", schedule.getArrivalTime().toString());
+            response.put("scheduleId", schedule.getScheduleId() != null ? schedule.getScheduleId().toString() : null);
 
             int durationMinutes = (int) ChronoUnit.MINUTES.between(schedule.getDepartureTime(), schedule.getArrivalTime());
             response.put("duration", formatDuration(durationMinutes));
@@ -94,6 +97,7 @@ public class FlightResponseAssembler {
             response.put("currency", "VND");
             response.put("seatClass", fare.getFareClass() != null ? fare.getFareClass().name() : "ECONOMY");
             response.put("availableSeats", fare.getAvailableSeats());
+            response.put("fareId", fare.getFareId() != null ? fare.getFareId().toString() : null);
         } else {
             response.put("price", flight.getBasePrice() != null ? flight.getBasePrice() : DEFAULT_BASE_PRICE);
             response.put("currency", "VND");

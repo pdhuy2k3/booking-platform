@@ -21,6 +21,8 @@ interface SelectedFlight {
   currency: string
   seatClass?: string
   logo?: string
+  scheduleId?: string
+  fareId?: string
 }
 
 interface SelectedHotel {
@@ -30,6 +32,7 @@ interface SelectedHotel {
   city: string
   country: string
   rating?: number
+  roomTypeId: string
   roomId: string
   roomType: string
   roomName: string
@@ -69,6 +72,7 @@ interface BookingContextType extends BookingState {
   setSelectedFlight: (flight: SelectedFlight | null) => void
   setSelectedHotel: (hotel: SelectedHotel | null) => void
   refreshBookingStatus: () => Promise<void>
+  cancelInFlightBooking: () => Promise<void>
 }
 
 // Initial state
@@ -321,6 +325,23 @@ export function BookingProvider({ children }: { children: React.ReactNode }) {
     dispatch({ type: 'RESET_BOOKING' })
   }, [stopStatusPolling])
 
+  const cancelInFlightBooking = useCallback(async () => {
+    const bookingId = state.bookingResponse?.bookingId
+    if (!bookingId) {
+      resetBooking()
+      return
+    }
+
+    try {
+      await bookingService.cancel(bookingId, 'User cancelled before completion')
+      await pollBookingStatus(bookingId)
+    } catch (error) {
+      console.error('Booking cancellation error:', error)
+    } finally {
+      resetBooking()
+    }
+  }, [pollBookingStatus, resetBooking, state.bookingResponse?.bookingId])
+
   const value = {
     ...state,
     setBookingType,
@@ -334,6 +355,7 @@ export function BookingProvider({ children }: { children: React.ReactNode }) {
     setSelectedFlight,
     setSelectedHotel,
     refreshBookingStatus,
+    cancelInFlightBooking,
   }
 
   useEffect(() => {

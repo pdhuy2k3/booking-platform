@@ -15,7 +15,7 @@ import java.util.UUID;
 
 /**
  * Command handler for creating bookings
- * This handler starts the saga orchestration process
+ * Persists the booking and creates related records
  */
 @Component
 @RequiredArgsConstructor
@@ -47,8 +47,8 @@ public class CreateBookingCommandHandler {
             // Generate booking reference
             booking.setBookingReference(generateBookingReference());
             
-            // Start saga orchestration first to save the booking
-            Booking createdBooking = bookingSagaService.startBookingSaga(booking);
+            // Persist booking and trigger saga orchestration
+            Booking createdBooking = bookingSagaService.createBookingAndStartSaga(booking);
             
             // Create booking items and passengers after booking is saved
             bookingItemService.createBookingItems(createdBooking);

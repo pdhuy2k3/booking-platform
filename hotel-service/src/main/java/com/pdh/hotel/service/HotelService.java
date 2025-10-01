@@ -1,14 +1,16 @@
 package com.pdh.hotel.service;
 
+import com.pdh.common.outbox.service.OutboxEventService;
 import com.pdh.hotel.dto.HotelBookingDetailsDto;
 import com.pdh.hotel.dto.HotelReservationData;
-import com.pdh.common.outbox.service.OutboxEventService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.StringUtils;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.util.HashMap;
 import java.util.Map;
@@ -37,12 +39,23 @@ public class HotelService {
 
         try {
             // Validate hotel room availability and reserve inventory
+            Long hotelId = parseLongSafely(hotelDetails.getHotelId(), "hotelId");
+            Long roomTypeId = parseLongSafely(hotelDetails.getRoomTypeId(), "roomTypeId");
+            Integer roomsRequested = hotelDetails.getNumberOfRooms() != null ? hotelDetails.getNumberOfRooms() : 1;
+            LocalDate checkInDate = hotelDetails.getCheckInDate();
+            LocalDate checkOutDate = hotelDetails.getCheckOutDate();
+
+            if (hotelId == null || checkInDate == null || checkOutDate == null) {
+                throw new IllegalArgumentException("Hotel reservation missing required identifiers or dates");
+            }
+
             boolean inventoryReserved = hotelInventoryService.reserveRooms(
-                Long.parseLong(hotelDetails.getHotelId()),
+                hotelId,
+                roomTypeId,
                 hotelDetails.getRoomType(),
-                hotelDetails.getRooms(),
-                hotelDetails.getCheckInDate(),
-                hotelDetails.getCheckOutDate()
+                roomsRequested,
+                checkInDate,
+                checkOutDate
             );
 
             if (!inventoryReserved) {
@@ -52,12 +65,13 @@ public class HotelService {
             // Create detailed hotel reservation data for saga event
             HotelReservationData hotelData = HotelReservationData.builder()
                 .hotelId(hotelDetails.getHotelId())
+                .roomTypeId(hotelDetails.getRoomTypeId())
                 .roomId(hotelDetails.getRoomId())
                 .reservationId("HTL-" + bookingId.toString().substring(0, 8))
                 .checkInDate(hotelDetails.getCheckInDate().format(DateTimeFormatter.ISO_LOCAL_DATE))
                 .checkOutDate(hotelDetails.getCheckOutDate().format(DateTimeFormatter.ISO_LOCAL_DATE))
-                .guests(hotelDetails.getGuests())
-                .rooms(hotelDetails.getRooms())
+                .guests(hotelDetails.getNumberOfGuests())
+                .rooms(hotelDetails.getNumberOfRooms())
                 .amount(BigDecimal.valueOf(hotelDetails.getTotalRoomPrice()))
                 .build();
 
@@ -105,22 +119,30 @@ public class HotelService {
 
         try {
             // Release hotel room inventory
-            hotelInventoryService.releaseRooms(
-                Long.parseLong(hotelDetails.getHotelId()),
-                hotelDetails.getRoomType(),
-                hotelDetails.getRooms(),
-                hotelDetails.getCheckInDate(),
-                hotelDetails.getCheckOutDate()
-            );
+            Long hotelId = parseLongSafely(hotelDetails.getHotelId(), "hotelId");
+            Long roomTypeId = parseLongSafely(hotelDetails.getRoomTypeId(), "roomTypeId");
+            Integer roomsRequested = hotelDetails.getNumberOfRooms() != null ? hotelDetails.getNumberOfRooms() : 1;
+
+            if (hotelId != null) {
+                hotelInventoryService.releaseRooms(
+                    hotelId,
+                    roomTypeId,
+                    hotelDetails.getRoomType(),
+                    roomsRequested,
+                    hotelDetails.getCheckInDate(),
+                    hotelDetails.getCheckOutDate()
+                );
+            }
 
             // Create detailed cancellation event payload
             Map<String, Object> eventPayload = new HashMap<>();
             eventPayload.put("bookingId", bookingId);
             eventPayload.put("sagaId", sagaId);
             eventPayload.put("hotelId", hotelDetails.getHotelId());
+            eventPayload.put("roomTypeId", hotelDetails.getRoomTypeId());
             eventPayload.put("roomId", hotelDetails.getRoomId());
-            eventPayload.put("guests", hotelDetails.getGuests());
-            eventPayload.put("rooms", hotelDetails.getRooms());
+            eventPayload.put("guests", hotelDetails.getNumberOfGuests());
+            eventPayload.put("rooms", hotelDetails.getNumberOfRooms());
 
             // Publish detailed cancellation event
             eventPublisher.publishEvent("HotelReservationCancelled", "Booking", bookingId.toString(), eventPayload);
@@ -130,6 +152,18 @@ public class HotelService {
         } catch (Exception e) {
             log.error("Failed to cancel hotel reservation for booking: {}", bookingId, e);
             throw e;
+        }
+    }
+
+    private Long parseLongSafely(String value, String fieldName) {
+        if (!StringUtils.hasText(value)) {
+            return null;
+        }
+        try {
+            return Long.parseLong(value);
+        } catch (NumberFormatException ex) {
+            log.warn("Invalid numeric value for {}: {}", fieldName, value);
+            return null;
         }
     }
 }

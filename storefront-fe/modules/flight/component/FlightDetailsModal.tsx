@@ -23,8 +23,33 @@ const formatSeatClass = (seatClass?: string) => {
   return seatClassLabels[key] || key
 }
 
+const formatTimeLabel = (value?: string) => {
+  if (!value) return "Chưa có"
+  const date = new Date(value)
+  if (!Number.isNaN(date.getTime())) {
+    return date.toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" })
+  }
+  return value
+}
+
+const formatDateTimeLabel = (value?: string) => {
+  if (!value) return "Chưa có"
+  const date = new Date(value)
+  if (!Number.isNaN(date.getTime())) {
+    return new Intl.DateTimeFormat("vi-VN", {
+      dateStyle: "medium",
+      timeStyle: "short"
+    }).format(date)
+  }
+  return value
+}
+
 interface FlightDetailsModalProps {
   flightId: string | null
+  seatClass: string | null
+  departureDateTime: string | null
+  scheduleId?: string | null
+  fareId?: string | null
   isOpen: boolean
   onClose: () => void
   onBookFlight?: (flight: FlightDetails) => void
@@ -34,6 +59,10 @@ interface FlightDetailsModalProps {
 
 export default function FlightDetailsModal({
   flightId,
+  seatClass,
+  departureDateTime,
+  scheduleId,
+  fareId,
   isOpen,
   onClose,
   onBookFlight,
@@ -46,23 +75,44 @@ export default function FlightDetailsModal({
 
   // Fetch flight details when modal opens and flightId is provided
   useEffect(() => {
-    if (isOpen && flightId) {
+    if (!isOpen || !flightId) {
+      setFlight(null)
+      return
+    }
+
+    const fetchDetails = async () => {
       setLoading(true)
       setError(null)
-      flightService.get(flightId)
-        .then((flightData) => {
+
+      const params: {
+        seatClass?: string
+        departureDateTime?: string
+        scheduleId?: string
+        fareId?: string
+      } = {}
+
+      if (fareId) params.fareId = fareId
+      if (scheduleId) params.scheduleId = scheduleId
+      if (seatClass) params.seatClass = seatClass
+      if (departureDateTime) params.departureDateTime = departureDateTime
+
+      try {
+        if (params.fareId || params.scheduleId || params.seatClass || params.departureDateTime) {
+          const flightData = await flightService.getFareDetails(flightId, params)
           setFlight(flightData)
-        })
-        .catch((err) => {
-          setError(err.message || "Không thể tải thông tin chuyến bay")
-        })
-        .finally(() => {
-          setLoading(false)
-        })
-    } else {
-      setFlight(null)
+        } else {
+          const flightData = await flightService.get(flightId)
+          setFlight(flightData)
+        }
+      } catch (err: any) {
+        setError(err.message || 'Không thể tải thông tin chuyến bay')
+      } finally {
+        setLoading(false)
+      }
     }
-  }, [isOpen, flightId])
+
+    void fetchDetails()
+  }, [isOpen, flightId, seatClass, departureDateTime, scheduleId, fareId])
 
   if (!isOpen || !flightId) return null
 
@@ -95,6 +145,9 @@ export default function FlightDetailsModal({
       </div>
     )
   }
+
+  const departureDateValue = flight.departureDateTime || flight.departureTime
+  const arrivalDateValue = flight.arrivalDateTime || flight.arrivalTime
 
   const amenities = [
     { icon: Wifi, label: "Wi-Fi" },
@@ -137,9 +190,9 @@ export default function FlightDetailsModal({
                 <CardContent>
                   <div className="flex items-center justify-between mb-6">
                     <div className="text-center">
-                      <div className="text-3xl font-bold text-foreground">{flight.departureTime}</div>
+                      <div className="text-3xl font-bold text-foreground">{formatTimeLabel(departureDateValue)}</div>
                       <div className="text-lg font-medium text-muted-foreground">{flight.origin}</div>
-                      <div className="text-sm text-muted-foreground">{flight.origin}</div>
+                      <div className="text-sm text-muted-foreground">{formatDateTimeLabel(departureDateValue)}</div>
                     </div>
 
                     <div className="flex flex-col items-center px-8">
@@ -154,9 +207,9 @@ export default function FlightDetailsModal({
                     </div>
 
                     <div className="text-center">
-                      <div className="text-3xl font-bold text-foreground">{flight.arrivalTime}</div>
+                      <div className="text-3xl font-bold text-foreground">{formatTimeLabel(arrivalDateValue)}</div>
                       <div className="text-lg font-medium text-muted-foreground">{flight.destination}</div>
-                      <div className="text-sm text-muted-foreground">{flight.destination}</div>
+                      <div className="text-sm text-muted-foreground">{formatDateTimeLabel(arrivalDateValue)}</div>
                     </div>
                   </div>
 

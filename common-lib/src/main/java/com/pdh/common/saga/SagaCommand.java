@@ -2,6 +2,7 @@ package com.pdh.common.saga;
 
 import com.pdh.common.event.DomainEvent;
 import com.fasterxml.jackson.annotation.JsonInclude;
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -29,6 +30,7 @@ import java.util.UUID;
 @NoArgsConstructor
 @AllArgsConstructor
 @JsonInclude(JsonInclude.Include.NON_NULL)
+@JsonIgnoreProperties(ignoreUnknown = true)
 public class SagaCommand extends DomainEvent {
     
     @NotNull
@@ -57,6 +59,9 @@ public class SagaCommand extends DomainEvent {
     private Integer retryCount = 0;
 
     private String correlationId;
+
+    @Builder.Default
+    private Boolean criticalFailure = false;
 
     // Enhanced compensation support
     private CompensationStrategy compensationStrategy;
@@ -133,6 +138,9 @@ public class SagaCommand extends DomainEvent {
     }
 
     public boolean isCriticalFailure() {
+        if (criticalFailure != null) {
+            return criticalFailure;
+        }
         return hasCompensationContext() && compensationContext.isCriticalFailure();
     }
 

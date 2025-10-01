@@ -26,7 +26,7 @@ import java.util.UUID;
  * Separated from commands to maintain clear separation of concerns
  */
 @RestController
-@RequestMapping("/bookings/queries")
+@RequestMapping("/queries")
 @RequiredArgsConstructor
 @Slf4j
 @Tag(name = "Booking Queries", description = "Booking query operations (read-only)")

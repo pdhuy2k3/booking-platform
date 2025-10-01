@@ -65,6 +65,8 @@ export type FlightSearchResult = {
   availableSeats: number
   aircraft: string
   airlineLogo?: string
+  scheduleId?: string
+  fareId?: string
 }
 
 export type FlightSearchResponse = {
@@ -104,11 +106,15 @@ export type FlightDetails = {
   destination: string
   departureTime: string
   arrivalTime: string
+  departureDateTime?: string
+  arrivalDateTime?: string
   duration: string
   price: number
   currency: string
   seatClass: string
   availableSeats: number
+  scheduleId?: string
+  fareId?: string
 }
 
 export interface FlightFareDetails {

@@ -18,10 +18,11 @@ import {
 } from "@/components/ui/dialog"
 import { MediaSelector } from "@/components/ui/media-selector";
 import { formatMediaForDisplay } from "@/lib/media-utils"
-import { Plus, Search, MoreHorizontal, Edit, Trash2, Users, DollarSign } from "lucide-react"
+import { Plus, Search, MoreHorizontal, Edit, Trash2, Users, DollarSign, Boxes } from "lucide-react"
 import { RoomTypeService } from "@/services/room-type-service"
 import type { RoomType, MediaResponse } from "@/types/api"
 import { toast } from "sonner"
+import { RoomAvailabilityDialog } from "./room-availability-dialog"
 
 interface RoomTypeManagerProps {
   hotelId: number
@@ -43,6 +44,8 @@ export function RoomTypeManager({ hotelId, onRoomTypesChange }: RoomTypeManagerP
   })
   const [newRoomTypeMedia, setNewRoomTypeMedia] = useState<MediaResponse[]>([])
   const [editingRoomTypeMedia, setEditingRoomTypeMedia] = useState<MediaResponse[]>([])
+  const [isAvailabilityDialogOpen, setIsAvailabilityDialogOpen] = useState(false)
+  const [availabilityRoomType, setAvailabilityRoomType] = useState<RoomType | null>(null)
 
   useEffect(() => {
     loadRoomTypes()
@@ -157,6 +160,11 @@ export function RoomTypeManager({ hotelId, onRoomTypesChange }: RoomTypeManagerP
       console.error("Failed to delete room type:", error)
       toast.error(error.message || "Không thể xóa loại phòng")
     }
+  }
+
+  const handleManageAvailability = (roomType: RoomType) => {
+    setAvailabilityRoomType(roomType)
+    setIsAvailabilityDialogOpen(true)
   }
 
   const formatPrice = (price: number) => {
@@ -333,6 +341,10 @@ export function RoomTypeManager({ hotelId, onRoomTypesChange }: RoomTypeManagerP
                             </Button>
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end">
+                            <DropdownMenuItem onClick={() => handleManageAvailability(roomType)}>
+                              <Boxes className="mr-2 h-4 w-4" />
+                              Quản lý tồn kho
+                            </DropdownMenuItem>
                             <DropdownMenuItem onClick={() => handleEditRoomType(roomType)}>
                               <Edit className="mr-2 h-4 w-4" />
                               Chỉnh sửa
@@ -430,6 +442,23 @@ export function RoomTypeManager({ hotelId, onRoomTypesChange }: RoomTypeManagerP
           </div>
         </DialogContent>
       </Dialog>
+
+      <RoomAvailabilityDialog
+        open={isAvailabilityDialogOpen}
+        onOpenChange={(open) => {
+          setIsAvailabilityDialogOpen(open)
+          if (!open) {
+            setAvailabilityRoomType(null)
+          }
+        }}
+        hotelId={hotelId}
+        roomTypeId={availabilityRoomType?.id ?? 0}
+        roomTypeName={availabilityRoomType?.name ?? ""}
+        onSaved={() => {
+          loadRoomTypes()
+          onRoomTypesChange?.()
+        }}
+      />
     </Card>
   )
 }

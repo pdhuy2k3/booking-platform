@@ -2,6 +2,9 @@ package com.pdh.common.outbox;
 
 import jakarta.persistence.*;
 import lombok.Data;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
+
 import java.time.LocalDateTime;
 import java.util.UUID;
 
@@ -35,7 +38,8 @@ public class SimpleOutboxEvent {
     @Column(name = "event_type", nullable = false, length = 100)
     private String eventType;
     
-    @Column(name = "payload", columnDefinition = "TEXT")
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "payload", columnDefinition = "JSONB")
     private String payload;
     
     @Column(name = "created_at", nullable = false)

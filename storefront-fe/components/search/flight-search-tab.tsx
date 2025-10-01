@@ -62,7 +62,7 @@ export function FlightSearchTab() {
   const [initialData, setInitialData] = useState<InitialFlightData | null>(null)
 
   // Modals
-  const [selectedFlightId, setSelectedFlightId] = useState<string | null>(null)
+  const [selectedFlightForModal, setSelectedFlightForModal] = useState<any | null>(null)
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [isOriginModalOpen, setIsOriginModalOpen] = useState(false)
   const [isDestinationModalOpen, setIsDestinationModalOpen] = useState(false)
@@ -123,6 +123,8 @@ export function FlightSearchTab() {
       currency: flight.currency || 'VND',
       seatClass: flight.seatClass || 'ECONOMY',
       logo: flight.airlineLogo || '/airplane-generic.png',
+      scheduleId: flight.scheduleId,
+      fareId: flight.fareId,
       departure: {
         time: getDisplayTime(departureDateTime, flight.departureTime),
         airport: flight.origin,
@@ -138,7 +140,11 @@ export function FlightSearchTab() {
       price: flight.price,
       class: flight.seatClass || 'ECONOMY',
       rating: 4.5,
-      raw: flight,
+      raw: {
+        ...flight,
+        departureDateTime,
+        arrivalDateTime,
+      },
     }
   }
 
@@ -147,13 +153,13 @@ export function FlightSearchTab() {
   }
 
   const handleViewDetails = (flight: any) => {
-    setSelectedFlightId(flight.id)
+    setSelectedFlightForModal(flight)
     setIsModalOpen(true)
   }
 
   const handleCloseModal = () => {
     setIsModalOpen(false)
-    setSelectedFlightId(null)
+    setSelectedFlightForModal(null)
   }
 
   const handleOriginSelect = (city: City) => {
@@ -207,10 +213,12 @@ export function FlightSearchTab() {
       currency: flightData.currency || 'VND',
       seatClass: normalizedSeatClass,
       logo: airlineLogo,
+      scheduleId: flightData.scheduleId,
+      fareId: flightData.fareId,
     })
     updateBookingData({
       bookingType: 'FLIGHT',
-      totalAmount: ticketPrice,
+      totalAmount: 0,
       currency: flightData.currency || 'VND',
       productDetails: undefined,
     })
@@ -219,8 +227,8 @@ export function FlightSearchTab() {
   }
 
   const handleModalBookFlight = (details: FlightDetails) => {
-    const departureIso = resolveDateTime(details.departureTime, departDate, details.departureTime)
-    const arrivalIso = resolveDateTime(details.arrivalTime, departDate, details.arrivalTime)
+    const departureIso = resolveDateTime(details.departureDateTime, departDate, details.departureTime)
+    const arrivalIso = resolveDateTime(details.arrivalDateTime, departDate, details.arrivalTime)
 
     const normalized = {
       raw: {
@@ -238,8 +246,23 @@ export function FlightSearchTab() {
         airlineLogo: '/airplane-generic.png',
         departureTime: details.departureTime,
         arrivalTime: details.arrivalTime,
+        scheduleId: details.scheduleId,
+        fareId: details.fareId,
       },
+      id: details.flightId,
+      airline: details.airline,
+      flightNumber: details.flightNumber,
+      origin: details.origin,
+      destination: details.destination,
+      departureTime: departureIso || details.departureTime,
+      arrivalTime: arrivalIso || details.arrivalTime,
+      duration: details.duration,
+      price: details.price,
+      currency: details.currency,
+      seatClass: details.seatClass,
       logo: '/airplane-generic.png',
+      scheduleId: details.scheduleId,
+      fareId: details.fareId,
       departureDateTime: departureIso || details.departureTime,
       arrivalDateTime: arrivalIso || details.arrivalTime,
     }
@@ -769,7 +792,11 @@ export function FlightSearchTab() {
 
       {/* Modals */}
       <FlightDetailsModal
-        flightId={selectedFlightId}
+        flightId={selectedFlightForModal?.id}
+        seatClass={selectedFlightForModal?.class}
+        departureDateTime={selectedFlightForModal?.raw?.departureDateTime}
+        scheduleId={selectedFlightForModal?.raw?.scheduleId}
+        fareId={selectedFlightForModal?.raw?.fareId}
         isOpen={isModalOpen}
         onClose={handleCloseModal}
         onBookFlight={handleModalBookFlight}

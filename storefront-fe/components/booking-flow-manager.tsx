@@ -25,6 +25,7 @@ export function BookingFlowManager({ onBookingComplete, showSelection = true }: 
     step, 
     bookingType, 
     bookingData, 
+    bookingResponse,
     selectedFlight,
     selectedHotel,
     updateBookingData, 
@@ -35,7 +36,8 @@ export function BookingFlowManager({ onBookingComplete, showSelection = true }: 
     setBookingType,
     setStep,
     setSelectedFlight,
-    setSelectedHotel
+    setSelectedHotel,
+    cancelInFlightBooking,
   } = useBooking()
   
   const [flight, setFlight] = useState<any>(null) // Replace with proper flight type
@@ -75,6 +77,7 @@ export function BookingFlowManager({ onBookingComplete, showSelection = true }: 
           city: 'Hanoi',
           country: 'Vietnam',
           rating: 4,
+          roomTypeId: 'RM789',
           roomId: 'RM789',
           roomType: 'Deluxe',
           roomName: 'Deluxe Room with City View',
@@ -132,6 +135,14 @@ export function BookingFlowManager({ onBookingComplete, showSelection = true }: 
 
   const handlePaymentBack = () => {
     prevStep()
+  }
+
+  const handleCancelBooking = () => {
+    if (bookingResponse?.bookingId) {
+      void cancelInFlightBooking()
+    } else {
+      resetBooking()
+    }
   }
 
   const handleNewBooking = () => {
@@ -224,7 +235,7 @@ export function BookingFlowManager({ onBookingComplete, showSelection = true }: 
         <BookingPaymentStep
           onPaymentSuccess={handlePaymentComplete}
           onBack={handlePaymentBack}
-          onCancel={handleNewBooking}
+          onCancel={handleCancelBooking}
         />
       )}
 

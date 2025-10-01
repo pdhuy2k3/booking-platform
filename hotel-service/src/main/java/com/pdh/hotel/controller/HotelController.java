@@ -8,8 +8,9 @@ import com.pdh.hotel.model.Hotel;
 import com.pdh.hotel.repository.HotelRepository;
 import com.pdh.hotel.service.AmenityService;
 import com.pdh.hotel.service.HotelService;
+import com.pdh.hotel.service.HotelInventoryService;
 import com.pdh.hotel.service.HotelSearchSpecificationService;
-import com.pdh.hotel.service.RoomService;
+import com.pdh.hotel.service.RoomTypeService;
 import com.pdh.hotel.mapper.HotelMapper;
 import com.pdh.common.dto.SearchResponse;
 import com.pdh.common.dto.DestinationSearchResult;
@@ -68,10 +69,11 @@ public class HotelController {
     private final HotelRepository hotelRepository;
     private final HotelService hotelService;
     private final HotelSearchSpecificationService hotelSearchSpecificationService;
-    private final RoomService roomService;
+    private final RoomTypeService roomTypeService;
     private final AmenityService amenityService;
     private final ObjectMapper objectMapper;
     private final HotelMapper hotelMapper;
+    private final HotelInventoryService hotelInventoryService;
     
 
   
@@ -107,16 +109,31 @@ public class HotelController {
         tags = {"Public API", "Details"}
     )
     @OpenApiResponses.StandardApiResponsesWithNotFound
-    @GetMapping("/storefront/rooms/{roomId}")
+    @GetMapping("/storefront/rooms/{roomTypeId}")
     public ResponseEntity<RoomResponseDto> getRoomDetails(
-            @Parameter(description = "Room ID", required = true, example = "101")
-            @PathVariable Long roomId) {
-        log.info("Room details request for ID: {}", roomId);
+            @Parameter(description = "Room type ID", required = true, example = "101")
+            @PathVariable Long roomTypeId,
+            @Parameter(description = "Check-in date (YYYY-MM-DD)", required = false)
+            @RequestParam(required = false) String checkInDate,
+            @Parameter(description = "Check-out date (YYYY-MM-DD)", required = false)
+            @RequestParam(required = false) String checkOutDate,
+            @Parameter(description = "Number of rooms requested", required = false)
+            @RequestParam(defaultValue = "1") Integer roomsRequested) {
+        log.info("Room type details request for ID: {}", roomTypeId);
         try {
-            RoomResponseDto room = roomService.getRoomById(roomId);
+            LocalDate checkIn = StringUtils.hasText(checkInDate) ? LocalDate.parse(checkInDate) : LocalDate.now();
+            LocalDate checkOut = StringUtils.hasText(checkOutDate) ? LocalDate.parse(checkOutDate) : checkIn.plusDays(1);
+
+            if (!checkOut.isAfter(checkIn)) {
+                return ResponseEntity.badRequest().build();
+            }
+
+            RoomResponseDto room = roomTypeService.getRoomDetails(roomTypeId, checkIn, checkOut, roomsRequested);
             return ResponseEntity.ok(room);
         } catch (EntityNotFoundException e) {
             return ResponseEntity.notFound().build();
+        } catch (DateTimeParseException e) {
+            return ResponseEntity.badRequest().build();
         } catch (Exception e) {
             log.error("Error retrieving room details", e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
@@ -316,6 +333,74 @@ public class HotelController {
         }
     }
 
+    @GetMapping("/storefront/availability")
+    @Tool(name = "check_hotel_availability", description = "Check if a hotel room type has enough inventory for the requested stay dates.")
+    public ResponseEntity<Map<String, Object>> checkHotelAvailability(
+            @ToolParam(description = "Hotel identifier")
+            @RequestParam Long hotelId,
+            @ToolParam(description = "Room type name")
+            @RequestParam String roomType,
+            @ToolParam(description = "Check-in date in YYYY-MM-DD format")
+            @RequestParam String checkInDate,
+            @ToolParam(description = "Check-out date in YYYY-MM-DD format")
+            @RequestParam String checkOutDate,
+            @ToolParam(description = "Number of rooms requested")
+            @RequestParam(defaultValue = "1") Integer rooms) {
+
+        if (hotelId == null) {
+            return ResponseEntity.badRequest().body(Map.of(
+                    "status", "error",
+                    "message", "hotelId is required"));
+        }
+
+        if (!StringUtils.hasText(roomType)) {
+            return ResponseEntity.badRequest().body(Map.of(
+                    "status", "error",
+                    "message", "roomType is required"));
+        }
+
+        try {
+            LocalDate checkIn = LocalDate.parse(checkInDate);
+            LocalDate checkOut = LocalDate.parse(checkOutDate);
+
+            HotelInventoryService.AvailabilitySummary summary = hotelInventoryService.getAvailabilitySummary(
+                    hotelId,
+                    roomType.trim(),
+                    rooms,
+                    checkIn,
+                    checkOut);
+
+            List<Map<String, Object>> dailyAvailability = summary.getDailyDetails().stream()
+                    .map(detail -> {
+                        Map<String, Object> detailMap = new LinkedHashMap<>();
+                        detailMap.put("date", detail.getDate().toString());
+                        detailMap.put("totalInventory", detail.getTotalInventory());
+                        detailMap.put("totalReserved", detail.getTotalReserved());
+                        detailMap.put("remaining", detail.getRemaining());
+                        return detailMap;
+                    })
+                    .collect(Collectors.toList());
+
+            Map<String, Object> response = new LinkedHashMap<>();
+            response.put("hotelId", hotelId.toString());
+            response.put("roomType", roomType.trim());
+            response.put("checkIn", checkIn.toString());
+            response.put("checkOut", checkOut.toString());
+            response.put("roomsRequested", summary.getRequestedRooms());
+            response.put("roomsAvailable", summary.getRoomsAvailable());
+            response.put("available", summary.isAvailable());
+            response.put("message", summary.getMessage());
+            response.put("dailyAvailability", dailyAvailability);
+
+            return ResponseEntity.ok(response);
+
+        } catch (DateTimeParseException ex) {
+            return ResponseEntity.badRequest().body(Map.of(
+                    "status", "error",
+                    "message", "Invalid date format. Expected YYYY-MM-DD"));
+        }
+    }
+
 
     /**
      * Get hotel details by ID for storefront
@@ -413,9 +498,10 @@ public class HotelController {
                     "bookingId", bookingId,
                     "sagaId", sagaId,
                     "hotelId", hotelDetails.getHotelId(),
+                    "roomTypeId", hotelDetails.getRoomTypeId(),
                     "roomId", hotelDetails.getRoomId(),
-                    "guests", hotelDetails.getGuests(),
-                    "rooms", hotelDetails.getRooms()
+                    "guests", hotelDetails.getNumberOfGuests(),
+                    "rooms", hotelDetails.getNumberOfRooms()
                 );
 
                 log.info("Detailed hotel reservation response: {}", response);

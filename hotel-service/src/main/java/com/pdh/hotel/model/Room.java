@@ -10,11 +10,11 @@ import lombok.NoArgsConstructor;
 import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.List;
+//Temporary deprecated
 
 @Entity
 @Table(name = "rooms")
 @Data
-
 @NoArgsConstructor
 @AllArgsConstructor
 public class Room extends AbstractAuditEntity {

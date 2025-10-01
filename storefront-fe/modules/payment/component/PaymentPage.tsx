@@ -24,7 +24,7 @@ interface PaymentPageProps {
 export const PaymentPage: React.FC<PaymentPageProps> = ({
   bookingId,
   amount,
-  currency = 'usd',
+  currency = 'vnd',
   description,
   sagaId,
   onSuccess,

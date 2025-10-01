@@ -46,8 +46,7 @@ public class BackofficePaymentController {
      */
     @Operation(summary = "Get payments", description = "Get paginated list of payments with filtering")
     @GetMapping("/payments")
-    @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<ApiResponse<Page<Payment>>> getPayments(
+    public ResponseEntity<ApiResponse<Page<BackofficePaymentDto>>> getPayments(
             @Parameter(description = "Page number") @RequestParam(defaultValue = "0") int page,
             @Parameter(description = "Page size") @RequestParam(defaultValue = "20") int size,
             @Parameter(description = "Search term") @RequestParam(required = false) String search,
@@ -84,7 +83,7 @@ public class BackofficePaymentController {
                     .direction(direction)
                     .build();
 
-            Page<Payment> payments = backofficePaymentService.getPayments(filters);
+            Page<BackofficePaymentDto> payments = backofficePaymentService.getPayments(filters);
             return ResponseEntity.ok(ApiResponse.success(payments));
 
         } catch (Exception e) {
@@ -99,7 +98,6 @@ public class BackofficePaymentController {
      */
     @Operation(summary = "Get payment details", description = "Get payment by ID with full details")
     @GetMapping("/payments/{paymentId}")
-    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<ApiResponse<Payment>> getPaymentById(
             @Parameter(description = "Payment ID", required = true) @PathVariable UUID paymentId) {
 
@@ -121,7 +119,6 @@ public class BackofficePaymentController {
      */
     @Operation(summary = "Get payment transactions", description = "Get all transactions for a payment")
     @GetMapping("/payments/{paymentId}/transactions")
-    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<ApiResponse<List<PaymentTransaction>>> getPaymentTransactions(
             @Parameter(description = "Payment ID", required = true) @PathVariable UUID paymentId) {
 
@@ -143,7 +140,7 @@ public class BackofficePaymentController {
      */
     @Operation(summary = "Get payment saga logs", description = "Get saga logs for a payment")
     @GetMapping("/payments/{paymentId}/saga-logs")
-    @PreAuthorize("hasRole('ADMIN')")
+
     public ResponseEntity<ApiResponse<List<Map<String, Object>>>> getPaymentSagaLogs(
             @Parameter(description = "Payment ID", required = true) @PathVariable UUID paymentId) {
 
@@ -165,7 +162,6 @@ public class BackofficePaymentController {
      */
     @Operation(summary = "Process manual payment", description = "Process manual payment for admin")
     @PostMapping("/payments/manual")
-    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<ApiResponse<Payment>> processManualPayment(
             @Parameter(description = "Manual payment request", required = true) 
             @Valid @RequestBody ManualPaymentRequestDto request) {
@@ -236,7 +232,6 @@ public class BackofficePaymentController {
      */
     @Operation(summary = "Cancel payment", description = "Cancel a payment")
     @PutMapping("/payments/{paymentId}/cancel")
-    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<ApiResponse<Payment>> cancelPayment(
             @Parameter(description = "Payment ID", required = true) @PathVariable UUID paymentId,
             @Parameter(description = "Cancellation reason") @RequestParam(required = false) String reason) {
@@ -259,7 +254,6 @@ public class BackofficePaymentController {
      */
     @Operation(summary = "Retry payment", description = "Retry a failed payment")
     @PostMapping("/payments/{paymentId}/retry")
-    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<ApiResponse<Payment>> retryPayment(
             @Parameter(description = "Payment ID", required = true) @PathVariable UUID paymentId) {
 
@@ -281,7 +275,6 @@ public class BackofficePaymentController {
      */
     @Operation(summary = "Get payment statistics", description = "Get payment statistics for admin dashboard")
     @GetMapping("/payments/stats")
-    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<ApiResponse<Map<String, Object>>> getPaymentStats(
             @Parameter(description = "Date from") @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate dateFrom,
             @Parameter(description = "Date to") @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate dateTo,
@@ -305,7 +298,6 @@ public class BackofficePaymentController {
      */
     @Operation(summary = "Get payments by booking", description = "Get all payments for a booking")
     @GetMapping("/bookings/{bookingId}/payments")
-    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<ApiResponse<List<Payment>>> getPaymentsByBookingId(
             @Parameter(description = "Booking ID", required = true) @PathVariable UUID bookingId) {
 
@@ -327,7 +319,6 @@ public class BackofficePaymentController {
      */
     @Operation(summary = "Export payments", description = "Export payments to CSV")
     @GetMapping("/payments/export")
-    @PreAuthorize("hasRole('ADMIN')")
     public void exportPayments(
             HttpServletResponse response,
             @Parameter(description = "Search term") @RequestParam(required = false) String search,
@@ -363,7 +354,6 @@ public class BackofficePaymentController {
      */
     @Operation(summary = "Reconcile payment", description = "Reconcile payment with payment gateway")
     @PostMapping("/payments/{paymentId}/reconcile")
-    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<ApiResponse<Payment>> reconcilePayment(
             @Parameter(description = "Payment ID", required = true) @PathVariable UUID paymentId) {
 
@@ -385,7 +375,6 @@ public class BackofficePaymentController {
      */
     @Operation(summary = "Get user payment methods", description = "Get payment methods for a user")
     @GetMapping("/users/{userId}/payment-methods")
-    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<ApiResponse<List<Map<String, Object>>>> getUserPaymentMethods(
             @Parameter(description = "User ID", required = true) @PathVariable UUID userId) {
 
@@ -407,7 +396,6 @@ public class BackofficePaymentController {
      */
     @Operation(summary = "Get payment webhooks", description = "Get payment gateway webhooks")
     @GetMapping("/webhooks")
-    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<ApiResponse<List<Map<String, Object>>>> getPaymentWebhooks(
             @Parameter(description = "Payment ID") @RequestParam(required = false) UUID paymentId,
             @Parameter(description = "Provider") @RequestParam(required = false) String provider,

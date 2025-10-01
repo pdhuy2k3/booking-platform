@@ -1,7 +1,10 @@
 package com.pdh.hotel.service;
 
 import com.pdh.common.dto.response.MediaResponse;
+import com.pdh.hotel.dto.request.RoomAvailabilityUpdateRequestDto;
 import com.pdh.hotel.dto.request.RoomRequestDto;
+import com.pdh.hotel.dto.response.RoomAvailabilityDetailDto;
+import com.pdh.hotel.dto.response.RoomAvailabilityResponseDto;
 import com.pdh.hotel.dto.response.RoomTypeInheritanceDto;
 import com.pdh.hotel.dto.response.RoomResponseDto;
 import com.pdh.hotel.dto.response.RoomListResponseDto;
@@ -19,13 +22,16 @@ import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDate;
 import java.util.*;
+import java.util.concurrent.ThreadLocalRandom;
 import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
 @Slf4j
 @Transactional
+@Deprecated
 public class BackofficeRoomService {
 
     private final RoomRepository roomRepository;
@@ -33,8 +39,10 @@ public class BackofficeRoomService {
     private final RoomTypeRepository roomTypeRepository;
     private final AmenityRepository amenityRepository;
     private final RoomAmenityRepository roomAmenityRepository;
+    private final RoomAvailabilityRepository roomAvailabilityRepository;
     private final ImageService imageService;
     private final RoomMapper roomMapper;
+    private final HotelInventoryService hotelInventoryService;
 
     /**
      * Get all rooms for a hotel with pagination (legacy method for compatibility)
@@ -475,6 +483,196 @@ public class BackofficeRoomService {
     @Transactional(readOnly = true)
     public long getAvailableRoomsCount(Long hotelId) {
         return roomRepository.countAvailableRoomsByHotelId(hotelId);
+    }
+
+    @Transactional(readOnly = true)
+    public RoomAvailabilityResponseDto getRoomAvailability(Long hotelId, Long roomTypeId,
+                                                           LocalDate startDate, LocalDate endDate) {
+        LocalDate effectiveStart = Optional.ofNullable(startDate).orElse(LocalDate.now());
+        LocalDate effectiveEnd = Optional.ofNullable(endDate).orElse(effectiveStart.plusDays(29));
+
+        if (effectiveEnd.isBefore(effectiveStart)) {
+            throw new IllegalArgumentException("endDate must be on or after startDate");
+        }
+
+        RoomType roomType = roomTypeRepository.findById(roomTypeId)
+            .orElseThrow(() -> new EntityNotFoundException("Room type not found with ID: " + roomTypeId));
+
+        if (roomType.getHotel() == null || !Objects.equals(roomType.getHotel().getHotelId(), hotelId)) {
+            throw new EntityNotFoundException("Room type does not belong to the specified hotel");
+        }
+
+        long activeRoomCount = roomRepository.countActiveRoomsByRoomType(roomTypeId);
+
+        List<RoomAvailability> existingRecords = roomAvailabilityRepository
+            .findByRoomTypeIdAndDateBetween(roomTypeId, effectiveStart, effectiveEnd);
+
+        Map<LocalDate, RoomAvailability> existingByDate = existingRecords.stream()
+            .collect(Collectors.toMap(RoomAvailability::getDate, record -> record));
+
+        int normalizedActiveRooms = (int) Math.min(activeRoomCount, (long) Integer.MAX_VALUE);
+
+        List<RoomAvailabilityDetailDto> availability = new ArrayList<>();
+        LocalDate cursor = effectiveStart;
+        while (!cursor.isAfter(effectiveEnd)) {
+            RoomAvailability record = existingByDate.get(cursor);
+            int totalInventory;
+            int totalReserved;
+            boolean autoCalculated = record == null;
+
+            if (record != null) {
+                totalInventory = Optional.ofNullable(record.getTotalInventory()).orElse(0);
+                totalReserved = Optional.ofNullable(record.getTotalReserved()).orElse(0);
+            } else {
+                totalInventory = normalizedActiveRooms;
+                totalReserved = 0;
+            }
+
+            int remaining = Math.max(totalInventory - totalReserved, 0);
+
+            availability.add(RoomAvailabilityDetailDto.builder()
+                .date(cursor)
+                .totalInventory(totalInventory)
+                .totalReserved(totalReserved)
+                .remaining(remaining)
+                .autoCalculated(autoCalculated)
+                .build());
+
+            cursor = cursor.plusDays(1);
+        }
+
+        return RoomAvailabilityResponseDto.builder()
+            .hotelId(hotelId)
+            .roomTypeId(roomTypeId)
+            .roomTypeName(roomType.getName())
+            .startDate(effectiveStart)
+            .endDate(effectiveEnd)
+            .activeRoomCount(normalizedActiveRooms)
+            .availability(availability)
+            .build();
+    }
+
+    public RoomAvailabilityResponseDto generateRandomAvailability(Long hotelId,
+                                                                  Long roomTypeId,
+                                                                  LocalDate startDate,
+                                                                  LocalDate endDate,
+                                                                  Integer minInventory,
+                                                                  Integer maxInventory,
+                                                                  Integer minReserved,
+                                                                  Integer maxReserved) {
+
+        LocalDate effectiveStart = Optional.ofNullable(startDate).orElse(LocalDate.now());
+        LocalDate effectiveEnd = Optional.ofNullable(endDate).orElse(effectiveStart.plusDays(29));
+
+        if (effectiveEnd.isBefore(effectiveStart)) {
+            throw new IllegalArgumentException("endDate must be on or after startDate");
+        }
+
+        RoomType roomType = roomTypeRepository.findById(roomTypeId)
+            .orElseThrow(() -> new EntityNotFoundException("Room type not found with ID: " + roomTypeId));
+
+        if (roomType.getHotel() == null || !Objects.equals(roomType.getHotel().getHotelId(), hotelId)) {
+            throw new EntityNotFoundException("Room type does not belong to the specified hotel");
+        }
+
+        int normalizedActiveRooms = (int) Math.min(roomRepository.countActiveRoomsByRoomType(roomTypeId), (long) Integer.MAX_VALUE);
+        int fallbackMaxInventory = normalizedActiveRooms > 0 ? normalizedActiveRooms : 10;
+        int resolvedMinInventory = Math.max(1, Optional.ofNullable(minInventory).orElse(Math.max(1, fallbackMaxInventory / 2)));
+        int resolvedMaxInventory = Optional.ofNullable(maxInventory).orElse(fallbackMaxInventory);
+        if (resolvedMinInventory > resolvedMaxInventory) {
+            resolvedMinInventory = resolvedMaxInventory;
+        }
+
+        int resolvedMinReserved = Math.max(0, Optional.ofNullable(minReserved).orElse(0));
+        int resolvedMaxReserved = Optional.ofNullable(maxReserved)
+            .orElse(Math.max(resolvedMinReserved, (int) Math.round(resolvedMaxInventory * 0.7)));
+
+        List<RoomAvailability> existingRecords = roomAvailabilityRepository
+            .findByRoomTypeIdAndDateBetween(roomTypeId, effectiveStart, effectiveEnd);
+
+        Map<LocalDate, RoomAvailability> existingByDate = existingRecords.stream()
+            .collect(Collectors.toMap(RoomAvailability::getDate, record -> record));
+
+        ThreadLocalRandom random = ThreadLocalRandom.current();
+        LocalDate cursor = effectiveStart;
+        while (!cursor.isAfter(effectiveEnd)) {
+            int inventory = random.nextInt(resolvedMinInventory, resolvedMaxInventory + 1);
+            int maxReservedForDay = Math.min(resolvedMaxReserved, inventory);
+            int minReservedForDay = Math.min(resolvedMinReserved, maxReservedForDay);
+            int reserved = maxReservedForDay >= minReservedForDay
+                ? random.nextInt(minReservedForDay, maxReservedForDay + 1)
+                : minReservedForDay;
+
+            RoomAvailability record = existingByDate.get(cursor);
+            if (record == null) {
+                record = new RoomAvailability();
+                record.setRoomTypeId(roomTypeId);
+                record.setDate(cursor);
+            }
+
+            record.setTotalInventory(inventory);
+            record.setTotalReserved(reserved);
+            roomAvailabilityRepository.save(record);
+
+            cursor = cursor.plusDays(1);
+        }
+
+        return getRoomAvailability(hotelId, roomTypeId, effectiveStart, effectiveEnd);
+    }
+
+    public RoomAvailabilityResponseDto updateRoomAvailability(Long hotelId, Long roomTypeId,
+                                                               List<RoomAvailabilityUpdateRequestDto> updates) {
+        if (updates == null || updates.isEmpty()) {
+            throw new IllegalArgumentException("Availability updates must not be empty");
+        }
+
+        RoomType roomType = roomTypeRepository.findById(roomTypeId)
+            .orElseThrow(() -> new EntityNotFoundException("Room type not found with ID: " + roomTypeId));
+
+        if (roomType.getHotel() == null || !Objects.equals(roomType.getHotel().getHotelId(), hotelId)) {
+            throw new EntityNotFoundException("Room type does not belong to the specified hotel");
+        }
+
+        LocalDate minDate = updates.stream()
+            .map(RoomAvailabilityUpdateRequestDto::getDate)
+            .filter(Objects::nonNull)
+            .min(LocalDate::compareTo)
+            .orElseThrow(() -> new IllegalArgumentException("All updates must include a date"));
+
+        LocalDate maxDate = updates.stream()
+            .map(RoomAvailabilityUpdateRequestDto::getDate)
+            .filter(Objects::nonNull)
+            .max(LocalDate::compareTo)
+            .orElse(minDate);
+
+        for (RoomAvailabilityUpdateRequestDto update : updates) {
+            if (update.getDate() == null) {
+                throw new IllegalArgumentException("Availability update date cannot be null");
+            }
+
+            if (update.getTotalReserved() > update.getTotalInventory()) {
+                throw new IllegalArgumentException("Reserved rooms cannot exceed total inventory for date " + update.getDate());
+            }
+
+            RoomAvailability availability = roomAvailabilityRepository
+                .findByRoomTypeIdAndDate(roomTypeId, update.getDate())
+                .orElseGet(() -> {
+                    RoomAvailability newAvailability = new RoomAvailability();
+                    newAvailability.setRoomTypeId(roomTypeId);
+                    newAvailability.setRoomType(roomType);
+                    newAvailability.setDate(update.getDate());
+                    return newAvailability;
+                });
+
+            availability.setTotalInventory(update.getTotalInventory());
+            availability.setTotalReserved(update.getTotalReserved());
+
+            roomAvailabilityRepository.save(availability);
+        }
+
+        hotelInventoryService.refreshAvailabilityForRange(roomType, minDate, maxDate);
+
+        return getRoomAvailability(hotelId, roomTypeId, minDate, maxDate);
     }
 
     /**

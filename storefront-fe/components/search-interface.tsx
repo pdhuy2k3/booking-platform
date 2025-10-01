@@ -126,6 +126,7 @@ export function SearchInterface() {
           currency: "VND",
           availableRooms: [
             {
+              roomTypeId: "rt1",
               roomId: "r1",
               roomType: "Deluxe Room",
               capacity: 2,
@@ -148,6 +149,7 @@ export function SearchInterface() {
           currency: "VND",
           availableRooms: [
             {
+              roomTypeId: "rt2",
               roomId: "r2",
               roomType: "Lake View Room",
               capacity: 2,

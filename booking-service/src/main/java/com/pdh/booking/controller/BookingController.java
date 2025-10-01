@@ -306,48 +306,35 @@ public class BookingController {
                 effectiveStatus = BookingStatus.PENDING;
             }
 
+            String reason = firstNonBlank(booking.getCancellationReason(), booking.getCompensationReason());
             BookingStatusResponseDto response = BookingStatusResponseDto.builder()
                 .bookingId(booking.getBookingId().toString())
                 .bookingReference(booking.getBookingReference())
                 .status(effectiveStatus)
-                .lastUpdated(booking.getUpdatedAt().toString())
+                .lastUpdated(booking.getUpdatedAt() != null ? booking.getUpdatedAt().toString() : null)
+                .progressPercentage(resolveProgress(effectiveStatus))
                 .build();
 
-            // Add status-specific messages
             switch (effectiveStatus) {
-                case VALIDATION_PENDING:
+                case VALIDATION_PENDING -> {
                     response.setMessage("Validating product availability...");
                     response.setEstimatedCompletion("2-5 seconds");
-                    break;
-                case PENDING:
+                }
+                case PENDING -> {
                     response.setMessage("Processing your booking...");
                     response.setEstimatedCompletion("10-30 seconds");
-                    break;
-                case CONFIRMED:
-                    response.setMessage("Booking confirmed successfully!");
-                    break;
-                case PAYMENT_PENDING:
+                }
+                case PAYMENT_PENDING -> {
                     response.setMessage("Waiting for payment processing...");
                     response.setEstimatedCompletion("5-15 seconds");
-                    break;
-                case PAID:
-                    response.setMessage("Payment completed successfully!");
-                    break;
-                case PAYMENT_FAILED:
-                    response.setMessage("Payment processing failed");
-                    break;
-                case CANCELLED:
-                    response.setMessage("Booking has been cancelled");
-                    break;
-                case VALIDATION_FAILED:
-                    response.setMessage("Product availability validation failed");
-                    break;
-                case FAILED:
-                    response.setMessage("Booking processing failed");
-                    break;
-                default:
-                    response.setMessage("Unknown status");
-                    break;
+                }
+                case CONFIRMED -> response.setMessage("Booking confirmed successfully!");
+                case PAID -> response.setMessage("Payment completed successfully!");
+                case PAYMENT_FAILED -> response.setMessage(reason != null ? reason : "Payment processing failed");
+                case CANCELLED -> response.setMessage(reason != null ? reason : "Booking has been cancelled");
+                case VALIDATION_FAILED -> response.setMessage(reason != null ? reason : "Product availability validation failed");
+                case FAILED -> response.setMessage(reason != null ? reason : "Booking processing failed");
+                default -> response.setMessage("Unknown status");
             }
 
             return ResponseEntity.ok(response);
@@ -358,10 +345,24 @@ public class BookingController {
         }
     }
 
-    // ============== HELPER METHODS FOR ASYNC VALIDATION ==============
+    private int resolveProgress(BookingStatus status) {
+        return switch (status) {
+            case VALIDATION_PENDING -> 10;
+            case PENDING -> 40;
+            case PAYMENT_PENDING -> 70;
+            case CONFIRMED, PAID, CANCELLED, FAILED, PAYMENT_FAILED, VALIDATION_FAILED -> 100;
+            default -> 0;
+        };
+    }
 
-    /**
-     * Creates validation command payload for async processing
-     */
+    private String firstNonBlank(String primary, String secondary) {
+        if (primary != null && !primary.isBlank()) {
+            return primary;
+        }
+        if (secondary != null && !secondary.isBlank()) {
+            return secondary;
+        }
+        return null;
+    }
 
 }

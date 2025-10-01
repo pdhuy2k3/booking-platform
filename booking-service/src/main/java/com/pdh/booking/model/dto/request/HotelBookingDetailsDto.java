@@ -60,9 +60,14 @@ public class HotelBookingDetailsDto {
     private Integer starRating;
     
     /**
-     * Selected room ID
+     * Selected room type ID
      */
-    @NotBlank(message = "Room ID is required")
+    @NotBlank(message = "Room type ID is required")
+    private String roomTypeId;
+
+    /**
+     * Selected room ID (optional)
+     */
     private String roomId;
     
     /**

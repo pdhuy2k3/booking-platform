@@ -93,6 +93,7 @@ public class BookingSagaEventDto {
     @AllArgsConstructor
     public static class HotelReservationData {
         private String hotelId;
+        private String roomTypeId;
         private String roomId;
         private String reservationId;
         private String checkInDate;

@@ -34,6 +34,7 @@ export type HotelSearchResult = {
   pricePerNight: number
   currency: string
   availableRooms: Array<{
+    roomTypeId?: string
     roomId: string
     roomType: string
     capacity: number

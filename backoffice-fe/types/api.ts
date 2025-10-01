@@ -132,10 +132,6 @@ export interface Hotel {
   updatedAt?: string
 }
 
-export interface HotelDetails extends Hotel {
-  rooms: Room[]
-}
-
 export interface RoomType {
   id: number
   name: string
@@ -145,6 +141,30 @@ export interface RoomType {
   media?: MediaResponse[]     // For creating/updating room types - complete media info
   createdAt?: string
   updatedAt?: string
+}
+
+export interface RoomAvailabilityDay {
+  date: string
+  totalInventory: number
+  totalReserved: number
+  remaining: number
+  autoCalculated?: boolean
+}
+
+export interface RoomAvailabilityResponse {
+  hotelId: number
+  roomTypeId: number
+  roomTypeName: string
+  startDate: string
+  endDate: string
+  activeRoomCount: number
+  availability: RoomAvailabilityDay[]
+}
+
+export interface RoomAvailabilityUpdate {
+  date: string
+  totalInventory: number
+  totalReserved: number
 }
 
 export interface RoomTypeInheritance {
@@ -164,26 +184,6 @@ export interface Amenity {
   iconUrl?: string
   isActive: boolean
   displayOrder: number
-  createdAt?: string
-  updatedAt?: string
-}
-
-export interface Room {
-  id: number
-  hotelId: number
-  hotelName?: string
-  roomNumber: string
-  description: string
-  price: number
-  maxOccupancy: number
-  bedType: string
-  roomSize: number
-  isAvailable: boolean
-  roomType?: RoomType
-  roomTypeId?: number | null  // For creating/updating rooms
-  amenities?: Amenity[]
-  amenityIds?: number[]       // For creating/updating rooms
-  media?: MediaResponse[]     // For creating/updating rooms - complete media info
   createdAt?: string
   updatedAt?: string
 }
