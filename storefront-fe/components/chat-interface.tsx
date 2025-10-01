@@ -1,10 +1,12 @@
 "use client"
 
 import React, { useState, useRef, useEffect, forwardRef, useImperativeHandle } from "react"
-import { Send, Mic, Plus } from "lucide-react"
+import { Send, Mic, Plus, AlertCircle } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { cn } from "@/lib/utils"
+import { useAiChat } from "@/modules/ai"
+import { Alert, AlertDescription } from "@/components/ui/alert"
 
 interface ChatMessage {
   id: string
@@ -26,18 +28,24 @@ export const ChatInterface = forwardRef<any, ChatInterfaceProps>(function ChatIn
   { onSearchResults, onStartBooking, onChatStart, onItemSelect },
   ref,
 ) {
-  const [messages, setMessages] = useState<ChatMessage[]>([
-    {
-      id: "1",
-      content: "Dưới đây là các lựa chọn chuyến bay từ 🛂 Tân Sơn Nhất đến 🛂 Đà Nẵng vào ngày 21/12/2025 mà tôi có thông tin:",
-      isUser: false,
-      timestamp: new Date(),
-    },
-  ])
   const [input, setInput] = useState("")
-  const [isLoading, setIsLoading] = useState(false)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
+  
+  // Use the AI chat hook
+  const { 
+    messages, 
+    isLoading, 
+    error, 
+    sendMessage, 
+    clearMessages,
+    suggestions,
+    getSuggestions 
+  } = useAiChat({
+    onError: (errorMsg) => {
+      console.error('Chat error:', errorMsg);
+    }
+  })
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })
@@ -46,6 +54,11 @@ export const ChatInterface = forwardRef<any, ChatInterfaceProps>(function ChatIn
   useEffect(() => {
     scrollToBottom()
   }, [messages])
+
+  useEffect(() => {
+    // Load suggestions on component mount
+    getSuggestions()
+  }, [getSuggestions])
 
   useImperativeHandle(ref, () => ({
     handleExamplePrompt: (prompt: string) => {
@@ -60,65 +73,31 @@ export const ChatInterface = forwardRef<any, ChatInterfaceProps>(function ChatIn
     const messageContent = promptText || input
     if (!messageContent.trim() || isLoading) return
 
-    const userMessage: ChatMessage = {
-      id: Date.now().toString(),
-      content: messageContent,
-      isUser: true,
-      timestamp: new Date(),
-    }
-
-    setMessages(prev => [...prev, userMessage])
     setInput("")
-    setIsLoading(true)
-
-    // Simulate AI response
-    setTimeout(() => {
-      const aiMessage: ChatMessage = {
-        id: (Date.now() + 1).toString(),
-        content: "Tôi đang tìm kiếm chuyến bay từ Tân Sơn Nhất đến Đà Nẵng cho bạn...",
-        isUser: false,
-        timestamp: new Date(),
-      }
-      setMessages(prev => [...prev, aiMessage])
-      setIsLoading(false)
-    }, 1000)
+    onChatStart()
+    
+    await sendMessage(messageContent)
   }
-
-  // Mock flight data
-  const mockFlights = [
-    {
-      id: "1",
-      airline: "VietJet Air (VJ 620)",
-      departure: "6:30 sáng từ 🛂 Tân Sơn Nhất",
-      arrival: "7:50 sáng tại 🛂 Đà Nẵng", 
-      duration: "1 giờ 20 phút",
-      price: "$51.50/người (2 người: $103.00, hạng phổ thông)",
-      type: "Không hủy (không dừng)",
-      badge: "Best"
-    },
-    {
-      id: "2", 
-      airline: "Vietnam Airlines (VN 112)",
-      departure: "8:05 sáng từ 🛂 Tân Sơn Nhất",
-      arrival: "9:20 sáng tại 🛂 Đà Nẵng",
-      duration: "1 giờ 15 phút", 
-      price: "Giá không có sẵn",
-      type: "Không hủy",
-      badge: "Cheapest"
-    }
-  ]
 
   return (
     <div className="flex flex-col h-full bg-white">
       {/* Header with trip info */}
       <div className="p-4 border-b border-gray-200 bg-white">
         <div className="flex items-center gap-2 text-sm text-gray-600">
-          <span>🛪 tìm kiếm chuyến bay đến đà nẵng từ sân bay Tân Sơn Nhất</span>
+          <span>� Trò chuyện với AI để lên kế hoạch du lịch</span>
         </div>
       </div>
 
       {/* Chat Messages */}
       <div className="flex-1 overflow-y-auto p-4 space-y-4">
+        {/* Error Alert */}
+        {error && (
+          <Alert variant="destructive" className="mb-4">
+            <AlertCircle className="h-4 w-4" />
+            <AlertDescription>{error}</AlertDescription>
+          </Alert>
+        )}
+
         {messages.map((message) => (
           <div
             key={message.id}
@@ -140,83 +119,26 @@ export const ChatInterface = forwardRef<any, ChatInterfaceProps>(function ChatIn
           </div>
         ))}
 
-        {/* Flight results section */}
-        <div className="space-y-4">
-          <div className="text-lg font-semibold text-gray-900">
-            Các lựa chọn bay thẳng (không dừng) ✈️
-          </div>
-
-          {mockFlights.map((flight) => (
-            <div key={flight.id} className="bg-white border border-gray-200 rounded-xl p-4 hover:shadow-md transition-shadow">
-              <div className="flex items-start justify-between mb-3">
-                <div className="flex gap-2">
-                  {flight.badge === "Best" && (
-                    <span className="bg-blue-100 text-blue-800 text-xs px-2 py-1 rounded-full font-medium">
-                      Best
-                    </span>
-                  )}
-                  {flight.badge === "Cheapest" && (
-                    <span className="bg-green-100 text-green-800 text-xs px-2 py-1 rounded-full font-medium">
-                      Cheapest
-                    </span>
-                  )}
-                </div>
-                <div className="text-right">
-                  <div className="text-lg font-bold text-gray-900">
-                    {flight.price.includes("$") ? flight.price.split("(")[0] : flight.price}
-                  </div>
-                  {flight.price.includes("per person") && (
-                    <div className="text-sm text-gray-500">per person</div>
-                  )}
-                  {flight.price.includes("$103") && (
-                    <div className="text-sm text-gray-500">$103 total</div>
-                  )}
-                </div>
-              </div>
-
-              <div className="space-y-2">
-                <div className="flex items-center gap-4">
-                  <div className="text-sm font-medium text-gray-900">
-                    Sun, Dec 21
-                  </div>
-                  <div className="text-sm font-medium text-gray-900">
-                    6:30 AM-7:50 AM
-                  </div>
-                  <div className="text-sm text-gray-500">
-                    1h 20m
-                  </div>
-                  <div className="text-sm text-gray-500">
-                    Nonstop
-                  </div>
-                </div>
-                
-                <div className="flex items-center justify-between">
-                  <div className="text-sm text-gray-600">
-                    {flight.airline.split("(")[0]}
-                  </div>
-                  <div className="text-sm text-gray-600">
-                    SGN-DAD
-                  </div>
-                </div>
-              </div>
-
-              <div className="mt-3 pt-3 border-t border-gray-100">
-                <div className="flex items-center justify-between">
-                  <div className="text-xs text-red-600">
-                    ❌ {flight.type}
-                  </div>
-                  <Button 
-                    size="sm" 
-                    className="bg-blue-600 text-white hover:bg-blue-700 rounded-full px-6"
-                    onClick={() => onItemSelect?.(flight)}
-                  >
-                    Book
-                  </Button>
-                </div>
-              </div>
+        {/* Suggestions (show when messages are minimal) */}
+        {messages.length <= 2 && suggestions.length > 0 && (
+          <div className="space-y-2">
+            <div className="text-sm text-gray-500 font-medium">Gợi ý:</div>
+            <div className="flex flex-wrap gap-2">
+              {suggestions.map((suggestion, index) => (
+                <Button
+                  key={index}
+                  variant="outline"
+                  size="sm"
+                  className="text-xs h-8 rounded-full"
+                  onClick={() => handleSubmit(undefined, suggestion)}
+                  disabled={isLoading}
+                >
+                  {suggestion}
+                </Button>
+              ))}
             </div>
-          ))}
-        </div>
+          </div>
+        )}
 
         {isLoading && (
           <div className="flex justify-start">
@@ -241,6 +163,8 @@ export const ChatInterface = forwardRef<any, ChatInterfaceProps>(function ChatIn
             variant="ghost"
             size="icon"
             className="h-10 w-10 rounded-full hover:bg-gray-100"
+            onClick={clearMessages}
+            title="Xóa cuộc trò chuyện"
           >
             <Plus className="h-5 w-5 text-gray-600" />
           </Button>
@@ -250,7 +174,7 @@ export const ChatInterface = forwardRef<any, ChatInterfaceProps>(function ChatIn
               ref={inputRef}
               value={input}
               onChange={(e) => setInput(e.target.value)}
-              placeholder="Ask anything..."
+              placeholder="Hỏi về địa điểm du lịch, khách sạn, chuyến bay..."
               className="w-full rounded-full border-gray-300 pr-20 h-12 text-sm"
               disabled={isLoading}
             />
@@ -260,6 +184,7 @@ export const ChatInterface = forwardRef<any, ChatInterfaceProps>(function ChatIn
                 variant="ghost"
                 size="icon"
                 className="h-8 w-8 rounded-full hover:bg-gray-100"
+                disabled={isLoading}
               >
                 <Mic className="h-4 w-4 text-gray-600" />
               </Button>

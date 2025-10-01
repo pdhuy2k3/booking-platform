@@ -22,7 +22,6 @@
         <module>flight-service</module>
         <module>hotel-service</module>
         <module>booking-service</module>
-<!--        <module>transport-service</module>-->
         <module>payment-service</module>
         <module>customer-service</module>
         <module>notification-service</module>

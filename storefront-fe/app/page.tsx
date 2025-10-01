@@ -6,6 +6,7 @@ import { Search, MessageCircle } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { ChatInterface } from "@/components/chat-interface"
 import { SearchInterface } from "@/components/search-interface"
+import { RecommendationPanel } from "@/components/recommendation-panel"
 
 type MainTab = "chat" | "search"
 
@@ -74,18 +75,28 @@ export default function HomePage() {
       </div>
 
       {/* Tab Content */}
-      <div className="flex-1 overflow-hidden">
+      <div className="flex-1 overflow-hidden flex">
         {activeTab === "chat" && (
-          <div className="h-full">
-            <ChatInterface
-              onSearchResults={() => {}}
-              onStartBooking={() => {}}
-              onChatStart={() => {}}
+          <>
+            {/* Chat Interface - Middle */}
+            <div className="flex-1 h-full">
+              <ChatInterface
+                onSearchResults={() => {}}
+                onStartBooking={() => {}}
+                onChatStart={() => {}}
+              />
+            </div>
+            
+            {/* Recommendation Panel - Right */}
+            <RecommendationPanel 
+              onItemSelect={(item) => {
+                console.log("Selected recommendation:", item)
+              }}
             />
-          </div>
+          </>
         )}
         {activeTab === "search" && (
-          <div className="h-full">
+          <div className="flex-1 h-full">
             <SearchInterface />
           </div>
         )}

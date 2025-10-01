@@ -157,6 +157,8 @@ spring:
     bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
     consumer:
       group-id: hotel-service
+
+
 eureka:
   client:
     serviceUrl:

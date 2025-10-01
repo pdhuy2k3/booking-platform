@@ -139,6 +139,7 @@ spring:
           model: gemini-2.5-flash
     chat:
       memory:
+
         repository:
           jdbc:
             initialize-schema: always

@@ -40,7 +40,11 @@ public abstract class BaseKafkaListenerConfig<K, V> {
     }
 
     private ConsumerFactory<K, V> typeConsumerFactory(Class<K> keyClazz, Class<V> valueClazz) {
-        Map<String, Object> props = buildConsumerProperties();
+        Map<String, Object> props = new java.util.HashMap<>(kafkaProperties.buildConsumerProperties(null));
+        props.put(JsonDeserializer.USE_TYPE_INFO_HEADERS, false);
+        props.put(JsonDeserializer.TRUSTED_PACKAGES, "*");
+        props.put(JsonDeserializer.KEY_DEFAULT_TYPE, keyClazz);
+        props.put(JsonDeserializer.VALUE_DEFAULT_TYPE, valueClazz);
         // wrapper in case serialization/deserialization occur
         var keyDeserialize = new ErrorHandlingDeserializer<>(getJsonDeserializer(keyClazz));
         var valueDeserialize = new ErrorHandlingDeserializer<>(getJsonDeserializer(valueClazz));
@@ -48,13 +52,6 @@ public abstract class BaseKafkaListenerConfig<K, V> {
     }
 
     private static <T> JsonDeserializer<T> getJsonDeserializer(Class<T> clazz) {
-        var jsonDeserializer = new JsonDeserializer<>(clazz);
-        jsonDeserializer.addTrustedPackages("*");
-        jsonDeserializer.ignoreTypeHeaders();
-        return jsonDeserializer;
-    }
-
-    private Map<String, Object> buildConsumerProperties() {
-        return kafkaProperties.buildConsumerProperties(null);
+        return new JsonDeserializer<>(clazz, false);
     }
 }
