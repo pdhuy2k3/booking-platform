@@ -138,7 +138,7 @@ export function RecommendationPanel({ onItemSelect }: RecommendationPanelProps) 
           >
             {/* Image */}
             <div className="aspect-video bg-gray-200 relative">
-              <div className="absolute inset-0 bg-gradient-to-br from-blue-400 to-purple-500 flex items-center justify-center">
+              <div className="absolute inset-0 bg-linear-to-br from-blue-400 to-purple-500 flex items-center justify-center">
                 <span className="text-white text-sm">📸 {item.title}</span>
               </div>
               

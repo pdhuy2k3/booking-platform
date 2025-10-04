@@ -464,7 +464,7 @@ export function HotelSearchTab() {
             <div className="lg:col-span-1">
               <div className="sticky top-0 space-y-4">
                 <Card className="max-h-[calc(100vh-120px)] overflow-hidden flex flex-col">
-                  <CardHeader className="flex-shrink-0">
+                  <CardHeader className="shrink-0">
                     <CardTitle className="flex items-center gap-2">
                       <Filter className="h-5 w-5" />
                       Bộ lọc

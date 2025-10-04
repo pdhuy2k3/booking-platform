@@ -38,7 +38,7 @@ const DestinationItem: React.FC<{
         'flex items-start gap-3 group'
       )}
     >
-      <div className="flex-shrink-0 mt-1">
+      <div className="shrink-0 mt-1">
         {isPopular ? (
           <TrendingUp className="w-5 h-5 text-orange-500" />
         ) : (

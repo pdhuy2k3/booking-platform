@@ -124,7 +124,7 @@ export function SearchMap({
                   className="justify-start text-left h-auto p-2"
                 >
                   <div className="flex items-start gap-2 w-full">
-                    <MapPin className="h-3 w-3 mt-0.5 flex-shrink-0" />
+                    <MapPin className="h-3 w-3 mt-0.5 shrink-0" />
                     <div className="min-w-0 flex-1">
                       <div className="font-medium text-xs truncate">
                         {location.name}

@@ -66,7 +66,7 @@ export function WelcomeScreen({ onExampleClick }: WelcomeScreenProps) {
 
       <div className="relative z-10 text-center space-y-8 max-w-2xl mx-auto px-6">
         <div className="space-y-4">
-          <h1 className="text-5xl font-bold text-balance bg-gradient-to-r from-white via-cyan-100 to-emerald-100 bg-clip-text text-transparent">
+          <h1 className="text-5xl font-bold text-balance bg-linear-to-r from-white via-cyan-100 to-emerald-100 bg-clip-text text-transparent">
             Ask TravelAI
           </h1>
         </div>
