@@ -1,4 +1,4 @@
-package com.pdh.ai.mcp.client;
+package com.pdh.ai.agent.mcp.client;
 
 import io.modelcontextprotocol.client.McpSyncClient;
 import io.modelcontextprotocol.spec.McpSchema;

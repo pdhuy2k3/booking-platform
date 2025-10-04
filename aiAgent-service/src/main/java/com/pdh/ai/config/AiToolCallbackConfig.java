@@ -7,7 +7,7 @@ import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
-import com.pdh.ai.mcp.client.CustomSyncMcpToolCallbackProvider;
+import com.pdh.ai.agent.mcp.client.CustomSyncMcpToolCallbackProvider;
 import com.pdh.ai.service.ToolResultCollector;
 
 import io.modelcontextprotocol.client.McpSyncClient;

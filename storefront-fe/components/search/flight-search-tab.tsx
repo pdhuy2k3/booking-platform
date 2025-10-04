@@ -9,7 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Slider } from "@/components/ui/slider"
 import { cn } from "@/lib/utils"
-import { format } from "date-fns"
+import { useDateFormatter } from "@/hooks/use-date-formatter"
 import Image from "next/image"
 import { formatPrice } from "@/lib/currency"
 import { useBooking } from "@/contexts/booking-context"
@@ -27,6 +27,8 @@ interface City {
 
 export function FlightSearchTab() {
   const router = useRouter()
+  const { formatTimeOnly } = useDateFormatter()
+
   const {
     resetBooking,
     setBookingType,
@@ -100,7 +102,8 @@ export function FlightSearchTab() {
     if (iso) {
       const parsed = new Date(iso)
       if (!Number.isNaN(parsed.getTime())) {
-        return format(parsed, 'HH:mm')
+        // Use timezone-aware formatter instead of direct format
+        return formatTimeOnly(parsed.toISOString())
       }
     }
     return fallback || '--:--'

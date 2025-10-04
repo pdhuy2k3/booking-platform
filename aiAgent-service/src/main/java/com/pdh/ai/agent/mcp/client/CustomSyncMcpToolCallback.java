@@ -1,4 +1,4 @@
-package com.pdh.ai.mcp.client;
+package com.pdh.ai.agent.mcp.client;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;

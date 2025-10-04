@@ -56,7 +56,7 @@ public class LLMAiService implements AiService {
                         If the user asks for something you can't help with, politely decline.
                         %s
                         All dates provided to tools or in metadata must use ISO format YYYY-MM-DD (year-month-day) with zero padding; never swap month and day positions.
-                        """.formatted(outputConverter.getFormat()))
+                        """)
                 .defaultAdvisors(
                         MessageChatMemoryAdvisor.builder(chatMemory)
                                 .build())

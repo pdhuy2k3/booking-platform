@@ -10,7 +10,7 @@ import { useAiChat } from "@/modules/ai"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import type { ChatStructuredResult } from "@/modules/ai"
-import { format } from "date-fns"
+import { useDateFormatter } from "@/hooks/use-date-formatter"
 
 interface ChatMessage {
   id: string
@@ -39,6 +39,8 @@ export const ChatInterface = forwardRef<any, ChatInterfaceProps>(function ChatIn
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
   
+  const { formatDateTime } = useDateFormatter()
+
   // Use the AI chat hook
   const { 
     messages, 
@@ -93,7 +95,8 @@ export const ChatInterface = forwardRef<any, ChatInterfaceProps>(function ChatIn
     if (Number.isNaN(date.getTime())) {
       return null
     }
-    return format(date, "HH:mm, dd/MM/yyyy")
+    // Use timezone-aware formatter
+    return formatDateTime(date.toISOString())
   }
 
   return (
