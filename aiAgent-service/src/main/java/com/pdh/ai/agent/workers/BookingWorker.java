@@ -90,6 +90,11 @@ public class BookingWorker extends BaseWorker {
         return OUTPUT_INSTRUCTIONS;
     }
 
+    @Override
+    public WorkerResponse execute(String userRequest, Map<String, Object> parameters) {
+        return validate(userRequest, parameters);
+    }
+
     /**
      * Validates booking details and prepares for execution.
      *

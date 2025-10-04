@@ -243,6 +243,8 @@ services:
     build:
       context: ./storefront-fe
       dockerfile: Dockerfile
+      args:
+        - MAPBOX_ACCESS_TOKEN=${MAPBOX_ACCESS_TOKEN}
     image: phamduyhuyuit/bookingsmart-storefront-fe:latest
     environment:
       - NODE_ENV=production

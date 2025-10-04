@@ -18,6 +18,8 @@ import com.pdh.ai.agent.workers.BaseWorker;
 import com.pdh.ai.agent.workers.BookingWorker;
 import com.pdh.ai.agent.workers.FlightSearchWorker;
 import com.pdh.ai.agent.workers.HotelSearchWorker;
+import com.pdh.ai.agent.workers.WeatherSearchWorker;
+import com.pdh.ai.agent.workers.LocationSearchWorker;
 import com.pdh.ai.model.dto.StructuredChatPayload;
 import com.pdh.ai.model.dto.StructuredResultItem;
 
@@ -50,6 +52,8 @@ public class CoreAgent {
     private static final String ROUTE_BOOKING = "BOOKING";
     private static final String ROUTE_INQUIRY = "INQUIRY";
     private static final String ROUTE_MODIFICATION = "MODIFICATION";
+    private static final String ROUTE_WEATHER = "WEATHER";
+    private static final String ROUTE_LOCATION = "LOCATION";
 
     // Worker names
     private static final String WORKER_AVAILABILITY_CHECKER = "AVAILABILITY_CHECKER";
@@ -64,17 +68,23 @@ public class CoreAgent {
     private final FlightSearchWorker flightSearchWorker;
     private final HotelSearchWorker hotelSearchWorker;
     private final BookingWorker bookingWorker;
+    private final WeatherSearchWorker weatherSearchWorker;
+    private final LocationSearchWorker locationSearchWorker;
 
     public CoreAgent(ChatClient.Builder builder,
                      ToolCallbackProvider toolCallbackProvider,
                      ChatMemory chatMemory,
                      FlightSearchWorker flightSearchWorker,
                      HotelSearchWorker hotelSearchWorker,
-                     BookingWorker bookingWorker) {
+                     BookingWorker bookingWorker,
+                     WeatherSearchWorker weatherSearchWorker,
+                     LocationSearchWorker locationSearchWorker) {
 
         this.flightSearchWorker = flightSearchWorker;
         this.hotelSearchWorker = hotelSearchWorker;
         this.bookingWorker = bookingWorker;
+        this.weatherSearchWorker = weatherSearchWorker;
+        this.locationSearchWorker = locationSearchWorker;
 
         // Create base chat client with memory for routing
         this.chatClient = builder
@@ -106,6 +116,8 @@ public class CoreAgent {
                 case ROUTE_BOOKING -> processBookingWorkflow(userRequest, decision, conversationId);
                 case ROUTE_INQUIRY -> processInquiryWorkflow(userRequest, conversationId);
                 case ROUTE_MODIFICATION -> processModificationWorkflow();
+                case ROUTE_WEATHER -> processWeatherWorkflow(userRequest, decision, conversationId);
+                case ROUTE_LOCATION -> processLocationWorkflow(userRequest, decision, conversationId);
                 default -> handleUnknownRoute(userRequest, conversationId);
             };
         } catch (Exception e) {
@@ -239,6 +251,84 @@ public class CoreAgent {
     }
 
     /**
+     * Processes WEATHER workflow using WeatherSearchWorker.
+     */
+    private StructuredChatPayload processWeatherWorkflow(String userRequest,
+                                                         RoutingWorkflow.RoutingDecision decision,
+                                                         String conversationId) {
+        System.out.println("\n=== WEATHER WORKFLOW ACTIVATED ===");
+
+        Map<String, Object> params = decision.extractedParams() != null
+            ? decision.extractedParams()
+            : new HashMap<>();
+
+        BaseWorker.WorkerResponse weatherResult = weatherSearchWorker.execute(userRequest, params);
+
+        return buildWeatherResponse(weatherResult);
+    }
+
+    /**
+     * Builds structured response from weather search result.
+     */
+    private StructuredChatPayload buildWeatherResponse(BaseWorker.WorkerResponse weatherResult) {
+        List<StructuredResultItem> results = new ArrayList<>(weatherResult.results());
+
+        results.add(StructuredResultItem.builder()
+            .type("info")
+            .title("Weather Information")
+            .description(weatherResult.message())
+            .metadata(Map.of(
+                "status", weatherResult.success() ? "found" : "not_found",
+                "worker", weatherResult.workerName()
+            ))
+            .build());
+
+        return StructuredChatPayload.builder()
+            .message(weatherResult.message())
+            .results(results)
+            .build();
+    }
+
+    /**
+     * Processes LOCATION workflow using LocationSearchWorker.
+     */
+    private StructuredChatPayload processLocationWorkflow(String userRequest,
+                                                          RoutingWorkflow.RoutingDecision decision,
+                                                          String conversationId) {
+        System.out.println("\n=== LOCATION WORKFLOW ACTIVATED ===");
+
+        Map<String, Object> params = decision.extractedParams() != null
+            ? decision.extractedParams()
+            : new HashMap<>();
+
+        BaseWorker.WorkerResponse locationResult = locationSearchWorker.execute(userRequest, params);
+
+        return buildLocationResponse(locationResult);
+    }
+
+    /**
+     * Builds structured response from location search result.
+     */
+    private StructuredChatPayload buildLocationResponse(BaseWorker.WorkerResponse locationResult) {
+        List<StructuredResultItem> results = new ArrayList<>(locationResult.results());
+
+        results.add(StructuredResultItem.builder()
+            .type("info")
+            .title("Location Information")
+            .description(locationResult.message())
+            .metadata(Map.of(
+                "status", locationResult.success() ? "found" : "not_found",
+                "worker", locationResult.workerName()
+            ))
+            .build());
+
+        return StructuredChatPayload.builder()
+            .message(locationResult.message())
+            .results(results)
+            .build();
+    }
+
+    /**
      * Handles unknown or unsupported routes.
      */
     private StructuredChatPayload handleUnknownRoute(String userRequest, String conversationId) {
@@ -321,6 +411,10 @@ public class CoreAgent {
             "User has questions about prices, policies, services, or general travel information");
         routes.put(ROUTE_MODIFICATION,
             "User wants to modify or cancel an existing booking");
+        routes.put(ROUTE_WEATHER,
+            "User wants to know the weather forecast or current weather conditions");
+        routes.put(ROUTE_LOCATION,
+            "User wants to find or verify a location, address, or point of interest");
         return routes;
     }
 

@@ -88,6 +88,11 @@ public class FlightSearchWorker extends BaseWorker {
         return OUTPUT_INSTRUCTIONS;
     }
 
+    @Override
+    public WorkerResponse execute(String userRequest, Map<String, Object> parameters) {
+        return search(userRequest, parameters);
+    }
+
     /**
      * Executes flight search based on parameters.
      *

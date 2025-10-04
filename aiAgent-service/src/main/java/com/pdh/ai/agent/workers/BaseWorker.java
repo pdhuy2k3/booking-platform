@@ -101,5 +101,14 @@ public abstract class BaseWorker {
      * Returns the worker's output instructions.
      */
     public abstract String getOutputInstructions();
-}
 
+    /**
+     * Executes the worker with the given user request and parameters.
+     * Each worker must implement its own execution logic.
+     *
+     * @param userRequest Original user request for context
+     * @param parameters Execution parameters
+     * @return Worker response with results
+     */
+    public abstract WorkerResponse execute(String userRequest, Map<String, Object> parameters);
+}
