@@ -1,6 +1,7 @@
 import { useState, useCallback, useEffect } from 'react';
 import { aiChatService } from '../service';
-import { ChatMessage, ChatContext } from '../types';
+import { ChatMessage, ChatContext, ChatStructuredResult } from '../types';
+import { useAuth } from '@/contexts/auth-context';
 
 interface UseAiChatOptions {
   conversationId?: string;
@@ -21,9 +22,72 @@ interface UseAiChatReturn {
   getSuggestions: () => Promise<void>;
 }
 
+const parseStructuredPayload = (raw?: string | null): { message: string; results: ChatStructuredResult[] } | null => {
+  if (!raw) {
+    return null;
+  }
+
+  let content = raw.trim();
+  if (!content) {
+    return null;
+  }
+
+  if (content.startsWith('```')) {
+    const newlineIndex = content.indexOf('\n');
+    if (newlineIndex > 0) {
+      content = content.substring(newlineIndex + 1);
+    } else {
+      content = content.substring(3);
+    }
+  }
+
+  if (content.endsWith('```')) {
+    content = content.substring(0, content.length - 3);
+  }
+
+  content = content.trim();
+
+  // Remove optional language identifiers (e.g. "json") that may prefix the payload
+  if (content.startsWith('json')) {
+    content = content.substring(4).trim();
+  }
+
+  const tryParse = (value: string): any => {
+    try {
+      return JSON.parse(value);
+    } catch (err) {
+      return null;
+    }
+  };
+
+  let parsed: any = tryParse(content);
+
+  if (!parsed) {
+    const start = content.indexOf('{');
+    const end = content.lastIndexOf('}');
+    if (start !== -1 && end !== -1 && end > start) {
+      parsed = tryParse(content.substring(start, end + 1));
+    }
+  }
+
+  if (!parsed || typeof parsed !== 'object') {
+    return null;
+  }
+
+  const message = typeof parsed.message === 'string' && parsed.message.trim().length > 0
+    ? parsed.message
+    : raw;
+
+  const results = Array.isArray(parsed.results)
+    ? parsed.results.filter(Boolean) as ChatStructuredResult[]
+    : [];
+
+  return { message, results };
+};
+
 export function useAiChat(options: UseAiChatOptions = {}): UseAiChatReturn {
   const { conversationId: initialConversationId, loadHistoryOnMount = false, context, onError } = options;
-  
+
   const [messages, setMessages] = useState<ChatMessage[]>([
     {
       id: '1',
@@ -37,6 +101,17 @@ export function useAiChat(options: UseAiChatOptions = {}): UseAiChatReturn {
   const [error, setError] = useState<string | null>(null);
   const [conversationId, setConversationId] = useState<string | null>(initialConversationId || null);
   const [suggestions, setSuggestions] = useState<string[]>([]);
+  const { refreshChatConversations } = useAuth();
+
+  useEffect(() => {
+    if (initialConversationId === undefined) {
+      return;
+    }
+
+    if (initialConversationId !== conversationId) {
+      setConversationId(initialConversationId || null);
+    }
+  }, [initialConversationId, conversationId]);
 
   // Load chat history on mount if requested
   useEffect(() => {
@@ -52,12 +127,17 @@ export function useAiChat(options: UseAiChatOptions = {}): UseAiChatReturn {
       const historyResponse = await aiChatService.getChatHistory(conversationId);
       
       if (historyResponse.messages && historyResponse.messages.length > 0) {
-        const historyMessages: ChatMessage[] = historyResponse.messages.map((msg, index) => ({
-          id: `history-${index}`,
-          content: msg.content,
-          isUser: msg.role === 'user',
-          timestamp: new Date(msg.timestamp),
-        }));
+        const historyMessages: ChatMessage[] = historyResponse.messages.map((msg, index) => {
+          const parsed = parseStructuredPayload(msg.content);
+
+          return {
+            id: `history-${index}`,
+            content: parsed?.message ?? msg.content,
+            isUser: msg.role === 'user',
+            timestamp: new Date(msg.timestamp),
+            results: parsed?.results ?? [],
+          };
+        });
         
         setMessages(historyMessages);
       }
@@ -74,6 +154,7 @@ export function useAiChat(options: UseAiChatOptions = {}): UseAiChatReturn {
       content: messageContent.trim(),
       isUser: true,
       timestamp: new Date(),
+      results: [],
     };
 
     setMessages(prev => [...prev, userMessage]);
@@ -91,6 +172,9 @@ export function useAiChat(options: UseAiChatOptions = {}): UseAiChatReturn {
       // Update conversation ID if it was generated
       if (response.conversationId && response.conversationId !== conversationId) {
         setConversationId(response.conversationId);
+        refreshChatConversations().catch((err) => {
+          console.error('Failed to refresh conversations:', err);
+        });
       }
       
       if (response.error) {
@@ -98,11 +182,16 @@ export function useAiChat(options: UseAiChatOptions = {}): UseAiChatReturn {
         onError?.(response.error);
       }
 
+      const parsedResponse = parseStructuredPayload(response.aiResponse);
       const aiMessage: ChatMessage = {
         id: (Date.now() + 1).toString(),
-        content: response.aiResponse,
+        content: parsedResponse?.message ?? response.aiResponse,
         isUser: false,
         timestamp: new Date(response.timestamp),
+        results:
+          (response.results && response.results.length > 0)
+            ? response.results
+            : parsedResponse?.results ?? [],
       };
 
       setMessages(prev => [...prev, aiMessage]);
@@ -117,17 +206,21 @@ export function useAiChat(options: UseAiChatOptions = {}): UseAiChatReturn {
         content: errorMessage,
         isUser: false,
         timestamp: new Date(),
+        results: [],
       };
       setMessages(prev => [...prev, errorAiMessage]);
     } finally {
       setIsLoading(false);
     }
-  }, [isLoading, conversationId, context, onError]);
+  }, [isLoading, conversationId, context, onError, refreshChatConversations]);
 
   const clearMessages = useCallback(async () => {
     if (conversationId) {
       try {
         await aiChatService.clearChatHistory(conversationId);
+        refreshChatConversations().catch((err) => {
+          console.error('Failed to refresh conversations:', err);
+        });
       } catch (err) {
         console.error('Failed to clear chat history:', err);
       }
@@ -139,11 +232,12 @@ export function useAiChat(options: UseAiChatOptions = {}): UseAiChatReturn {
         content: 'Xin chào! Tôi có thể giúp bạn tìm kiếm chuyến bay, khách sạn hoặc lên kế hoạch du lịch. Bạn muốn đi đâu?',
         isUser: false,
         timestamp: new Date(),
+        results: [],
       },
     ]);
     setError(null);
     setConversationId(null);
-  }, [conversationId]);
+  }, [conversationId, refreshChatConversations]);
 
   const getSuggestions = useCallback(async () => {
     try {

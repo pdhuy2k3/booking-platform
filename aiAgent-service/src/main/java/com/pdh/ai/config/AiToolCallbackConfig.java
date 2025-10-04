@@ -8,6 +8,7 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
 import com.pdh.ai.mcp.client.CustomSyncMcpToolCallbackProvider;
+import com.pdh.ai.service.ToolResultCollector;
 
 import io.modelcontextprotocol.client.McpSyncClient;
 
@@ -19,7 +20,8 @@ public class AiToolCallbackConfig {
 
     @Bean
     @Qualifier("customSyncMcpToolCallbackProvider")
-    public ToolCallbackProvider customSyncMcpToolCallbackProvider(List<McpSyncClient> mcpSyncClients) {
-        return new CustomSyncMcpToolCallbackProvider(mcpSyncClients);
+    public ToolCallbackProvider customSyncMcpToolCallbackProvider(List<McpSyncClient> mcpSyncClients,
+                                                                  ToolResultCollector toolResultCollector) {
+        return new CustomSyncMcpToolCallbackProvider(mcpSyncClients, toolResultCollector);
     }
 }

@@ -5,19 +5,19 @@ import io.modelcontextprotocol.spec.McpSchema;
 import org.springframework.ai.mcp.SyncMcpToolCallbackProvider;
 import org.springframework.ai.tool.ToolCallback;
 import org.springframework.ai.tool.support.ToolUtils;
-import org.springframework.context.annotation.Configuration;
-import org.springframework.context.annotation.Primary;
 import org.springframework.util.Assert;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.BiPredicate;
 
+import com.pdh.ai.service.ToolResultCollector;
+
 public class CustomSyncMcpToolCallbackProvider extends SyncMcpToolCallbackProvider {
 
     private final List<McpSyncClient> mcpClients;
-
     private final BiPredicate<McpSyncClient, McpSchema.Tool> toolFilter;
+    private final ToolResultCollector toolResultCollector;
 
     /**
      * Constructor for CustomSyncMcpToolCallbackProvider with tool filter.
@@ -25,11 +25,15 @@ public class CustomSyncMcpToolCallbackProvider extends SyncMcpToolCallbackProvid
      * @param toolFilter The filter to apply to tools.
      * @param mcpClients The list of MCP clients.
      */
-    public CustomSyncMcpToolCallbackProvider(BiPredicate<McpSyncClient, McpSchema.Tool> toolFilter, List<McpSyncClient> mcpClients) {
+    public CustomSyncMcpToolCallbackProvider(BiPredicate<McpSyncClient, McpSchema.Tool> toolFilter,
+                                             List<McpSyncClient> mcpClients,
+                                             ToolResultCollector toolResultCollector) {
         Assert.notNull(mcpClients, "MCP clients must not be null");
         Assert.notNull(toolFilter, "Tool filter must not be null");
+        Assert.notNull(toolResultCollector, "ToolResultCollector must not be null");
         this.mcpClients = mcpClients;
         this.toolFilter = toolFilter;
+        this.toolResultCollector = toolResultCollector;
     }
 
     /**
@@ -37,8 +41,9 @@ public class CustomSyncMcpToolCallbackProvider extends SyncMcpToolCallbackProvid
      *
      * @param mcpClients The list of MCP clients.
      */
-    public CustomSyncMcpToolCallbackProvider(List<McpSyncClient> mcpClients) {
-        this((mcpClient, tool) -> true, mcpClients);
+    public CustomSyncMcpToolCallbackProvider(List<McpSyncClient> mcpClients,
+                                             ToolResultCollector toolResultCollector) {
+        this((mcpClient, tool) -> true, mcpClients, toolResultCollector);
     }
 
     /**
@@ -56,7 +61,7 @@ public class CustomSyncMcpToolCallbackProvider extends SyncMcpToolCallbackProvid
                     .tools()
                     .stream()
                     .filter(tool -> toolFilter.test(mcpClient, tool))
-                    .map(tool -> new CustomSyncMcpToolCallback(mcpClient, tool))
+                    .map(tool -> new CustomSyncMcpToolCallback(mcpClient, tool, toolResultCollector))
                     .toList());
         });
         var array = toolCallbacks.toArray(new ToolCallback[0]);

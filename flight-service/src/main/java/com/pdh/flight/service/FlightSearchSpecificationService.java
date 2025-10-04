@@ -9,6 +9,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
 import java.math.BigDecimal;
@@ -33,6 +34,7 @@ public class FlightSearchSpecificationService {
     /**
      * Search flights with flexible criteria using JPA Specifications
      */
+    @Transactional(readOnly = true)
     public Page<Flight> searchFlights(FlightSearchCriteria criteria, Pageable pageable) {
         log.info("Searching flights with criteria: {}", criteria);
         
@@ -243,7 +245,7 @@ public class FlightSearchSpecificationService {
         Specification<Flight> combined = null;
         for (String term : terms) {
             Specification<Flight> termSpec = FlightSpecification.hasOriginDestination(term);
-            combined = combined == null ? Specification.where(termSpec) : combined.or(termSpec);
+            combined = combined == null ? termSpec : combined.or(termSpec);
         }
 
         return combined;
@@ -271,10 +273,11 @@ public class FlightSearchSpecificationService {
             return null;
         }
 
+        // Use direct OR chaining instead of deprecated Specification.where()
         Specification<Flight> combined = null;
         for (String term : terms) {
             Specification<Flight> termSpec = FlightSpecification.hasDestination(term);
-            combined = combined == null ? Specification.where(termSpec) : combined.or(termSpec);
+            combined = combined == null ? termSpec : combined.or(termSpec);
         }
 
         return combined;

@@ -32,6 +32,11 @@ export function SearchInterface() {
 
   // Handle URL parameters for searchTab
   useEffect(() => {
+    const currentTab = searchParams.get("tab")
+    if (currentTab && currentTab !== "search") {
+      return
+    }
+
     const searchTab = searchParams.get("searchTab") as SearchTab
     const view = searchParams.get("view") as ViewMode
     

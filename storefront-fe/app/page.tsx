@@ -14,6 +14,7 @@ export default function HomePage() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const [activeTab, setActiveTab] = useState<MainTab>("chat")
+  const [conversationId, setConversationId] = useState<string | null>(null)
 
   // Handle URL parameters
   useEffect(() => {
@@ -21,6 +22,8 @@ export default function HomePage() {
     if (tab && (tab === "chat" || tab === "search")) {
       setActiveTab(tab)
     }
+    const conversation = searchParams.get("conversationId")
+    setConversationId(conversation)
   }, [searchParams])
 
   const handleTabChange = (tab: MainTab) => {
@@ -28,7 +31,7 @@ export default function HomePage() {
     // Update URL without refreshing the page
     const params = new URLSearchParams()
     params.set("tab", tab)
-    
+
     if (tab === "search") {
       // When switching to search tab, default to flights if no searchTab exists
       const currentSearchTab = searchParams.get("searchTab")
@@ -37,6 +40,9 @@ export default function HomePage() {
       } else {
         params.set("searchTab", currentSearchTab)
       }
+    }
+    if (tab === "chat" && conversationId) {
+      params.set("conversationId", conversationId)
     }
     // Don't add searchTab parameter for chat tab
     
@@ -84,6 +90,7 @@ export default function HomePage() {
                 onSearchResults={() => {}}
                 onStartBooking={() => {}}
                 onChatStart={() => {}}
+                conversationId={conversationId}
               />
             </div>
             

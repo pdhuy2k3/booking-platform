@@ -38,6 +38,21 @@ spring:
   autoconfigure:
     exclude:
       - org.springframework.ai.mcp.client.autoconfigure.SseWebFluxTransportAutoConfiguration
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    properties:
+      hibernate.format_sql: true
+      hibernate.jdbc.lob.non_contextual_creation: true
+  liquibase:
+    enabled: true
+    change-log: classpath:/db/changelog/db.changelog-master.yaml
+  ai:
+    chat:
+      memory:
+        repository:
+          jdbc:
+            initialize-schema: never
 ---
 spring:
   config:
@@ -61,7 +76,7 @@ spring:
       memory:
         repository:
           jdbc:
-            initialize-schema: always
+            initialize-schema: never
 
     mcp:
       client:
@@ -142,7 +157,7 @@ spring:
 
         repository:
           jdbc:
-            initialize-schema: always
+            initialize-schema: never
 
     mcp:
       client:

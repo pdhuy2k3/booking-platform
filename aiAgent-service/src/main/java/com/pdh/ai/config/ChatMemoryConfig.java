@@ -3,12 +3,10 @@ package com.pdh.ai.config;
 import org.springframework.context.annotation.Configuration;
 
 /**
- * Configuration for chat memory - using default Spring AI auto-configuration
- * User segregation is handled through composite conversation IDs (userId:conversationId)
+ * Chat memory configuration. The {@link com.pdh.ai.service.JpaChatMemory} bean is
+ * marked as {@code @Primary}, so it transparently replaces the default JDBC
+ * implementation provided by Spring AI.
  */
 @Configuration
 public class ChatMemoryConfig {
-    
-    // Spring AI will auto-configure JdbcChatMemoryRepository and ChatMemory beans
-    // We use the standard implementation with composite conversation IDs
 }

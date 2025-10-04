@@ -326,7 +326,7 @@ public class HotelSearchSpecificationService {
             return null;
         }
 
-        Specification<Hotel> combined = Specification.where(destinationSpecifications.get(0));
+        Specification<Hotel> combined = destinationSpecifications.get(0);
         for (int i = 1; i < destinationSpecifications.size(); i++) {
             combined = combined.or(destinationSpecifications.get(i));
         }

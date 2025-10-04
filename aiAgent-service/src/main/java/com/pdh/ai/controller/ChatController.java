@@ -1,8 +1,9 @@
 package com.pdh.ai.controller;
 
-import com.pdh.ai.ChatRequest;
-import com.pdh.ai.ChatResponse;
+import com.pdh.ai.model.dto.ChatRequest;
+import com.pdh.ai.model.dto.ChatResponse;
 import com.pdh.ai.ChatHistoryResponse;
+import com.pdh.ai.model.dto.StructuredChatPayload;
 import com.pdh.ai.service.AiService;
 import com.pdh.common.utils.AuthenticationUtils;
 import org.springframework.http.ResponseEntity;
@@ -31,7 +32,7 @@ public class ChatController {
             // Use userId from request, or extract from JWT token if not provided
             String userId = getUserIdFromRequestOrToken(chatRequest.getUserId());
             
-            String response = aiService.completeWithConversation(
+            StructuredChatPayload completion = aiService.completeWithConversation(
                 chatRequest.getMessage(), 
                 conversationId,
                 userId
@@ -39,13 +40,25 @@ public class ChatController {
             
             ChatResponse chatResponse = ChatResponse.builder()
                     .userMessage(chatRequest.getMessage())
-                    .aiResponse(response)
+                    .aiResponse(completion.getMessage())
                     .conversationId(conversationId)
                     .userId(userId)
                     .timestamp(LocalDateTime.now())
+                    .results(completion.getResults() != null ? completion.getResults() : java.util.List.of())
                     .build();
                     
             return ResponseEntity.ok(chatResponse);
+        } catch (IllegalArgumentException e) {
+            ChatResponse errorResponse = ChatResponse.builder()
+                    .userMessage(chatRequest.getMessage())
+                    .aiResponse("Xin lỗi, chúng tôi không thể xử lý yêu cầu của bạn.")
+                    .conversationId(chatRequest.getConversationId())
+                    .userId(getUserIdFromRequestOrToken(chatRequest.getUserId()))
+                    .timestamp(LocalDateTime.now())
+                    .error(e.getMessage())
+                    .results(java.util.List.of())
+                    .build();
+            return ResponseEntity.badRequest().body(errorResponse);
         } catch (Exception e) {
             String fallbackConversationId = chatRequest.getConversationId();
             if (fallbackConversationId == null || fallbackConversationId.trim().isEmpty()) {
@@ -59,6 +72,7 @@ public class ChatController {
                     .userId(getUserIdFromRequestOrToken(chatRequest.getUserId()))
                     .timestamp(LocalDateTime.now())
                     .error(e.getMessage())
+                    .results(java.util.List.of())
                     .build();
             return ResponseEntity.status(500).body(errorResponse);
         }
@@ -72,6 +86,15 @@ public class ChatController {
             String actualUserId = getUserIdFromRequestOrToken(userId);
             ChatHistoryResponse history = aiService.getChatHistory(conversationId, actualUserId);
             return ResponseEntity.ok(history);
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.status(404).body(
+                ChatHistoryResponse.builder()
+                    .conversationId(conversationId)
+                    .messages(java.util.List.of())
+                    .createdAt(LocalDateTime.now())
+                    .lastUpdated(LocalDateTime.now())
+                    .build()
+            );
         } catch (Exception e) {
             return ResponseEntity.status(500).body(
                 ChatHistoryResponse.builder()
@@ -92,6 +115,8 @@ public class ChatController {
             String actualUserId = getUserIdFromRequestOrToken(userId);
             aiService.clearChatHistory(conversationId, actualUserId);
             return ResponseEntity.ok().build();
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.status(404).build();
         } catch (Exception e) {
             return ResponseEntity.status(500).build();
         }

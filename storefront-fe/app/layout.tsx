@@ -4,7 +4,7 @@ import { GeistSans } from "geist/font/sans"
 import { GeistMono } from "geist/font/mono"
 import { Analytics } from "@vercel/analytics/next"
 import { Suspense } from "react"
-import "./globals.css"
+import "../styles/globals.css"
 import { Sidebar } from "@/components/sidebar"
 import { AuthProvider } from "@/contexts/auth-context"
 import { PreferencesProvider } from "@/contexts/preferences-context"
@@ -31,7 +31,15 @@ export default function RootLayout({
             <PreferencesProvider>
               <BookingProvider>
                 <div className="flex h-full bg-background">
-                  <Sidebar />
+                  <Suspense
+                    fallback={
+                      <div className="w-24 flex items-center justify-center border-r border-border text-xs text-muted-foreground">
+                        Loading…
+                      </div>
+                    }
+                  >
+                    <Sidebar />
+                  </Suspense>
                   <main className="flex-1 flex flex-col relative overflow-y-auto bg-background">
                     <Suspense fallback={
                       <div className="flex items-center justify-center h-full">

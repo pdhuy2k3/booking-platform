@@ -64,6 +64,21 @@ class AiChatService {
   }
 
   /**
+   * List user's conversations
+   */
+  async listConversations(): Promise<string[]> {
+    try {
+      const response = await apiClient.get<string[]>(
+        `${this.baseUrl}/chat/conversations`
+      );
+      return response;
+    } catch (error) {
+      console.error('Error listing conversations:', error);
+      return [];
+    }
+  }
+
+  /**
    * Clear chat history for a conversation
    */
   async clearChatHistory(conversationId: string): Promise<boolean> {

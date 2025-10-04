@@ -11,6 +11,7 @@ export interface ChatResponse {
   userId: string; // Populated by backend from JWT token
   timestamp: string;
   error?: string;
+  results?: ChatStructuredResult[];
 }
 
 export interface ChatMessage {
@@ -18,8 +19,7 @@ export interface ChatMessage {
   content: string;
   isUser: boolean;
   timestamp: Date;
-  results?: any[];
-  resultsType?: string;
+  results?: ChatStructuredResult[];
 }
 
 export interface ChatHistoryMessage {
@@ -35,6 +35,12 @@ export interface ChatHistoryResponse {
   lastUpdated: string;
 }
 
+export interface ChatConversationSummary {
+  id: string;
+  title: string;
+  lastUpdated?: string;
+}
+
 export interface ChatContext {
   conversationId?: string;
   userId?: string; // Optional - backend automatically extracts from JWT token
@@ -44,4 +50,13 @@ export interface ChatContext {
     currency?: string;
     location?: string;
   };
+}
+
+export interface ChatStructuredResult {
+  type?: string;
+  title?: string;
+  subtitle?: string;
+  description?: string;
+  imageUrl?: string;
+  metadata?: Record<string, unknown>;
 }
