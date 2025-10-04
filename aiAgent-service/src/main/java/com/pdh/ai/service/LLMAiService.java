@@ -3,71 +3,39 @@ package com.pdh.ai.service;
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.UUID;
 
-import com.pdh.ai.ChatHistoryResponse;
+import com.pdh.ai.agent.CoreAgent;
+import com.pdh.ai.model.dto.ChatHistoryResponse;
 import com.pdh.ai.model.dto.StructuredChatPayload;
-import com.pdh.ai.model.dto.StructuredResultItem;
 import com.pdh.ai.model.entity.ChatMessage;
 import com.pdh.common.utils.AuthenticationUtils;
-import org.springframework.ai.chat.client.ChatClient;
-import org.springframework.ai.chat.client.advisor.MessageChatMemoryAdvisor;
-import org.springframework.ai.chat.memory.ChatMemory;
-import org.springframework.ai.converter.BeanOutputConverter;
-import org.springframework.ai.tool.ToolCallbackProvider;
-import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Service;
 
 import com.pdh.ai.repository.ChatMessageRepository;
 
+
 @Service
 public class LLMAiService implements AiService {
 
-    private final ChatClient chatClient;
-    private final JpaChatMemory chatMemory;
+    private final CoreAgent coreAgent;
     private final ConversationService conversationService;
     private final ChatMessageRepository chatMessageRepository;
-    private final ToolResultCollector toolResultCollector;
-    private final BeanOutputConverter<StructuredChatPayload> outputConverter;
 
-    public LLMAiService(ChatClient.Builder builder,
-                        @Qualifier("customSyncMcpToolCallbackProvider") ToolCallbackProvider toolCallbackProvider,
-                        JpaChatMemory chatMemory,
+    public LLMAiService(CoreAgent coreAgent,
                         ConversationService conversationService,
-                        ChatMessageRepository chatMessageRepository,
-                        ToolResultCollector toolResultCollector) {
-
-        this.chatMemory = chatMemory;
+                        ChatMessageRepository chatMessageRepository) {
+        this.coreAgent = coreAgent;
         this.conversationService = conversationService;
         this.chatMessageRepository = chatMessageRepository;
-        this.toolResultCollector = toolResultCollector;
-        this.outputConverter = new BeanOutputConverter<>(StructuredChatPayload.class);
-        this.chatClient = builder
-                .defaultToolCallbacks(toolCallbackProvider)
-                .defaultSystem("""
-                        You are a helpful assistant that helps users book travel accommodations including flights and hotels.
-                        You orchestrate multi-step plans using available MCP tools such as search_flights, search_hotels. (default for page number is 0 and page size is 20)
-                        Use the tools to get information about flights and hotels as needed to help the user.
-                        Ask user for any missing information you need to complete the booking.
-                        Always remember to ask the user for confirmation before making a booking.
-                        If the user asks for something you can't help with, politely decline.
-                        %s
-                        All dates provided to tools or in metadata must use ISO format YYYY-MM-DD (year-month-day) with zero padding; never swap month and day positions.
-                        """)
-                .defaultAdvisors(
-                        MessageChatMemoryAdvisor.builder(chatMemory)
-                                .build())
-                                
-                .build();
     }
 
     @Override
     public StructuredChatPayload complete(String message) {
         String userId = resolveUserId(null);
-        UUID conversationUuid = ensureConversation(null, userId, defaultTitle());
+        UUID conversationUuid = ensureConversation(null, userId, defaultTitle(message));
 
         return executeCompletion(message, conversationUuid);
     }
@@ -122,7 +90,6 @@ public class LLMAiService implements AiService {
             throw new IllegalArgumentException("Conversation not found for user");
         }
 
-        chatMemory.clear(conversationUuid.toString());
         conversationService.deleteConversation(conversationUuid);
     }
 
@@ -132,6 +99,42 @@ public class LLMAiService implements AiService {
         return conversationService.listConversations(actualUserId).stream()
                 .map(conversation -> conversation.getId().toString())
                 .toList();
+    }
+
+    /**
+     * Executes the AI completion using CoreAgent workflow orchestration.
+     */
+    private StructuredChatPayload executeCompletion(String message, UUID conversationUuid) {
+        try {
+            // Delegate to CoreAgent for intelligent workflow processing
+            StructuredChatPayload payload = coreAgent.process(message, conversationUuid.toString());
+
+            // Ensure payload has required fields
+            if (payload == null) {
+                return StructuredChatPayload.builder()
+                        .message("Xin lỗi, tôi không thể xử lý yêu cầu của bạn đúng cách.")
+                        .results(Collections.emptyList())
+                        .build();
+            }
+
+            if (payload.getMessage() == null || payload.getMessage().isBlank()) {
+                payload.setMessage("Tôi đã xử lý yêu cầu của bạn nhưng không thể tạo phản hồi phù hợp.");
+            }
+
+            if (payload.getResults() == null) {
+                payload.setResults(Collections.emptyList());
+            }
+
+            return payload;
+        } catch (Exception e) {
+            System.err.println("Error executing completion: " + e.getMessage());
+            e.printStackTrace();
+
+            return StructuredChatPayload.builder()
+                    .message("Xin lỗi, đã xảy ra lỗi khi xử lý yêu cầu của bạn. Vui lòng thử lại.")
+                    .results(Collections.emptyList())
+                    .build();
+        }
     }
 
     private String getCurrentUserId() {
@@ -192,46 +195,6 @@ public class LLMAiService implements AiService {
         int maxLength = 60;
         String sanitized = message.replaceAll("\s+", " ").trim();
         return sanitized.length() <= maxLength ? sanitized : sanitized.substring(0, maxLength) + "...";
-    }
-
-    private StructuredChatPayload executeCompletion(String message, UUID conversationUuid) {
-        toolResultCollector.clear();
-        try {
-            StructuredChatPayload payload = this.chatClient.prompt()
-                    .user(userMessage -> userMessage.text(message))
-                    .advisors(a -> a.param(ChatMemory.CONVERSATION_ID, conversationUuid.toString()))
-                    .call()
-                    .entity(outputConverter);
-
-            // Ensure payload has required fields
-            if (payload == null) {
-                payload = StructuredChatPayload.builder()
-                        .message("I apologize, but I couldn't process your request properly.")
-                        .results(Collections.emptyList())
-                        .build();
-            }
-
-            if (payload.getMessage() == null || payload.getMessage().isBlank()) {
-                payload.setMessage("I processed your request but couldn't generate a proper response message.");
-            }
-
-            // Merge tool results with AI response results
-            List<StructuredResultItem> toolResults = toolResultCollector.consume();
-            if (!toolResults.isEmpty()) {
-                List<StructuredResultItem> merged = new ArrayList<>();
-                if (payload.getResults() != null && !payload.getResults().isEmpty()) {
-                    merged.addAll(payload.getResults());
-                }
-                merged.addAll(toolResults);
-                payload.setResults(merged);
-            } else if (payload.getResults() == null) {
-                payload.setResults(Collections.emptyList());
-            }
-
-            return payload;
-        } finally {
-            toolResultCollector.clear();
-        }
     }
 
 }

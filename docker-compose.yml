@@ -246,6 +246,7 @@ services:
     image: phamduyhuyuit/bookingsmart-storefront-fe:latest
     environment:
       - NODE_ENV=production
+      - MAPBOX_ACCESS_TOKEN
     networks:
       - booking-network
     restart: unless-stopped
@@ -313,6 +314,8 @@ services:
       - DB_USERNAME
       - DB_PASSWORD
       - GEMINI_API_KEY
+      - OWM_API_KEY
+      - MAPBOX_ACCESS_TOKEN
     networks:
       - booking-network
   # Hotel Service

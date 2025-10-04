@@ -1,4 +1,4 @@
-package com.pdh.ai;
+package com.pdh.ai.model.dto;
 
 import lombok.AllArgsConstructor;
 import lombok.Builder;

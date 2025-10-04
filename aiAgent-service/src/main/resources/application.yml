@@ -4,32 +4,22 @@ server:
     context-path: /ai
 
 # OpenAPI Documentation Configuration
-springdoc:
-  api-docs:
-    path: /api/docs
-    enabled: true
-  swagger-ui:
-    path: /api/swagger-ui
-    enabled: true
-    operationsSorter: method
-    tagsSorter: alpha
-    try-it-out-enabled: true
-  show-actuator: true
+#springdoc:
+#  api-docs:
+#    path: /api/docs
+#    enabled: true
+#  swagger-ui:
+#    path: /api/swagger-ui
+#    enabled: true
+#    operationsSorter: method
+#    tagsSorter: alpha
+#    try-it-out-enabled: true
+#  show-actuator: true
 
-
-# API Documentation Properties
-api:
-  info:
-    title: AI Agent Service API
-    description: AI-powered chat and assistance API for the BookingSmart platform
-    version: '@project.version@'
-    contact:
-      name: BookingSmart AI Team
-      email: ai-team@bookingsmart.com
 
 spring:
   profiles:
-    active: local,resilience
+    active: local
   application:
     name: aiAgent-service
   threads:
@@ -96,6 +86,30 @@ spring:
             server2:
               url: http://localhost:8081
               sse-endpoint: /flights/sse
+        stdio:
+          connections:
+            openweather:
+              command: docker
+              args:
+                - run
+                - -i
+                - --rm
+                - -e
+                - OWM_API_KEY
+                - mcp/openweather
+              env:
+                OWM_API_KEY: ${OWM_API_KEY}
+            mapbox:
+              command: docker
+              args:
+                - run
+                - -i
+                - --rm
+                - -e
+                - MAPBOX_ACCESS_TOKEN
+                - mcp/mapbox
+              env:
+                MAPBOX_ACCESS_TOKEN: ${MAPBOX_ACCESS_TOKEN}
         initialized: true
   security:
     oauth2:
@@ -177,7 +191,30 @@ spring:
             server2:
               url: http://flight-service
               sse-endpoint: /flights/sse
-          # servers-configuration: classpath:mcp-servers.json
+        stdio:
+          connections:
+            openweather:
+              command: docker
+              args:
+                - run
+                - -i
+                - --rm
+                - -e
+                - OWM_API_KEY
+                - mcp/openweather
+              env:
+                OWM_API_KEY: ${OWM_API_KEY}
+            mapbox:
+              command: docker
+              args:
+                - run
+                - -i
+                - --rm
+                - -e
+                - MAPBOX_ACCESS_TOKEN
+                - mcp/mapbox
+              env:
+                MAPBOX_ACCESS_TOKEN: ${MAPBOX_ACCESS_TOKEN}
         initialized: true
 eureka:
   client:

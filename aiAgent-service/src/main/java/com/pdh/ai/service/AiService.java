@@ -1,6 +1,6 @@
 package com.pdh.ai.service;
 
-import com.pdh.ai.ChatHistoryResponse;
+import com.pdh.ai.model.dto.ChatHistoryResponse;
 import com.pdh.ai.model.dto.StructuredChatPayload;
 
 public interface AiService {

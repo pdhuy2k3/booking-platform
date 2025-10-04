@@ -1,13 +1,30 @@
 {
   "mcpServers": {
-    "weather": {
-      "command": "python",
+    "openweather": {
+      "command": "docker",
       "args": [
-        "-m",
-        "mcp_weather_server"
+        "run",
+        "-i",
+        "--rm",
+        "-e",
+        "OWM_API_KEY",
+        "mcp/openweather"
+      ]
+
+    },
+    "mapbox": {
+      "command": "docker",
+      "args": [
+        "run",
+        "-i",
+        "--rm",
+        "-e",
+        "MAPBOX_ACCESS_TOKEN",
+        "mcp/mapbox"
       ],
-      "disabled": false,
-      "autoApprove": []
+      "env": {
+        "MAPBOX_ACCESS_TOKEN": "YOUR_API_KEY_HERE"
+      }
     }
   }
 }

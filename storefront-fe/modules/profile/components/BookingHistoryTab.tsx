@@ -326,12 +326,14 @@ export function BookingHistoryTab() {
       if (booking.bookingType === 'FLIGHT' || booking.bookingType === 'COMBO') {
         const flightInfo = booking.bookingType === 'COMBO' ? product?.flightDetails : product
         if (flightInfo?.flightId && flightInfo?.seatClass && flightInfo?.departureDateTime) {
-          detail.flight = await flightService.getFareDetails(flightInfo.flightId, {
+          const fareDetails = await flightService.getFareDetails(flightInfo.flightId, {
             seatClass: ensureSeatClass(flightInfo.seatClass),
             departureDateTime: flightInfo.departureDateTime,
             scheduleId: (flightInfo as any).scheduleId,
             fareId: (flightInfo as any).fareId,
           })
+          // Cast to FlightFareDetails since getFareDetails returns FlightDetails
+          detail.flight = fareDetails as any as FlightFareDetails
         }
       }
 

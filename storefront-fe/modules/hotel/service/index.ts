@@ -1,7 +1,8 @@
-
 import type { HotelDetails, RoomDetails, HotelSearchParams, HotelSearchResponse, InitialHotelData, SearchResponse, DestinationSearchResult } from "../type"
 import { apiClient } from '@/lib/api-client';
-import { destinationService } from '../../destination/service';
+import { mapboxService } from '../../mapbox';
+
+const HOTEL_API_BASE = "/hotels/storefront";
 
 export const hotelService = {
   search(params: HotelSearchParams) {
@@ -14,30 +15,65 @@ export const hotelService = {
     return apiClient.get<HotelDetails>(`/hotels/storefront/${encodeURIComponent(String(id))}`)
   },
   
-  // Use the new destination service for better Vietnamese administrative units integration
-  async searchDestinations(search?: string) {
+  async searchDestinations(search: string): Promise<SearchResponse<DestinationSearchResult>> {
     try {
-      // Use the Vietnamese Administrative Units API for better accuracy
-      return await destinationService.searchDestinations(search, 20);
+      // Use mapbox client service (calls API route)
+      const response = await mapboxService.searchDestinations(search, 20);
+
+      return {
+        results: response.results.map(dest => ({
+          name: dest.name,
+          type: dest.type,
+          country: dest.country,
+          category: dest.category,
+          iataCode: dest.id || '',
+          description: dest.description,
+          latitude: dest.latitude,
+          longitude: dest.longitude,
+          relevanceScore: dest.relevanceScore,
+        })),
+        totalCount: response.totalCount,
+        query: response.query || search,
+        limit: response.limit,
+        page: response.page,
+        hasMore: response.hasMore,
+        metadata: response.metadata,
+      };
     } catch (error) {
-      console.error('Error searching destinations with new service, falling back to backend:', error);
-      // Fallback to backend API if the new service fails
-      const response = await apiClient.get<SearchResponse<DestinationSearchResult>>('/hotels/storefront/destinations/search', {
-        params: { q: search }
+      console.error('Error searching destinations with mapbox, falling back to backend:', error);
+
+      const backendResponse = await apiClient.get<SearchResponse<DestinationSearchResult>>('/hotels/storefront/destinations/search', {
+        params: { search }
       });
-      return response;
+      return backendResponse;
     }
   },
-  
-  async getPopularDestinations() {
+
+  async getPopularDestinations(): Promise<SearchResponse<DestinationSearchResult>> {
     try {
-      // Use the Vietnamese Administrative Units API for better accuracy
-      return await destinationService.getPopularDestinations();
+      const response = await mapboxService.getPopularDestinations();
+
+      return {
+        results: response.results.map(dest => ({
+          name: dest.name,
+          type: dest.type,
+          country: dest.country,
+          category: dest.category,
+          iataCode: dest.id || '',
+          description: dest.description,
+          latitude: dest.latitude,
+          longitude: dest.longitude,
+          relevanceScore: dest.relevanceScore,
+        })),
+        totalCount: response.totalCount,
+        query: '',
+        metadata: response.metadata,
+      };
     } catch (error) {
-      console.error('Error getting popular destinations with new service, falling back to backend:', error);
-      // Fallback to backend API if the new service fails
-      const response = await apiClient.get<SearchResponse<DestinationSearchResult>>('/hotels/storefront/destinations/popular');
-      return response;
+      console.error('Error getting popular destinations with mapbox, falling back to backend:', error);
+
+      const backendResponse = await apiClient.get<SearchResponse<DestinationSearchResult>>('/hotels/storefront/destinations/popular');
+      return backendResponse;
     }
   }
 }

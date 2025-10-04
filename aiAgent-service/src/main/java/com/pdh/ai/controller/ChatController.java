@@ -2,7 +2,7 @@ package com.pdh.ai.controller;
 
 import com.pdh.ai.model.dto.ChatRequest;
 import com.pdh.ai.model.dto.ChatResponse;
-import com.pdh.ai.ChatHistoryResponse;
+import com.pdh.ai.model.dto.ChatHistoryResponse;
 import com.pdh.ai.model.dto.StructuredChatPayload;
 import com.pdh.ai.service.AiService;
 import com.pdh.common.utils.AuthenticationUtils;
