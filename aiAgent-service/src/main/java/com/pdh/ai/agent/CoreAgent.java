@@ -6,9 +6,16 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
+import com.pdh.ai.agent.advisor.LoggingAdvisor;
+import com.pdh.ai.agent.advisor.SecurityGuardAdvisor;
+import com.pdh.ai.agent.advisor.ToolIsolationAdvisor;
+import com.pdh.ai.agent.guard.InputValidationGuard;
+import com.pdh.ai.agent.guard.ScopeGuard;
 import org.springframework.ai.chat.client.ChatClient;
+import org.springframework.ai.chat.client.advisor.MessageChatMemoryAdvisor;
 import org.springframework.ai.chat.memory.ChatMemory;
 import org.springframework.ai.chat.messages.UserMessage;
+import org.springframework.ai.chat.prompt.ChatOptions;
 import org.springframework.ai.tool.ToolCallbackProvider;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Component;
@@ -27,33 +34,6 @@ import com.pdh.ai.agent.workers.LocationSearchWorker;
 import com.pdh.ai.model.dto.StructuredChatPayload;
 import com.pdh.ai.model.dto.StructuredResultItem;
 
-/**
- * Core AI Agent orchestrating travel booking workflows.
- *
- * <p>
- * This agent combines multiple agentic patterns:
- * </p>
- * <ul>
- * <li><b>Routing:</b> Classifies user intent (search, booking, inquiry)</li>
- * <li><b>Orchestrator-Workers:</b> Breaks down complex tasks and delegates to
- * specialized workers</li>
- * <li><b>Memory:</b> Maintains conversation context across interactions</li>
- * <li><b>Tool Calling:</b> Integrates with MCP tools for flight/hotel
- * search</li>
- * </ul>
- *
- * <p>
- * <b>Workflow:</b>
- * </p>
- * <ol>
- * <li>Route incoming request to appropriate workflow category</li>
- * <li>Orchestrator analyzes and breaks down the task</li>
- * <li>Specialized workers execute subtasks (search, validate, etc.)</li>
- * <li>Synthesizer combines results into structured response</li>
- * </ol>
- *
- * @author BookingSmart AI Team
- */
 @Component
 
 public class CoreAgent {
@@ -65,9 +45,7 @@ public class CoreAgent {
     private static final String ROUTE_MODIFICATION = "MODIFICATION";
     private static final String ROUTE_WEATHER = "WEATHER";
     private static final String ROUTE_LOCATION = "LOCATION";
-    // Worker names - keeping for future extensibility
-    // private static final String WORKER_AVAILABILITY_CHECKER =
-    // "AVAILABILITY_CHECKER";
+
 
     // Messages
     private static final String ERROR_MESSAGE = "Xin lỗi, tôi gặp lỗi khi xử lý yêu cầu của bạn. Vui lòng thử lại.";
@@ -76,82 +54,118 @@ public class CoreAgent {
     private static final String MODIFICATION_NOT_IMPLEMENTED = "Tính năng thay đổi đặt chỗ đang được phát triển. Vui lòng liên hệ bộ phận hỗ trợ để được trợ giúp.";
 
     // ChatClient beans - injected from MultiLlmChatClientConfig
-    private final ChatClient geminiChatClient;  // For main chat and routing
     
     private final ChatMemory chatMemory;
     private final RoutingWorkflow routingWorkflow;
     private final ParallelizationWorkflow parallelizationWorkflow;
     
-    // Keep workers for future direct usage
-    @SuppressWarnings("unused")
+    private final ChatClient chatClient;
+    private final ChatOptions PRIMARY_CHAT_OPTIONS;
     private final FlightSearchWorker flightSearchWorker;
-    @SuppressWarnings("unused")
     private final HotelSearchWorker hotelSearchWorker;
     private final BookingWorker bookingWorker;
     private final WeatherSearchWorker weatherSearchWorker;
     private final LocationSearchWorker locationSearchWorker;
-    private final ToolCallbackProvider toolCallbackProvider;
-    /**
-     * Constructor with dependency injection.
-     * 
-     * <p><b>Multi-Provider Strategy:</b></p>
-     * <ul>
-     * <li><b>geminiChatClient:</b> Primary ChatClient (Gemini 2.0 Flash) for:
-     *     <ul>
-     *     <li>Text chat and conversation</li>
-     *     <li>Intent routing classification</li>
-     *     <li>Parallel search orchestration</li>
-     *     <li>Tool calling (via workers)</li>
-     *     </ul>
-     * </li>
-     * <li><b>Mistral AI:</b> Used separately in VoiceProcessingService for audio transcription</li>
-     * </ul>
-     * 
-     * <p><b>Note:</b> Workers (Flight, Hotel, Weather, Location, Booking) automatically
-     * receive Gemini ChatClient.Builder via Spring's @Primary bean injection.</p>
-     * 
-     * @param geminiChatClient Pre-configured Gemini ChatClient from MultiLlmChatClientConfig
-     * @param chatMemory Shared chat memory for conversation context
-     * @param flightSearchWorker Worker for flight search operations (uses Gemini)
-     * @param hotelSearchWorker Worker for hotel search operations (uses Gemini)
-     * @param bookingWorker Worker for booking validation (uses Gemini)
-     * @param weatherSearchWorker Worker for weather information (uses Gemini)
-     * @param locationSearchWorker Worker for location search (uses Gemini)
-     */
+
     public CoreAgent(
-            ChatClient.Builder geminiChatClient,
+            ChatClient.Builder builder,
+            ToolCallbackProvider toolCallbackProvider,
             ChatMemory chatMemory,
             FlightSearchWorker flightSearchWorker,
             HotelSearchWorker hotelSearchWorker,
             BookingWorker bookingWorker,
             WeatherSearchWorker weatherSearchWorker,
             LocationSearchWorker locationSearchWorker,
-            ToolCallbackProvider toolCallbackProvider
+            InputValidationGuard inputValidationGuard,
+            ScopeGuard scopeGuard
             ) {
 
-        // Inject pre-configured Gemini ChatClient (primary)
-        this.geminiChatClient = geminiChatClient
-    
-                            .build();        
         this.chatMemory = chatMemory;
-        
-        // Inject workers (all use Gemini via @Primary builder)
         this.flightSearchWorker = flightSearchWorker;
         this.hotelSearchWorker = hotelSearchWorker;
         this.bookingWorker = bookingWorker;
         this.weatherSearchWorker = weatherSearchWorker;
         this.locationSearchWorker = locationSearchWorker;
 
-        // ========== WORKFLOW INITIALIZATION ==========
-        // Both workflows use Gemini ChatClient for routing and orchestration
-        this.routingWorkflow = new RoutingWorkflow(geminiChatClient);
-        this.parallelizationWorkflow = new ParallelizationWorkflow(geminiChatClient);
-        
-        System.out.println("✅ CoreAgent initialized with Gemini ChatClient");
-        System.out.println("   - Routing: Gemini 2.0 Flash");
-        System.out.println("   - Parallel Search: Gemini 2.0 Flash");
-        System.out.println("   - Workers: All use Gemini (via @Primary builder)");
-        System.out.println("   - Audio: Mistral (handled separately in VoiceProcessingService)");
+        // ========== CHAT OPTIONS CONFIGURATION ==========
+        // Configure optimal settings for each workflow type
+
+        // Main Chat Options: Natural conversation with comprehensive responses
+        this.PRIMARY_CHAT_OPTIONS = ChatOptions.builder()
+                .maxTokens(3000) // Comprehensive responses
+                .temperature(0.7) // More creative, natural conversation
+                .topP(0.9) // Diverse vocabulary
+                .presencePenalty(0.1) // Slight penalty for new topics (stay focused)
+                .frequencyPenalty(0.3) // Encourage varied responses
+                .build();
+
+        // Routing Options: Fast, deterministic classification
+        ChatOptions routingOptions = ChatOptions.builder()
+                .maxTokens(1500) // Short classification response
+                .temperature(0.1) // Very deterministic for consistent routing
+                .topP(0.8) // Focused vocabulary
+                .presencePenalty(0.0) // No penalty (simple classification)
+                .frequencyPenalty(0.0) // No penalty (simple classification)
+                .build();
+
+        // Parallel Search Options: Balance speed and quality
+        ChatOptions parallelOptions = ChatOptions.builder()
+                .maxTokens(2000) // Moderate response length
+                .temperature(0.5) // Balanced creativity/accuracy
+                .topP(0.9) // Good vocabulary range
+                .presencePenalty(0.0) // No penalty (independent searches)
+                .frequencyPenalty(0.2) // Slight variety in results
+                .build();
+
+        // ========== CHAT CLIENT CONFIGURATION ==========
+
+        // Create base chat client with memory for main workflows
+        // Configure memory advisor with proper order to execute first in chain
+        MessageChatMemoryAdvisor memoryAdvisor = MessageChatMemoryAdvisor.builder(chatMemory)
+                .order(-36) // Higher order to execute after tool callbacks
+                .build();
+
+        // Add security and logging advisors for main chat workflows
+        SecurityGuardAdvisor chatSecurityAdvisor = SecurityGuardAdvisor
+                .forChat(inputValidationGuard, scopeGuard);
+        LoggingAdvisor chatLoggingAdvisor = LoggingAdvisor.forChat();
+
+        this.chatClient = builder
+                .defaultToolCallbacks(toolCallbackProvider)
+                .defaultAdvisors(chatSecurityAdvisor, memoryAdvisor, chatLoggingAdvisor)
+                .defaultOptions(PRIMARY_CHAT_OPTIONS)
+                .build();
+
+        // Create routing workflow with separate ChatClient WITHOUT memory advisor
+        // This prevents "default" conversation pollution in routing analysis
+        // and avoids tool name conflicts by using isolated tool callbacks
+        SecurityGuardAdvisor routingSecurityAdvisor = SecurityGuardAdvisor
+                .forRouting(inputValidationGuard, scopeGuard);
+        ToolIsolationAdvisor routingIsolation = ToolIsolationAdvisor.forRouting();
+        LoggingAdvisor routingLoggingAdvisor = LoggingAdvisor.forRouting();
+
+        ChatClient routingChatClient = builder
+                .defaultToolCallbacks(toolCallbackProvider)
+                .defaultAdvisors(routingSecurityAdvisor, routingIsolation, routingLoggingAdvisor)
+                .defaultOptions(routingOptions) // Optimized for fast, deterministic routing
+                .build(); // No memory advisor to prevent conversation ID issues!
+
+        this.routingWorkflow = new RoutingWorkflow(routingChatClient);
+
+        // Create parallelization workflow with dedicated ChatClient and isolation
+        // Use parallel isolation advisor to prevent tool conflicts
+        SecurityGuardAdvisor parallelSecurityAdvisor = SecurityGuardAdvisor
+                .forParallel(inputValidationGuard, scopeGuard);
+        ToolIsolationAdvisor parallelIsolation = ToolIsolationAdvisor.forParallel();
+        LoggingAdvisor parallelLoggingAdvisor = LoggingAdvisor.forParallel();
+
+        ChatClient parallelChatClient = builder
+                .defaultToolCallbacks(toolCallbackProvider)
+                .defaultAdvisors(parallelSecurityAdvisor, parallelIsolation, parallelLoggingAdvisor)
+                .defaultOptions(parallelOptions) // Optimized for balanced parallel search
+                .build();
+
+        this.parallelizationWorkflow = new ParallelizationWorkflow(parallelChatClient);
     }
 
     /**
@@ -341,7 +355,7 @@ public class CoreAgent {
 
         return Mono.fromCallable(() -> {
             // Use Gemini ChatClient for text-based inquiry
-            String response = geminiChatClient.prompt()
+            String response = chatClient.prompt()
                     .user(userRequest)
                     .advisors(advisor -> {
                         if (conversationId != null && !conversationId.trim().isEmpty() && isValidUUID(conversationId)) {
@@ -369,7 +383,7 @@ public class CoreAgent {
 
         return Mono.fromCallable(() -> {
             // Use Gemini ChatClient for text-based streaming
-            return geminiChatClient.prompt()
+            return chatClient.prompt()
                     .user(userRequest)
                     .advisors(advisor -> {
                         if (conversationId != null && !conversationId.trim().isEmpty() && isValidUUID(conversationId)) {
@@ -480,7 +494,7 @@ public class CoreAgent {
      */
     private StructuredChatPayload handleUnknownRoute(String userRequest, String conversationId) {
         // Use Gemini ChatClient for fallback responses
-        String fallbackResponse = geminiChatClient.prompt()
+        String fallbackResponse = chatClient.prompt()
                 .system("You are a helpful travel assistant. Answer the user's question as best you can.")
                 .user(userRequest)
                 .advisors(advisor -> {

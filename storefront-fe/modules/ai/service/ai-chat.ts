@@ -154,7 +154,7 @@ class AiChatService {
 
     try {
       // Get AI agent URL from environment or default
-      const wsUrl = `api/ai/ws`;
+      const wsUrl = `api/ai/ws/voice`;
 
       console.log('🔌 Connecting to WebSocket:', wsUrl);
 
@@ -177,7 +177,7 @@ class AiChatService {
           this.reconnectAttempts = 0;
           
           // Subscribe to user's voice topic
-          this.wsClient?.subscribe(`/topic/voice.${userId}`, (message: IMessage) => {
+          this.wsClient?.subscribe(`api/ai/topic/voice.${userId}`, (message: IMessage) => {
             try {
               const voiceResponse: VoiceMessageResponse = JSON.parse(message.body);
               console.log('📨 Received voice message:', voiceResponse.type, voiceResponse.status);
@@ -235,7 +235,7 @@ class AiChatService {
     });
 
     this.wsClient.publish({
-      destination: '/app/voice.send',
+      destination: '/api/ai/app/voice.send',
       body: JSON.stringify(request),
     });
   }

@@ -59,7 +59,7 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
         // Enable simple in-memory message broker
         // For production, consider RabbitMQ or ActiveMQ
         registry.enableSimpleBroker("/topic", "/user");
-        
+
         // Prefix for messages bound for @MessageMapping methods
         registry.setApplicationDestinationPrefixes("/app");
         
@@ -82,6 +82,7 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
     @Override
     public void registerStompEndpoints(StompEndpointRegistry registry) {
         registry.addEndpoint("/ws/voice")
+
                 .setAllowedOriginPatterns("*")  // Configure specific origins in production
                 .withSockJS();  // Enable SockJS fallback
     }

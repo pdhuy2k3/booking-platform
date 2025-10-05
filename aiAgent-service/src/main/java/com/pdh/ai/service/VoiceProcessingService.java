@@ -32,9 +32,6 @@ import java.util.Base64;
  * <li>Fast transcription speed</li>
  * <li>Cost-effective pricing</li>
  * </ul>
- * 
- * @author PDH
- * @since 2025-01-05
  */
 @Service
 public class VoiceProcessingService {
@@ -42,7 +39,7 @@ public class VoiceProcessingService {
     private static final Logger log = LoggerFactory.getLogger(VoiceProcessingService.class);
 
     private final ChatClient mistralChatClient;
-    private final AiService aiService;
+    private final LLMAiService aiService;
 
     /**
      * Constructor with Mistral AI ChatClient for audio processing.
@@ -52,22 +49,13 @@ public class VoiceProcessingService {
      */
     public VoiceProcessingService(
             @Qualifier("mistralChatClient") ChatClient mistralChatClient,
-            AiService aiService) {
+            LLMAiService aiService) {
         this.mistralChatClient = mistralChatClient;
         this.aiService = aiService;
     }
 
     /**
      * Transcribe audio to text using Mistral AI multimodal.
-     * 
-     * <p>Mistral AI Multimodal API:</p>
-     * <ul>
-     * <li>Model: pixtral-12b-2409</li>
-     * <li>Supports: audio, image, video</li>
-     * <li>Input: base64-encoded media</li>
-     * <li>Output: text transcription</li>
-     * </ul>
-     * 
      * @param request Voice message request with base64 audio
      * @return Transcribed text
      */

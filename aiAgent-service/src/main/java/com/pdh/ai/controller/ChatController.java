@@ -20,11 +20,9 @@ import java.util.UUID;
 @RequestMapping("/chat")
 public class ChatController {
     private final AiService aiService;
-    private final AudioTranscriptionService audioTranscriptionService;
 
     public ChatController(AiService aiService, AudioTranscriptionService audioTranscriptionService) {
         this.aiService = aiService;
-        this.audioTranscriptionService = audioTranscriptionService;
     }
 
     @PostMapping("/message")
@@ -150,81 +148,6 @@ public class ChatController {
         } catch (Exception e) {
             return ResponseEntity.status(500).body(java.util.List.of());
         }
-    }
-
-    /**
-     * Send voice message (multimodal input).
-     * 
-     * <p>Process Flow:</p>
-     * <ol>
-     * <li>Receive audio file from user</li>
-     * <li>Transcribe audio to text using Whisper</li>
-     * <li>Process text through existing chat pipeline</li>
-     * <li>Return text response (no voice synthesis yet)</li>
-     * </ol>
-     * 
-     * @param audioFile Audio file from user (mp3, wav, m4a, etc.)
-     * @param userId Optional user ID (extracted from JWT if not provided)
-     * @param conversationId Optional conversation ID (generated if not provided)
-     * @param language Optional language code (default: "vi")
-     * @return Text response from AI
-     */
-    @PostMapping(value = "/voice", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    public Mono<ResponseEntity<ChatResponse>> sendVoiceMessage(
-            @RequestParam("audio") MultipartFile audioFile,
-            @RequestParam(required = false) String userId,
-            @RequestParam(required = false) String conversationId,
-            @RequestParam(required = false, defaultValue = "vi") String language) {
-        
-        return Mono.fromCallable(() -> {
-            // Step 1: Transcribe audio to text
-            String transcribedText = audioTranscriptionService.transcribe(audioFile, language);
-            return transcribedText;
-        })
-        .flatMap(transcribedText -> {
-            // Step 2: Generate conversation ID if needed
-            final String actualConversationId = (conversationId == null || conversationId.trim().isEmpty()) 
-                    ? UUID.randomUUID().toString() 
-                    : conversationId;
-            
-            final String actualUserId = getUserIdFromRequestOrToken(userId);
-            
-            // Step 3: Process text through normal chat pipeline
-            return aiService.completeWithConversationAsync(
-                transcribedText,
-                actualConversationId,
-                actualUserId
-            )
-            .map(completion -> {
-                // Step 4: Return text response
-                ChatResponse chatResponse = ChatResponse.builder()
-                        .userMessage(transcribedText)  // Show transcribed text
-                        .aiResponse(completion.getMessage())
-                        .conversationId(actualConversationId)
-                        .userId(actualUserId)
-                        .timestamp(LocalDateTime.now())
-                        .results(completion.getResults() != null ? completion.getResults() : java.util.List.of())
-                        .build();
-                
-                return ResponseEntity.ok(chatResponse);
-            });
-        })
-        .doOnSubscribe(s -> System.out.println("🎙️ Processing voice message"))
-        .doOnSuccess(result -> System.out.println("✅ Voice message transcribed and processed"))
-        .onErrorResume(e -> {
-            System.err.println("❌ Voice message processing failed: " + e.getMessage());
-            return Mono.just(ResponseEntity.status(500).body(
-                ChatResponse.builder()
-                        .userMessage("[Voice message - transcription failed]")
-                        .aiResponse("Xin lỗi, không thể xử lý tin nhắn thoại của bạn. Lỗi: " + e.getMessage())
-                        .conversationId(conversationId)
-                        .userId(getUserIdFromRequestOrToken(userId))
-                        .timestamp(LocalDateTime.now())
-                        .error(e.getMessage())
-                        .results(java.util.List.of())
-                        .build()
-            ));
-        });
     }
 
     /**
