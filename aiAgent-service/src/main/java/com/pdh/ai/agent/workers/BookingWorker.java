@@ -66,12 +66,23 @@ public class BookingWorker extends BaseWorker {
         """;
 
     public BookingWorker(ChatClient.Builder builder,
-                        @Qualifier("customSyncMcpToolCallbackProvider") ToolCallbackProvider toolCallbackProvider,
+                        ToolCallbackProvider toolCallbackProvider,
                         ToolResultCollector toolResultCollector) {
         this.toolResultCollector = toolResultCollector;
+        
+        // Configure optimal ChatOptions for booking validation responses
+        var bookingOptions = org.springframework.ai.chat.prompt.ChatOptions.builder()
+            .maxTokens(800)         // Shorter responses for validation
+            .temperature(0.3)       // More deterministic for validation tasks
+            .topP(0.85)             // Focused vocabulary
+            .presencePenalty(0.0)   // No penalty for validation
+            .frequencyPenalty(0.1)  // Minimal variety needed
+            .build();
+        
         this.chatClient = builder
             .defaultSystem(SYSTEM_PROMPT)
             .defaultToolCallbacks(toolCallbackProvider)
+            .defaultOptions(bookingOptions)
             .build();
     }
 

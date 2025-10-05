@@ -5,6 +5,8 @@ import java.util.Map;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.pdh.ai.model.dto.StructuredResultItem;
+import reactor.core.publisher.Flux;
+import reactor.core.publisher.Mono;
 
 /**
  * Base class for all specialized worker agents.
@@ -111,4 +113,33 @@ public abstract class BaseWorker {
      * @return Worker response with results
      */
     public abstract WorkerResponse execute(String userRequest, Map<String, Object> parameters);
+
+    /**
+     * Reactive execution method - returns streaming results.
+     * Default implementation wraps the synchronous execute method.
+     * Workers can override for true streaming behavior.
+     *
+     * @param userRequest Original user request for context
+     * @param parameters Execution parameters
+     * @return Mono of worker response
+     */
+    public Mono<WorkerResponse> executeAsync(String userRequest, Map<String, Object> parameters) {
+        return Mono.fromCallable(() -> execute(userRequest, parameters))
+            .doOnSubscribe(s -> System.out.println("🚀 Starting async execution: " + getWorkerName()))
+            .doOnSuccess(result -> System.out.println("✅ Completed async execution: " + getWorkerName()))
+            .doOnError(error -> System.err.println("❌ Failed async execution: " + getWorkerName() + " - " + error.getMessage()));
+    }
+
+    /**
+     * Streaming execution method - returns streaming content.
+     * Workers should override this for true streaming behavior.
+     *
+     * @param userRequest Original user request for context
+     * @param parameters Execution parameters
+     * @return Flux of streaming response content
+     */
+    public Flux<String> executeStream(String userRequest, Map<String, Object> parameters) {
+        return executeAsync(userRequest, parameters)
+            .flatMapMany(response -> Flux.just(response.message()));
+    }
 }

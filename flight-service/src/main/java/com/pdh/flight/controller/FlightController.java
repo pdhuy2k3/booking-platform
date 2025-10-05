@@ -87,6 +87,7 @@ public class FlightController {
      */
 
     @GetMapping("/storefront/search")
+
     @Tool(name = "search_flights", description = "Search flights with filters for origin, destination, dates, airline, price range, and duration.")
     public ResponseEntity<Map<String, Object>> searchFlights(
             @ToolParam(description = "Origin airport, city, or IATA code", required = false)

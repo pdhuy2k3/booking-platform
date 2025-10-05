@@ -35,11 +35,16 @@ public class JpaChatMemory implements ChatMemory {
     @Override
     @Transactional
     public void add(String conversationId, List<Message> messages) {
-        UUID id = UUID.fromString(conversationId);
-        List<ChatMessage> entities = messages.stream()
-                .map(message -> new ChatMessage(id, mapRole(message), extractContent(message), Instant.now()))
-                .collect(Collectors.toList());
-        chatMessageRepository.saveAll(entities);
+        try {
+            UUID id = parseConversationId(conversationId);
+            List<ChatMessage> entities = messages.stream()
+                    .map(message -> new ChatMessage(id, mapRole(message), extractContent(message), Instant.now()))
+                    .collect(Collectors.toList());
+            chatMessageRepository.saveAll(entities);
+        } catch (Exception e) {
+            // Log error but don't fail - conversation might not exist yet
+            System.err.println("Warning: Could not save chat message for conversation " + conversationId + ": " + e.getMessage());
+        }
     }
 
     @Override
@@ -50,23 +55,54 @@ public class JpaChatMemory implements ChatMemory {
 
     @Transactional(readOnly = true)
     public List<Message> get(String conversationId, int lastN) {
-        UUID id = UUID.fromString(conversationId);
-        if (lastN > 0) {
-            List<ChatMessage> latest = chatMessageRepository.findByConversationIdOrderByTimestampDesc(id,
-                    PageRequest.of(0, lastN));
-            Collections.reverse(latest);
-            return latest.stream().map(this::toMessage).toList();
+        try {
+            UUID id = parseConversationId(conversationId);
+            if (lastN > 0) {
+                List<ChatMessage> latest = chatMessageRepository.findByConversationIdOrderByTimestampDesc(id,
+                        PageRequest.of(0, lastN));
+                Collections.reverse(latest);
+                return latest.stream().map(this::toMessage).toList();
+            }
+            return chatMessageRepository.findByConversationIdOrderByTimestampAsc(id)
+                    .stream()
+                    .map(this::toMessage)
+                    .toList();
+        } catch (Exception e) {
+            // Return empty list if conversation doesn't exist or any error occurs
+            System.err.println("Warning: Could not retrieve chat messages for conversation " + conversationId + ": " + e.getMessage());
+            return List.of();
         }
-        return chatMessageRepository.findByConversationIdOrderByTimestampAsc(id)
-                .stream()
-                .map(this::toMessage)
-                .toList();
     }
 
     @Override
     @Transactional
     public void clear(String conversationId) {
-        chatMessageRepository.deleteByConversationId(UUID.fromString(conversationId));
+        UUID id = parseConversationId(conversationId);
+        chatMessageRepository.deleteByConversationId(id);
+    }
+
+    /**
+     * Parses conversation ID string to UUID, handling special cases like "default".
+     * 
+     * @param conversationId The conversation ID string
+     * @return Valid UUID for the conversation
+     */
+    private UUID parseConversationId(String conversationId) {
+        if (conversationId == null || conversationId.trim().isEmpty()) {
+            return UUID.randomUUID();
+        }
+        
+        // Handle Spring AI's default conversation ID
+        if ("default".equals(conversationId)) {
+            return UUID.fromString("00000000-0000-0000-0000-000000000001");
+        }
+        
+        try {
+            return UUID.fromString(conversationId);
+        } catch (IllegalArgumentException e) {
+            // If not a valid UUID, create a deterministic UUID from the string
+            return UUID.nameUUIDFromBytes(conversationId.getBytes());
+        }
     }
 
     private ChatMessage.Role mapRole(Message message) {

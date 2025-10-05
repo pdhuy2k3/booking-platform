@@ -73,12 +73,23 @@ public class WeatherSearchWorker extends BaseWorker {
         """;
 
     public WeatherSearchWorker(ChatClient.Builder builder,
-                              @Qualifier("customSyncMcpToolCallbackProvider") ToolCallbackProvider toolCallbackProvider,
+                              ToolCallbackProvider toolCallbackProvider,
                               ToolResultCollector toolResultCollector) {
         this.toolResultCollector = toolResultCollector;
+        
+        // Configure optimal ChatOptions for weather information responses
+        var weatherOptions = org.springframework.ai.chat.prompt.ChatOptions.builder()
+            .maxTokens(600)         // Weather data is concise
+            .temperature(0.3)       // Factual weather information
+            .topP(0.85)             // Focused weather vocabulary
+            .presencePenalty(0.0)   // No penalty for weather data
+            .frequencyPenalty(0.1)  // Minimal variety needed
+            .build();
+        
         this.chatClient = builder
             .defaultSystem(SYSTEM_PROMPT)
             .defaultToolCallbacks(toolCallbackProvider)
+            .defaultOptions(weatherOptions)
             .build();
     }
 

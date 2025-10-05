@@ -7,6 +7,8 @@ import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.tool.ToolCallbackProvider;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Component;
+import reactor.core.publisher.Flux;
+import reactor.core.publisher.Mono;
 
 import com.pdh.ai.model.dto.StructuredResultItem;
 import com.pdh.ai.service.ToolResultCollector;
@@ -64,12 +66,23 @@ public class FlightSearchWorker extends BaseWorker {
         """;
 
     public FlightSearchWorker(ChatClient.Builder builder,
-                             @Qualifier("customSyncMcpToolCallbackProvider") ToolCallbackProvider toolCallbackProvider,
+                             ToolCallbackProvider toolCallbackProvider,
                              ToolResultCollector toolResultCollector) {
         this.toolResultCollector = toolResultCollector;
+        
+        // Configure optimal ChatOptions for flight search responses
+        var flightSearchOptions = org.springframework.ai.chat.prompt.ChatOptions.builder()
+            .maxTokens(1200)        // Sufficient for detailed flight results
+            .temperature(0.4)       // Balanced accuracy for search tasks
+            .topP(0.9)              // Good vocabulary range
+            .presencePenalty(0.0)   // No penalty for independent searches
+            .frequencyPenalty(0.2)  // Slight variety in descriptions
+            .build();
+        
         this.chatClient = builder
             .defaultSystem(SYSTEM_PROMPT)
             .defaultToolCallbacks(toolCallbackProvider)
+            .defaultOptions(flightSearchOptions)
             .build();
     }
 
@@ -123,5 +136,64 @@ public class FlightSearchWorker extends BaseWorker {
         } finally {
             toolResultCollector.clear();
         }
+    }
+
+    /**
+     * Reactive async flight search.
+     * Returns Mono for non-blocking execution.
+     */
+    @Override
+    public Mono<WorkerResponse> executeAsync(String userRequest, Map<String, Object> parameters) {
+        return Mono.fromCallable(() -> {
+            toolResultCollector.clear();
+            
+            String searchPrompt = buildWorkerPrompt(
+                "User wants to search for flights.\nUse the search_flights tool to find available flights.\nAnalyze the results and provide helpful recommendations.",
+                userRequest,
+                parameters,
+                OUTPUT_INSTRUCTIONS
+            );
+
+            String response = chatClient.prompt(searchPrompt)
+                .call()
+                .content();
+
+            List<StructuredResultItem> results = toolResultCollector.consume();
+            return WorkerResponse.success(WORKER_NAME, response, results);
+        })
+        .doOnSubscribe(s -> System.out.println("🛫 Starting async flight search..."))
+        .doOnSuccess(result -> System.out.println("✅ Flight search completed: " + result.results().size() + " results"))
+        .doOnError(error -> System.err.println("❌ Flight search failed: " + error.getMessage()))
+        .doFinally(signal -> toolResultCollector.clear());
+    }
+
+    /**
+     * Streaming flight search - returns real-time search results.
+     */
+    @Override
+    public Flux<String> executeStream(String userRequest, Map<String, Object> parameters) {
+        return Mono.fromRunnable(() -> {
+            toolResultCollector.clear();
+            System.out.println("🛫 Starting streaming flight search...");
+        })
+        .then(Mono.defer(() -> {
+            String searchPrompt = buildWorkerPrompt(
+                "User wants to search for flights.\nUse the search_flights tool to find available flights.\nProvide streaming updates as you find results.",
+                userRequest,
+                parameters,
+                OUTPUT_INSTRUCTIONS + "\nProvide incremental updates as you search."
+            );
+
+            return Mono.fromCallable(() -> {
+                return chatClient.prompt(searchPrompt)
+                    .stream()
+                    .content();
+            });
+        }))
+        .flatMapMany(flux -> flux)
+        .doOnNext(chunk -> System.out.print("🔄 Flight search chunk: " + chunk))
+        .doOnComplete(() -> System.out.println("\n✅ Flight search streaming completed"))
+        .doOnError(error -> System.err.println("❌ Flight search streaming failed: " + error.getMessage()))
+        .doFinally(signal -> toolResultCollector.clear());
     }
 }

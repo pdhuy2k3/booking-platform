@@ -318,6 +318,9 @@ services:
       - GEMINI_API_KEY
       - OWM_API_KEY
       - MAPBOX_ACCESS_TOKEN
+    volumes:
+      # Docker socket for running MCP server on containers
+      - /var/run/docker.sock:/var/run/docker.sock
     networks:
       - booking-network
   # Hotel Service

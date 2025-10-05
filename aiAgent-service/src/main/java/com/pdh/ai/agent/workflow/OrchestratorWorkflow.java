@@ -56,7 +56,7 @@ public class OrchestratorWorkflow {
             
             Return your analysis in this JSON format:
             {
-                "intent": "Brief description of user's primary intent",
+                "intent": "Brief description of user primary intent",
                 "tasks": [
                     {
                         "worker": "FLIGHT_SEARCH | HOTEL_SEARCH | BOOKING_VALIDATOR | AVAILABILITY_CHECKER",

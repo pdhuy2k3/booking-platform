@@ -65,12 +65,23 @@ public class HotelSearchWorker extends BaseWorker {
         """;
 
     public HotelSearchWorker(ChatClient.Builder builder,
-                            @Qualifier("customSyncMcpToolCallbackProvider") ToolCallbackProvider toolCallbackProvider,
+                            ToolCallbackProvider toolCallbackProvider,
                             ToolResultCollector toolResultCollector) {
         this.toolResultCollector = toolResultCollector;
+        
+        // Configure optimal ChatOptions for hotel search responses
+        var hotelSearchOptions = org.springframework.ai.chat.prompt.ChatOptions.builder()
+            .maxTokens(1200)        // Sufficient for detailed hotel results
+            .temperature(0.4)       // Balanced accuracy for search tasks
+            .topP(0.9)              // Good vocabulary range
+            .presencePenalty(0.0)   // No penalty for independent searches
+            .frequencyPenalty(0.2)  // Slight variety in descriptions
+            .build();
+        
         this.chatClient = builder
             .defaultSystem(SYSTEM_PROMPT)
             .defaultToolCallbacks(toolCallbackProvider)
+            .defaultOptions(hotelSearchOptions)
             .build();
     }
 

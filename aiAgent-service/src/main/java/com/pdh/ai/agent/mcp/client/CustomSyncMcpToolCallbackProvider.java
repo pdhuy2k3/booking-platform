@@ -5,14 +5,16 @@ import io.modelcontextprotocol.spec.McpSchema;
 import org.springframework.ai.mcp.SyncMcpToolCallbackProvider;
 import org.springframework.ai.tool.ToolCallback;
 import org.springframework.ai.tool.support.ToolUtils;
+import org.springframework.context.annotation.Primary;
 import org.springframework.util.Assert;
 
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.function.BiPredicate;
 
 import com.pdh.ai.service.ToolResultCollector;
-
+@Primary
 public class CustomSyncMcpToolCallbackProvider extends SyncMcpToolCallbackProvider {
 
     private final List<McpSyncClient> mcpClients;
@@ -46,40 +48,5 @@ public class CustomSyncMcpToolCallbackProvider extends SyncMcpToolCallbackProvid
         this((mcpClient, tool) -> true, mcpClients, toolResultCollector);
     }
 
-    /**
-     * Get the tool callbacks.
-     *
-     * @return An array of ToolCallback objects.
-     */
-    @Override
-    public ToolCallback[] getToolCallbacks() {
 
-        var toolCallbacks = new ArrayList<>();
-    
-        this.mcpClients.stream().forEach(mcpClient -> {
-            toolCallbacks.addAll(mcpClient.listTools()
-                    .tools()
-                    .stream()
-                    .filter(tool -> toolFilter.test(mcpClient, tool))
-                    .map(tool -> new CustomSyncMcpToolCallback(mcpClient, tool, toolResultCollector))
-                    .toList());
-        });
-        var array = toolCallbacks.toArray(new ToolCallback[0]);
-        validateToolCallbacks(array);
-        return array;
-    }
-
-    /**
-     * Validate the tool callbacks to ensure there are no duplicate tool names.
-     *
-     * @param toolCallbacks An array of ToolCallback objects.
-     * @throws IllegalStateException if there are duplicate tool names.
-     */
-    private void validateToolCallbacks(ToolCallback[] toolCallbacks) {
-        List<String> duplicateToolNames = ToolUtils.getDuplicateToolNames(toolCallbacks);
-        if (!duplicateToolNames.isEmpty()) {
-            throw new IllegalStateException(
-                    "Multiple tools with the same name (%s)".formatted(String.join(", ", duplicateToolNames)));
-        }
-    }
 }

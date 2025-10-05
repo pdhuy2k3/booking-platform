@@ -81,12 +81,23 @@ public class LocationSearchWorker extends BaseWorker {
         """;
 
     public LocationSearchWorker(ChatClient.Builder builder,
-                               @Qualifier("customSyncMcpToolCallbackProvider") ToolCallbackProvider toolCallbackProvider,
+                               ToolCallbackProvider toolCallbackProvider,
                                ToolResultCollector toolResultCollector) {
         this.toolResultCollector = toolResultCollector;
+        
+        // Configure optimal ChatOptions for location search responses
+        var locationOptions = org.springframework.ai.chat.prompt.ChatOptions.builder()
+            .maxTokens(1000)        // Multiple locations with details
+            .temperature(0.3)       // Factual location information
+            .topP(0.85)             // Focused geography vocabulary
+            .presencePenalty(0.0)   // No penalty for location data
+            .frequencyPenalty(0.15) // Some variety in descriptions
+            .build();
+        
         this.chatClient = builder
             .defaultSystem(SYSTEM_PROMPT)
             .defaultToolCallbacks(toolCallbackProvider)
+            .defaultOptions(locationOptions)
             .build();
     }
 

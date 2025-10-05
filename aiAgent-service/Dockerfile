@@ -1,6 +1,6 @@
 FROM eclipse-temurin:21-jre-alpine
-# Install necessary packages
-RUN apk add --no-cache bash netcat-openbsd
+# Install necessary packages for Docker socket access
+RUN apk add --no-cache bash netcat-openbsd docker-cli
 
 # Copy and fix wait-for-it script
 COPY wait-for-it.sh /wait-for-it.sh

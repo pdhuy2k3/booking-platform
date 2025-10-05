@@ -12,6 +12,7 @@ import org.springframework.ai.mcp.SyncMcpToolCallback;
 import org.springframework.ai.model.ModelOptionsUtils;
 import org.springframework.ai.tool.definition.DefaultToolDefinition;
 import org.springframework.ai.tool.execution.ToolExecutionException;
+import org.springframework.context.annotation.Primary;
 import org.springframework.lang.NonNull;
 
 import java.math.BigDecimal;
@@ -22,8 +23,9 @@ import java.util.Map;
 import java.util.stream.Collectors;
 
 @Slf4j
+@Primary
 public class CustomSyncMcpToolCallback extends SyncMcpToolCallback {
-
+    
     private final McpSyncClient mcpClient;
     private final McpSchema.Tool tool;
     private final ObjectMapper objectMapper;

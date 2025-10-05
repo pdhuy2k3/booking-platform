@@ -64,11 +64,16 @@
             <groupId>org.springframework.cloud</groupId>
             <artifactId>spring-cloud-starter-netflix-eureka-client</artifactId>
         </dependency>
+        <!-- OpenAI compatibility (using Gemini API with native audio support) -->
         <dependency>
             <groupId>org.springframework.ai</groupId>
             <artifactId>spring-ai-starter-model-openai</artifactId>
-        </dependency>
+        </dependency>       
         
+        <dependency>
+            <groupId>org.springframework.ai</groupId>
+            <artifactId>spring-ai-starter-model-mistral-ai</artifactId>
+        </dependency>
         <!-- OpenAPI Documentation -->
         <dependency>
             <groupId>org.springdoc</groupId>

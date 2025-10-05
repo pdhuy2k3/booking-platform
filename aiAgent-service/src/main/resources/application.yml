@@ -16,7 +16,6 @@ server:
 #    try-it-out-enabled: true
 #  show-actuator: true
 
-
 spring:
   profiles:
     active: local
@@ -55,13 +54,16 @@ spring:
     driver-class-name: org.postgresql.Driver
   ai:
     openai:
+      # Gemini API via OpenAI compatibility endpoint
       api-key: ${GEMINI_API_KEY}
+      base-url: https://generativelanguage.googleapis.com/v1beta/openai/
       chat:
-        base-url: https://generativelanguage.googleapis.com/v1beta/openai/
-        api-key: ${GEMINI_API_KEY}
-        
         options:
-          model: gemini-2.5-flash
+          model: gemini-2.5 
+          temperature: 0.7
+          max-tokens: 3000
+          output-audio: 
+            
     chat:
       memory:
         repository:
@@ -71,11 +73,11 @@ spring:
     mcp:
       client:
         enabled: true
-        name: llm-mcp-client-demo
+        name: bookingsmrt-mcp-client
         version: 1.0.0
 
-        request-timeout: 120s
-        type: sync
+        request-timeout: 300s
+        type: async
         root-change-notification: true
         toolcallback.enabled: true
         sse:
@@ -128,7 +130,6 @@ spring:
         provider:
           auth-server:
             token-uri: http://localhost:9090/realms/BookingSmart/protocol/openid-connect/token
-
 ---
 spring:
   config:
@@ -159,16 +160,16 @@ spring:
 
   ai:
     openai:
+      # Gemini API via OpenAI compatibility endpoint
       api-key: ${GEMINI_API_KEY}
+      base-url: https://generativelanguage.googleapis.com/v1beta/openai/
       chat:
-        base-url: https://generativelanguage.googleapis.com/v1beta/openai/
-        api-key: ${GEMINI_API_KEY}
-        
         options:
-          model: gemini-2.5-flash
+          model: gemini-2.0-flash-exp  # Supports native audio understanding
+          temperature: 0.7
+          max-tokens: 3000
     chat:
       memory:
-
         repository:
           jdbc:
             initialize-schema: never
@@ -176,11 +177,11 @@ spring:
     mcp:
       client:
         enabled: true
-        name: llm-mcp-client-demo
+        name: bookingsmrt-mcp-client
         version: 1.0.0
-        type: sync
-        request-timeout: 120s
-  
+        type: async
+        request-timeout: 300s
+
         root-change-notification: true
         toolcallback.enabled: true
         sse:
@@ -192,6 +193,7 @@ spring:
               url: http://flight-service
               sse-endpoint: /flights/sse
         stdio:
+          
           connections:
             openweather:
               command: docker
@@ -222,6 +224,3 @@ eureka:
       defaultZone: ${EUREKA_URI}
   instance:
     prefer-ip-address: true
-
-
-

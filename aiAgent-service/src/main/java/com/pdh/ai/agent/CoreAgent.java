@@ -4,15 +4,23 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.stream.Collectors;
+import java.util.UUID;
 
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.client.advisor.MessageChatMemoryAdvisor;
 import org.springframework.ai.chat.memory.ChatMemory;
+import org.springframework.ai.chat.messages.UserMessage;
+import org.springframework.ai.chat.prompt.ChatOptions;
 import org.springframework.ai.tool.ToolCallbackProvider;
 import org.springframework.stereotype.Component;
-
-import com.pdh.ai.agent.workflow.OrchestratorWorkflow;
+import reactor.core.publisher.Flux;
+import reactor.core.publisher.Mono;
+import com.pdh.ai.agent.advisor.LoggingAdvisor;
+import com.pdh.ai.agent.advisor.SecurityGuardAdvisor;
+import com.pdh.ai.agent.advisor.ToolIsolationAdvisor;
+import com.pdh.ai.agent.guard.InputValidationGuard;
+import com.pdh.ai.agent.guard.ScopeGuard;
+import com.pdh.ai.agent.workflow.ParallelizationWorkflow;
 import com.pdh.ai.agent.workflow.RoutingWorkflow;
 import com.pdh.ai.agent.workers.BaseWorker;
 import com.pdh.ai.agent.workers.BookingWorker;
@@ -26,25 +34,32 @@ import com.pdh.ai.model.dto.StructuredResultItem;
 /**
  * Core AI Agent orchestrating travel booking workflows.
  *
- * <p>This agent combines multiple agentic patterns:</p>
+ * <p>
+ * This agent combines multiple agentic patterns:
+ * </p>
  * <ul>
- *   <li><b>Routing:</b> Classifies user intent (search, booking, inquiry)</li>
- *   <li><b>Orchestrator-Workers:</b> Breaks down complex tasks and delegates to specialized workers</li>
- *   <li><b>Memory:</b> Maintains conversation context across interactions</li>
- *   <li><b>Tool Calling:</b> Integrates with MCP tools for flight/hotel search</li>
+ * <li><b>Routing:</b> Classifies user intent (search, booking, inquiry)</li>
+ * <li><b>Orchestrator-Workers:</b> Breaks down complex tasks and delegates to
+ * specialized workers</li>
+ * <li><b>Memory:</b> Maintains conversation context across interactions</li>
+ * <li><b>Tool Calling:</b> Integrates with MCP tools for flight/hotel
+ * search</li>
  * </ul>
  *
- * <p><b>Workflow:</b></p>
+ * <p>
+ * <b>Workflow:</b>
+ * </p>
  * <ol>
- *   <li>Route incoming request to appropriate workflow category</li>
- *   <li>Orchestrator analyzes and breaks down the task</li>
- *   <li>Specialized workers execute subtasks (search, validate, etc.)</li>
- *   <li>Synthesizer combines results into structured response</li>
+ * <li>Route incoming request to appropriate workflow category</li>
+ * <li>Orchestrator analyzes and breaks down the task</li>
+ * <li>Specialized workers execute subtasks (search, validate, etc.)</li>
+ * <li>Synthesizer combines results into structured response</li>
  * </ol>
  *
  * @author BookingSmart AI Team
  */
 @Component
+
 public class CoreAgent {
 
     // Route constants
@@ -54,148 +69,284 @@ public class CoreAgent {
     private static final String ROUTE_MODIFICATION = "MODIFICATION";
     private static final String ROUTE_WEATHER = "WEATHER";
     private static final String ROUTE_LOCATION = "LOCATION";
-
-    // Worker names
-    private static final String WORKER_AVAILABILITY_CHECKER = "AVAILABILITY_CHECKER";
+    // Worker names - keeping for future extensibility
+    // private static final String WORKER_AVAILABILITY_CHECKER =
+    // "AVAILABILITY_CHECKER";
 
     // Messages
     private static final String ERROR_MESSAGE = "Xin lỗi, tôi gặp lỗi khi xử lý yêu cầu của bạn. Vui lòng thử lại.";
-    private static final String MISSING_INFO_PREFIX = "Để tôi có thể giúp bạn tốt hơn, tôi cần thêm một số thông tin:\n\n";
+    // private static final String MISSING_INFO_PREFIX = "Để tôi có thể giúp bạn tốt
+    // hơn, tôi cần thêm một số thông tin:\n\n";
     private static final String MODIFICATION_NOT_IMPLEMENTED = "Tính năng thay đổi đặt chỗ đang được phát triển. Vui lòng liên hệ bộ phận hỗ trợ để được trợ giúp.";
 
     private final ChatClient chatClient;
+    private final ChatMemory chatMemory;
+    private final ChatOptions PRIMARY_CHAT_OPTIONS;
     private final RoutingWorkflow routingWorkflow;
+    private final ParallelizationWorkflow parallelizationWorkflow;
+    // Keep workers for future direct usage
+    @SuppressWarnings("unused")
     private final FlightSearchWorker flightSearchWorker;
+    @SuppressWarnings("unused")
     private final HotelSearchWorker hotelSearchWorker;
     private final BookingWorker bookingWorker;
     private final WeatherSearchWorker weatherSearchWorker;
     private final LocationSearchWorker locationSearchWorker;
 
     public CoreAgent(ChatClient.Builder builder,
-                     ToolCallbackProvider toolCallbackProvider,
-                     ChatMemory chatMemory,
-                     FlightSearchWorker flightSearchWorker,
-                     HotelSearchWorker hotelSearchWorker,
-                     BookingWorker bookingWorker,
-                     WeatherSearchWorker weatherSearchWorker,
-                     LocationSearchWorker locationSearchWorker) {
+            ToolCallbackProvider toolCallbackProvider,
+            ChatMemory chatMemory,
+            FlightSearchWorker flightSearchWorker,
+            HotelSearchWorker hotelSearchWorker,
+            BookingWorker bookingWorker,
+            WeatherSearchWorker weatherSearchWorker,
+            LocationSearchWorker locationSearchWorker,
+            InputValidationGuard inputValidationGuard,
+            ScopeGuard scopeGuard) {
 
+        this.chatMemory = chatMemory;
         this.flightSearchWorker = flightSearchWorker;
         this.hotelSearchWorker = hotelSearchWorker;
         this.bookingWorker = bookingWorker;
         this.weatherSearchWorker = weatherSearchWorker;
         this.locationSearchWorker = locationSearchWorker;
 
-        // Create base chat client with memory for routing
+        // ========== CHAT OPTIONS CONFIGURATION ==========
+        // Configure optimal settings for each workflow type
+
+        // Main Chat Options: Natural conversation with comprehensive responses
+        this.PRIMARY_CHAT_OPTIONS = ChatOptions.builder()
+                .maxTokens(3000) // Comprehensive responses
+                .temperature(0.7) // More creative, natural conversation
+                .topP(0.9) // Diverse vocabulary
+                .presencePenalty(0.1) // Slight penalty for new topics (stay focused)
+                .frequencyPenalty(0.3) // Encourage varied responses
+                .build();
+
+        // Routing Options: Fast, deterministic classification
+        ChatOptions routingOptions = ChatOptions.builder()
+                .maxTokens(1500) // Short classification response
+                .temperature(0.1) // Very deterministic for consistent routing
+                .topP(0.8) // Focused vocabulary
+                .presencePenalty(0.0) // No penalty (simple classification)
+                .frequencyPenalty(0.0) // No penalty (simple classification)
+                .build();
+
+        // Parallel Search Options: Balance speed and quality
+        ChatOptions parallelOptions = ChatOptions.builder()
+                .maxTokens(2000) // Moderate response length
+                .temperature(0.5) // Balanced creativity/accuracy
+                .topP(0.9) // Good vocabulary range
+                .presencePenalty(0.0) // No penalty (independent searches)
+                .frequencyPenalty(0.2) // Slight variety in results
+                .build();
+
+        // ========== CHAT CLIENT CONFIGURATION ==========
+
+        // Create base chat client with memory for main workflows
+        // Configure memory advisor with proper order to execute first in chain
+        MessageChatMemoryAdvisor memoryAdvisor = MessageChatMemoryAdvisor.builder(chatMemory)
+                .order(-36) // Higher order to execute after tool callbacks
+                .build();
+
+        // Add security and logging advisors for main chat workflows
+        SecurityGuardAdvisor chatSecurityAdvisor = SecurityGuardAdvisor
+                .forChat(inputValidationGuard, scopeGuard);
+        LoggingAdvisor chatLoggingAdvisor = LoggingAdvisor.forChat();
+
         this.chatClient = builder
-            .defaultToolCallbacks(toolCallbackProvider)
-            .defaultAdvisors(MessageChatMemoryAdvisor.builder(chatMemory).build())
-            .build();
+                .defaultToolCallbacks(toolCallbackProvider)
+                .defaultAdvisors(chatSecurityAdvisor, memoryAdvisor, chatLoggingAdvisor)
+                .defaultOptions(PRIMARY_CHAT_OPTIONS)
+                .build();
 
-        // Create routing workflow for intent classification
-        this.routingWorkflow = new RoutingWorkflow(this.chatClient);
+        // Create routing workflow with separate ChatClient WITHOUT memory advisor
+        // This prevents "default" conversation pollution in routing analysis
+        // and avoids tool name conflicts by using isolated tool callbacks
+        SecurityGuardAdvisor routingSecurityAdvisor = SecurityGuardAdvisor
+                .forRouting(inputValidationGuard, scopeGuard);
+        ToolIsolationAdvisor routingIsolation = ToolIsolationAdvisor.forRouting();
+        LoggingAdvisor routingLoggingAdvisor = LoggingAdvisor.forRouting();
+
+        ChatClient routingChatClient = builder
+                .defaultToolCallbacks(toolCallbackProvider)
+                .defaultAdvisors(routingSecurityAdvisor, routingIsolation, routingLoggingAdvisor)
+                .defaultOptions(routingOptions) // Optimized for fast, deterministic routing
+                .build(); // No memory advisor to prevent conversation ID issues!
+
+        this.routingWorkflow = new RoutingWorkflow(routingChatClient);
+
+        // Create parallelization workflow with dedicated ChatClient and isolation
+        // Use parallel isolation advisor to prevent tool conflicts
+        SecurityGuardAdvisor parallelSecurityAdvisor = SecurityGuardAdvisor
+                .forParallel(inputValidationGuard, scopeGuard);
+        ToolIsolationAdvisor parallelIsolation = ToolIsolationAdvisor.forParallel();
+        LoggingAdvisor parallelLoggingAdvisor = LoggingAdvisor.forParallel();
+
+        ChatClient parallelChatClient = builder
+                .defaultToolCallbacks(toolCallbackProvider)
+                .defaultAdvisors(parallelSecurityAdvisor, parallelIsolation, parallelLoggingAdvisor)
+                .defaultOptions(parallelOptions) // Optimized for balanced parallel search
+                .build();
+
+        this.parallelizationWorkflow = new ParallelizationWorkflow(parallelChatClient);
     }
 
     /**
-     * Processes user request through the complete agent workflow.
+     * Reactive version of process method - returns Mono for non-blocking execution.
+     * This is the main entry point for processing user requests.
      *
-     * @param userRequest User's travel-related request
+     * @param userRequest    User's travel-related request
      * @param conversationId Conversation ID for memory management
-     * @return Structured response with message and results
+     * @return Mono of structured response with message and results
      */
-    public StructuredChatPayload process(String userRequest, String conversationId) {
-        logProcessingStart(userRequest, conversationId);
-
-        try {
-            // Step 1: Route the request to appropriate workflow
-            RoutingWorkflow.RoutingDecision decision = routingWorkflow.route(userRequest, getAvailableRoutes());
-
-            // Step 2: Process based on route
-            return switch (decision.route()) {
-                case ROUTE_SEARCH -> processSearchWorkflow(userRequest, decision, conversationId);
-                case ROUTE_BOOKING -> processBookingWorkflow(userRequest, decision, conversationId);
-                case ROUTE_INQUIRY -> processInquiryWorkflow(userRequest, conversationId);
-                case ROUTE_MODIFICATION -> processModificationWorkflow();
-                case ROUTE_WEATHER -> processWeatherWorkflow(userRequest, decision, conversationId);
-                case ROUTE_LOCATION -> processLocationWorkflow(userRequest, decision, conversationId);
-                default -> handleUnknownRoute(userRequest, conversationId);
-            };
-        } catch (Exception e) {
-            System.err.println("Error in CoreAgent processing: " + e.getMessage());
-            e.printStackTrace();
-            return buildErrorResponse();
-        }
+    public Mono<StructuredChatPayload> processAsync(String userRequest, String conversationId) {
+        return process(userRequest, conversationId);
     }
 
     /**
-     * Processes SEARCH workflow using Orchestrator-Workers pattern.
+     * Main reactive process method - returns Mono for non-blocking execution.
+     *
+     * @param userRequest    User's travel-related request
+     * @param conversationId Conversation ID for memory management
+     * @return Mono of structured response with message and results
      */
-    private StructuredChatPayload processSearchWorkflow(String userRequest,
-                                                        RoutingWorkflow.RoutingDecision decision,
-                                                        String conversationId) {
-        System.out.println("\n=== SEARCH WORKFLOW ACTIVATED ===");
-
-        Map<String, OrchestratorWorkflow.WorkerConfig> workers = buildSearchWorkers();
-        OrchestratorWorkflow orchestrator = new OrchestratorWorkflow(chatClient, workers);
-        OrchestratorWorkflow.OrchestratedResponse orchestratedResult = orchestrator.process(userRequest);
-
-        return convertToStructuredPayload(orchestratedResult);
+    public Mono<StructuredChatPayload> process(String userRequest, String conversationId) {
+        return Mono.fromCallable(() -> {
+            logProcessingStart(userRequest, conversationId);
+            return userRequest;
+        })
+                .flatMap(request -> {
+                    // Step 0: Save user message to memory (reactive)
+                    return saveToMemoryAsync(request, conversationId)
+                            .then(Mono.fromCallable(
+                                    () -> routingWorkflow.route(request, getAvailableRoutes(), conversationId)))
+                            .flatMap(decision -> {
+                                // Step 2: Process based on route (reactive)
+                                return switch (decision.route()) {
+                                    case ROUTE_SEARCH -> processSearchWorkflow(request, decision, conversationId);
+                                    case ROUTE_BOOKING -> processBookingWorkflow(request, decision, conversationId);
+                                    case ROUTE_INQUIRY -> processInquiryWorkflow(request, conversationId);
+                                    case ROUTE_MODIFICATION -> processModificationWorkflow();
+                                    case ROUTE_WEATHER -> processWeatherWorkflow(request, decision, conversationId);
+                                    case ROUTE_LOCATION -> processLocationWorkflow(request, decision, conversationId);
+                                    default -> Mono.just(handleUnknownRoute(request, conversationId));
+                                };
+                            });
+                })
+                .doOnSubscribe(s -> System.out.println("🚀 Starting reactive agent processing"))
+                .doOnSuccess(result -> System.out.println("✅ Reactive agent processing completed"))
+                .doOnError(error -> {
+                    System.err.println("❌ Reactive agent processing failed: " + error.getMessage());
+                    error.printStackTrace();
+                })
+                .onErrorReturn(buildErrorResponse());
     }
 
     /**
-     * Builds worker configurations for search workflow.
+     * Streaming version of process method - returns real-time results.
+     *
+     * @param userRequest    User's travel-related request
+     * @param conversationId Conversation ID for memory management
+     * @return Flux of streaming response content
      */
-    private Map<String, OrchestratorWorkflow.WorkerConfig> buildSearchWorkers() {
-        Map<String, OrchestratorWorkflow.WorkerConfig> workers = new HashMap<>();
-
-        workers.put(flightSearchWorker.getWorkerName(), createWorkerConfig(flightSearchWorker));
-        workers.put(hotelSearchWorker.getWorkerName(), createWorkerConfig(hotelSearchWorker));
-        workers.put(WORKER_AVAILABILITY_CHECKER, createAvailabilityCheckerConfig());
-
-        return workers;
+    public Flux<String> processStream(String userRequest, String conversationId) {
+        return Mono.fromCallable(() -> {
+            logProcessingStart(userRequest, conversationId);
+            return userRequest;
+        })
+                .flatMapMany(request -> {
+                    // Route first, then stream the processing
+                    return Mono.fromCallable(() -> routingWorkflow.route(request, getAvailableRoutes(), conversationId))
+                            .flatMapMany(decision -> {
+                                return switch (decision.route()) {
+                                    case ROUTE_SEARCH -> processSearchWorkflowStream(request, decision, conversationId);
+                                    case ROUTE_BOOKING -> Flux.just("Booking workflow does not support streaming yet.");
+                                    case ROUTE_INQUIRY -> processInquiryWorkflowStream(request, conversationId);
+                                    case ROUTE_WEATHER -> Flux.just("Weather workflow streaming not implemented yet.");
+                                    case ROUTE_LOCATION ->
+                                        Flux.just("Location workflow streaming not implemented yet.");
+                                    default -> Flux.just("Unknown route - streaming not supported.");
+                                };
+                            });
+                })
+                .doOnSubscribe(s -> System.out.println("🌊 Starting streaming agent processing"))
+                .doOnNext(chunk -> System.out.print("📡"))
+                .doOnComplete(() -> System.out.println("\n🎯 Streaming agent processing completed"))
+                .doOnError(error -> System.err.println("❌ Streaming failed: " + error.getMessage()));
     }
 
     /**
-     * Creates worker config from a BaseWorker instance.
+     * Helper method to save message to memory reactively.
      */
-    private OrchestratorWorkflow.WorkerConfig createWorkerConfig(BaseWorker worker) {
-        return new OrchestratorWorkflow.WorkerConfig(
-            worker.getWorkerName(),
-            worker.getSystemPrompt(),
-            worker.getOutputInstructions()
-        );
+    private Mono<Void> saveToMemoryAsync(String userRequest, String conversationId) {
+        return Mono.fromRunnable(() -> {
+            if (conversationId != null && !conversationId.trim().isEmpty() &&
+                    isValidUUID(conversationId) && !conversationId.equals("default")) {
+
+                try {
+                    chatMemory.add(conversationId, List.of(new UserMessage(userRequest)));
+                    System.out.println("✓ Added message to conversation: " + conversationId);
+                } catch (Exception e) {
+                    System.err.println("Warning: Failed to add message to memory: " + e.getMessage());
+                }
+            } else {
+                System.out.println("⚠ Skipping memory save - invalid or default conversation ID: " + conversationId);
+            }
+        });
     }
 
     /**
-     * Creates availability checker worker config.
+     * Search workflow - reactive implementation using Parallelization pattern.
      */
-    private OrchestratorWorkflow.WorkerConfig createAvailabilityCheckerConfig() {
-        return new OrchestratorWorkflow.WorkerConfig(
-            WORKER_AVAILABILITY_CHECKER,
-            """
-            You are an availability checker.
-            Verify real-time availability for flights or hotels.
-            Use search tools to check current capacity and availability status.
-            """,
-            "Return JSON with: {\"available\": boolean, \"details\": \"explanation\"}"
-        );
+    private Mono<StructuredChatPayload> processSearchWorkflow(String userRequest,
+            RoutingWorkflow.RoutingDecision decision,
+            String conversationId) {
+        System.out.println("\n=== REACTIVE SEARCH WORKFLOW ACTIVATED ===");
+
+        Map<String, Object> extractedParams = decision.extractedParams() != null
+                ? decision.extractedParams()
+                : new HashMap<>();
+
+        return parallelizationWorkflow.parallelTravelSearchAsync(userRequest, extractedParams)
+                .map(parallelResults -> convertParallelResultsToStructuredPayload(parallelResults, userRequest))
+                .doOnSuccess(result -> System.out.println("✅ Reactive search workflow completed"))
+                .onErrorReturn(buildErrorResponse());
     }
 
     /**
-     * Processes BOOKING workflow with validation.
+     * Streaming version of search workflow.
      */
-    private StructuredChatPayload processBookingWorkflow(String userRequest,
-                                                         RoutingWorkflow.RoutingDecision decision,
-                                                         String conversationId) {
-        System.out.println("\n=== BOOKING WORKFLOW ACTIVATED ===");
+    private Flux<String> processSearchWorkflowStream(String userRequest,
+            RoutingWorkflow.RoutingDecision decision,
+            String conversationId) {
+        System.out.println("\n=== STREAMING SEARCH WORKFLOW ACTIVATED ===");
+
+        Map<String, Object> extractedParams = decision.extractedParams() != null
+                ? decision.extractedParams()
+                : new HashMap<>();
+
+        return parallelizationWorkflow.parallelTravelSearchStream(userRequest, extractedParams)
+                .doOnSubscribe(s -> System.out.println("🌊 Starting streaming search"))
+                .doOnComplete(() -> System.out.println("🎯 Streaming search completed"));
+    }
+
+    /**
+     * Booking workflow - reactive implementation with validation.
+     */
+    private Mono<StructuredChatPayload> processBookingWorkflow(String userRequest,
+            RoutingWorkflow.RoutingDecision decision,
+            String conversationId) {
+        System.out.println("\n=== REACTIVE BOOKING WORKFLOW ACTIVATED ===");
 
         Map<String, Object> params = decision.extractedParams() != null
-            ? decision.extractedParams()
-            : new HashMap<>();
+                ? decision.extractedParams()
+                : new HashMap<>();
 
-        BaseWorker.WorkerResponse validationResult = bookingWorker.validate(userRequest, params);
-
-        return buildBookingResponse(validationResult);
+        return bookingWorker.executeAsync(userRequest, params)
+                .map(this::buildBookingResponse)
+                .doOnSuccess(result -> System.out.println("✅ Reactive booking workflow completed"))
+                .onErrorReturn(buildErrorResponse());
     }
 
     /**
@@ -205,66 +356,96 @@ public class CoreAgent {
         List<StructuredResultItem> results = new ArrayList<>(validationResult.results());
 
         results.add(StructuredResultItem.builder()
-            .type("info")
-            .title("Booking Validation")
-            .description(validationResult.message())
-            .metadata(Map.of(
-                "status", validationResult.success() ? "validated" : "needs_action",
-                "worker", validationResult.workerName()
-            ))
-            .build());
+                .type("info")
+                .title("Booking Validation")
+                .description(validationResult.message())
+                .metadata(Map.of(
+                        "status", validationResult.success() ? "validated" : "needs_action",
+                        "worker", validationResult.workerName()))
+                .build());
 
         return StructuredChatPayload.builder()
-            .message(validationResult.message())
-            .results(results)
-            .build();
+                .message(validationResult.message())
+                .results(results)
+                .build();
     }
 
     /**
-     * Processes INQUIRY workflow for general questions.
+     * Inquiry workflow - reactive implementation for general questions.
      */
-    private StructuredChatPayload processInquiryWorkflow(String userRequest, String conversationId) {
-        System.out.println("\n=== INQUIRY WORKFLOW ACTIVATED ===");
+    private Mono<StructuredChatPayload> processInquiryWorkflow(String userRequest, String conversationId) {
+        System.out.println("\n=== REACTIVE INQUIRY WORKFLOW ACTIVATED ===");
 
-        String response = chatClient.prompt()
-            .user(userRequest)
-            .advisors(a -> a.param(ChatMemory.CONVERSATION_ID, conversationId))
-            .call()
-            .content();
+        return Mono.fromCallable(() -> {
+            String response = chatClient.prompt()
+                    .user(userRequest)
+                    .advisors(advisor -> {
+                        if (conversationId != null && !conversationId.trim().isEmpty() && isValidUUID(conversationId)) {
+                            advisor.param(ChatMemory.CONVERSATION_ID, conversationId);
+                        }
+                    })
+                    .call()
+                    .content();
 
-        return StructuredChatPayload.builder()
-            .message(response)
-            .results(List.of())
-            .build();
+            return StructuredChatPayload.builder()
+                    .message(response)
+                    .results(List.of())
+                    .build();
+        })
+                .doOnSuccess(result -> System.out.println("✅ Reactive inquiry workflow completed"))
+                .onErrorReturn(buildErrorResponse());
     }
 
     /**
-     * Processes MODIFICATION workflow (future implementation).
+     * Streaming version of inquiry workflow.
      */
-    private StructuredChatPayload processModificationWorkflow() {
-        System.out.println("\n=== MODIFICATION WORKFLOW ACTIVATED ===");
+    private Flux<String> processInquiryWorkflowStream(String userRequest, String conversationId) {
+        System.out.println("\n=== STREAMING INQUIRY WORKFLOW ACTIVATED ===");
 
-        return StructuredChatPayload.builder()
-            .message(MODIFICATION_NOT_IMPLEMENTED)
-            .results(List.of())
-            .build();
+        return Mono.fromCallable(() -> {
+            return chatClient.prompt()
+                    .user(userRequest)
+                    .advisors(advisor -> {
+                        if (conversationId != null && !conversationId.trim().isEmpty() && isValidUUID(conversationId)) {
+                            advisor.param(ChatMemory.CONVERSATION_ID, conversationId);
+                        }
+                    })
+                    .stream()
+                    .content();
+        })
+                .flatMapMany(flux -> flux)
+                .doOnSubscribe(s -> System.out.println("🌊 Starting streaming inquiry"))
+                .doOnComplete(() -> System.out.println("🎯 Streaming inquiry completed"));
     }
 
     /**
-     * Processes WEATHER workflow using WeatherSearchWorker.
+     * Modification workflow - reactive implementation (future implementation).
      */
-    private StructuredChatPayload processWeatherWorkflow(String userRequest,
-                                                         RoutingWorkflow.RoutingDecision decision,
-                                                         String conversationId) {
-        System.out.println("\n=== WEATHER WORKFLOW ACTIVATED ===");
+    private Mono<StructuredChatPayload> processModificationWorkflow() {
+        System.out.println("\n=== REACTIVE MODIFICATION WORKFLOW ACTIVATED ===");
+
+        return Mono.just(StructuredChatPayload.builder()
+                .message(MODIFICATION_NOT_IMPLEMENTED)
+                .results(List.of())
+                .build());
+    }
+
+    /**
+     * Weather workflow - reactive implementation using WeatherSearchWorker.
+     */
+    private Mono<StructuredChatPayload> processWeatherWorkflow(String userRequest,
+            RoutingWorkflow.RoutingDecision decision,
+            String conversationId) {
+        System.out.println("\n=== REACTIVE WEATHER WORKFLOW ACTIVATED ===");
 
         Map<String, Object> params = decision.extractedParams() != null
-            ? decision.extractedParams()
-            : new HashMap<>();
+                ? decision.extractedParams()
+                : new HashMap<>();
 
-        BaseWorker.WorkerResponse weatherResult = weatherSearchWorker.execute(userRequest, params);
-
-        return buildWeatherResponse(weatherResult);
+        return weatherSearchWorker.executeAsync(userRequest, params)
+                .map(this::buildWeatherResponse)
+                .doOnSuccess(result -> System.out.println("✅ Reactive weather workflow completed"))
+                .onErrorReturn(buildErrorResponse());
     }
 
     /**
@@ -274,36 +455,36 @@ public class CoreAgent {
         List<StructuredResultItem> results = new ArrayList<>(weatherResult.results());
 
         results.add(StructuredResultItem.builder()
-            .type("info")
-            .title("Weather Information")
-            .description(weatherResult.message())
-            .metadata(Map.of(
-                "status", weatherResult.success() ? "found" : "not_found",
-                "worker", weatherResult.workerName()
-            ))
-            .build());
+                .type("info")
+                .title("Weather Information")
+                .description(weatherResult.message())
+                .metadata(Map.of(
+                        "status", weatherResult.success() ? "found" : "not_found",
+                        "worker", weatherResult.workerName()))
+                .build());
 
         return StructuredChatPayload.builder()
-            .message(weatherResult.message())
-            .results(results)
-            .build();
+                .message(weatherResult.message())
+                .results(results)
+                .build();
     }
 
     /**
-     * Processes LOCATION workflow using LocationSearchWorker.
+     * Location workflow - reactive implementation using LocationSearchWorker.
      */
-    private StructuredChatPayload processLocationWorkflow(String userRequest,
-                                                          RoutingWorkflow.RoutingDecision decision,
-                                                          String conversationId) {
-        System.out.println("\n=== LOCATION WORKFLOW ACTIVATED ===");
+    private Mono<StructuredChatPayload> processLocationWorkflow(String userRequest,
+            RoutingWorkflow.RoutingDecision decision,
+            String conversationId) {
+        System.out.println("\n=== REACTIVE LOCATION WORKFLOW ACTIVATED ===");
 
         Map<String, Object> params = decision.extractedParams() != null
-            ? decision.extractedParams()
-            : new HashMap<>();
+                ? decision.extractedParams()
+                : new HashMap<>();
 
-        BaseWorker.WorkerResponse locationResult = locationSearchWorker.execute(userRequest, params);
-
-        return buildLocationResponse(locationResult);
+        return locationSearchWorker.executeAsync(userRequest, params)
+                .map(this::buildLocationResponse)
+                .doOnSuccess(result -> System.out.println("✅ Reactive location workflow completed"))
+                .onErrorReturn(buildErrorResponse());
     }
 
     /**
@@ -313,79 +494,99 @@ public class CoreAgent {
         List<StructuredResultItem> results = new ArrayList<>(locationResult.results());
 
         results.add(StructuredResultItem.builder()
-            .type("info")
-            .title("Location Information")
-            .description(locationResult.message())
-            .metadata(Map.of(
-                "status", locationResult.success() ? "found" : "not_found",
-                "worker", locationResult.workerName()
-            ))
-            .build());
+                .type("info")
+                .title("Location Information")
+                .description(locationResult.message())
+                .metadata(Map.of(
+                        "status", locationResult.success() ? "found" : "not_found",
+                        "worker", locationResult.workerName()))
+                .build());
 
         return StructuredChatPayload.builder()
-            .message(locationResult.message())
-            .results(results)
-            .build();
+                .message(locationResult.message())
+                .results(results)
+                .build();
     }
 
     /**
      * Handles unknown or unsupported routes.
+     * Uses proper advisor parameter pattern for conversation ID.
      */
     private StructuredChatPayload handleUnknownRoute(String userRequest, String conversationId) {
         String fallbackResponse = chatClient.prompt()
-            .system("You are a helpful travel assistant. Answer the user's question as best you can.")
-            .user(userRequest)
-            .advisors(a -> a.param(ChatMemory.CONVERSATION_ID, conversationId))
-            .call()
-            .content();
+                .system("You are a helpful travel assistant. Answer the user's question as best you can.")
+                .user(userRequest)
+                .advisors(advisor -> {
+                    // Only set conversation ID if it's valid UUID to prevent "default" pollution
+                    if (conversationId != null && !conversationId.trim().isEmpty() && isValidUUID(conversationId)) {
+                        advisor.param(ChatMemory.CONVERSATION_ID, conversationId);
+                    }
+                })
+                .call()
+                .content();
 
         return StructuredChatPayload.builder()
-            .message(fallbackResponse)
-            .results(List.of())
-            .build();
+                .message(fallbackResponse)
+                .results(List.of())
+                .build();
     }
 
     /**
-     * Converts orchestrated response to structured chat payload.
+     * Converts parallel search results to structured chat payload.
      */
-    private StructuredChatPayload convertToStructuredPayload(
-            OrchestratorWorkflow.OrchestratedResponse orchestratedResult) {
+    private StructuredChatPayload convertParallelResultsToStructuredPayload(List<String> parallelResults,
+            String userRequest) {
+        List<StructuredResultItem> resultItems = new ArrayList<>();
 
-        List<StructuredResultItem> allResults = orchestratedResult.workerResults().stream()
-            .filter(OrchestratorWorkflow.WorkerResult::success)
-            .map(this::createResultItem)
-            .collect(Collectors.toCollection(ArrayList::new));
+        // Convert each parallel result to a structured item
+        for (int i = 0; i < parallelResults.size(); i++) {
+            String result = parallelResults.get(i);
+            String taskType = i == 0 ? "Flight Search" : (i == 1 ? "Hotel Search" : "Travel Search");
 
-        String finalMessage = orchestratedResult.missingInfo() != null && !orchestratedResult.missingInfo().isEmpty()
-            ? buildMissingInfoMessage(orchestratedResult.missingInfo())
-            : orchestratedResult.synthesizedMessage();
+            StructuredResultItem item = StructuredResultItem.builder()
+                    .type("search_result")
+                    .title(taskType + " Results")
+                    .description(result)
+                    .metadata(Map.of(
+                            "searchType", taskType.toLowerCase().replace(" ", "_"),
+                            "resultIndex", i))
+                    .build();
+
+            resultItems.add(item);
+        }
+
+        // Create a summary message combining all results
+        String summaryMessage = createParallelSearchSummary(parallelResults, userRequest);
 
         return StructuredChatPayload.builder()
-            .message(finalMessage)
-            .results(allResults)
-            .build();
+                .message(summaryMessage)
+                .results(resultItems)
+                .build();
     }
 
     /**
-     * Creates a result item from worker result.
+     * Creates a summary message from parallel search results.
      */
-    private StructuredResultItem createResultItem(OrchestratorWorkflow.WorkerResult workerResult) {
-        return StructuredResultItem.builder()
-            .type("info")
-            .title(workerResult.workerName() + " Result")
-            .description(workerResult.output())
-            .metadata(Map.of("worker", workerResult.workerName()))
-            .build();
-    }
+    private String createParallelSearchSummary(List<String> parallelResults, String userRequest) {
+        if (parallelResults.isEmpty()) {
+            return "Không tìm thấy kết quả phù hợp cho yêu cầu của bạn.";
+        }
 
-    /**
-     * Builds user-friendly message for missing information.
-     */
-    private String buildMissingInfoMessage(List<String> missingInfo) {
-        String items = missingInfo.stream()
-            .map(info -> "• " + info)
-            .collect(Collectors.joining("\n"));
-        return MISSING_INFO_PREFIX + items;
+        StringBuilder summary = new StringBuilder();
+        summary.append("Tôi đã tìm kiếm song song các tùy chọn phù hợp cho yêu cầu của bạn:\n\n");
+
+        for (int i = 0; i < parallelResults.size(); i++) {
+            String taskType = i == 0 ? "🛫 Chuyến bay" : (i == 1 ? "🏨 Khách sạn" : "🔍 Tìm kiếm");
+            summary.append(taskType).append(":\n");
+            summary.append(parallelResults.get(i));
+            if (i < parallelResults.size() - 1) {
+                summary.append("\n\n");
+            }
+        }
+
+        summary.append("\n\nTôi có thể giúp bạn đặt chỗ hoặc tìm kiếm thêm thông tin nếu cần!");
+
+        return summary.toString();
     }
 
     /**
@@ -393,9 +594,9 @@ public class CoreAgent {
      */
     private StructuredChatPayload buildErrorResponse() {
         return StructuredChatPayload.builder()
-            .message(ERROR_MESSAGE)
-            .results(List.of())
-            .build();
+                .message(ERROR_MESSAGE)
+                .results(List.of())
+                .build();
     }
 
     /**
@@ -404,17 +605,17 @@ public class CoreAgent {
     private Map<String, String> getAvailableRoutes() {
         Map<String, String> routes = new HashMap<>();
         routes.put(ROUTE_SEARCH,
-            "User wants to search for flights, hotels, or check availability");
+                "User wants to search for flights, hotels, or check availability");
         routes.put(ROUTE_BOOKING,
-            "User wants to make a booking or needs booking validation");
+                "User wants to make a booking or needs booking validation");
         routes.put(ROUTE_INQUIRY,
-            "User has questions about prices, policies, services, or general travel information");
+                "User has questions about prices, policies, services, or general travel information");
         routes.put(ROUTE_MODIFICATION,
-            "User wants to modify or cancel an existing booking");
+                "User wants to modify or cancel an existing booking");
         routes.put(ROUTE_WEATHER,
-            "User wants to know the weather forecast or current weather conditions");
+                "User wants to know the weather forecast or current weather conditions");
         routes.put(ROUTE_LOCATION,
-            "User wants to find or verify a location, address, or point of interest");
+                "User wants to find or verify a location, address, or point of interest");
         return routes;
     }
 
@@ -423,15 +624,26 @@ public class CoreAgent {
      */
     private void logProcessingStart(String userRequest, String conversationId) {
         System.out.printf("""
-            
-            
-            ========== CORE AGENT PROCESSING ==========
-            Request: %s
-            Conversation: %s
-            
-            """,
-            userRequest,
-            conversationId
-        );
+
+
+                ========== CORE AGENT PROCESSING ==========
+                Request: %s
+                Conversation: %s
+
+                """,
+                userRequest,
+                conversationId);
+    }
+
+    /**
+     * Validates if a string is a valid UUID format.
+     */
+    private boolean isValidUUID(String str) {
+        try {
+            UUID.fromString(str);
+            return true;
+        } catch (IllegalArgumentException e) {
+            return false;
+        }
     }
 }
