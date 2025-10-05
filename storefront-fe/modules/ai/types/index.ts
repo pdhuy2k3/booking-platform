@@ -60,3 +60,38 @@ export interface ChatStructuredResult {
   imageUrl?: string;
   metadata?: Record<string, unknown>;
 }
+
+// ==================== VOICE CHAT TYPES ====================
+
+export interface VoiceMessageRequest {
+  userId: string;
+  conversationId?: string;
+  audioData: string; // base64 encoded audio
+  audioFormat: string; // e.g., 'audio/mp3', 'audio/wav', 'audio/webm'
+  language?: string; // e.g., 'vi', 'en'
+  durationMs?: number; // optional recording duration
+}
+
+export type VoiceResponseType = 'TRANSCRIPTION' | 'PROCESSING' | 'RESPONSE' | 'ERROR';
+
+export interface VoiceMessageResponse {
+  type: VoiceResponseType;
+  userId: string;
+  conversationId: string;
+  transcribedText?: string; // Available in TRANSCRIPTION stage
+  aiResponse?: string; // Available in RESPONSE stage
+  results?: ChatStructuredResult[]; // Available in RESPONSE stage
+  status?: string; // Status message (e.g., "Đang nhận dạng...", "Đang xử lý...")
+  error?: string; // Available in ERROR stage
+  timestamp: string;
+  processingTimeMs?: number; // Total processing time
+}
+
+export interface AudioRecorderState {
+  isRecording: boolean;
+  isPaused: boolean;
+  audioBlob: Blob | null;
+  audioUrl: string | null;
+  duration: number; // in milliseconds
+  error: string | null;
+}

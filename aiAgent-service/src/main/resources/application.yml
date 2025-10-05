@@ -60,17 +60,12 @@ spring:
       chat:
         options:
           model: gemini-2.5-flash
-          temperature: 0.7
-          max-tokens: 3000
-    
     mistralai:
-      # Mistral AI for audio-to-text multimodal (voice processing)
       api-key: ${MISTRAL_API_KEY}
       chat:
         options:
-          model: pixtral-12b-2409  # Multimodal model supporting audio
-          temperature: 0.3
-          max-tokens: 2000 
+          model: voxtral-mini-latest 
+
             
     chat:
       memory:
@@ -173,9 +168,12 @@ spring:
       base-url: https://generativelanguage.googleapis.com/v1beta/openai/
       chat:
         options:
-          model: gemini-2.0-flash-exp  # Supports native audio understanding
-          temperature: 0.7
-          max-tokens: 3000
+          model: gemini-2.0-flash-lite
+    mistralai:
+      api-key: ${MISTRAL_API_KEY}
+      chat:
+        options:
+          model: voxtral-mini-latest 
     chat:
       memory:
         repository:

@@ -7,19 +7,15 @@ import java.util.Map;
 import java.util.UUID;
 
 import org.springframework.ai.chat.client.ChatClient;
-import org.springframework.ai.chat.client.advisor.MessageChatMemoryAdvisor;
 import org.springframework.ai.chat.memory.ChatMemory;
 import org.springframework.ai.chat.messages.UserMessage;
-import org.springframework.ai.chat.prompt.ChatOptions;
 import org.springframework.ai.tool.ToolCallbackProvider;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Component;
+import org.stringtemplate.v4.compiler.CodeGenerator.primary_return;
+
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
-import com.pdh.ai.agent.advisor.LoggingAdvisor;
-import com.pdh.ai.agent.advisor.SecurityGuardAdvisor;
-import com.pdh.ai.agent.advisor.ToolIsolationAdvisor;
-import com.pdh.ai.agent.guard.InputValidationGuard;
-import com.pdh.ai.agent.guard.ScopeGuard;
 import com.pdh.ai.agent.workflow.ParallelizationWorkflow;
 import com.pdh.ai.agent.workflow.RoutingWorkflow;
 import com.pdh.ai.agent.workers.BaseWorker;
@@ -79,12 +75,10 @@ public class CoreAgent {
     // hơn, tôi cần thêm một số thông tin:\n\n";
     private static final String MODIFICATION_NOT_IMPLEMENTED = "Tính năng thay đổi đặt chỗ đang được phát triển. Vui lòng liên hệ bộ phận hỗ trợ để được trợ giúp.";
 
-    // ChatClient beans - injected from ChatClientConfig
+    // ChatClient beans - injected from MultiLlmChatClientConfig
     private final ChatClient geminiChatClient;  // For main chat and routing
-    private final ChatClient mistralChatClient; // For audio/multimodal processing
     
     private final ChatMemory chatMemory;
-    private final ChatOptions PRIMARY_CHAT_OPTIONS;
     private final RoutingWorkflow routingWorkflow;
     private final ParallelizationWorkflow parallelizationWorkflow;
     
@@ -96,65 +90,68 @@ public class CoreAgent {
     private final BookingWorker bookingWorker;
     private final WeatherSearchWorker weatherSearchWorker;
     private final LocationSearchWorker locationSearchWorker;
-
+    private final ToolCallbackProvider toolCallbackProvider;
     /**
-     * Constructor with injected ChatClient beans.
+     * Constructor with dependency injection.
      * 
-     * <p>Multi-Provider Strategy:</p>
+     * <p><b>Multi-Provider Strategy:</b></p>
      * <ul>
-     * <li><b>geminiChatClient:</b> Gemini 2.0 Flash for text chat, routing, parallel search</li>
-     * <li><b>mistralChatClient:</b> Mistral AI pixtral for audio/multimodal processing (future use)</li>
+     * <li><b>geminiChatClient:</b> Primary ChatClient (Gemini 2.0 Flash) for:
+     *     <ul>
+     *     <li>Text chat and conversation</li>
+     *     <li>Intent routing classification</li>
+     *     <li>Parallel search orchestration</li>
+     *     <li>Tool calling (via workers)</li>
+     *     </ul>
+     * </li>
+     * <li><b>Mistral AI:</b> Used separately in VoiceProcessingService for audio transcription</li>
      * </ul>
      * 
-     * @param geminiChatClient Pre-configured Gemini ChatClient from ChatClientConfig
-     * @param mistralChatClient Pre-configured Mistral ChatClient from ChatClientConfig
-     * @param chatMemory Shared chat memory across workflows
-     * @param flightSearchWorker Worker for flight search operations
-     * @param hotelSearchWorker Worker for hotel search operations
-     * @param bookingWorker Worker for booking validation
-     * @param weatherSearchWorker Worker for weather information
-     * @param locationSearchWorker Worker for location search
+     * <p><b>Note:</b> Workers (Flight, Hotel, Weather, Location, Booking) automatically
+     * receive Gemini ChatClient.Builder via Spring's @Primary bean injection.</p>
+     * 
+     * @param geminiChatClient Pre-configured Gemini ChatClient from MultiLlmChatClientConfig
+     * @param chatMemory Shared chat memory for conversation context
+     * @param flightSearchWorker Worker for flight search operations (uses Gemini)
+     * @param hotelSearchWorker Worker for hotel search operations (uses Gemini)
+     * @param bookingWorker Worker for booking validation (uses Gemini)
+     * @param weatherSearchWorker Worker for weather information (uses Gemini)
+     * @param locationSearchWorker Worker for location search (uses Gemini)
      */
     public CoreAgent(
-            @org.springframework.beans.factory.annotation.Qualifier("geminiChatClient") ChatClient geminiChatClient,
-            @org.springframework.beans.factory.annotation.Qualifier("mistralChatClient") ChatClient mistralChatClient,
+            ChatClient.Builder geminiChatClient,
             ChatMemory chatMemory,
             FlightSearchWorker flightSearchWorker,
             HotelSearchWorker hotelSearchWorker,
             BookingWorker bookingWorker,
             WeatherSearchWorker weatherSearchWorker,
-            LocationSearchWorker locationSearchWorker) {
+            LocationSearchWorker locationSearchWorker,
+            ToolCallbackProvider toolCallbackProvider
+            ) {
 
-        // Inject pre-configured ChatClient beans
-        this.geminiChatClient = geminiChatClient;
-        this.mistralChatClient = mistralChatClient;
-        
+        // Inject pre-configured Gemini ChatClient (primary)
+        this.geminiChatClient = geminiChatClient
+    
+                            .build();        
         this.chatMemory = chatMemory;
+        
+        // Inject workers (all use Gemini via @Primary builder)
         this.flightSearchWorker = flightSearchWorker;
         this.hotelSearchWorker = hotelSearchWorker;
         this.bookingWorker = bookingWorker;
         this.weatherSearchWorker = weatherSearchWorker;
         this.locationSearchWorker = locationSearchWorker;
 
-        // ========== CHAT OPTIONS CONFIGURATION ==========
-        // Note: ChatClient beans are pre-configured in ChatClientConfig
-        // These options are kept for reference and can be used for runtime overrides
-
-        // Main Chat Options: Natural conversation with comprehensive responses
-        this.PRIMARY_CHAT_OPTIONS = ChatOptions.builder()
-                .maxTokens(3000) // Comprehensive responses
-                .temperature(0.7) // More creative, natural conversation
-                .topP(0.9) // Diverse vocabulary
-                .presencePenalty(0.1) // Slight penalty for new topics (stay focused)
-                .frequencyPenalty(0.3) // Encourage varied responses
-                .build();
-
-        // ========== WORKFLOW CONFIGURATION ==========
-        // All workflows now use injected ChatClient beans
-        // Gemini for routing and parallel search, Mistral for audio (future)
-
+        // ========== WORKFLOW INITIALIZATION ==========
+        // Both workflows use Gemini ChatClient for routing and orchestration
         this.routingWorkflow = new RoutingWorkflow(geminiChatClient);
         this.parallelizationWorkflow = new ParallelizationWorkflow(geminiChatClient);
+        
+        System.out.println("✅ CoreAgent initialized with Gemini ChatClient");
+        System.out.println("   - Routing: Gemini 2.0 Flash");
+        System.out.println("   - Parallel Search: Gemini 2.0 Flash");
+        System.out.println("   - Workers: All use Gemini (via @Primary builder)");
+        System.out.println("   - Audio: Mistral (handled separately in VoiceProcessingService)");
     }
 
     /**

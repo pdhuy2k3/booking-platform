@@ -1,8 +1,21 @@
 import { apiClient } from '@/lib/api-client';
-import { ChatRequest, ChatResponse, ChatContext, ChatHistoryResponse } from '../types';
+import { Client, IMessage } from '@stomp/stompjs';
+import SockJS from 'sockjs-client';
+import { 
+  ChatRequest, 
+  ChatResponse, 
+  ChatContext, 
+  ChatHistoryResponse,
+  VoiceMessageRequest,
+  VoiceMessageResponse 
+} from '../types';
 
 class AiChatService {
   private baseUrl = '/ai';
+  private wsClient: Client | null = null;
+  private reconnectAttempts = 0;
+  private readonly MAX_RECONNECT_ATTEMPTS = 5;
+  private readonly RECONNECT_DELAY = 3000;
 
   /**
    * Send a message to the AI chatbot
@@ -121,6 +134,129 @@ class AiChatService {
       console.error('Error getting chat suggestions:', error);
       return [];
     }
+  }
+
+  // ==================== WEBSOCKET VOICE CHAT ====================
+
+  /**
+   * Initialize WebSocket connection for voice chat
+   */
+  initializeWebSocket(
+    userId: string,
+    onMessage: (message: VoiceMessageResponse) => void,
+    onConnect?: () => void,
+    onError?: (error: any) => void
+  ): void {
+    if (this.wsClient?.connected) {
+      console.log('✅ WebSocket already connected');
+      return;
+    }
+
+    try {
+      // Get AI agent URL from environment or default
+      const wsUrl = `api/ai/ws`;
+
+      console.log('🔌 Connecting to WebSocket:', wsUrl);
+
+      // Create SockJS instance
+      const socket = new SockJS(wsUrl);
+
+      // Create STOMP client
+      this.wsClient = new Client({
+        webSocketFactory: () => socket as any,
+        reconnectDelay: this.RECONNECT_DELAY,
+        heartbeatIncoming: 4000,
+        heartbeatOutgoing: 4000,
+        debug: (str) => {
+          if (process.env.NODE_ENV === 'development') {
+            console.log('[STOMP]', str);
+          }
+        },
+        onConnect: () => {
+          console.log('✅ WebSocket connected');
+          this.reconnectAttempts = 0;
+          
+          // Subscribe to user's voice topic
+          this.wsClient?.subscribe(`/topic/voice.${userId}`, (message: IMessage) => {
+            try {
+              const voiceResponse: VoiceMessageResponse = JSON.parse(message.body);
+              console.log('📨 Received voice message:', voiceResponse.type, voiceResponse.status);
+              onMessage(voiceResponse);
+            } catch (error) {
+              console.error('❌ Error parsing voice message:', error);
+            }
+          });
+
+          onConnect?.();
+        },
+        onStompError: (frame) => {
+          console.error('❌ STOMP error:', frame.headers['message']);
+          console.error('Details:', frame.body);
+          onError?.(new Error(frame.headers['message'] || 'STOMP error'));
+        },
+        onWebSocketClose: () => {
+          console.warn('⚠️ WebSocket closed');
+          
+          if (this.reconnectAttempts < this.MAX_RECONNECT_ATTEMPTS) {
+            this.reconnectAttempts++;
+            console.log(`🔄 Reconnecting... (${this.reconnectAttempts}/${this.MAX_RECONNECT_ATTEMPTS})`);
+          } else {
+            console.error('❌ Max reconnection attempts reached');
+            onError?.(new Error('Unable to reconnect to WebSocket'));
+          }
+        },
+        onWebSocketError: (error) => {
+          console.error('❌ WebSocket error:', error);
+          onError?.(error);
+        },
+      });
+
+      this.wsClient.activate();
+    } catch (error) {
+      console.error('❌ Failed to initialize WebSocket:', error);
+      onError?.(error);
+    }
+  }
+
+  /**
+   * Send voice message via WebSocket
+   */
+  sendVoiceMessage(request: VoiceMessageRequest): void {
+    if (!this.wsClient?.connected) {
+      throw new Error('WebSocket not connected. Call initializeWebSocket first.');
+    }
+
+    console.log('🎤 Sending voice message:', {
+      userId: request.userId,
+      conversationId: request.conversationId,
+      audioFormat: request.audioFormat,
+      audioDataLength: request.audioData.length,
+      durationMs: request.durationMs
+    });
+
+    this.wsClient.publish({
+      destination: '/app/voice.send',
+      body: JSON.stringify(request),
+    });
+  }
+
+  /**
+   * Disconnect WebSocket
+   */
+  disconnectWebSocket(): void {
+    if (this.wsClient?.connected) {
+      console.log('🔌 Disconnecting WebSocket...');
+      this.wsClient.deactivate();
+      this.wsClient = null;
+      this.reconnectAttempts = 0;
+    }
+  }
+
+  /**
+   * Check if WebSocket is connected
+   */
+  isWebSocketConnected(): boolean {
+    return this.wsClient?.connected ?? false;
   }
 }
 

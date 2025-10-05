@@ -25,11 +25,21 @@ import org.springframework.context.annotation.Primary;
  * <li>Best-of-breed: Use each provider's strengths</li>
  * </ul>
  * 
+ * <p><b>Workers Flexibility:</b></p>
+ * <p>This config provides both ChatClient instances and Builder beans to enable
+ * workers to choose their preferred model:</p>
+ * <ul>
+ * <li><b>geminiChatClientBuilder</b>: Default for all workers (text, tool calling)</li>
+ * <li><b>mistralChatClientBuilder</b>: For audio/multimodal workers (future)</li>
+ * </ul>
+ * 
  * @author PDH
  * @since 2025-01-05
  */
 @Configuration
 public class MultiLlmChatClientConfig {
+
+    // ========== ChatClient Instances (for direct usage) ==========
 
     /**
      * Primary ChatClient using Gemini for text chat.
@@ -42,14 +52,17 @@ public class MultiLlmChatClientConfig {
      * <li>Workflow orchestration (routing, parallel)</li>
      * </ul>
      * 
-     * @param chatModel Auto-configured OpenAiChatModel (actually Gemini via OpenAI compatibility)
+     * <p><b>Note:</b> Injects auto-configured OpenAiChatModel (Gemini via OpenAI compatibility)
+     * from Spring Boot's OpenAiAutoConfiguration.</p>
+     * 
+     * @param openAiChatModel Auto-configured ChatModel (actually Gemini 2.0 Flash)
      * @return ChatClient for Gemini
      */
     @Bean
     @Primary
     @Qualifier("geminiChatClient")
-    public ChatClient geminiChatClient(OpenAiChatModel chatModel) {
-        return ChatClient.builder(chatModel)
+    public ChatClient geminiChatClient(OpenAiChatModel openAiChatModel) {
+        return ChatClient.builder(openAiChatModel)
                 .build();
     }
 
@@ -66,7 +79,10 @@ public class MultiLlmChatClientConfig {
      * 
      * <p>Model: pixtral-12b-2409 (multimodal support)</p>
      * 
-     * @param mistralAiChatModel Auto-configured MistralAiChatModel
+     * <p><b>Note:</b> Injects auto-configured MistralAiChatModel
+     * from Spring Boot's MistralAiAutoConfiguration.</p>
+     * 
+     * @param mistralAiChatModel Auto-configured Mistral AI ChatModel
      * @return ChatClient for Mistral AI
      */
     @Bean
@@ -74,5 +90,65 @@ public class MultiLlmChatClientConfig {
     public ChatClient mistralChatClient(MistralAiChatModel mistralAiChatModel) {
         return ChatClient.builder(mistralAiChatModel)
                 .build();
+    }
+
+    // ========== ChatClient.Builder Beans (for Workers) ==========
+
+    /**
+     * Primary ChatClient.Builder for Gemini (default for all workers).
+     * 
+     * <p>Workers inject this builder and customize it with:</p>
+     * <ul>
+     * <li>Worker-specific system prompts</li>
+     * <li>Tool callbacks</li>
+     * <li>Custom ChatOptions (temperature, maxTokens, etc.)</li>
+     * </ul>
+     * 
+     * <p>Usage in Workers:</p>
+     * <pre>{@code
+     * public FlightSearchWorker(ChatClient.Builder builder, ...) {
+     *     this.chatClient = builder
+     *         .defaultSystem(SYSTEM_PROMPT)
+     *         .defaultToolCallbacks(toolCallbackProvider)
+     *         .defaultOptions(flightSearchOptions)
+     *         .build();
+     * }
+     * }</pre>
+     * 
+     * <p><b>@Primary:</b> This is the default builder injected into all workers.
+     * Spring auto-injects this when workers request ChatClient.Builder without @Qualifier.</p>
+     * 
+     * @param openAiChatModel Auto-configured OpenAiChatModel (Gemini 2.0 Flash)
+     * @return Builder for Gemini-based workers
+     */
+    @Bean
+    @Primary
+    public ChatClient.Builder geminiChatClientBuilder(OpenAiChatModel openAiChatModel) {
+        return ChatClient.builder(openAiChatModel);
+    }
+
+    /**
+     * Secondary ChatClient.Builder for Mistral AI (for future audio/multimodal workers).
+     * 
+     * <p>Future workers can inject this for audio/multimodal tasks:</p>
+     * <pre>{@code
+     * public AudioTranscriptionWorker(
+     *     @Qualifier("mistralChatClientBuilder") ChatClient.Builder builder) {
+     *     this.chatClient = builder
+     *         .defaultSystem(AUDIO_SYSTEM_PROMPT)
+     *         .build();
+     * }
+     * }</pre>
+     * 
+     * <p><b>@Qualifier:</b> Workers must explicitly request this builder
+     * using @Qualifier("mistralChatClientBuilder") to use Mistral instead of Gemini.</p>
+     * 
+     * @param mistralAiChatModel Auto-configured MistralAiChatModel (Pixtral 12B)
+     * @return Builder for Mistral-based workers
+     */
+    @Bean
+    @Qualifier("mistralChatClientBuilder")
+    public ChatClient.Builder mistralChatClientBuilder(MistralAiChatModel mistralAiChatModel) {
+        return ChatClient.builder(mistralAiChatModel);
     }
 }

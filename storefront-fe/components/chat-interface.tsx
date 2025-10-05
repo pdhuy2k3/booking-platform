@@ -2,14 +2,14 @@
 
 import React, { useState, useRef, useEffect, forwardRef, useImperativeHandle } from "react"
 import Image from "next/image"
-import { Send, Mic, Plus, AlertCircle } from "lucide-react"
+import { Send, Mic, MicOff, Plus, AlertCircle, Loader2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { cn } from "@/lib/utils"
-import { useAiChat } from "@/modules/ai"
+import { useAiChat, useVoiceChat, useAudioRecorder } from "@/modules/ai"
+import type { ChatStructuredResult } from "@/modules/ai"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
-import type { ChatStructuredResult } from "@/modules/ai"
 import { useDateFormatter } from "@/hooks/use-date-formatter"
 
 interface ChatMessage {
@@ -36,12 +36,13 @@ export const ChatInterface = forwardRef<any, ChatInterfaceProps>(function ChatIn
   const [input, setInput] = useState("")
   const [selectedResult, setSelectedResult] = useState<ChatStructuredResult | null>(null)
   const [isResultDialogOpen, setIsResultDialogOpen] = useState(false)
+  const [isVoiceMode, setIsVoiceMode] = useState(false)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
   
   const { formatDateTime } = useDateFormatter()
 
-  // Use the AI chat hook
+  // Use the AI chat hook for text messages
   const { 
     messages, 
     isLoading, 
@@ -57,6 +58,66 @@ export const ChatInterface = forwardRef<any, ChatInterfaceProps>(function ChatIn
       console.error('Chat error:', errorMsg);
     }
   })
+
+  // Use voice chat hook
+  const {
+    isConnected: voiceConnected,
+    isProcessing: voiceProcessing,
+    currentStage: voiceStage,
+    transcription: voiceTranscription,
+    response: voiceResponse,
+    results: voiceResults,
+    error: voiceError,
+    connect: connectVoice,
+    disconnect: disconnectVoice,
+    sendAudio,
+    clearState: clearVoiceState,
+  } = useVoiceChat({
+    userId: 'user-123', // TODO: Get from auth context
+    conversationId: conversationId ?? undefined,
+    autoConnect: false,
+    onTranscription: (text) => {
+      console.log('📝 Transcription received:', text);
+    },
+    onResponse: (message, results) => {
+      console.log('💬 Voice response received:', message);
+      if (results && results.length > 0) {
+        onSearchResults(results, 'voice');
+      }
+    },
+    onError: (error) => {
+      console.error('❌ Voice error:', error);
+    },
+  });
+
+  // Use audio recorder hook
+  const {
+    isRecording,
+    isPaused,
+    duration: recordingDuration,
+    error: recorderError,
+    startRecording,
+    stopRecording,
+    resetRecording,
+    isSupported: audioSupported,
+  } = useAudioRecorder({
+    maxDuration: 60000, // 60 seconds
+    onRecordingComplete: async (audioBlob, audioUrl) => {
+      console.log('🎤 Recording complete:', {
+        size: audioBlob.size,
+        type: audioBlob.type
+      });
+      
+      try {
+        await sendAudio(audioBlob, audioBlob.type || 'audio/webm', 'vi');
+      } catch (error) {
+        console.error('❌ Failed to send audio:', error);
+      }
+    },
+    onError: (error) => {
+      console.error('❌ Recorder error:', error);
+    },
+  });
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })
@@ -99,6 +160,63 @@ export const ChatInterface = forwardRef<any, ChatInterfaceProps>(function ChatIn
     return formatDateTime(date.toISOString())
   }
 
+  // Handle voice mode toggle
+  const handleVoiceModeToggle = () => {
+    if (!audioSupported) {
+      alert('Trình duyệt của bạn không hỗ trợ ghi âm');
+      return;
+    }
+
+    setIsVoiceMode((prev) => {
+      const newMode = !prev;
+      if (newMode) {
+        connectVoice();
+      } else {
+        disconnectVoice();
+        if (isRecording) {
+          resetRecording();
+        }
+      }
+      return newMode;
+    });
+  };
+
+  // Handle voice recording
+  const handleVoiceRecord = async () => {
+    if (isRecording) {
+      await stopRecording();
+    } else {
+      clearVoiceState();
+      await startRecording();
+    }
+  };
+
+  // Get voice status text
+  const getVoiceStatusText = (): string => {
+    if (isRecording) return 'Đang ghi âm...';
+    if (voiceProcessing) {
+      switch (voiceStage) {
+        case 'transcription':
+          return 'Đang nhận dạng giọng nói...';
+        case 'processing':
+          return 'Đang xử lý yêu cầu...';
+        case 'response':
+          return 'Đang tạo phản hồi...';
+        default:
+          return 'Đang xử lý...';
+      }
+    }
+    return '';
+  };
+
+  // Format duration (MM:SS)
+  const formatRecordingDuration = (ms: number): string => {
+    const totalSeconds = Math.floor(ms / 1000);
+    const minutes = Math.floor(totalSeconds / 60);
+    const seconds = totalSeconds % 60;
+    return `${minutes}:${seconds.toString().padStart(2, '0')}`;
+  };
+
   return (
     <div className="flex flex-col h-full bg-white">
       {/* Header with trip info */}
@@ -116,6 +234,79 @@ export const ChatInterface = forwardRef<any, ChatInterfaceProps>(function ChatIn
             <AlertCircle className="h-4 w-4" />
             <AlertDescription>{error}</AlertDescription>
           </Alert>
+        )}
+
+        {/* Voice Response Display */}
+        {voiceResponse && (
+          <div className="space-y-3">
+            {/* User's transcribed message */}
+            {voiceTranscription && (
+              <div className="flex justify-end">
+                <div className="max-w-[80%] rounded-2xl px-4 py-3 bg-blue-600 text-white">
+                  <div className="flex items-center gap-2 mb-1">
+                    <Mic className="h-3 w-3" />
+                    <span className="text-xs opacity-75">Ghi âm</span>
+                  </div>
+                  <div className="whitespace-pre-line leading-relaxed text-sm">
+                    {voiceTranscription}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* AI Voice Response */}
+            <div className="flex justify-start">
+              <div className="max-w-[80%] rounded-2xl px-4 py-3 bg-gray-100 text-gray-900">
+                <div className="flex items-center gap-2 mb-1">
+                  <Loader2 className="h-3 w-3 animate-spin" />
+                  <span className="text-xs text-gray-600">AI Voice</span>
+                </div>
+                <div className="whitespace-pre-line leading-relaxed text-sm">
+                  {voiceResponse}
+                </div>
+              </div>
+            </div>
+
+            {/* Voice Results */}
+            {voiceResults && voiceResults.length > 0 && (
+              <div className="flex justify-start">
+                <div className="grid gap-3 sm:grid-cols-2 max-w-[90%]">
+                  {voiceResults.map((result, idx) => (
+                    <div
+                      key={`voice-result-${idx}`}
+                      className="rounded-xl border border-gray-200 bg-white shadow-sm p-3 text-left"
+                    >
+                      <div className="flex items-start gap-3">
+                        {result.imageUrl ? (
+                          <div className="relative h-16 w-16 rounded-lg overflow-hidden bg-muted">
+                            <Image
+                              src={result.imageUrl}
+                              alt={result.title ?? "result"}
+                              fill
+                              className="object-cover"
+                            />
+                          </div>
+                        ) : null}
+                        <div className="space-y-1">
+                          {result.type && (
+                            <span className="inline-block text-[11px] uppercase tracking-wide text-muted-foreground">
+                              {result.type}
+                            </span>
+                          )}
+                          {result.title && (
+                            <p className="text-sm font-semibold text-foreground">{result.title}</p>
+                          )}
+                          {result.subtitle && (
+                            <p className="text-xs text-muted-foreground">{result.subtitle}</p>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
         )}
 
         {messages.map((message) => {
@@ -306,6 +497,56 @@ export const ChatInterface = forwardRef<any, ChatInterfaceProps>(function ChatIn
 
       {/* Message Input */}
       <div className="p-4 border-t border-gray-200 bg-white">
+        {/* Voice Status Bar */}
+        {(isRecording || voiceProcessing || voiceTranscription || voiceError || recorderError) && (
+          <div className="mb-3 p-3 rounded-lg bg-gray-50 border border-gray-200">
+            {/* Recording Status */}
+            {isRecording && (
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <div className="w-3 h-3 bg-red-500 rounded-full animate-pulse" />
+                  <span className="text-sm font-medium text-gray-700">
+                    {getVoiceStatusText()}
+                  </span>
+                </div>
+                <span className="text-sm text-gray-500 font-mono">
+                  {formatRecordingDuration(recordingDuration)}
+                </span>
+              </div>
+            )}
+
+            {/* Processing Status */}
+            {voiceProcessing && (
+              <div className="flex items-center gap-2">
+                <Loader2 className="w-4 h-4 animate-spin text-blue-600" />
+                <span className="text-sm font-medium text-gray-700">
+                  {getVoiceStatusText()}
+                </span>
+              </div>
+            )}
+
+            {/* Transcription Display */}
+            {voiceTranscription && !voiceProcessing && (
+              <div className="space-y-1">
+                <div className="text-xs text-gray-500">Đã nhận dạng:</div>
+                <div className="text-sm text-gray-900 italic">
+                  "{voiceTranscription}"
+                </div>
+              </div>
+            )}
+
+            {/* Error Display */}
+            {(voiceError || recorderError) && (
+              <Alert variant="destructive" className="py-2">
+                <AlertCircle className="h-4 w-4" />
+                <AlertDescription className="text-xs">
+                  {voiceError || recorderError}
+                </AlertDescription>
+              </Alert>
+            )}
+          </div>
+        )}
+
         <form onSubmit={handleSubmit} className="flex items-center gap-3">
           <Button
             type="button"
@@ -318,36 +559,78 @@ export const ChatInterface = forwardRef<any, ChatInterfaceProps>(function ChatIn
             <Plus className="h-5 w-5 text-gray-600" />
           </Button>
 
-          <div className="flex-1 relative">
-            <Input
-              ref={inputRef}
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              placeholder="Hỏi về địa điểm du lịch, khách sạn, chuyến bay..."
-              className="w-full rounded-full border-gray-300 pr-20 h-12 text-sm"
-              disabled={isLoading}
-            />
-            <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-2">
+          {!isVoiceMode ? (
+            // Text Input Mode
+            <div className="flex-1 relative">
+              <Input
+                ref={inputRef}
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                placeholder="Hỏi về địa điểm du lịch, khách sạn, chuyến bay..."
+                className="w-full rounded-full border-gray-300 pr-28 h-12 text-sm"
+                disabled={isLoading}
+              />
+              <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-2">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className={cn(
+                    "h-8 w-8 rounded-full",
+                    audioSupported ? "hover:bg-gray-100" : "opacity-50 cursor-not-allowed"
+                  )}
+                  onClick={handleVoiceModeToggle}
+                  disabled={isLoading || !audioSupported}
+                  title={audioSupported ? "Chuyển sang chế độ voice" : "Trình duyệt không hỗ trợ"}
+                >
+                  <Mic className="h-4 w-4 text-gray-600" />
+                </Button>
+                <Button
+                  type="submit"
+                  variant="ghost"
+                  size="icon"
+                  className="h-8 w-8 rounded-full hover:bg-gray-100"
+                  disabled={isLoading || !input.trim()}
+                >
+                  <Send className="h-4 w-4 text-gray-600" />
+                </Button>
+              </div>
+            </div>
+          ) : (
+            // Voice Input Mode
+            <div className="flex-1 flex items-center justify-center gap-4">
+              <Button
+                type="button"
+                variant={isRecording ? "destructive" : "default"}
+                size="lg"
+                className={cn(
+                  "h-14 w-14 rounded-full transition-all",
+                  isRecording && "animate-pulse"
+                )}
+                onClick={handleVoiceRecord}
+                disabled={voiceProcessing || !voiceConnected}
+              >
+                <Mic className="h-6 w-6" />
+              </Button>
+              
               <Button
                 type="button"
                 variant="ghost"
                 size="icon"
                 className="h-8 w-8 rounded-full hover:bg-gray-100"
-                disabled={isLoading}
+                onClick={handleVoiceModeToggle}
+                title="Chuyển về chế độ text"
               >
-                <Mic className="h-4 w-4 text-gray-600" />
+                <MicOff className="h-4 w-4 text-gray-600" />
               </Button>
-              <Button
-                type="submit"
-                variant="ghost"
-                size="icon"
-                className="h-8 w-8 rounded-full hover:bg-gray-100"
-                disabled={isLoading || !input.trim()}
-              >
-                <Send className="h-4 w-4 text-gray-600" />
-              </Button>
+
+              {!voiceConnected && (
+                <span className="text-xs text-orange-600">
+                  Đang kết nối...
+                </span>
+              )}
             </div>
-          </div>
+          )}
         </form>
       </div>
     </div>
