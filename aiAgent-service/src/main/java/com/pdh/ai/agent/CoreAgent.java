@@ -79,11 +79,15 @@ public class CoreAgent {
     // hơn, tôi cần thêm một số thông tin:\n\n";
     private static final String MODIFICATION_NOT_IMPLEMENTED = "Tính năng thay đổi đặt chỗ đang được phát triển. Vui lòng liên hệ bộ phận hỗ trợ để được trợ giúp.";
 
-    private final ChatClient chatClient;
+    // ChatClient beans - injected from ChatClientConfig
+    private final ChatClient geminiChatClient;  // For main chat and routing
+    private final ChatClient mistralChatClient; // For audio/multimodal processing
+    
     private final ChatMemory chatMemory;
     private final ChatOptions PRIMARY_CHAT_OPTIONS;
     private final RoutingWorkflow routingWorkflow;
     private final ParallelizationWorkflow parallelizationWorkflow;
+    
     // Keep workers for future direct usage
     @SuppressWarnings("unused")
     private final FlightSearchWorker flightSearchWorker;
@@ -93,17 +97,38 @@ public class CoreAgent {
     private final WeatherSearchWorker weatherSearchWorker;
     private final LocationSearchWorker locationSearchWorker;
 
-    public CoreAgent(ChatClient.Builder builder,
-            ToolCallbackProvider toolCallbackProvider,
+    /**
+     * Constructor with injected ChatClient beans.
+     * 
+     * <p>Multi-Provider Strategy:</p>
+     * <ul>
+     * <li><b>geminiChatClient:</b> Gemini 2.0 Flash for text chat, routing, parallel search</li>
+     * <li><b>mistralChatClient:</b> Mistral AI pixtral for audio/multimodal processing (future use)</li>
+     * </ul>
+     * 
+     * @param geminiChatClient Pre-configured Gemini ChatClient from ChatClientConfig
+     * @param mistralChatClient Pre-configured Mistral ChatClient from ChatClientConfig
+     * @param chatMemory Shared chat memory across workflows
+     * @param flightSearchWorker Worker for flight search operations
+     * @param hotelSearchWorker Worker for hotel search operations
+     * @param bookingWorker Worker for booking validation
+     * @param weatherSearchWorker Worker for weather information
+     * @param locationSearchWorker Worker for location search
+     */
+    public CoreAgent(
+            @org.springframework.beans.factory.annotation.Qualifier("geminiChatClient") ChatClient geminiChatClient,
+            @org.springframework.beans.factory.annotation.Qualifier("mistralChatClient") ChatClient mistralChatClient,
             ChatMemory chatMemory,
             FlightSearchWorker flightSearchWorker,
             HotelSearchWorker hotelSearchWorker,
             BookingWorker bookingWorker,
             WeatherSearchWorker weatherSearchWorker,
-            LocationSearchWorker locationSearchWorker,
-            InputValidationGuard inputValidationGuard,
-            ScopeGuard scopeGuard) {
+            LocationSearchWorker locationSearchWorker) {
 
+        // Inject pre-configured ChatClient beans
+        this.geminiChatClient = geminiChatClient;
+        this.mistralChatClient = mistralChatClient;
+        
         this.chatMemory = chatMemory;
         this.flightSearchWorker = flightSearchWorker;
         this.hotelSearchWorker = hotelSearchWorker;
@@ -112,7 +137,8 @@ public class CoreAgent {
         this.locationSearchWorker = locationSearchWorker;
 
         // ========== CHAT OPTIONS CONFIGURATION ==========
-        // Configure optimal settings for each workflow type
+        // Note: ChatClient beans are pre-configured in ChatClientConfig
+        // These options are kept for reference and can be used for runtime overrides
 
         // Main Chat Options: Natural conversation with comprehensive responses
         this.PRIMARY_CHAT_OPTIONS = ChatOptions.builder()
@@ -123,73 +149,12 @@ public class CoreAgent {
                 .frequencyPenalty(0.3) // Encourage varied responses
                 .build();
 
-        // Routing Options: Fast, deterministic classification
-        ChatOptions routingOptions = ChatOptions.builder()
-                .maxTokens(1500) // Short classification response
-                .temperature(0.1) // Very deterministic for consistent routing
-                .topP(0.8) // Focused vocabulary
-                .presencePenalty(0.0) // No penalty (simple classification)
-                .frequencyPenalty(0.0) // No penalty (simple classification)
-                .build();
+        // ========== WORKFLOW CONFIGURATION ==========
+        // All workflows now use injected ChatClient beans
+        // Gemini for routing and parallel search, Mistral for audio (future)
 
-        // Parallel Search Options: Balance speed and quality
-        ChatOptions parallelOptions = ChatOptions.builder()
-                .maxTokens(2000) // Moderate response length
-                .temperature(0.5) // Balanced creativity/accuracy
-                .topP(0.9) // Good vocabulary range
-                .presencePenalty(0.0) // No penalty (independent searches)
-                .frequencyPenalty(0.2) // Slight variety in results
-                .build();
-
-        // ========== CHAT CLIENT CONFIGURATION ==========
-
-        // Create base chat client with memory for main workflows
-        // Configure memory advisor with proper order to execute first in chain
-        MessageChatMemoryAdvisor memoryAdvisor = MessageChatMemoryAdvisor.builder(chatMemory)
-                .order(-36) // Higher order to execute after tool callbacks
-                .build();
-
-        // Add security and logging advisors for main chat workflows
-        SecurityGuardAdvisor chatSecurityAdvisor = SecurityGuardAdvisor
-                .forChat(inputValidationGuard, scopeGuard);
-        LoggingAdvisor chatLoggingAdvisor = LoggingAdvisor.forChat();
-
-        this.chatClient = builder
-                .defaultToolCallbacks(toolCallbackProvider)
-                .defaultAdvisors(chatSecurityAdvisor, memoryAdvisor, chatLoggingAdvisor)
-                .defaultOptions(PRIMARY_CHAT_OPTIONS)
-                .build();
-
-        // Create routing workflow with separate ChatClient WITHOUT memory advisor
-        // This prevents "default" conversation pollution in routing analysis
-        // and avoids tool name conflicts by using isolated tool callbacks
-        SecurityGuardAdvisor routingSecurityAdvisor = SecurityGuardAdvisor
-                .forRouting(inputValidationGuard, scopeGuard);
-        ToolIsolationAdvisor routingIsolation = ToolIsolationAdvisor.forRouting();
-        LoggingAdvisor routingLoggingAdvisor = LoggingAdvisor.forRouting();
-
-        ChatClient routingChatClient = builder
-                .defaultToolCallbacks(toolCallbackProvider)
-                .defaultAdvisors(routingSecurityAdvisor, routingIsolation, routingLoggingAdvisor)
-                .defaultOptions(routingOptions) // Optimized for fast, deterministic routing
-                .build(); // No memory advisor to prevent conversation ID issues!
-
-        this.routingWorkflow = new RoutingWorkflow(routingChatClient);
-
-        // Create parallelization workflow with dedicated ChatClient and isolation
-        // Use parallel isolation advisor to prevent tool conflicts
-        SecurityGuardAdvisor parallelSecurityAdvisor = SecurityGuardAdvisor
-                .forParallel(inputValidationGuard, scopeGuard);
-        ToolIsolationAdvisor parallelIsolation = ToolIsolationAdvisor.forParallel();
-        LoggingAdvisor parallelLoggingAdvisor = LoggingAdvisor.forParallel();
-
-        ChatClient parallelChatClient = builder
-                .defaultToolCallbacks(toolCallbackProvider)
-                .defaultAdvisors(parallelSecurityAdvisor, parallelIsolation, parallelLoggingAdvisor)
-                .defaultOptions(parallelOptions) // Optimized for balanced parallel search
-                .build();
-
-        this.parallelizationWorkflow = new ParallelizationWorkflow(parallelChatClient);
+        this.routingWorkflow = new RoutingWorkflow(geminiChatClient);
+        this.parallelizationWorkflow = new ParallelizationWorkflow(geminiChatClient);
     }
 
     /**
@@ -372,12 +337,14 @@ public class CoreAgent {
 
     /**
      * Inquiry workflow - reactive implementation for general questions.
+     * Uses Gemini ChatClient for text-based conversation.
      */
     private Mono<StructuredChatPayload> processInquiryWorkflow(String userRequest, String conversationId) {
         System.out.println("\n=== REACTIVE INQUIRY WORKFLOW ACTIVATED ===");
 
         return Mono.fromCallable(() -> {
-            String response = chatClient.prompt()
+            // Use Gemini ChatClient for text-based inquiry
+            String response = geminiChatClient.prompt()
                     .user(userRequest)
                     .advisors(advisor -> {
                         if (conversationId != null && !conversationId.trim().isEmpty() && isValidUUID(conversationId)) {
@@ -398,12 +365,14 @@ public class CoreAgent {
 
     /**
      * Streaming version of inquiry workflow.
+     * Uses Gemini ChatClient for text-based streaming.
      */
     private Flux<String> processInquiryWorkflowStream(String userRequest, String conversationId) {
         System.out.println("\n=== STREAMING INQUIRY WORKFLOW ACTIVATED ===");
 
         return Mono.fromCallable(() -> {
-            return chatClient.prompt()
+            // Use Gemini ChatClient for text-based streaming
+            return geminiChatClient.prompt()
                     .user(userRequest)
                     .advisors(advisor -> {
                         if (conversationId != null && !conversationId.trim().isEmpty() && isValidUUID(conversationId)) {
@@ -510,10 +479,11 @@ public class CoreAgent {
 
     /**
      * Handles unknown or unsupported routes.
-     * Uses proper advisor parameter pattern for conversation ID.
+     * Uses Gemini ChatClient with proper advisor parameter pattern for conversation ID.
      */
     private StructuredChatPayload handleUnknownRoute(String userRequest, String conversationId) {
-        String fallbackResponse = chatClient.prompt()
+        // Use Gemini ChatClient for fallback responses
+        String fallbackResponse = geminiChatClient.prompt()
                 .system("You are a helpful travel assistant. Answer the user's question as best you can.")
                 .user(userRequest)
                 .advisors(advisor -> {

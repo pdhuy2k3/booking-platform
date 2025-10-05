@@ -54,15 +54,23 @@ spring:
     driver-class-name: org.postgresql.Driver
   ai:
     openai:
-      # Gemini API via OpenAI compatibility endpoint
+      # Gemini API via OpenAI compatibility endpoint (for text chat)
       api-key: ${GEMINI_API_KEY}
       base-url: https://generativelanguage.googleapis.com/v1beta/openai/
       chat:
         options:
-          model: gemini-2.5 
+          model: gemini-2.5-flash
           temperature: 0.7
           max-tokens: 3000
-          output-audio: 
+    
+    mistralai:
+      # Mistral AI for audio-to-text multimodal (voice processing)
+      api-key: ${MISTRAL_API_KEY}
+      chat:
+        options:
+          model: pixtral-12b-2409  # Multimodal model supporting audio
+          temperature: 0.3
+          max-tokens: 2000 
             
     chat:
       memory:
