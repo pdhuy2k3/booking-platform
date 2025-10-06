@@ -6,6 +6,7 @@ import { cn } from '@/lib/utils';
 
 // Import Mapbox CSS
 import 'mapbox-gl/dist/mapbox-gl.css';
+import { env } from '@/env.mjs';
 export const dynamic="force-dynamic"
 export interface MapLocation {
   id: string;
@@ -53,7 +54,7 @@ export function MapboxMap({
     if (!mapContainer.current || map.current) return;
 
     // Get API key from environment variables
-    const apiKey = process.env.MAPBOX_ACCESS_TOKEN;
+    const apiKey = env.MAPBOX_ACCESS_TOKEN
     if (!apiKey) {
       console.error('Mapbox API key not found. Please set NEXT_PUBLIC_MAPBOX_API_KEY in your environment variables.');
       return;

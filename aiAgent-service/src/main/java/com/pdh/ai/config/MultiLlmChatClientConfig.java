@@ -2,11 +2,12 @@ package com.pdh.ai.config;
 
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.mistralai.MistralAiChatModel;
-import org.springframework.ai.openai.OpenAiChatModel;
+import org.springframework.ai.ollama.OllamaChatModel;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Primary;
+
 
 /**
  * Configuration for multiple LLM providers in BookingSmart AI Agent.
@@ -39,9 +40,9 @@ public class MultiLlmChatClientConfig {
 
     @Bean
     @Primary
-    @Qualifier("geminiChatClient")
-    public ChatClient geminiChatClient(OpenAiChatModel openAiChatModel) {
-        return ChatClient.builder(openAiChatModel)
+    @Qualifier("ollamaChatClient")
+    public ChatClient geminiChatClient(OllamaChatModel ollamaChatModel) {
+        return ChatClient.builder(ollamaChatModel)
                 .build();
     }
 
@@ -55,7 +56,7 @@ public class MultiLlmChatClientConfig {
 
     @Bean
     @Primary
-    public ChatClient.Builder geminiChatClientBuilder(OpenAiChatModel openAiChatModel) {
+    public ChatClient.Builder geminiChatClientBuilder(OllamaChatModel openAiChatModel) {
         return ChatClient.builder(openAiChatModel);
     }
 
@@ -64,4 +65,6 @@ public class MultiLlmChatClientConfig {
     public ChatClient.Builder mistralChatClientBuilder(MistralAiChatModel mistralAiChatModel) {
         return ChatClient.builder(mistralAiChatModel);
     }
+
+
 }

@@ -53,13 +53,15 @@ spring:
     password: p0stgr3s
     driver-class-name: org.postgresql.Driver
   ai:
-    openai:
-      # Gemini API via OpenAI compatibility endpoint (for text chat)
-      api-key: ${GEMINI_API_KEY}
-      base-url: https://generativelanguage.googleapis.com/v1beta/openai/
+    ollama:
+      init:
+        pull-model-strategy: when_missing
+        embedding:
+          include: false
       chat:
         options:
-          model: gemini-2.5-flash
+          model: qwen3:4b
+          temperature: 0.0
     mistralai:
       api-key: ${MISTRAL_API_KEY}
       chat:
@@ -162,13 +164,16 @@ spring:
             token-uri: ${KEYCLOAK_HOST}/realms/BookingSmart/protocol/openid-connect/token
 
   ai:
-    openai:
-      # Gemini API via OpenAI compatibility endpoint
-      api-key: ${GEMINI_API_KEY}
-      base-url: https://generativelanguage.googleapis.com/v1beta/openai/
+    ollama:
+      init:
+        pull-model-strategy: when_missing
+        embedding:
+          include: false
       chat:
         options:
-          model: gemini-2.0-flash-lite
+          model: qwen3:4b
+          temperature: 0.0
+      base-url: http://ollama:11434
     mistralai:
       api-key: ${MISTRAL_API_KEY}
       chat:
@@ -183,19 +188,19 @@ spring:
     mcp:
       client:
         enabled: true
-        name: bookingsmrt-mcp-client
+        name: bookingsmart-mcp-client
         version: 1.0.0
-        type: async
+        type: sync
         request-timeout: 300s
 
         root-change-notification: true
         toolcallback.enabled: true
         sse:
           connections:
-            server1:
+            hotel-mcp-server:
               url: http://hotel-service
               sse-endpoint: /hotels/sse
-            server2:
+            flight-mcp-server:
               url: http://flight-service
               sse-endpoint: /flights/sse
         stdio:
@@ -224,6 +229,21 @@ spring:
               env:
                 MAPBOX_ACCESS_TOKEN: ${MAPBOX_ACCESS_TOKEN}
         initialized: true
+
+# Logging Configuration for Tool Tracking
+# logging:
+#   level:
+#     '[com.pdh.ai.agent.CoreAgent]': INFO
+#     '[com.pdh.ai.service.ToolResultCollector]': INFO
+#     '[com.pdh.ai.agent.mcp.client.CustomSyncMcpToolCallbackProvider]': INFO
+#     '[com.pdh.ai.agent.advisor.LoggingAdvisor]': INFO
+#     '[org.springframework.ai.mcp]': DEBUG
+#     '[org.springframework.ai.tool]': DEBUG
+#     '[io.modelcontextprotocol]': DEBUG
+#   pattern:
+#     console: "%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n"
+#     file: "%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n"
+
 eureka:
   client:
     serviceUrl:

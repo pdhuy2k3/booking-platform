@@ -49,4 +49,61 @@ public class ConversationService {
     public void deleteConversation(UUID conversationId) {
         conversationRepository.deleteById(conversationId);
     }
+
+    /**
+     * Ensures a conversation exists. Creates it if it doesn't exist.
+     * This is idempotent - safe to call multiple times.
+     * 
+     * @param conversationId The conversation ID to ensure exists
+     * @param userId The user ID who owns the conversation
+     * @param title The title for the conversation (used only if creating new)
+     * @return The conversation entity (existing or newly created)
+     */
+    @Transactional
+    public ChatConversation ensureConversationExists(UUID conversationId, String userId, String title) {
+        // Check if conversation already exists
+        Optional<ChatConversation> existing = conversationRepository.findById(conversationId);
+        
+        if (existing.isPresent()) {
+            ChatConversation conversation = existing.get();
+            
+            // Verify it belongs to the correct user
+            if (!conversation.getUserId().equals(userId)) {
+                throw new IllegalArgumentException(
+                    "Conversation " + conversationId + " belongs to different user");
+            }
+            
+            return conversation;
+        }
+        
+        // Create new conversation if it doesn't exist
+        ChatConversation newConversation = new ChatConversation(conversationId, userId, title);
+        return conversationRepository.save(newConversation);
+    }
+
+    /**
+     * Ensures a conversation exists with auto-generated ID if needed.
+     * 
+     * @param conversationId The conversation ID (can be null for auto-generation)
+     * @param userId The user ID who owns the conversation
+     * @param title The title for the conversation
+     * @return The conversation entity with guaranteed valid ID
+     */
+    @Transactional
+    public ChatConversation ensureConversationExists(String conversationId, String userId, String title) {
+        UUID id;
+        
+        if (conversationId == null || conversationId.trim().isEmpty()) {
+            // Generate new UUID if no ID provided
+            id = UUID.randomUUID();
+        } else {
+            try {
+                id = UUID.fromString(conversationId);
+            } catch (IllegalArgumentException e) {
+                throw new IllegalArgumentException("Invalid conversation ID format: " + conversationId);
+            }
+        }
+        
+        return ensureConversationExists(id, userId, title);
+    }
 }

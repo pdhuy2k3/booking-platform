@@ -7,7 +7,6 @@ import java.util.Map;
 import java.util.stream.Collectors;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-
 import io.modelcontextprotocol.client.transport.WebFluxSseClientTransport;
 
 import org.springframework.ai.mcp.client.autoconfigure.NamedClientMcpTransport;
@@ -41,7 +40,10 @@ public class SecurityConfig{
     @Bean
     SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         return http.authorizeHttpRequests(auth ->
-                        auth.anyRequest().permitAll()
+                        auth.requestMatchers("/actuator/**").permitAll()
+                                .requestMatchers("/docs/**", "/swagger-ui/**", "/v3/api-docs/**").permitAll()
+                                .requestMatchers("/health/**").permitAll()
+                                .anyRequest().authenticated()
                 )
                 .oauth2Client(Customizer.withDefaults())
                 .oauth2ResourceServer(oauth2 -> oauth2.jwt(Customizer.withDefaults()))

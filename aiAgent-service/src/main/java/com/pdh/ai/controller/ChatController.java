@@ -1,17 +1,10 @@
 package com.pdh.ai.controller;
 
-import com.pdh.ai.model.dto.ChatRequest;
-import com.pdh.ai.model.dto.ChatResponse;
 import com.pdh.ai.model.dto.ChatHistoryResponse;
 import com.pdh.ai.service.AiService;
-import com.pdh.ai.service.AudioTranscriptionService;
 import com.pdh.common.utils.AuthenticationUtils;
-import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
-import org.springframework.web.multipart.MultipartFile;
-import reactor.core.publisher.Flux;
-import reactor.core.publisher.Mono;
 
 import java.time.LocalDateTime;
 import java.util.UUID;
@@ -21,78 +14,11 @@ import java.util.UUID;
 public class ChatController {
     private final AiService aiService;
 
-    public ChatController(AiService aiService, AudioTranscriptionService audioTranscriptionService) {
+    public ChatController(AiService aiService) {
         this.aiService = aiService;
     }
 
-    @PostMapping("/message")
-    public Mono<ResponseEntity<ChatResponse>> sendMessage(@RequestBody ChatRequest chatRequest) {
-        return Mono.fromCallable(() -> {
-            String conversationId = chatRequest.getConversationId();
-            if (conversationId == null || conversationId.trim().isEmpty()) {
-                conversationId = UUID.randomUUID().toString();
-            }
-            return conversationId;
-        })
-        .flatMap(conversationId -> {
-            String userId = getUserIdFromRequestOrToken(chatRequest.getUserId());
-            
-            return aiService.completeWithConversationAsync(
-                chatRequest.getMessage(), 
-                conversationId,
-                userId
-            )
-            .map(completion -> {
-                ChatResponse chatResponse = ChatResponse.builder()
-                        .userMessage(chatRequest.getMessage())
-                        .aiResponse(completion.getMessage())
-                        .conversationId(conversationId)
-                        .userId(userId)
-                        .timestamp(LocalDateTime.now())
-                        .results(completion.getResults() != null ? completion.getResults() : java.util.List.of())
-                        .build();
-                
-                return ResponseEntity.ok(chatResponse);
-            });
-        })
-        .doOnSubscribe(s -> System.out.println("🚀 Processing async chat request"))
-        .doOnSuccess(result -> System.out.println("✅ Async chat request completed"))
-        .onErrorReturn(ResponseEntity.status(500).body(
-            ChatResponse.builder()
-                    .userMessage(chatRequest.getMessage())
-                    .aiResponse("Xin lỗi, đã xảy ra lỗi khi xử lý tin nhắn của bạn.")
-                    .conversationId(chatRequest.getConversationId())
-                    .userId(getUserIdFromRequestOrToken(chatRequest.getUserId()))
-                    .timestamp(LocalDateTime.now())
-                    .error("Internal server error")
-                    .results(java.util.List.of())
-                    .build()
-        ));
-    }
 
-    @PostMapping(value = "/message/stream", produces = MediaType.TEXT_PLAIN_VALUE)
-    public Flux<String> sendMessageStream(@RequestBody ChatRequest chatRequest) {
-        return Mono.fromCallable(() -> {
-            String conversationId = chatRequest.getConversationId();
-            if (conversationId == null || conversationId.trim().isEmpty()) {
-                conversationId = UUID.randomUUID().toString();
-            }
-            return conversationId;
-        })
-        .flatMapMany(conversationId -> {
-            String userId = getUserIdFromRequestOrToken(chatRequest.getUserId());
-            
-            return aiService.completeWithConversationStream(
-                chatRequest.getMessage(), 
-                conversationId,
-                userId
-            );
-        })
-        .doOnSubscribe(s -> System.out.println("🌊 Starting streaming chat request"))
-        .doOnNext(chunk -> System.out.print("📡"))
-        .doOnComplete(() -> System.out.println("\n🎯 Streaming chat request completed"))
-        .onErrorReturn("Error occurred during streaming. Please try again.");
-    }
 
     @GetMapping("/history/{conversationId}")
     public ResponseEntity<ChatHistoryResponse> getChatHistory(

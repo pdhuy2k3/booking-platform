@@ -103,23 +103,23 @@ public class VoiceWebSocketController {
 
         try {
             // Stage 1: Transcribing audio
-            sendTranscriptionUpdate(destination, request, "Đang nhận dạng giọng nói...");
+            // sendTranscriptionUpdate(destination, request, "Đang nhận dạng giọng nói...");
             
-            String transcribedText = voiceProcessingService.transcribeAudio(request);
+            // String transcribedText = voiceProcessingService.transcribeAudio(request);
             
-            // Send transcription result
-            sendTranscriptionResult(destination, request, transcribedText);
+            // // Send transcription result
+            // sendTranscriptionResult(destination, request, transcribedText);
             
-            // Stage 2: Processing with AI
-            sendProcessingUpdate(destination, request, "Đang xử lý yêu cầu...");
+            // // Stage 2: Processing with AI
+            // sendProcessingUpdate(destination, request, "Đang xử lý yêu cầu...");
             
-            com.pdh.ai.model.dto.StructuredChatPayload payload = voiceProcessingService.processVoiceMessage(request);
+            // com.pdh.ai.model.dto.StructuredChatPayload payload = voiceProcessingService.processVoiceMessage(request);
             
-            // Stage 3: Send final response
-            long processingTime = System.currentTimeMillis() - startTime;
-            sendFinalResponse(destination, request, transcribedText, payload, processingTime);
+            // // Stage 3: Send final response
+            // long processingTime = System.currentTimeMillis() - startTime;
+            // sendFinalResponse(destination, request, transcribedText, payload, processingTime);
             
-            log.info("✅ Voice message completed in {}ms", processingTime);
+            // log.info("✅ Voice message completed in {}ms", processingTime);
 
         } catch (Exception e) {
             log.error("❌ Voice message processing failed: {}", e.getMessage(), e);

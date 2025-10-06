@@ -79,7 +79,7 @@ public class LoggingAdvisor implements CallAdvisor, StreamAdvisor {
      * Creates a Logging Advisor for main chat workflows.
      */
     public static LoggingAdvisor forChat() {
-        return new LoggingAdvisor("chat", true, Ordered.HIGHEST_PRECEDENCE + 20);
+        return new LoggingAdvisor("chat", true, Ordered.HIGHEST_PRECEDENCE + 30);
     }
 
     @Override
@@ -171,6 +171,8 @@ public class LoggingAdvisor implements CallAdvisor, StreamAdvisor {
         if (request.context() != null && !request.context().isEmpty()) {
             logger.debug("🔧 [{}] Request context: {}", requestId, request.context());
         }
+        
+
     }
 
     /**
@@ -190,8 +192,35 @@ public class LoggingAdvisor implements CallAdvisor, StreamAdvisor {
             );
         }
         
+        // Log tool calls in response if available
+        try {
+            if (response.chatResponse() != null && response.chatResponse().getResult() != null &&
+                response.chatResponse().getResult().getOutput() != null) {
+                var output = response.chatResponse().getResult().getOutput();
+                
+                // Check if there are tool calls in the response
+                if (output.getToolCalls() != null && !output.getToolCalls().isEmpty()) {
+                    logger.info("🔧 [{}] Tool calls in response: {}", requestId, output.getToolCalls().size());
+                    output.getToolCalls().forEach(toolCall -> {
+                        logger.info("   🛠️ [{}] Tool call: {} with function: {}", 
+                            requestId, toolCall.id(), toolCall.name());
+                        logger.debug("   📋 [{}] Tool arguments: {}", requestId, toolCall.arguments());
+                    });
+                } else {
+                    logger.debug("🚫 [{}] No tool calls in response", requestId);
+                }
+                
+                // Check for finish reason
+                if (output.getText() != null) {
+                    logger.info("🏁 [{}] Finish reason: {}", requestId, output.getText());
+                }
+            }
+        } catch (Exception e) {
+            logger.debug("Could not extract tool call information: {}", e.getMessage());
+        }
+        
         // Log basic response info
-        logger.debug("� [{}] Response received successfully", requestId);
+        logger.debug("📊 [{}] Response received successfully", requestId);
     }
 
     /**

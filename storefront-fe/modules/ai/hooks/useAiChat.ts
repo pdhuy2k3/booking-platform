@@ -1,6 +1,6 @@
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import { aiChatService } from '../service';
-import { ChatMessage, ChatContext, ChatStructuredResult } from '../types';
+import { ChatMessage, ChatContext, ChatStructuredResult, ChatMessageResponse } from '../types';
 import { useAuth } from '@/contexts/auth-context';
 
 interface UseAiChatOptions {
@@ -8,6 +8,7 @@ interface UseAiChatOptions {
   loadHistoryOnMount?: boolean;
   context?: ChatContext;
   onError?: (error: string) => void;
+  useWebSocket?: boolean; // Enable WebSocket mode
 }
 
 interface UseAiChatReturn {
@@ -15,6 +16,7 @@ interface UseAiChatReturn {
   isLoading: boolean;
   error: string | null;
   conversationId: string | null;
+  isConnected: boolean; // WebSocket connection status
   sendMessage: (message: string) => Promise<void>;
   clearMessages: () => void;
   loadChatHistory: () => Promise<void>;
@@ -85,8 +87,25 @@ const parseStructuredPayload = (raw?: string | null): { message: string; results
   return { message, results };
 };
 
+const createConversationId = (): string => {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return crypto.randomUUID();
+  }
+  return `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+};
+
+const createMessageId = (prefix: 'user' | 'assistant'): string => {
+  return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+};
+
 export function useAiChat(options: UseAiChatOptions = {}): UseAiChatReturn {
-  const { conversationId: initialConversationId, loadHistoryOnMount = false, context, onError } = options;
+  const { 
+    conversationId: initialConversationId, 
+    loadHistoryOnMount = false, 
+    context, 
+    onError,
+    useWebSocket = true // Default to WebSocket
+  } = options;
 
   const [messages, setMessages] = useState<ChatMessage[]>([
     {
@@ -101,7 +120,115 @@ export function useAiChat(options: UseAiChatOptions = {}): UseAiChatReturn {
   const [error, setError] = useState<string | null>(null);
   const [conversationId, setConversationId] = useState<string | null>(initialConversationId || null);
   const [suggestions, setSuggestions] = useState<string[]>([]);
-  const { refreshChatConversations } = useAuth();
+  const [isConnected, setIsConnected] = useState(false);
+  const { user, refreshChatConversations } = useAuth();
+  const pendingMessageRef = useRef<string | null>(null);
+  const currentAssistantMessageIdRef = useRef<string | null>(null);
+  const conversationIdRef = useRef(conversationId);
+  const onErrorRef = useRef(onError);
+
+  // Keep refs updated
+  useEffect(() => {
+    conversationIdRef.current = conversationId;
+  }, [conversationId]);
+
+  useEffect(() => {
+    onErrorRef.current = onError;
+  }, [onError]);
+
+  // Initialize WebSocket connection (only once per user)
+  useEffect(() => {
+    if (!useWebSocket || !user?.id) {
+      return;
+    }
+
+    console.log('🔌 Initializing WebSocket for text chat...');
+
+    aiChatService.initializeWebSocket(
+      user.id,
+      (response: ChatMessageResponse) => {
+        console.log('📨 Received WebSocket response:', response.type, response.status);
+
+        if (response.type === 'PROCESSING') {
+          // Update loading state
+          setIsLoading(true);
+        } else if (response.type === 'RESPONSE') {
+          // Streaming: Update message progressively
+          // Final response will have status "Hoàn tất"
+          const isComplete = response.status === 'Hoàn tất';
+          
+          // Parse response for structured data
+          const parsed = parseStructuredPayload(response.aiResponse);
+          
+          // Update the specific assistant message using the stored message ID
+          const targetMessageId = currentAssistantMessageIdRef.current;
+          if (targetMessageId) {
+            setMessages(prev => prev.map(msg => {
+              if (msg.id === targetMessageId && !msg.isUser) {
+                return {
+                  ...msg,
+                  content: parsed?.message ?? response.aiResponse ?? '',
+                  results: isComplete ? (response.results ?? parsed?.results ?? []) : [],
+                  timestamp: new Date(response.timestamp),
+                };
+              }
+              return msg;
+            }));
+          }
+          
+          // Only mark as complete when final response received
+          if (isComplete) {
+            setIsLoading(false);
+            currentAssistantMessageIdRef.current = null; // Clear the reference
+            
+            // Update conversation ID if needed
+            if (response.conversationId && response.conversationId !== conversationIdRef.current) {
+              setConversationId(response.conversationId);
+              refreshChatConversations().catch(console.error);
+            }
+          }
+        } else if (response.type === 'ERROR') {
+          setError(response.error ?? 'Đã xảy ra lỗi');
+          setIsLoading(false);
+          onErrorRef.current?.(response.error ?? 'Đã xảy ra lỗi');
+          
+          // Update the specific assistant message with error
+          const targetMessageId = currentAssistantMessageIdRef.current;
+          if (targetMessageId) {
+            setMessages(prev => prev.map(msg => {
+              if (msg.id === targetMessageId && !msg.isUser) {
+                return {
+                  ...msg,
+                  content: response.error ?? 'Đã xảy ra lỗi',
+                  timestamp: new Date(response.timestamp),
+                };
+              }
+              return msg;
+            }));
+          }
+          currentAssistantMessageIdRef.current = null; // Clear the reference
+        }
+      },
+      undefined, // No voice message handler
+      () => {
+        console.log('✅ WebSocket connected');
+        setIsConnected(true);
+      },
+      (error) => {
+        console.error('❌ WebSocket error:', error);
+        setIsConnected(false);
+        setError('Không thể kết nối WebSocket');
+      }
+    );
+
+    return () => {
+      console.log('🔌 Disconnecting WebSocket...');
+      aiChatService.disconnectWebSocket();
+      setIsConnected(false);
+    };
+    // Only reconnect if user changes, not on every conversation change
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [useWebSocket, user?.id]);
 
   useEffect(() => {
     if (initialConversationId === undefined) {
@@ -147,72 +274,192 @@ export function useAiChat(options: UseAiChatOptions = {}): UseAiChatReturn {
   }, [conversationId]);
 
   const sendMessage = useCallback(async (messageContent: string) => {
-    if (!messageContent.trim() || isLoading) return;
+    const trimmedMessage = messageContent.trim();
+    if (!trimmedMessage || isLoading) {
+      return;
+    }
+
+    const effectiveConversationId = conversationId || context?.conversationId || createConversationId();
+    const userMessageId = createMessageId('user');
+    const assistantMessageId = createMessageId('assistant');
 
     const userMessage: ChatMessage = {
-      id: Date.now().toString(),
-      content: messageContent.trim(),
+      id: userMessageId,
+      content: trimmedMessage,
       isUser: true,
       timestamp: new Date(),
       results: [],
     };
 
-    setMessages(prev => [...prev, userMessage]);
+    const assistantPlaceholder: ChatMessage = {
+      id: assistantMessageId,
+      content: '',
+      isUser: false,
+      timestamp: new Date(),
+      results: [],
+    };
+
+    setMessages(prev => [...prev, userMessage, assistantPlaceholder]);
     setIsLoading(true);
     setError(null);
 
+    if (!conversationId) {
+      setConversationId(effectiveConversationId);
+    }
+
+    // Store the assistant message ID for WebSocket updates
+    currentAssistantMessageIdRef.current = assistantMessageId;
+
+    // Use WebSocket if enabled and connected (ALWAYS USE STREAMING)
+    if (useWebSocket && user?.id) {
+      try {
+        if (!aiChatService.isWebSocketConnected()) {
+          throw new Error('WebSocket not connected');
+        }
+
+        // Send via streaming endpoint (sendTextMessage now always streams)
+        aiChatService.sendTextMessage({
+          userId: user.id,
+          conversationId: effectiveConversationId,
+          message: trimmedMessage,
+          timestamp: Date.now(),
+        });
+        
+        // Response will be handled by WebSocket listener
+        return;
+      } catch (wsError) {
+        console.error('WebSocket send failed, falling back to REST:', wsError);
+        // Fall through to REST API
+      }
+    }
+
+    // Fallback to REST API
     try {
       const chatContext: ChatContext = {
-        conversationId: conversationId || undefined,
-        ...context
+        ...context,
+        conversationId: effectiveConversationId,
       };
 
-      const response = await aiChatService.sendMessage(messageContent, chatContext);
-      
-      // Update conversation ID if it was generated
-      if (response.conversationId && response.conversationId !== conversationId) {
-        setConversationId(response.conversationId);
+      const streamResult = await aiChatService.sendStreamingMessage(trimmedMessage, chatContext, {
+        onStart: ({ conversationId: streamConversationId }) => {
+          setConversationId(prev => prev ?? streamConversationId);
+        },
+        onChunk: (_, aggregate) => {
+          setMessages(prev => prev.map(msg =>
+            msg.id === assistantMessageId ? { ...msg, content: aggregate } : msg
+          ));
+        },
+        onError: (streamError) => {
+          console.error('Streaming error:', streamError);
+        },
+      });
+
+      const finalConversationId = streamResult.conversationId || effectiveConversationId;
+      const shouldRefreshConversations = !conversationId || finalConversationId !== conversationId;
+
+      if (finalConversationId && finalConversationId !== conversationId) {
+        setConversationId(finalConversationId);
+      }
+
+      if (shouldRefreshConversations) {
         refreshChatConversations().catch((err) => {
           console.error('Failed to refresh conversations:', err);
         });
       }
-      
-      if (response.error) {
-        setError(response.error);
-        onError?.(response.error);
+
+      const parsedResponse = parseStructuredPayload(streamResult.message);
+
+      setMessages(prev => prev.map(msg => {
+        if (msg.id !== assistantMessageId) {
+          return msg;
+        }
+        return {
+          ...msg,
+          content: parsedResponse?.message ?? streamResult.message,
+          results: parsedResponse?.results ?? [],
+          timestamp: new Date(),
+        };
+      }));
+
+      // Clear the assistant message reference when using REST API
+      currentAssistantMessageIdRef.current = null;
+    } catch (streamError) {
+      console.error('Streaming failed, falling back to synchronous request:', streamError);
+
+      try {
+        const fallbackContext: ChatContext = {
+          ...context,
+          conversationId: effectiveConversationId,
+        };
+
+        const response = await aiChatService.sendMessage(trimmedMessage, fallbackContext);
+
+        const shouldRefreshConversations = !conversationId || response.conversationId !== conversationId;
+
+        if (response.conversationId && response.conversationId !== conversationId) {
+          setConversationId(response.conversationId);
+        }
+
+        if (shouldRefreshConversations) {
+          refreshChatConversations().catch((err) => {
+            console.error('Failed to refresh conversations:', err);
+          });
+        }
+
+        if (response.error) {
+          setError(response.error);
+          onError?.(response.error);
+        }
+
+        const parsedResponse = parseStructuredPayload(response.aiResponse);
+
+        setMessages(prev => prev.map(msg => {
+          if (msg.id !== assistantMessageId) {
+            return msg;
+          }
+          return {
+            ...msg,
+            content: parsedResponse?.message ?? response.aiResponse,
+            results:
+              (response.results && response.results.length > 0)
+                ? response.results
+                : parsedResponse?.results ?? [],
+            timestamp: new Date(response.timestamp || Date.now()),
+          };
+        }));
+
+        // Clear the assistant message reference when using fallback REST API
+        currentAssistantMessageIdRef.current = null;
+      } catch (err) {
+        const errorMessage = 'Không thể gửi tin nhắn. Vui lòng thử lại.';
+        setError(errorMessage);
+        onError?.(errorMessage);
+
+        setMessages(prev => prev.map(msg => {
+          if (msg.id !== assistantMessageId) {
+            return msg;
+          }
+          return {
+            ...msg,
+            content: errorMessage,
+            results: [],
+            timestamp: new Date(),
+          };
+        }));
+
+        // Clear the assistant message reference on error
+        currentAssistantMessageIdRef.current = null;
       }
-
-      const parsedResponse = parseStructuredPayload(response.aiResponse);
-      const aiMessage: ChatMessage = {
-        id: (Date.now() + 1).toString(),
-        content: parsedResponse?.message ?? response.aiResponse,
-        isUser: false,
-        timestamp: new Date(response.timestamp),
-        results:
-          (response.results && response.results.length > 0)
-            ? response.results
-            : parsedResponse?.results ?? [],
-      };
-
-      setMessages(prev => [...prev, aiMessage]);
-    } catch (err) {
-      const errorMessage = 'Không thể gửi tin nhắn. Vui lòng thử lại.';
-      setError(errorMessage);
-      onError?.(errorMessage);
-      
-      // Add error message to chat
-      const errorAiMessage: ChatMessage = {
-        id: (Date.now() + 1).toString(),
-        content: errorMessage,
-        isUser: false,
-        timestamp: new Date(),
-        results: [],
-      };
-      setMessages(prev => [...prev, errorAiMessage]);
     } finally {
-      setIsLoading(false);
+      // Only set loading to false if using REST API
+      // WebSocket responses handle this in the listener
+      if (!useWebSocket) {
+        setIsLoading(false);
+        // Clear the reference for REST API cases
+        currentAssistantMessageIdRef.current = null;
+      }
     }
-  }, [isLoading, conversationId, context, onError, refreshChatConversations]);
+  }, [isLoading, conversationId, context, refreshChatConversations, onError, useWebSocket, user]);
 
   const clearMessages = useCallback(async () => {
     if (conversationId) {
@@ -256,6 +503,7 @@ export function useAiChat(options: UseAiChatOptions = {}): UseAiChatReturn {
     isLoading,
     error,
     conversationId,
+    isConnected,
     sendMessage,
     clearMessages,
     loadChatHistory,

@@ -15,6 +15,7 @@ import java.util.function.Function;
  * Provides current weather and forecast data for locations
  */
 @Component
+@Deprecated
 public class WeatherSearchTool implements Function<WeatherSearchTool.WeatherRequest, WeatherSearchTool.WeatherResponse> {
 
     private final RestTemplate restTemplate;

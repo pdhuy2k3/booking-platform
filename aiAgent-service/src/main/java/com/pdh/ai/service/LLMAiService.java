@@ -10,6 +10,7 @@ import java.util.UUID;
 import com.pdh.ai.agent.CoreAgent;
 import com.pdh.ai.model.dto.ChatHistoryResponse;
 import com.pdh.ai.model.dto.StructuredChatPayload;
+import com.pdh.ai.model.entity.ChatConversation;
 import com.pdh.ai.model.entity.ChatMessage;
 import com.pdh.common.utils.AuthenticationUtils;
 import org.springframework.stereotype.Service;
@@ -35,25 +36,10 @@ public class LLMAiService implements AiService {
         this.chatMessageRepository = chatMessageRepository;
     }
 
-    @Override
-    public StructuredChatPayload complete(String message) {
-        String userId = resolveUserId(null);
-        UUID conversationUuid = ensureConversation(null, userId, defaultTitle(message));
-
-        return executeCompletion(message, conversationUuid);
-    }
-
-    @Override
-    public StructuredChatPayload completeWithConversation(String message, String conversationId, String userId) {
-        String actualUserId = resolveUserId(userId);
-        UUID conversationUuid = ensureConversation(conversationId, actualUserId, defaultTitle(message));
-
-        return executeCompletion(message, conversationUuid);
-    }
 
     @Override
     public ChatHistoryResponse getChatHistory(String conversationId, String userId) {
-        String actualUserId = resolveUserId(userId);
+        String actualUserId = resolveAuthenticatedUserId(userId);
         UUID conversationUuid = parseConversationId(conversationId);
 
         var conversation = conversationService.getConversation(conversationUuid)
@@ -86,7 +72,7 @@ public class LLMAiService implements AiService {
 
     @Override
     public void clearChatHistory(String conversationId, String userId) {
-        String actualUserId = resolveUserId(userId);
+        String actualUserId = resolveAuthenticatedUserId(userId);
         UUID conversationUuid = parseConversationId(conversationId);
 
         if (!conversationService.belongsToUser(conversationUuid, actualUserId)) {
@@ -98,53 +84,12 @@ public class LLMAiService implements AiService {
 
     @Override
     public List<String> getUserConversations(String userId) {
-        String actualUserId = resolveUserId(userId);
+        String actualUserId = resolveAuthenticatedUserId(userId);
         return conversationService.listConversations(actualUserId).stream()
                 .map(conversation -> conversation.getId().toString())
                 .toList();
     }
 
-    /**
-     * Executes the AI completion using CoreAgent workflow orchestration.
-     */
-    private StructuredChatPayload executeCompletion(String message, UUID conversationUuid) {
-        try {
-            // IMPORTANT: Ensure conversation exists in database BEFORE processing
-            // This prevents foreign key constraint violations when CoreAgent saves messages
-            String conversationId = conversationUuid.toString();
-            
-            // Delegate to CoreAgent for reactive workflow processing
-            // Use block() to convert from reactive to blocking for backward compatibility
-            StructuredChatPayload payload = coreAgent.processAsync(message, conversationId)
-                .block(); // Convert Mono to blocking call
-
-            // Ensure payload has required fields
-            if (payload == null) {
-                return StructuredChatPayload.builder()
-                        .message("Xin lỗi, tôi không thể xử lý yêu cầu của bạn đúng cách.")
-                        .results(Collections.emptyList())
-                        .build();
-            }
-
-            if (payload.getMessage() == null || payload.getMessage().isBlank()) {
-                payload.setMessage("Tôi đã xử lý yêu cầu của bạn nhưng không thể tạo phản hồi phù hợp.");
-            }
-
-            if (payload.getResults() == null) {
-                payload.setResults(Collections.emptyList());
-            }
-
-            return payload;
-        } catch (Exception e) {
-            System.err.println("Error executing completion: " + e.getMessage());
-            e.printStackTrace();
-
-            return StructuredChatPayload.builder()
-                    .message("Xin lỗi, đã xảy ra lỗi khi xử lý yêu cầu của bạn. Vui lòng thử lại.")
-                    .results(Collections.emptyList())
-                    .build();
-        }
-    }
 
     private String getCurrentUserId() {
         try {
@@ -156,33 +101,45 @@ public class LLMAiService implements AiService {
     }
 
     private String resolveUserId(String requestUserId) {
+        // If a specific user ID is requested, use it (for backward compatibility)
         if (requestUserId != null && !requestUserId.isBlank()) {
             return requestUserId;
         }
+        
+        // Extract user ID from JWT token (the secure way)
         String authenticatedUserId = getCurrentUserId();
         if (authenticatedUserId != null && !authenticatedUserId.isBlank()) {
             return authenticatedUserId;
         }
+        
+        // Fallback to anonymous for backward compatibility
         return "anonymous";
     }
 
+    /**
+     * Resolves user ID, preferring the provided userId over JWT extraction.
+     * This method is more lenient for WebSocket scenarios where userId comes from auth context.
+     */
+    private String resolveAuthenticatedUserId(String requestUserId) {
+        // If a specific user ID is provided (from auth context), use it
+        if (requestUserId != null && !requestUserId.isBlank()) {
+            return requestUserId;
+        }
+        
+        // Try to extract user ID from JWT token as fallback
+        String authenticatedUserId = getCurrentUserId();
+        if (authenticatedUserId != null && !authenticatedUserId.isBlank()) {
+            return authenticatedUserId;
+        }
+        
+        // For WebSocket scenarios, require user ID to be provided
+        throw new IllegalStateException("User must be authenticated to perform this operation. Please log in.");
+    }
+
     private UUID ensureConversation(String conversationId, String userId, String title) {
-        if (conversationId == null || conversationId.isBlank()) {
-            return conversationService.createConversation(userId, title);
-        }
-
-        UUID conversationUuid = parseConversationId(conversationId);
-        var existingConversation = conversationService.getConversation(conversationUuid);
-
-        if (existingConversation.isPresent()) {
-            if (!existingConversation.get().getUserId().equals(userId)) {
-                throw new IllegalArgumentException("Conversation does not belong to user");
-            }
-            return conversationUuid;
-        }
-
-        conversationService.createConversation(userId, title, conversationUuid);
-        return conversationUuid;
+        // Use the new ensureConversationExists method which handles both creation and validation
+        ChatConversation conversation = conversationService.ensureConversationExists(conversationId, userId, title);
+        return conversation.getId();
     }
 
     private UUID parseConversationId(String conversationId) {
@@ -206,84 +163,35 @@ public class LLMAiService implements AiService {
         return sanitized.length() <= maxLength ? sanitized : sanitized.substring(0, maxLength) + "...";
     }
 
-    // ========== REACTIVE IMPLEMENTATIONS ==========
-
     @Override
-    public Mono<StructuredChatPayload> completeAsync(String message) {
+    public Flux<StructuredChatPayload> processStreamStructured(String message, String conversationId, String userId) {
         return Mono.fromCallable(() -> {
-            String userId = resolveUserId(null);
-            UUID conversationUuid = ensureConversation(null, userId, defaultTitle(message));
-            return conversationUuid;
+            // Use provided userId for WebSocket scenarios
+            String actualUserId = resolveAuthenticatedUserId(userId);
+            return ensureConversation(conversationId, actualUserId, defaultTitle(message));
         })
-        .flatMap(conversationUuid -> executeCompletionAsync(message, conversationUuid))
-        .doOnSubscribe(s -> System.out.println("🚀 Starting async completion"))
-        .doOnSuccess(result -> System.out.println("✅ Async completion completed"))
-        .onErrorReturn(buildErrorResponse());
-    }
-
-    @Override
-    public Mono<StructuredChatPayload> completeWithConversationAsync(String message, String conversationId, String userId) {
-        return Mono.fromCallable(() -> {
-            String actualUserId = resolveUserId(userId);
-            UUID conversationUuid = ensureConversation(conversationId, actualUserId, defaultTitle(message));
-            return conversationUuid;
+        .flatMapMany(conversationUuid -> {
+            String conversationIdStr = conversationUuid.toString();
+            
+            // IMPORTANT: Ensure conversation exists in database BEFORE processing
+            conversationService.getConversation(conversationUuid)
+                    .orElseThrow(() -> new IllegalStateException("Conversation must exist before processing: " + conversationIdStr));
+            
+            // Use CoreAgent's streaming structured processing
+            return coreAgent.processStreamStructured(message, conversationIdStr)
+                    .doOnSubscribe(s -> System.out.println("🌊 Starting structured stream for conversation: " + conversationIdStr))
+                    .doOnComplete(() -> System.out.println("✅ Structured stream completed for conversation: " + conversationIdStr))
+                    .doOnError(e -> System.err.println("❌ Structured stream failed: " + e.getMessage()));
         })
-        .flatMap(conversationUuid -> executeCompletionAsync(message, conversationUuid))
-        .doOnSubscribe(s -> System.out.println("🚀 Starting async completion with conversation"))
-        .doOnSuccess(result -> System.out.println("✅ Async completion with conversation completed"))
-        .onErrorReturn(buildErrorResponse());
+        .onErrorResume(e -> {
+            System.err.println("❌ Error in processStreamStructured: " + e.getMessage());
+            return Flux.just(buildErrorResponse());
+        });
     }
 
-    @Override
-    public Flux<String> completeStream(String message) {
-        return Mono.fromCallable(() -> {
-            String userId = resolveUserId(null);
-            UUID conversationUuid = ensureConversation(null, userId, defaultTitle(message));
-            return conversationUuid;
-        })
-        .flatMapMany(conversationUuid -> executeCompletionStream(message, conversationUuid))
-        .doOnSubscribe(s -> System.out.println("🌊 Starting streaming completion"))
-        .doOnComplete(() -> System.out.println("🎯 Streaming completion completed"));
-    }
 
-    @Override
-    public Flux<String> completeWithConversationStream(String message, String conversationId, String userId) {
-        return Mono.fromCallable(() -> {
-            String actualUserId = resolveUserId(userId);
-            UUID conversationUuid = ensureConversation(conversationId, actualUserId, defaultTitle(message));
-            return conversationUuid;
-        })
-        .flatMapMany(conversationUuid -> executeCompletionStream(message, conversationUuid))
-        .doOnSubscribe(s -> System.out.println("🌊 Starting streaming completion with conversation"))
-        .doOnComplete(() -> System.out.println("🎯 Streaming completion with conversation completed"));
-    }
 
-    /**
-     * Reactive version of executeCompletion using CoreAgent's reactive capabilities.
-     */
-    private Mono<StructuredChatPayload> executeCompletionAsync(String message, UUID conversationUuid) {
-        String conversationId = conversationUuid.toString();
-        
-        // Use CoreAgent's reactive processing
-        return coreAgent.processAsync(message, conversationId)
-            .map(this::ensureValidPayload)
-            .doOnSubscribe(s -> System.out.println("🔄 Delegating to CoreAgent async processing"))
-            .doOnSuccess(result -> System.out.println("✅ CoreAgent async processing completed"))
-            .onErrorReturn(buildErrorResponse());
-    }
 
-    /**
-     * Streaming version of executeCompletion using CoreAgent's streaming capabilities.
-     */
-    private Flux<String> executeCompletionStream(String message, UUID conversationUuid) {
-        String conversationId = conversationUuid.toString();
-        
-        // Use CoreAgent's streaming processing
-        return coreAgent.processStream(message, conversationId)
-            .doOnSubscribe(s -> System.out.println("🌊 Delegating to CoreAgent streaming processing"))
-            .doOnComplete(() -> System.out.println("🎯 CoreAgent streaming processing completed"))
-            .onErrorReturn("Error occurred during streaming processing. Please try again.");
-    }
 
     /**
      * Ensures payload has valid fields.

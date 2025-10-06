@@ -10,7 +10,6 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Slider } from "@/components/ui/slider"
 import { cn } from "@/lib/utils"
 import { useDateFormatter } from "@/hooks/use-date-formatter"
-import Image from "next/image"
 import { formatPrice } from "@/lib/currency"
 import { useBooking } from "@/contexts/booking-context"
 import { flightService } from "@/modules/flight/service"
@@ -18,6 +17,7 @@ import type { InitialFlightData, FareClass, FlightDetails } from "@/modules/flig
 import { FlightCardSkeleton } from "@/modules/flight/component/FlightCardSkeleton"
 import FlightDetailsModal from "@/modules/flight/component/FlightDetailsModal"
 import { FlightDestinationModal } from "@/modules/flight/component/FlightDestinationModal"
+import { FlightCard } from "@/components/cards"
 
 interface City {
   code: string
@@ -696,81 +696,36 @@ export function FlightSearchTab() {
                 )}
 
                 {/* Flight Results */}
-                {flightResults.map((flight) => (
-                  <Card key={flight.id} className="hover:shadow-lg transition-shadow">
-                    <CardContent className="p-6">
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center space-x-6">
-                          <div className="flex items-center space-x-3">
-                            <Image
-                              src={flight.logo || "/placeholder.svg"}
-                              alt={flight.airline}
-                              width={32}
-                              height={32}
-                              className="w-8 h-8 object-contain"
-                              unoptimized
-                            />
-                            <div>
-                              <div className="font-medium">{flight.airline}</div>
-                              <div className="text-sm text-muted-foreground">{flight.flightNumber}</div>
-                            </div>
-                          </div>
+                {flightResults.map((flight) => {
+                  const flightData = {
+                    id: flight.id,
+                    airline: flight.airline,
+                    flightNumber: flight.flightNumber,
+                    origin: flight.origin || flight.departure.city,
+                    destination: flight.destination || flight.arrival.city,
+                    departureTime: flight.departureTime,
+                    arrivalTime: flight.arrivalTime,
+                    duration: flight.duration,
+                    stops: flight.stops,
+                    price: flight.price,
+                    currency: flight.currency,
+                    seatClass: flight.seatClass,
+                    logo: flight.logo,
+                    scheduleId: flight.raw?.scheduleId,
+                    fareId: flight.raw?.fareId,
+                    rating: flight.rating,
+                  }
 
-                          <div className="flex items-center space-x-8">
-                            <div className="text-center">
-                              <div className="font-bold text-lg">{flight.departure.time}</div>
-                              <div className="text-sm text-muted-foreground">{flight.departure.city}</div>
-                            </div>
-
-                            <div className="flex flex-col items-center">
-                              <div className="text-sm text-muted-foreground">{flight.duration}</div>
-                              <div className="flex items-center space-x-2">
-                                <div className="h-px bg-gray-300 w-16"></div>
-                                <Plane className="h-4 w-4 text-gray-400" />
-                                <div className="h-px bg-gray-300 w-16"></div>
-                              </div>
-                              <div className="text-xs text-muted-foreground">{flight.stops}</div>
-                            </div>
-
-                            <div className="text-center">
-                              <div className="font-bold text-lg">{flight.arrival.time}</div>
-                              <div className="text-sm text-muted-foreground">{flight.arrival.city}</div>
-                            </div>
-                          </div>
-                        </div>
-
-                        <div className="text-right space-y-2">
-                          {hasSearched ? (
-                            <div className="text-2xl font-bold text-primary">
-                              {formatPrice(flight.price)}
-                            </div>
-                          ) : (
-                            <div className="text-lg text-muted-foreground">
-                              Chọn ngày để xem giá
-                            </div>
-                          )}
-                          <div className="flex items-center space-x-1">
-                            <Star className="h-4 w-4 fill-yellow-400 text-yellow-400" />
-                            <span className="text-sm">{flight.rating}</span>
-                          </div>
-                          <div className="space-y-2">
-                            <Button variant="outline" size="sm" onClick={() => handleViewDetails(flight)}>
-                              Xem chi tiết
-                            </Button>
-                            <Button 
-                              size="sm" 
-                              className="w-full bg-blue-600 text-white hover:bg-blue-700"
-                              onClick={() => startFlightBooking(flight)}
-                              disabled={!hasSearched}
-                            >
-                              {hasSearched ? "Đặt ngay" : "Tìm kiếm để đặt"}
-                            </Button>
-                          </div>
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-                ))}
+                  return (
+                    <FlightCard
+                      key={flight.id}
+                      flight={flightData}
+                      onViewDetails={handleViewDetails}
+                      onBook={startFlightBooking}
+                      showBookButton={hasSearched}
+                    />
+                  )
+                })}
 
                 {/* Empty State */}
                 {!loading && flightResults.length === 0 && !error && (

@@ -43,6 +43,10 @@ public class ChatConversation {
         if (id == null) {
             id = UUID.randomUUID();
         }
+        // Ensure title has a default value if null
+        if (title == null || title.trim().isEmpty()) {
+            title = "New Conversation";
+        }
     }
 
     public UUID getId() {

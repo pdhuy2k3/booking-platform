@@ -1,3 +1,28 @@
+// ==================== TEXT CHAT TYPES (WebSocket) ====================
+
+export interface ChatMessageRequest {
+  userId: string;
+  conversationId?: string;
+  message: string;
+  timestamp?: number;
+}
+
+export type ChatResponseType = 'PROCESSING' | 'RESPONSE' | 'ERROR';
+
+export interface ChatMessageResponse {
+  type: ChatResponseType;
+  userId: string;
+  conversationId: string;
+  userMessage: string;
+  aiResponse?: string;
+  results?: ChatStructuredResult[];
+  status?: string;
+  error?: string;
+  timestamp: string;
+  processingTimeMs?: number;
+}
+
+// Legacy REST API types (kept for backward compatibility)
 export interface ChatRequest {
   message: string;
   conversationId?: string;

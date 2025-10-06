@@ -4,6 +4,7 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.pdh.ai.model.entity.ChatMessage;
+import com.pdh.ai.repository.ChatConversationRepository;
 import com.pdh.ai.repository.ChatMessageRepository;
 import org.springframework.ai.chat.memory.ChatMemory;
 import org.springframework.ai.chat.messages.AssistantMessage;
@@ -26,19 +27,27 @@ import java.util.stream.Collectors;
 public class JpaChatMemory implements ChatMemory {
 
     private final ChatMessageRepository chatMessageRepository;
+    private final ChatConversationRepository chatConversationRepository;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
-    public JpaChatMemory(ChatMessageRepository chatMessageRepository) {
+    public JpaChatMemory(ChatMessageRepository chatMessageRepository,
+                         ChatConversationRepository chatConversationRepository) {
         this.chatMessageRepository = chatMessageRepository;
+        this.chatConversationRepository = chatConversationRepository;
     }
 
     @Override
     @Transactional
     public void add(String conversationId, List<Message> messages) {
+        UUID persistableId = resolvePersistableConversationId(conversationId);
+        if (persistableId == null) {
+            System.out.println("⚠️ Skipping memory save for conversation: " + conversationId);
+            return;
+        }
+
         try {
-            UUID id = parseConversationId(conversationId);
             List<ChatMessage> entities = messages.stream()
-                    .map(message -> new ChatMessage(id, mapRole(message), extractContent(message), Instant.now()))
+                    .map(message -> new ChatMessage(persistableId, mapRole(message), extractContent(message), Instant.now()))
                     .collect(Collectors.toList());
             chatMessageRepository.saveAll(entities);
         } catch (Exception e) {
@@ -91,7 +100,7 @@ public class JpaChatMemory implements ChatMemory {
         if (conversationId == null || conversationId.trim().isEmpty()) {
             return UUID.randomUUID();
         }
-        
+
         // Handle Spring AI's default conversation ID
         if ("default".equals(conversationId)) {
             return UUID.fromString("00000000-0000-0000-0000-000000000001");
@@ -102,6 +111,30 @@ public class JpaChatMemory implements ChatMemory {
         } catch (IllegalArgumentException e) {
             // If not a valid UUID, create a deterministic UUID from the string
             return UUID.nameUUIDFromBytes(conversationId.getBytes());
+        }
+    }
+
+    private UUID resolvePersistableConversationId(String conversationId) {
+        if (conversationId == null || conversationId.trim().isEmpty()) {
+            return null;
+        }
+
+        if ("default".equalsIgnoreCase(conversationId)) {
+            return null;
+        }
+
+        try {
+            UUID id = UUID.fromString(conversationId);
+
+            if (!chatConversationRepository.existsById(id)) {
+                System.out.println("⚠️ Skipping memory save - conversation not found: " + conversationId);
+                return null;
+            }
+
+            return id;
+        } catch (IllegalArgumentException ex) {
+            System.out.println("⚠️ Skipping memory save - invalid conversation ID format: " + conversationId);
+            return null;
         }
     }
 

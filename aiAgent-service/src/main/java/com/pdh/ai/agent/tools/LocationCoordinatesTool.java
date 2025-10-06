@@ -15,6 +15,7 @@ import java.util.function.Function;
  * to convert location names to latitude/longitude coordinates
  */
 @Component
+@Deprecated
 public class LocationCoordinatesTool implements Function<LocationCoordinatesTool.LocationRequest, LocationCoordinatesTool.LocationResponse> {
 
     private final RestTemplate restTemplate;

@@ -64,7 +64,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       console.error('Failed to load chat conversations:', error)
       setChatConversations([])
     }
-  }, [user])
+  }, []) // Remove user dependency to prevent infinite loop
 
   const refreshUser = async () => {
     try {
@@ -103,6 +103,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     refreshUser()
   }, [])
 
+  const refreshChatConversations = useCallback(() => loadChatConversations(), [loadChatConversations])
+
   const value: AuthContextType = {
     user,
     isLoading,
@@ -111,7 +113,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     logout,
     refreshUser,
     chatConversations,
-    refreshChatConversations: () => loadChatConversations(),
+    refreshChatConversations,
   }
 
   return (

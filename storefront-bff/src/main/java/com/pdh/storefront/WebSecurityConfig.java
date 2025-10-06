@@ -35,8 +35,7 @@ public class WebSecurityConfig {
     public SecurityWebFilterChain securityFilterChain(ServerHttpSecurity http) throws Exception {
         http.authorizeExchange(authorizationManagerRequestMatcherRegistry -> {
                     authorizationManagerRequestMatcherRegistry
-                            .pathMatchers("/profiles/**","/dashboards/**").authenticated()
-                            .anyExchange().permitAll();
+                            .anyExchange().authenticated();
                 })
                 .oauth2Login(Customizer.withDefaults())
                 .httpBasic(ServerHttpSecurity.HttpBasicSpec::disable)

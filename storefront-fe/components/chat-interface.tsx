@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { cn } from "@/lib/utils"
 import { useAiChat, useVoiceChat, useAudioRecorder } from "@/modules/ai"
+import { useAuth } from "@/contexts/auth-context"
 import type { ChatStructuredResult } from "@/modules/ai"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
@@ -41,6 +42,7 @@ export const ChatInterface = forwardRef<any, ChatInterfaceProps>(function ChatIn
   const inputRef = useRef<HTMLInputElement>(null)
   
   const { formatDateTime } = useDateFormatter()
+  const { user } = useAuth()
 
   // Use the AI chat hook for text messages
   const { 
@@ -54,6 +56,7 @@ export const ChatInterface = forwardRef<any, ChatInterfaceProps>(function ChatIn
   } = useAiChat({
     conversationId: conversationId ?? undefined,
     loadHistoryOnMount: true,
+    context: user?.id ? { userId: user.id } : undefined,
     onError: (errorMsg) => {
       console.error('Chat error:', errorMsg);
     }
@@ -73,7 +76,7 @@ export const ChatInterface = forwardRef<any, ChatInterfaceProps>(function ChatIn
     sendAudio,
     clearState: clearVoiceState,
   } = useVoiceChat({
-    userId: 'user-123', // TODO: Get from auth context
+    userId: user?.id,
     conversationId: conversationId ?? undefined,
     autoConnect: false,
     onTranscription: (text) => {
@@ -130,7 +133,8 @@ export const ChatInterface = forwardRef<any, ChatInterfaceProps>(function ChatIn
   useEffect(() => {
     // Load suggestions on component mount
     getSuggestions()
-  }, [getSuggestions])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   useImperativeHandle(ref, () => ({
     handleExamplePrompt: (prompt: string) => {
@@ -151,6 +155,13 @@ export const ChatInterface = forwardRef<any, ChatInterfaceProps>(function ChatIn
     await sendMessage(messageContent)
   }
 
+  const handleSuggestionClick = async (suggestion: string) => {
+    if (isLoading) return
+    
+    onChatStart()
+    await sendMessage(suggestion)
+  }
+
   const formatMessageTimestamp = (value: Date | string) => {
     const date = value instanceof Date ? value : new Date(value)
     if (Number.isNaN(date.getTime())) {
@@ -162,6 +173,11 @@ export const ChatInterface = forwardRef<any, ChatInterfaceProps>(function ChatIn
 
   // Handle voice mode toggle
   const handleVoiceModeToggle = () => {
+    if (!user?.id) {
+      alert('Bạn cần đăng nhập để sử dụng trò chuyện bằng giọng nói.');
+      return;
+    }
+
     if (!audioSupported) {
       alert('Trình duyệt của bạn không hỗ trợ ghi âm');
       return;
@@ -183,6 +199,11 @@ export const ChatInterface = forwardRef<any, ChatInterfaceProps>(function ChatIn
 
   // Handle voice recording
   const handleVoiceRecord = async () => {
+    if (!user?.id) {
+      alert('Bạn cần đăng nhập để sử dụng trò chuyện bằng giọng nói.');
+      return;
+    }
+
     if (isRecording) {
       await stopRecording();
     } else {
@@ -430,7 +451,7 @@ export const ChatInterface = forwardRef<any, ChatInterfaceProps>(function ChatIn
                   variant="outline"
                   size="sm"
                   className="text-xs h-8 rounded-full"
-                  onClick={() => handleSubmit(undefined, suggestion)}
+                  onClick={() => handleSuggestionClick(suggestion)}
                   disabled={isLoading}
                 >
                   {suggestion}

@@ -5,9 +5,10 @@ import org.springframework.messaging.simp.config.MessageBrokerRegistry;
 import org.springframework.web.socket.config.annotation.EnableWebSocketMessageBroker;
 import org.springframework.web.socket.config.annotation.StompEndpointRegistry;
 import org.springframework.web.socket.config.annotation.WebSocketMessageBrokerConfigurer;
+import org.springframework.web.socket.config.annotation.WebSocketTransportRegistration;
 
 /**
- * WebSocket configuration for real-time voice interaction.
+ * WebSocket configuration for real-time voice and chat interactions.
  * 
  * <p>Architecture:</p>
  * <pre>
@@ -15,23 +16,26 @@ import org.springframework.web.socket.config.annotation.WebSocketMessageBrokerCo
  *    ↕ WebSocket (STOMP over SockJS)
  * Spring WebSocket Handler
  *    ↕ Message Broker
- * Voice Processing Service (Mistral AI)
+ * Voice/Chat Processing Service
  *    ↕ AI Agent (Gemini)
  * Response back to Client
  * </pre>
  * 
  * <p>Endpoints:</p>
  * <ul>
- * <li><b>/ws/voice</b>: WebSocket connection endpoint</li>
+ * <li><b>/ws/voice</b>: WebSocket connection endpoint (for both voice and chat)</li>
  * <li><b>/app/voice.send</b>: Client sends audio chunks</li>
- * <li><b>/topic/voice.{userId}</b>: Server broadcasts responses</li>
+ * <li><b>/app/chat.send</b>: Client sends text messages</li>
+ * <li><b>/topic/voice.{userId}</b>: Server broadcasts voice responses</li>
+ * <li><b>/topic/chat.{userId}</b>: Server broadcasts chat responses</li>
  * </ul>
  * 
  * <p>Use Cases:</p>
  * <ul>
  * <li>Real-time voice chat with AI agent</li>
+ * <li>Real-time text chat with AI agent</li>
  * <li>Streaming audio transcription</li>
- * <li>Live booking assistance via voice</li>
+ * <li>Live booking assistance via voice or text</li>
  * <li>Hands-free travel planning</li>
  * </ul>
  * 
@@ -81,9 +85,19 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
      */
     @Override
     public void registerStompEndpoints(StompEndpointRegistry registry) {
-        registry.addEndpoint("/ws/voice")
-
+        registry.addEndpoint("/ws/chat")
                 .setAllowedOriginPatterns("*")  // Configure specific origins in production
                 .withSockJS();  // Enable SockJS fallback
+    }
+
+    /**
+     * Increase transport limits so we can ship base64-encoded audio chunks without
+     * the broker terminating the connection.
+     */
+    @Override
+    public void configureWebSocketTransport(WebSocketTransportRegistration registry) {
+        registry.setMessageSizeLimit(1024 * 1024); // 1 MB per message
+        registry.setSendBufferSizeLimit(1024 * 1024);
+        registry.setSendTimeLimit(20000); // 20 seconds
     }
 }

@@ -56,7 +56,15 @@ public class ScopeGuard {
         
         // Dates and times
         "date", "time", "when", "schedule", "departure", "arrival",
-        "ngày", "giờ", "khi nào", "lịch trình", "khởi hành", "đến"
+        "ngày", "giờ", "khi nào", "lịch trình", "khởi hành", "đến",
+
+        //User asking about policies
+        "policy", "policies", "cancellation", "refund", "change", "modify",
+        "chính sách", "hủy", "hoàn tiền", "thay đổi", "sửa",
+
+        //User ask common questions
+        "how", "what", "why", "where", "when", "who", "which", "have", "can", "could", "is", "are", "do", "does",
+        "làm thế nào", "gì", "tại sao", "ở đâu", "khi nào", "ai", "cái nào", "có", "có thể", "là", "phải", "làm"
     );
     
     // Keywords indicating out-of-scope requests (explicit blocks)

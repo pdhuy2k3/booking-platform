@@ -3,7 +3,7 @@
 import { useEffect, useState, useRef } from "react"
 import { useRouter } from "next/navigation"
 import { HotelCardSkeleton } from "@/modules/hotel/component/HotelCardSkeleton"
-import { HotelCard } from "@/modules/hotel/component/HotelCard"
+import { HotelCard } from "@/components/cards"
 import { Search, Filter, Building2, Calendar, Users, Star, Wifi, Car, Coffee, Dumbbell, ChevronUp, ChevronDown } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -626,10 +626,8 @@ export function HotelSearchTab() {
                     key={hotel.id}
                     hotel={hotel}
                     onViewDetails={handleViewDetails}
-                    onBookNow={handleBookNow}
-                    showPrice={hasSearched}
-                    bookingDisabled={!hasSearched}
-                    onPromptSearch={scrollToSearch}
+                    onBook={handleBookNow}
+                    showBookButton={hasSearched}
                   />
                 ))}
 

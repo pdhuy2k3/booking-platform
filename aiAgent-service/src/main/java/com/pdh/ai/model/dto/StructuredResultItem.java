@@ -14,15 +14,15 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor
 @AllArgsConstructor
 public class StructuredResultItem {
-    @JsonProperty("type")
+    @JsonProperty(value = "type",required = true)
     @JsonPropertyDescription("Type of result: flight, hotel, or info")
     private String type;
     
-    @JsonProperty("title")
+    @JsonProperty(value = "title",required = true)
     @JsonPropertyDescription("Main title or heading for the result")
     private String title;
     
-    @JsonProperty("subtitle")
+    @JsonProperty(value = "subtitle",required = true)
     @JsonPropertyDescription("Secondary text or brief description")
     private String subtitle;
     
@@ -30,11 +30,11 @@ public class StructuredResultItem {
     @JsonPropertyDescription("Detailed description of the result")
     private String description;
     
-    @JsonProperty("imageUrl")
+    @JsonProperty(required = true, value = "imageUrl")
     @JsonPropertyDescription("Optional URL to an image representing this result")
     private String imageUrl;
     
-    @JsonProperty("metadata")
+    @JsonProperty(value = "metadata", required = true)
     @JsonPropertyDescription("Additional key-value pairs with specific details like price, duration, etc.")
     private Map<String, Object> metadata;
 }

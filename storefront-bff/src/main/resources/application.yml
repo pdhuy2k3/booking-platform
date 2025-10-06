@@ -81,6 +81,13 @@ spring:
           filters:
             - StripPrefix=1
             - TokenRelay=
+        - id: ai-agent-service
+          uri: lb://AIAGENT-SERVICE
+          predicates:
+            - Path=/api/ai/**
+          filters:
+            - StripPrefix=1
+            - TokenRelay=
         # Administrative routes
         - id: eureka-web-start
           uri: lb://DISCOVERY-SERVICE

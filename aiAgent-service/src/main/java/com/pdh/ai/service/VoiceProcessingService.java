@@ -97,45 +97,7 @@ public class VoiceProcessingService {
         }
     }
 
-    /**
-     * Process voice message end-to-end.
-     * 
-     * <p>Flow:</p>
-     * <ol>
-     * <li>Transcribe audio → text (Mistral AI)</li>
-     * <li>Process text → response (Gemini via AiService)</li>
-     * </ol>
-     * 
-     * @param request Voice message request
-     * @return Structured chat payload with transcription and response
-     */
-    public StructuredChatPayload processVoiceMessage(VoiceMessageRequest request) {
-        long startTime = System.currentTimeMillis();
-        
-        log.info("🎤 Processing voice message for user: {}, conversation: {}", 
-                request.getUserId(), request.getConversationId());
 
-        try {
-            // Step 1: Transcribe audio to text
-            String transcribedText = transcribeAudio(request);
-            
-            // Step 2: Process text through main AI pipeline (Gemini)
-            StructuredChatPayload payload = aiService.completeWithConversation(
-                    transcribedText,
-                    request.getConversationId(),
-                    request.getUserId()
-            );
-            
-            long processingTime = System.currentTimeMillis() - startTime;
-            log.info("✅ Voice message processed in {}ms", processingTime);
-            
-            return payload;
-
-        } catch (Exception e) {
-            log.error("❌ Voice message processing failed: {}", e.getMessage(), e);
-            throw new RuntimeException("Failed to process voice message: " + e.getMessage(), e);
-        }
-    }
 
     /**
      * Build transcription prompt based on language.

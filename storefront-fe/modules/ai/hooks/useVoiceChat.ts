@@ -3,7 +3,7 @@ import { aiChatService } from '../service/ai-chat';
 import type { VoiceMessageRequest, VoiceMessageResponse } from '../types';
 
 export interface UseVoiceChatOptions {
-  userId: string;
+  userId?: string;
   conversationId?: string;
   onTranscription?: (text: string) => void;
   onResponse?: (message: string, results?: any[]) => void;
@@ -56,6 +56,15 @@ export function useVoiceChat(options: UseVoiceChatOptions): UseVoiceChatReturn {
   const [results, setResults] = useState<any[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [processingTime, setProcessingTime] = useState<number | null>(null);
+  const [clientUserId, setClientUserId] = useState<string | null>(userId?.trim() || null);
+
+  useEffect(() => {
+    if (userId && userId.trim().length > 0) {
+      setClientUserId(userId.trim());
+    } else {
+      setClientUserId(null);
+    }
+  }, [userId]);
 
   const isInitialized = useRef(false);
 
@@ -125,16 +134,27 @@ export function useVoiceChat(options: UseVoiceChatOptions): UseVoiceChatReturn {
 
   // Connect to WebSocket
   const connect = useCallback(() => {
+    const resolvedUserId = clientUserId || userId?.trim();
+    if (!resolvedUserId) {
+      const errorMsg = 'Không xác định được người dùng để kết nối voice chat.';
+      console.error('❌ Voice chat connect error:', errorMsg);
+      setError(errorMsg);
+      onError?.(errorMsg);
+      return;
+    }
+
+    setClientUserId(resolvedUserId);
+
     if (aiChatService.isWebSocketConnected()) {
       console.log('✅ Already connected');
       setIsConnected(true);
       return;
     }
 
-    console.log('🔌 Connecting WebSocket for user:', userId);
+    console.log('🔌 Connecting WebSocket for user:', resolvedUserId);
 
     aiChatService.initializeWebSocket(
-      userId,
+      resolvedUserId,
       handleVoiceMessage,
       () => {
         console.log('✅ WebSocket connected successfully');
@@ -148,7 +168,7 @@ export function useVoiceChat(options: UseVoiceChatOptions): UseVoiceChatReturn {
         onError?.(error?.message || 'Failed to connect to voice chat');
       }
     );
-  }, [userId, handleVoiceMessage, onError]);
+  }, [clientUserId, userId, handleVoiceMessage, onError]);
 
   // Disconnect from WebSocket
   const disconnect = useCallback(() => {
@@ -173,6 +193,18 @@ export function useVoiceChat(options: UseVoiceChatOptions): UseVoiceChatReturn {
     }
 
     try {
+      const resolvedUserId = clientUserId || userId?.trim();
+
+      if (!resolvedUserId) {
+        const errorMsg = 'Không xác định được người dùng. Vui lòng đăng nhập để sử dụng voice chat.';
+        console.error('❌ Voice chat error:', errorMsg);
+        setError(errorMsg);
+        setIsProcessing(false);
+        setCurrentStage('idle');
+        onError?.(errorMsg);
+        throw new Error(errorMsg);
+      }
+
       // Clear previous state
       setTranscription(null);
       setResponse(null);
@@ -187,7 +219,7 @@ export function useVoiceChat(options: UseVoiceChatOptions): UseVoiceChatReturn {
 
       // Create voice message request
       const request: VoiceMessageRequest = {
-        userId,
+        userId: resolvedUserId,
         conversationId: conversationId || undefined,
         audioData: base64Audio,
         audioFormat: format,
@@ -213,7 +245,7 @@ export function useVoiceChat(options: UseVoiceChatOptions): UseVoiceChatReturn {
       onError?.(errorMsg);
       throw error;
     }
-  }, [userId, conversationId, onError]);
+  }, [clientUserId, userId, conversationId, onError]);
 
   // Clear all state
   const clearState = useCallback(() => {
