@@ -63,6 +63,8 @@ export interface Airport {
   city: string
   country: string
   timezone?: string
+  latitude?: number
+  longitude?: number
   isActive: boolean
   createdAt: string
   updatedAt: string

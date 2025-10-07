@@ -14,6 +14,8 @@ interface AirportFormData {
   city: string
   country: string
   timezone?: string
+  latitude?: number
+  longitude?: number
 }
 
 interface AirportFormDialogProps {
@@ -40,7 +42,9 @@ export function AirportFormDialog({
     iataCode: "",
     city: "",
     country: "",
-    timezone: ""
+    timezone: "",
+    latitude: undefined,
+    longitude: undefined
   })
   const [images, setImages] = useState<string[]>([])
   const [errors, setErrors] = useState<Partial<AirportFormData>>({})
@@ -52,7 +56,9 @@ export function AirportFormDialog({
         iataCode: editingAirport.iataCode,
         city: editingAirport.city,
         country: editingAirport.country,
-        timezone: editingAirport.timezone || ""
+        timezone: editingAirport.timezone || "",
+        latitude: editingAirport.latitude,
+        longitude: editingAirport.longitude
       })
       setImages(editingAirport.media?.map(m => m.publicId) || [])
     } else {
@@ -66,7 +72,9 @@ export function AirportFormDialog({
       iataCode: "",
       city: "",
       country: "",
-      timezone: ""
+      timezone: "",
+      latitude: undefined,
+      longitude: undefined
     })
     setImages([])
     setErrors({})
@@ -175,6 +183,32 @@ export function AirportFormDialog({
               value={formData.timezone}
               onChange={(e) => setFormData({ ...formData, timezone: e.target.value })}
             />
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="latitude">Vĩ độ (Latitude)</Label>
+              <Input
+                id="latitude"
+                type="number"
+                step="0.000001"
+                placeholder="21.221200"
+                value={formData.latitude || ""}
+                onChange={(e) => setFormData({ ...formData, latitude: e.target.value ? parseFloat(e.target.value) : undefined })}
+              />
+              <p className="text-xs text-gray-500">Phạm vi: -90 đến 90</p>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="longitude">Kinh độ (Longitude)</Label>
+              <Input
+                id="longitude"
+                type="number"
+                step="0.000001"
+                placeholder="105.807200"
+                value={formData.longitude || ""}
+                onChange={(e) => setFormData({ ...formData, longitude: e.target.value ? parseFloat(e.target.value) : undefined })}
+              />
+              <p className="text-xs text-gray-500">Phạm vi: -180 đến 180</p>
+            </div>
           </div>
           <div className="space-y-2">
             <Label>Hình ảnh sân bay</Label>

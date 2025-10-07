@@ -70,15 +70,19 @@ public class ExploreResponse {
         @JsonPropertyDescription("Longitude coordinate (decimal degrees)")
         private Double longitude;
         
-        @JsonProperty(value = "highlights")
+        @JsonProperty(value = "image_url",required = true)
+        @JsonPropertyDescription("URL to destination image from Brave image search")
+        private String imageUrl;
+        
+        @JsonProperty(value = "highlights",required = true)
         @JsonPropertyDescription("Array of key attractions or features")
         private List<String> highlights;
         
-        @JsonProperty(value = "best_time")
+        @JsonProperty(value = "best_time",required = true)
         @JsonPropertyDescription("Best time to visit (e.g., 'Tháng 3-8', 'April to October')")
         private String bestTime;
         
-        @JsonProperty(value = "estimated_cost")
+        @JsonProperty(value = "estimated_cost",required = true)
         @JsonPropertyDescription("Estimated daily cost range (e.g., '2-5 triệu VND/ngày')")
         private String estimatedCost;
     }

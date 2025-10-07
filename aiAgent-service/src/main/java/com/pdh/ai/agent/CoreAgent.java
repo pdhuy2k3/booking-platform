@@ -3,6 +3,8 @@ package com.pdh.ai.agent;
 import java.util.List;
 import java.util.stream.Collectors;
 import com.pdh.ai.util.CurlyBracketEscaper;
+import io.modelcontextprotocol.client.McpClient;
+import io.modelcontextprotocol.client.McpSyncClient;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import com.pdh.ai.agent.advisor.LoggingAdvisor;
@@ -12,7 +14,9 @@ import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.client.advisor.MessageChatMemoryAdvisor;
 import org.springframework.ai.chat.memory.ChatMemory;
 import org.springframework.ai.converter.BeanOutputConverter;
+import org.springframework.ai.mcp.SyncMcpToolCallbackProvider;
 import org.springframework.ai.mistralai.MistralAiChatModel;
+import org.springframework.ai.openai.OpenAiChatModel;
 import org.springframework.ai.tool.ToolCallbackProvider;
 import org.springframework.core.Ordered;
 import org.springframework.stereotype.Component;
@@ -81,20 +85,18 @@ public class CoreAgent {
             Help users plan amazing trips with real, accurate information!
             """;
     private final ChatMemory chatMemory;
-    private final MistralAiChatModel mistraModel;
-    private final ToolCallbackProvider toolCallbackProvider;
+    private final OpenAiChatModel mistraModel;
     private final ChatClient chatClient;
 
     public CoreAgent(
-            ToolCallbackProvider toolCallbackProvider,
+            List<McpSyncClient> mcpClients,
             JpaChatMemory chatMemory,
             InputValidationGuard inputValidationGuard,
             ScopeGuard scopeGuard,
-            MistralAiChatModel mistraModel
+            OpenAiChatModel mistraModel
     ) {
 
         this.chatMemory = chatMemory;
-        this.toolCallbackProvider = toolCallbackProvider;
         this.mistraModel = mistraModel;
         // Advisors
 
@@ -108,7 +110,7 @@ public class CoreAgent {
         LoggingAdvisor chatLoggingAdvisor = LoggingAdvisor.forChat();
         this.chatClient = ChatClient.builder(mistraModel)
                 .defaultSystem(SYSTEM_PROMPT)
-                .defaultToolCallbacks(toolCallbackProvider)
+                .defaultToolCallbacks(new SyncMcpToolCallbackProvider(mcpClients))
                 .defaultAdvisors(memoryAdvisor, chatLoggingAdvisor)
                 .build();
 

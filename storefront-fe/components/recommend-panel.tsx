@@ -6,11 +6,10 @@ import { cn } from "@/lib/utils"
 import { Card } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
-import mapboxgl from 'mapbox-gl'
-import 'mapbox-gl/dist/mapbox-gl.css'
 import { aiChatService } from "@/modules/ai/service/ai-chat"
 import { usePreferences } from "@/contexts/preferences-context"
-import { env } from "@/env.mjs"
+import { MapboxMap, type MapLocation } from "@/components/mapbox-map"
+import Image from "next/image"
 
 interface RecommendPanelProps {
   results?: any[]
@@ -37,11 +36,10 @@ export const RecommendPanel = React.forwardRef<RecommendPanelRef, RecommendPanel
   ({ results = [], className, externalLocation, onExternalLocationHandled }, ref) => {
     const { locationInfo } = usePreferences()
     const [activeTab, setActiveTab] = useState<TabMode>("explore")
-    const [mapInstance, setMapInstance] = useState<mapboxgl.Map | null>(null)
     const [selectedLocationIndex, setSelectedLocationIndex] = useState<number>(0)
-    const [markers, setMarkers] = useState<mapboxgl.Marker[]>([])
-    const [externalMarker, setExternalMarker] = useState<mapboxgl.Marker | null>(null)
-    const mapContainerRef = React.useRef<HTMLDivElement>(null)
+    const [mapCenter, setMapCenter] = useState<[number, number]>([108.2022, 16.0544]) // Da Nang default
+    const [mapZoom, setMapZoom] = useState<number>(12)
+    const [externalLocationState, setExternalLocationState] = useState<MapLocation | null>(null)
     
     // Explore tab state
     const [exploreQuery, setExploreQuery] = useState("")
@@ -49,84 +47,134 @@ export const RecommendPanel = React.forwardRef<RecommendPanelRef, RecommendPanel
     const [exploreLoading, setExploreLoading] = useState(false)
     const [exploreMessage, setExploreMessage] = useState("")
 
-  // Extract coordinates from results
-  const extractCoordinates = (): LocationData[] => {
-    const coords: LocationData[] = []
-    
-    results.forEach((result, index) => {
-      // Check for coordinates in metadata
-      if (result.metadata?.coordinates) {
-        const coordStr = result.metadata.coordinates
-        const [lat, lng] = coordStr.split(',').map((s: string) => parseFloat(s.trim()))
-        if (!isNaN(lat) && !isNaN(lng)) {
-          coords.push({
-            lng,
-            lat,
-            title: result.title || 'Location',
-            description: result.subtitle || result.metadata?.location,
-            index
+    // Convert results to MapLocation format
+    const mapLocations = React.useMemo((): MapLocation[] => {
+      if (activeTab === "map" && results.length > 0) {
+        return extractCoordinatesFromResults(results)
+      }
+      
+      if (activeTab === "explore" && exploreResults.length > 0) {
+        return extractCoordinatesFromExplore(exploreResults)
+      }
+      
+      return []
+    }, [activeTab, results, exploreResults])
+
+    // Handle external location from prop
+    const externalLocationFromProp = React.useMemo(() => {
+      if (externalLocation) {
+        return {
+          id: `external-${Date.now()}`,
+          name: externalLocation.title,
+          latitude: externalLocation.lat,
+          longitude: externalLocation.lng,
+          description: externalLocation.description || '',
+          type: 'custom' as const
+        }
+      }
+      return null
+    }, [externalLocation])
+
+    // Add external location to map locations
+    const allLocations = React.useMemo(() => {
+      const locations = [...mapLocations]
+      if (externalLocationFromProp) {
+        locations.push(externalLocationFromProp)
+      }
+      if (externalLocationState) {
+        locations.push(externalLocationState)
+      }
+      return locations
+    }, [mapLocations, externalLocationFromProp, externalLocationState])
+
+    // Helper functions to extract coordinates
+    function extractCoordinatesFromResults(results: any[]): MapLocation[] {
+      const locations: MapLocation[] = []
+      let idCounter = 0
+      
+      results.forEach((result, index) => {
+        if (result.hotels?.length > 0) {
+          result.hotels.forEach((hotel: any) => {
+            if (hotel.latitude && hotel.longitude) {
+              locations.push({
+                id: `hotel-${hotel.id || idCounter++}`,
+                name: hotel.name,
+                latitude: parseFloat(hotel.latitude),
+                longitude: parseFloat(hotel.longitude),
+                description: hotel.address,
+                type: 'hotel'
+              })
+            }
           })
         }
-      }
-      
-      // Check for direct lat/lng fields
-      else if (result.latitude && result.longitude) {
-        coords.push({
-          lng: parseFloat(result.longitude),
-          lat: parseFloat(result.latitude),
-          title: result.title || 'Location',
-          description: result.subtitle || result.description,
-          index
-        })
-      }
-      
-      // Check for location string that might contain coordinates
-      else if (result.metadata?.location) {
-        const locationStr = result.metadata.location
-        // Try to extract coordinates from location string
-        const coordMatch = locationStr.match(/(-?\d+\.?\d*),\s*(-?\d+\.?\d*)/)
-        if (coordMatch) {
-          const lat = parseFloat(coordMatch[1])
-          const lng = parseFloat(coordMatch[2])
-          if (!isNaN(lat) && !isNaN(lng)) {
-            coords.push({
-              lng,
-              lat,
-              title: result.title || 'Location',
-              description: result.subtitle || locationStr,
-              index
-            })
-          }
+        
+        if (result.flights?.length > 0) {
+          result.flights.forEach((flight: any) => {
+            if (flight.departureAirport?.latitude && flight.departureAirport?.longitude) {
+              locations.push({
+                id: `dep-${flight.departureAirport.id || idCounter++}`,
+                name: flight.departureAirport.name,
+                latitude: parseFloat(flight.departureAirport.latitude),
+                longitude: parseFloat(flight.departureAirport.longitude),
+                description: `${flight.departureAirport.code} - Departure`,
+                type: 'airport'
+              })
+            }
+            
+            if (flight.arrivalAirport?.latitude && flight.arrivalAirport?.longitude) {
+              locations.push({
+                id: `arr-${flight.arrivalAirport.id || idCounter++}`,
+                name: flight.arrivalAirport.name,
+                latitude: parseFloat(flight.arrivalAirport.latitude),
+                longitude: parseFloat(flight.arrivalAirport.longitude),
+                description: `${flight.arrivalAirport.code} - Arrival`,
+                type: 'airport'
+              })
+            }
+          })
         }
-      }
-    })
-    
-    return coords
-  }
+      })
+      
+      return locations
+    }
+
+    function extractCoordinatesFromExplore(exploreData: any[]): MapLocation[] {
+      const locations: MapLocation[] = []
+      let idCounter = 0
+      
+      exploreData.forEach((item) => {
+        if (item.destinations?.length > 0) {
+          item.destinations.forEach((dest: any) => {
+            if (dest.coordinates?.latitude && dest.coordinates?.longitude) {
+              locations.push({
+                id: `explore-${dest.id || idCounter++}`,
+                name: dest.name,
+                latitude: dest.coordinates.latitude,
+                longitude: dest.coordinates.longitude,
+                description: dest.metadata?.highlights?.[0] || dest.description,
+                type: 'destination'
+              })
+            }
+          })
+        }
+      })
+      
+      return locations
+    }
 
   // Handle card click to navigate to location on map
   const handleCardClick = (index: number) => {
-    const locations = extractCoordinates()
-    const location = locations.find(loc => loc.index === index)
+    const location = allLocations[index]
     
-    if (location && mapInstance) {
+    if (location) {
       // Switch to map tab if not already there
       if (activeTab !== 'map') {
         setActiveTab('map')
       }
       
       setSelectedLocationIndex(index)
-      
-      // Fly to the location
-      mapInstance.flyTo({
-        center: [location.lng, location.lat],
-        zoom: 15,
-        duration: 1500,
-        essential: true
-      })
-      
-      // Update markers to highlight selected one
-      updateMarkers(locations, index)
+      setMapCenter([location.longitude, location.latitude])
+      setMapZoom(15)
     }
   }
 
@@ -234,310 +282,55 @@ export const RecommendPanel = React.forwardRef<RecommendPanelRef, RecommendPanel
     if (location?.metadata?.latitude && location?.metadata?.longitude) {
       setActiveTab('map')
       setSelectedLocationIndex(index)
-      
-      if (mapInstance) {
-        mapInstance.flyTo({
-          center: [location.metadata.longitude, location.metadata.latitude],
-          zoom: 15,
-          duration: 1500,
-          essential: true
-        })
-        
-        // Update markers for explore results
-        const exploreLocations: LocationData[] = exploreResults.map((r, i) => ({
-          lng: r.metadata?.longitude || 0,
-          lat: r.metadata?.latitude || 0,
-          title: r.title || '',
-          description: r.subtitle || '',
-          index: i
-        })).filter(l => l.lat !== 0 && l.lng !== 0)
-        
-        updateMarkers(exploreLocations, index)
-      }
+      setMapCenter([location.metadata.longitude, location.metadata.latitude])
+      setMapZoom(15)
     }
-  }
-
-  // Update markers with selection state
-  const updateMarkers = (locations: LocationData[], selectedIndex: number) => {
-    // Clear existing markers
-    markers.forEach(marker => marker.remove())
-    
-    if (!mapInstance) return
-    
-    const newMarkers: mapboxgl.Marker[] = []
-    
-    locations.forEach((coord) => {
-      const isSelected = coord.index === selectedIndex
-      
-      // Create popup
-      const popup = new mapboxgl.Popup({ offset: 25 }).setHTML(`
-        <div class="p-2">
-          <h3 class="font-semibold text-sm mb-1">${coord.title}</h3>
-          ${coord.description ? `<p class="text-xs text-gray-600">${coord.description}</p>` : ''}
-        </div>
-      `)
-
-      // Create marker with different styling for selected/unselected
-      const markerElement = document.createElement('div')
-      markerElement.className = 'custom-marker'
-      markerElement.style.width = isSelected ? '40px' : '30px'
-      markerElement.style.height = isSelected ? '40px' : '30px'
-      markerElement.style.backgroundImage = 'url(https://docs.mapbox.com/mapbox-gl-js/assets/custom_marker.png)'
-      markerElement.style.backgroundSize = '100%'
-      markerElement.style.cursor = 'pointer'
-      markerElement.style.borderRadius = '50%'
-      markerElement.style.border = isSelected ? '3px solid #3B82F6' : '2px solid #64748B'
-      markerElement.style.backgroundColor = isSelected ? '#3B82F6' : '#E2E8F0'
-      markerElement.style.transition = 'all 0.3s ease'
-      
-      const marker = new mapboxgl.Marker({ 
-        element: markerElement,
-        anchor: 'center'
-      })
-        .setLngLat([coord.lng, coord.lat])
-        .setPopup(popup)
-        .addTo(mapInstance)
-      
-      // Add click handler to marker
-      markerElement.addEventListener('click', () => {
-        setSelectedLocationIndex(coord.index)
-        updateMarkers(locations, coord.index)
-        
-        // Open popup automatically
-        popup.addTo(mapInstance)
-      })
-      
-      // Auto-open popup for selected marker
-      if (isSelected) {
-        popup.addTo(mapInstance)
-      }
-      
-      newMarkers.push(marker)
-    })
-    
-    setMarkers(newMarkers)
   }
 
   // Expose imperative handle for parent components
   React.useImperativeHandle(ref, () => ({
     showLocationOnMap: (location: { lat: number; lng: number; title: string; description?: string }) => {
+      console.log('🗺️ showLocationOnMap called with:', location)
+      
       // Switch to map tab
       setActiveTab('map')
+      setMapCenter([location.lng, location.lat])
+      setMapZoom(15)
       
-      // Wait for map to be ready
-      setTimeout(() => {
-        if (mapInstance) {
-          // Clear external marker if exists
-          if (externalMarker) {
-            externalMarker.remove()
-          }
-          
-          // Fly to location
-          mapInstance.flyTo({
-            center: [location.lng, location.lat],
-            zoom: 15,
-            duration: 1500,
-            essential: true
-          })
-          
-          // Create popup
-          const popup = new mapboxgl.Popup({ offset: 25 }).setHTML(`
-            <div class="p-2">
-              <h3 class="font-semibold text-sm mb-1">${location.title}</h3>
-              ${location.description ? `<p class="text-xs text-gray-600">${location.description}</p>` : ''}
-            </div>
-          `)
-          
-          // Create marker element
-          const markerElement = document.createElement('div')
-          markerElement.className = 'external-marker'
-          markerElement.style.width = '45px'
-          markerElement.style.height = '45px'
-          markerElement.style.backgroundImage = 'url(https://docs.mapbox.com/mapbox-gl-js/assets/custom_marker.png)'
-          markerElement.style.backgroundSize = '100%'
-          markerElement.style.cursor = 'pointer'
-          markerElement.style.borderRadius = '50%'
-          markerElement.style.border = '4px solid #EF4444'
-          markerElement.style.backgroundColor = '#EF4444'
-          markerElement.style.boxShadow = '0 4px 6px rgba(0, 0, 0, 0.1)'
-          markerElement.style.animation = 'pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite'
-          
-          // Create and add marker
-          const marker = new mapboxgl.Marker({
-            element: markerElement,
-            anchor: 'center'
-          })
-            .setLngLat([location.lng, location.lat])
-            .setPopup(popup)
-            .addTo(mapInstance)
-          
-          // Auto-open popup
-          popup.addTo(mapInstance)
-          
-          setExternalMarker(marker)
-        }
-      }, 100)
+      // Set external location state
+      setExternalLocationState({
+        id: `external-${Date.now()}`,
+        name: location.title,
+        latitude: location.lat,
+        longitude: location.lng,
+        description: location.description || '',
+        type: 'custom'
+      })
     }
   }))
 
   // Handle external location prop changes
   useEffect(() => {
-    if (externalLocation && mapInstance) {
-      // Clear external marker if exists
-      if (externalMarker) {
-        externalMarker.remove()
-      }
-      
+    if (externalLocation) {
       // Switch to map tab
       setActiveTab('map')
+      setMapCenter([externalLocation.lng, externalLocation.lat])
+      setMapZoom(15)
       
-      // Fly to location
-      mapInstance.flyTo({
-        center: [externalLocation.lng, externalLocation.lat],
-        zoom: 15,
-        duration: 1500,
-        essential: true
+      // Set external location state for map
+      setExternalLocationState({
+        id: `external-${Date.now()}`,
+        name: externalLocation.title,
+        latitude: externalLocation.lat,
+        longitude: externalLocation.lng,
+        description: externalLocation.description || '',
+        type: 'custom'
       })
-      
-      // Create popup
-      const popup = new mapboxgl.Popup({ offset: 25 }).setHTML(`
-        <div class="p-2">
-          <h3 class="font-semibold text-sm mb-1">${externalLocation.title}</h3>
-          ${externalLocation.description ? `<p class="text-xs text-gray-600">${externalLocation.description}</p>` : ''}
-        </div>
-      `)
-      
-      // Create marker element with red styling
-      const markerElement = document.createElement('div')
-      markerElement.className = 'external-marker'
-      markerElement.style.width = '45px'
-      markerElement.style.height = '45px'
-      markerElement.style.backgroundImage = 'url(https://docs.mapbox.com/mapbox-gl-js/assets/custom_marker.png)'
-      markerElement.style.backgroundSize = '100%'
-      markerElement.style.cursor = 'pointer'
-      markerElement.style.borderRadius = '50%'
-      markerElement.style.border = '4px solid #EF4444'
-      markerElement.style.backgroundColor = '#EF4444'
-      markerElement.style.boxShadow = '0 4px 6px rgba(0, 0, 0, 0.1)'
-      
-      // Create and add marker
-      const marker = new mapboxgl.Marker({
-        element: markerElement,
-        anchor: 'center'
-      })
-        .setLngLat([externalLocation.lng, externalLocation.lat])
-        .setPopup(popup)
-        .addTo(mapInstance)
-      
-      // Auto-open popup
-      popup.addTo(mapInstance)
-      
-      setExternalMarker(marker)
       
       // Notify parent that location has been handled
       onExternalLocationHandled?.()
     }
-  }, [externalLocation, mapInstance])
-
-  // Initialize Mapbox
-  useEffect(() => {
-    if (activeTab !== "map" || !mapContainerRef.current) return
-    if (mapInstance) return // Don't re-initialize if map already exists
-
-    // Get API key from environment variables
-    const apiKey = env.NEXT_PUBLIC_MAPBOX_ACCESS_TOKEN
-    if (!apiKey) {
-      console.error('❌ Mapbox API key not found. Please set NEXT_PUBLIC_MAPBOX_ACCESS_TOKEN in your environment variables.')
-      return
-    }
-
-    console.log('🗺️ Initializing Mapbox with token:', apiKey.substring(0, 10) + '...')
-    mapboxgl.accessToken = apiKey
-
-    const coordinates = extractCoordinates()
-    
-    // Default center (Da Nang, Vietnam)
-    const defaultCenter: [number, number] = [108.2022, 16.0544]
-    const center = coordinates.length > 0 
-      ? [coordinates[selectedLocationIndex]?.lng || coordinates[0].lng, coordinates[selectedLocationIndex]?.lat || coordinates[0].lat] as [number, number]
-      : defaultCenter
-
-    console.log('🗺️ Creating map with center:', center, 'coordinates:', coordinates.length)
-
-    const map = new mapboxgl.Map({
-      container: mapContainerRef.current,
-      style: 'mapbox://styles/mapbox/streets-v12',
-      center: center,
-      zoom: coordinates.length > 0 ? 15 : 11
-    })
-
-    // Add navigation controls
-    map.addControl(new mapboxgl.NavigationControl(), 'top-right')
-
-    map.on('load', () => {
-      console.log('✅ Mapbox loaded successfully')
-      setMapInstance(map)
-      
-      // Initial marker setup
-      if (coordinates.length > 0) {
-        updateMarkers(coordinates, selectedLocationIndex)
-      }
-    })
-
-    map.on('error', (e) => {
-      console.error('❌ Mapbox error:', e)
-    })
-
-    return () => {
-      console.log('🗺️ Cleaning up map instance')
-      markers.forEach(marker => marker.remove())
-      setMarkers([])
-      if (map) {
-        map.remove()
-      }
-      setMapInstance(null)
-    }
-  }, [activeTab])
-  
-  // Update markers when results change
-  useEffect(() => {
-    if (mapInstance && activeTab === 'map') {
-      const coordinates = extractCoordinates()
-      console.log('🗺️ Updating markers for', coordinates.length, 'locations')
-      
-      if (coordinates.length > 0) {
-        updateMarkers(coordinates, selectedLocationIndex)
-        
-        // Fit bounds if multiple locations
-        if (coordinates.length > 1) {
-          const bounds = new mapboxgl.LngLatBounds()
-          coordinates.forEach(coord => {
-            bounds.extend([coord.lng, coord.lat])
-          })
-          mapInstance.fitBounds(bounds, { padding: 50, duration: 1000 })
-        }
-      }
-    }
-  }, [results, exploreResults, mapInstance, activeTab])
-
-  // Update selected location when it changes
-  useEffect(() => {
-    if (mapInstance && activeTab === 'map') {
-      const coordinates = extractCoordinates()
-      const selectedLocation = coordinates.find(loc => loc.index === selectedLocationIndex)
-      
-      if (selectedLocation) {
-        mapInstance.flyTo({
-          center: [selectedLocation.lng, selectedLocation.lat],
-          zoom: 15,
-          duration: 1000,
-          essential: true
-        })
-        
-        updateMarkers(coordinates, selectedLocationIndex)
-      }
-    }
-  }, [selectedLocationIndex, mapInstance, activeTab])
+  }, [externalLocation, onExternalLocationHandled])
 
   const tabs = [
     { id: "explore" as const, label: "Khám phá", icon: Compass },
@@ -651,27 +444,42 @@ export const RecommendPanel = React.forwardRef<RecommendPanelRef, RecommendPanel
                   
                   {exploreResults.map((result, index) => {
                     const hasLocation = !!(result.metadata?.latitude && result.metadata?.longitude)
+                    const hasImage = !!result.metadata?.imageUrl
                     
                     return (
                       <Card 
                         key={index} 
                         className={cn(
-                          "p-4 transition-all duration-200",
+                          "overflow-hidden transition-all duration-200",
                           hasLocation && "cursor-pointer hover:shadow-md hover:border-blue-300"
                         )}
                         onClick={() => hasLocation && handleExploreCardClick(index)}
                       >
-                        <div className="flex items-start gap-3">
-                          <div className="flex-1">
-                            <div className="flex items-start justify-between mb-2">
-                              <h3 className="font-semibold text-sm text-gray-900">{result.title}</h3>
-                              {hasLocation && (
-                                <MapPin className="h-4 w-4 text-blue-600 shrink-0 ml-2" />
+                        {hasImage && (
+                          <div className="w-full h-40 overflow-hidden">
+                            <Image 
+                              src={result.metadata.imageUrl} 
+                              alt={result.title}
+                              className="w-full h-full object-cover hover:scale-105 transition-transform duration-300"
+                              onError={(e) => {
+                                // Hide image if it fails to load
+                                e.currentTarget.style.display = 'none'
+                              }}
+                            />
+                          </div>
+                        )}
+                        <div className="p-4">
+                          <div className="flex items-start gap-3">
+                            <div className="flex-1">
+                              <div className="flex items-start justify-between mb-2">
+                                <h3 className="font-semibold text-base text-gray-900">{result.title}</h3>
+                                {hasLocation && (
+                                  <MapPin className="h-4 w-4 text-blue-600 shrink-0 ml-2" />
+                                )}
+                              </div>
+                              {result.subtitle && (
+                                <p className="text-sm text-gray-600 mb-2">{result.subtitle}</p>
                               )}
-                            </div>
-                            {result.subtitle && (
-                              <p className="text-xs text-gray-600 mb-2">{result.subtitle}</p>
-                            )}
                             {result.metadata?.highlights && Array.isArray(result.metadata.highlights) && (
                               <div className="flex flex-wrap gap-1 mt-2">
                                 {result.metadata.highlights.map((highlight: string, i: number) => (
@@ -692,6 +500,7 @@ export const RecommendPanel = React.forwardRef<RecommendPanelRef, RecommendPanel
                                 💰 Chi phí ước tính: {result.metadata.estimated_cost}
                               </p>
                             )}
+                            </div>
                           </div>
                         </div>
                       </Card>
@@ -738,7 +547,7 @@ export const RecommendPanel = React.forwardRef<RecommendPanelRef, RecommendPanel
                     >
                       <div className="flex items-start gap-3">
                         {result.imageUrl && (
-                          <img
+                          <Image
                             src={result.imageUrl}
                             alt={result.title}
                             className="w-20 h-20 rounded-lg object-cover shrink-0"
@@ -786,18 +595,27 @@ export const RecommendPanel = React.forwardRef<RecommendPanelRef, RecommendPanel
 
         {activeTab === "map" && (
           <div className="h-full w-full relative">
-            {extractCoordinates().length === 0 ? (
-              <div className="flex items-center justify-center h-full text-gray-500 bg-gray-50">
-                <div className="text-center p-4">
-                  <MapIcon className="h-12 w-12 mx-auto mb-3 text-gray-400" />
-                  <p className="text-sm font-medium">Không có vị trí để hiển thị</p>
-                  <p className="text-xs text-gray-400 mt-1">
-                    Kết quả không chứa thông tin tọa độ
-                  </p>
+            {/* MapboxMap component */}
+            <MapboxMap
+              className="h-full w-full"
+              locations={allLocations}
+              center={mapCenter}
+              zoom={mapZoom}
+              showControls={true}
+              height="100%"
+              onLocationClick={(location) => {
+                console.log('Map location clicked:', location)
+              }}
+            />
+            
+            {/* Show overlay message if no coordinates */}
+            {allLocations.length === 0 && (
+              <div className="absolute top-4 left-1/2 transform -translate-x-1/2 bg-white shadow-lg rounded-lg p-3 border border-gray-200 z-10">
+                <div className="flex items-center gap-2 text-sm text-gray-600">
+                  <MapIcon className="h-4 w-4 text-gray-400" />
+                  <span>Không có địa điểm để đánh dấu. Bản đồ hiển thị vị trí mặc định.</span>
                 </div>
               </div>
-            ) : (
-              <div ref={mapContainerRef} className="h-full w-full" />
             )}
           </div>
         )}

@@ -33,22 +33,16 @@ export default function RootLayout({
                 <div className="flex h-full bg-background">
                   <Suspense
                     fallback={
-                      <div className="w-24 flex items-center justify-center border-r border-border text-xs text-muted-foreground">
+                      <nav className="w-16 md:w-[10%] flex items-center justify-center border-r border-border text-xs text-muted-foreground">
                         Loading…
-                      </div>
+                      </nav>
                     }
                   >
                     <Sidebar />
                   </Suspense>
-                  <main className="flex-1 flex flex-col relative overflow-y-auto bg-background">
-                    <Suspense fallback={
-                      <div className="flex items-center justify-center h-full">
-                        <div className="text-sm text-muted-foreground">Loading...</div>
-                      </div>
-                    }>
-                      {children}
-                    </Suspense>
-                  </main>
+                  <div className="flex flex-1 h-full">
+                    {children}
+                  </div>
                 </div>
               </BookingProvider>
             </PreferencesProvider>

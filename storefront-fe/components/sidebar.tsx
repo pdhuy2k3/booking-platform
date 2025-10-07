@@ -8,7 +8,7 @@ import { MessageCircle, Search, Info, LogOut, UserRound, User, BarChart3, Histor
 import Image from "next/image"
 import { useAuth } from "@/contexts/auth-context"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
-import { ThemeToggle } from "@/components/theme-toggle"
+import { ThemeToggle, SimpleThemeToggle } from "@/components/theme-toggle"
 
 export function Sidebar() {
   const router = useRouter()
@@ -62,10 +62,11 @@ export function Sidebar() {
   ]
 
   return (
-    <aside
+    <nav
       className={cn(
         "shrink-0 border-r border-border bg-background flex h-full flex-col py-4 gap-2 transition-all duration-200",
-        isExpanded ? "w-56 px-3" : "w-24 items-center"
+        "w-16 md:w-[10%] min-w-[64px] md:min-w-[80px]",
+        isExpanded ? "px-3" : "items-center px-2"
       )}
     >
       <div className={cn("w-full", isExpanded ? "flex items-center justify-between" : "flex items-center justify-center")}
@@ -237,7 +238,7 @@ export function Sidebar() {
 
         <div className={cn("flex", isExpanded ? "justify-start" : "justify-center")}
         >
-          <ThemeToggle variant="simple" />
+          <SimpleThemeToggle />
         </div>
 
         <div className={cn("flex", isExpanded ? "justify-start" : "justify-center")}
@@ -261,6 +262,6 @@ export function Sidebar() {
           </button>
         )}
       </div>
-    </aside>
+    </nav>
   )
 }

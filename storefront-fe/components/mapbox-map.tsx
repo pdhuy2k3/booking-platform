@@ -42,7 +42,7 @@ export function MapboxMap({
   onLocationClick,
   onMapLoad,
   interactive = true,
-  height = "400px"
+  height = "100vh"
 }: MapboxMapProps) {
   const mapContainer = useRef<HTMLDivElement>(null);
   const map = useRef<mapboxgl.Map | null>(null);
@@ -233,7 +233,7 @@ export function MapboxMap({
   };
 
   return (
-    <div className={cn("relative w-full", className)} style={{ height }}>
+    <div className={cn("relative w-full h-full", className)} style={{ height }}>
       <div ref={mapContainer} className="w-full h-full" />
       
       {/* Custom CSS for markers */}

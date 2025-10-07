@@ -316,6 +316,7 @@ services:
       - GEMINI_API_KEY
       - OWM_API_KEY
       - MAPBOX_ACCESS_TOKEN
+      - BRAVE_API_KEY
       - MISTRAL_API_KEY
     volumes:
       # Docker socket for running MCP server on containers

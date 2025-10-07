@@ -54,9 +54,9 @@ public class ExploreController {
      */
     @GetMapping(value = "/trending", produces = MediaType.APPLICATION_JSON_VALUE)
     public ResponseEntity<ExploreResponse> getTrending(
-            @RequestParam(required = false) String userCountry) {
+            @RequestParam(required = true) String userCountry) {
         try {
-            String trendingQuery = "What are the top 6 trending travel destinations right now? Include mix of beach, city, and nature destinations.";
+            String trendingQuery = "Giúp tôi liệt kê 6 điểm đến du lịch đang thịnh hành hiện nay tại" + userCountry+". Bao gồm các điểm đến biển về thành phố, nhà hàng, bảo tàng";
             ExploreResponse result = exploreAgent.exploreSyncStructured(trendingQuery, userCountry).block();
             return ResponseEntity.ok(result);
         } catch (Exception e) {

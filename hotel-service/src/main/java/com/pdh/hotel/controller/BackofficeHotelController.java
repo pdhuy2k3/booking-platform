@@ -1,6 +1,5 @@
 package com.pdh.hotel.controller;
 
-import com.pdh.hotel.client.MediaServiceClient;
 import com.pdh.hotel.dto.request.HotelRequestDto;
 import com.pdh.hotel.service.BackofficeHotelService;
 import lombok.RequiredArgsConstructor;
@@ -20,7 +19,7 @@ import java.util.Map;
 public class BackofficeHotelController {
 
     private final BackofficeHotelService backofficeHotelService;
-    private final MediaServiceClient mediaServiceClient;
+
 
     /**
      * Get all hotels with pagination and filtering for backoffice

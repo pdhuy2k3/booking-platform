@@ -32,7 +32,7 @@ public class StructuredResultItem {
     private String description;
     
     @JsonProperty(required = false, value = "imageUrl")
-    @JsonPropertyDescription("Optional URL to an image representing this result")
+    @JsonPropertyDescription("Optional URL to an image representing this result, example: hotel photo, airline logo, destination image or result from mapbox static_map_image_tool")
     private String imageUrl;
     
     @JsonProperty(required = true, value = "ids")
