@@ -28,10 +28,11 @@ interface ChatInterfaceProps {
   conversationId?: string | null
   onFlightBook?: (flight: any) => void
   onHotelBook?: (hotel: any, room: any) => void
+  onLocationClick?: (location: { lat: number; lng: number; title: string; description?: string }) => void
 }
 
 export const ChatInterface = forwardRef<any, ChatInterfaceProps>(function ChatInterface(
-  { onSearchResults, onStartBooking, onChatStart, onItemSelect, conversationId, onFlightBook, onHotelBook },
+  { onSearchResults, onStartBooking, onChatStart, onItemSelect, conversationId, onFlightBook, onHotelBook, onLocationClick },
   ref,
 ) {
   const [input, setInput] = useState("")
@@ -70,6 +71,7 @@ export const ChatInterface = forwardRef<any, ChatInterfaceProps>(function ChatIn
     transcription: voiceTranscription,
     response: voiceResponse,
     results: voiceResults,
+    suggestions: voiceSuggestions,
     error: voiceError,
     connect: connectVoice,
     disconnect: disconnectVoice,
@@ -129,6 +131,27 @@ export const ChatInterface = forwardRef<any, ChatInterfaceProps>(function ChatIn
   useEffect(() => {
     scrollToBottom()
   }, [messages])
+
+  // Get current suggestions from last message, voice chat, or default
+  const currentSuggestions = React.useMemo(() => {
+    // Priority 1: Voice suggestions (if in voice mode)
+    if (isVoiceMode && voiceSuggestions && voiceSuggestions.length > 0) {
+      console.log('💡 Using voice suggestions:', voiceSuggestions);
+      return voiceSuggestions;
+    }
+    
+    // Priority 2: Last assistant message suggestions
+    const lastAssistantMessage = [...messages].reverse().find(m => !m.isUser);
+    console.log('💡 Last assistant message:', lastAssistantMessage);
+    if (lastAssistantMessage?.suggestions && lastAssistantMessage.suggestions.length > 0) {
+      console.log('💡 Using message suggestions:', lastAssistantMessage.suggestions);
+      return lastAssistantMessage.suggestions;
+    }
+    
+    // Priority 3: Default suggestions
+    console.log('💡 Using default suggestions:', suggestions);
+    return suggestions;
+  }, [isVoiceMode, voiceSuggestions, messages, suggestions]);
 
   useEffect(() => {
     // Load suggestions on component mount
@@ -294,6 +317,7 @@ export const ChatInterface = forwardRef<any, ChatInterfaceProps>(function ChatIn
                   results={voiceResults || []}
                   onFlightBook={onFlightBook}
                   onHotelBook={onHotelBook}
+                  onLocationClick={onLocationClick}
                   canBook={true}
                 />
               </div>
@@ -304,10 +328,11 @@ export const ChatInterface = forwardRef<any, ChatInterfaceProps>(function ChatIn
         {messages.map((message) => {
           const formattedTimestamp = formatMessageTimestamp(message.timestamp)
           const isUserMessage = message.isUser
+          const messageSuggestions = Array.isArray(message.suggestions) ? message.suggestions : []
 
           return (
             <div key={message.id} className={`flex ${isUserMessage ? "justify-end" : "justify-start"}`}>
-              <div className={cn("space-y-2", isUserMessage ? "max-w-[80%]" : "w-full max-w-full") }>
+              <div className={cn("space-y-2", isUserMessage ? "max-w-[80%]" : "w-full max-w-full")}>
                 {isUserMessage ? (
                   <div className="bg-blue-600 text-white rounded-2xl px-4 py-2">
                     <p className="text-sm whitespace-pre-wrap">{message.content}</p>
@@ -324,10 +349,12 @@ export const ChatInterface = forwardRef<any, ChatInterfaceProps>(function ChatIn
                       results={message.results || []}
                       onFlightBook={onFlightBook}
                       onHotelBook={onHotelBook}
+                      onLocationClick={onLocationClick}
                       canBook={true}
                     />
+
                     {formattedTimestamp && (
-                      <div className="mt-2 text-xs text-gray-500 text-left">
+                      <div className="mt-3 text-xs text-gray-500 text-left">
                         {formattedTimestamp}
                       </div>
                     )}
@@ -337,27 +364,6 @@ export const ChatInterface = forwardRef<any, ChatInterfaceProps>(function ChatIn
             </div>
           )
         })}
-
-        {/* Suggestions (show when messages are minimal) */}
-        {messages.length <= 2 && suggestions.length > 0 && (
-          <div className="space-y-2">
-            <div className="text-sm text-gray-500 font-medium">Gợi ý:</div>
-            <div className="flex flex-wrap gap-2">
-              {suggestions.map((suggestion, index) => (
-                <Button
-                  key={index}
-                  variant="outline"
-                  size="sm"
-                  className="text-xs h-8 rounded-full"
-                  onClick={() => handleSuggestionClick(suggestion)}
-                  disabled={isLoading}
-                >
-                  {suggestion}
-                </Button>
-              ))}
-            </div>
-          </div>
-        )}
 
         {isLoading && (
           <div className="flex justify-start">
@@ -426,30 +432,53 @@ export const ChatInterface = forwardRef<any, ChatInterfaceProps>(function ChatIn
           </div>
         )}
 
-        {/* Chat Mode Toggle */}
-        <div className="flex items-center justify-between px-4 py-2 bg-gray-50 rounded-lg border mb-4">
-          <span className="text-sm font-medium text-gray-700">Chế độ chat:</span>
-          <div className="flex items-center gap-2">
-            <Button
-              type="button"
-              variant={mode === 'sync' ? 'default' : 'ghost'}
-              size="sm"
-              onClick={() => setMode('sync')}
-              className="text-xs"
-            >
-              Đồng bộ
-            </Button>
-            <Button
-              type="button"
-              variant={mode === 'stream' ? 'default' : 'ghost'}
-              size="sm"
-              onClick={() => setMode('stream')}
-              className="text-xs"
-            >
-              Streaming
-            </Button>
+        {/* Chat Mode Toggle - Temporarily Hidden */}
+        {false && (
+          <div className="flex items-center justify-between px-4 py-2 bg-gray-50 rounded-lg border mb-4">
+            <span className="text-sm font-medium text-gray-700">Chế độ chat:</span>
+            <div className="flex items-center gap-2">
+              <Button
+                type="button"
+                variant={mode === 'sync' ? 'default' : 'ghost'}
+                size="sm"
+                onClick={() => setMode('sync')}
+                className="text-xs"
+              >
+                Đồng bộ
+              </Button>
+              <Button
+                type="button"
+                variant={mode === 'stream' ? 'default' : 'ghost'}
+                size="sm"
+                onClick={() => setMode('stream')}
+                className="text-xs"
+              >
+                Streaming
+              </Button>
+            </div>
           </div>
-        </div>
+        )}
+
+        {/* Suggestions */}
+        {currentSuggestions.length > 0 && (
+          <div className="mb-3 px-4 py-2 bg-gray-50 rounded-lg border">
+            <div className="text-xs text-gray-500 font-medium mb-2">Gợi ý:</div>
+            <div className="flex flex-wrap gap-2">
+              {currentSuggestions.map((suggestion, index) => (
+                <Button
+                  key={`suggestion-${index}`}
+                  variant="outline"
+                  size="sm"
+                  className="text-xs h-7 rounded-full hover:bg-blue-50 hover:border-blue-300"
+                  onClick={() => handleSuggestionClick(suggestion)}
+                  disabled={isLoading || isRecording || voiceProcessing}
+                >
+                  {suggestion}
+                </Button>
+              ))}
+            </div>
+          </div>
+        )}
 
         <form onSubmit={handleSubmit} className="flex items-center gap-3">
           <Button

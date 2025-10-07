@@ -23,6 +23,7 @@ export interface UseVoiceChatReturn {
   transcription: string | null;
   response: string | null;
   results: any[] | null;
+  suggestions: string[];
   error: string | null;
   processingTime: number | null;
   
@@ -54,6 +55,7 @@ export function useVoiceChat(options: UseVoiceChatOptions): UseVoiceChatReturn {
   const [transcription, setTranscription] = useState<string | null>(null);
   const [response, setResponse] = useState<string | null>(null);
   const [results, setResults] = useState<any[] | null>(null);
+  const [suggestions, setSuggestions] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [processingTime, setProcessingTime] = useState<number | null>(null);
   const [clientUserId, setClientUserId] = useState<string | null>(userId?.trim() || null);
@@ -99,10 +101,22 @@ export function useVoiceChat(options: UseVoiceChatOptions): UseVoiceChatReturn {
           setResponse(message.aiResponse);
           console.log('💬 AI Response:', message.aiResponse.substring(0, 50) + '...');
         }
-        
+
         if (message.results) {
           setResults(message.results);
           console.log('📊 Results:', message.results.length, 'items');
+        }
+
+        // Handle suggestions from multiple possible field names
+        const rawSuggestions = message.nextRequestSuggestions ?? message.next_request_suggestions ?? [];
+        if (rawSuggestions && rawSuggestions.length > 0) {
+          const suggestionList = rawSuggestions
+            .map((item) => (typeof item === 'string' ? item.trim() : String(item ?? '').trim()))
+            .filter((item): item is string => item.length > 0);
+          setSuggestions(suggestionList);
+          console.log('💡 Suggestions:', suggestionList);
+        } else {
+          setSuggestions([]);
         }
         
         if (message.processingTimeMs) {
@@ -125,6 +139,7 @@ export function useVoiceChat(options: UseVoiceChatOptions): UseVoiceChatReturn {
         setError(errorMsg);
         console.error('❌ Voice chat error:', errorMsg);
         onError?.(errorMsg);
+        setSuggestions([]);
         break;
 
       default:
@@ -146,15 +161,14 @@ export function useVoiceChat(options: UseVoiceChatOptions): UseVoiceChatReturn {
     setClientUserId(resolvedUserId);
 
     if (aiChatService.isWebSocketConnected()) {
-      console.log('✅ Already connected');
-      setIsConnected(true);
-      return;
+      console.log('✅ Reusing existing WebSocket connection for voice chat');
+    } else {
+      console.log('🔌 Connecting WebSocket for user:', resolvedUserId);
     }
-
-    console.log('🔌 Connecting WebSocket for user:', resolvedUserId);
 
     aiChatService.initializeWebSocket(
       resolvedUserId,
+      undefined,
       handleVoiceMessage,
       () => {
         console.log('✅ WebSocket connected successfully');
@@ -209,6 +223,7 @@ export function useVoiceChat(options: UseVoiceChatOptions): UseVoiceChatReturn {
       setTranscription(null);
       setResponse(null);
       setResults(null);
+      setSuggestions([]);
       setError(null);
       setProcessingTime(null);
       setCurrentStage('idle');
@@ -252,6 +267,7 @@ export function useVoiceChat(options: UseVoiceChatOptions): UseVoiceChatReturn {
     setTranscription(null);
     setResponse(null);
     setResults(null);
+    setSuggestions([]);
     setError(null);
     setProcessingTime(null);
     setCurrentStage('idle');
@@ -286,6 +302,7 @@ export function useVoiceChat(options: UseVoiceChatOptions): UseVoiceChatReturn {
     response,
     results,
     error,
+    suggestions,
     processingTime,
     
     // Actions

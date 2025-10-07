@@ -2,7 +2,7 @@
 
 import { useState } from "react"
 import Image from "next/image"
-import { Clock, Plane, ArrowRight } from "lucide-react"
+import { Clock, Plane } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -27,9 +27,14 @@ interface FlightCardProps {
     rating?: number
     scheduleId?: string
     fareId?: string
+    originLatitude?: number
+    originLongitude?: number
+    destinationLatitude?: number
+    destinationLongitude?: number
   }
   onViewDetails?: (flight: any) => void
   onBook?: (flight: any) => void
+  onLocationClick?: (location: { lat: number; lng: number; title: string; description?: string }) => void
   showBookButton?: boolean
   compact?: boolean
   className?: string
@@ -39,6 +44,7 @@ export const FlightCard = ({
   flight,
   onViewDetails,
   onBook,
+  onLocationClick,
   showBookButton = true,
   compact = false,
   className = "",
@@ -86,78 +92,111 @@ export const FlightCard = ({
   return (
     <Card className={`hover:shadow-lg transition-shadow ${className}`}>
       <CardContent className={`${compact ? 'p-4' : 'p-6'}`}>
-        <div className="flex items-start justify-between gap-4">
-          {/* Flight Info */}
-          <div className="flex-1 space-y-3">
-            {/* Airline */}
-            <div className="flex items-center gap-3">
-              {flight.logo && (
-                <div className="relative h-8 w-8 flex-shrink-0">
-                  <Image
-                    src={imageError ? "/airplane-generic.png" : flight.logo}
-                    alt={flight.airline}
-                    width={32}
-                    height={32}
-                    className="rounded object-contain"
-                    onError={() => {
-                      if (!imageError) {
-                        setImageError(true)
-                      }
-                    }}
-                    unoptimized
-                  />
-                </div>
-              )}
-              <div>
-                <p className="font-semibold text-gray-900">{flight.airline}</p>
-                <p className="text-sm text-gray-500">{flight.flightNumber}</p>
+        <div className="space-y-4">
+          {/* Airline */}
+          <div className="flex flex-wrap items-center gap-3">
+            {flight.logo && (
+              <div className="relative h-8 w-8 shrink-0">
+                <Image
+                  src={imageError ? "/airplane-generic.png" : flight.logo}
+                  alt={flight.airline}
+                  width={32}
+                  height={32}
+                  className="rounded object-contain"
+                  onError={() => {
+                    if (!imageError) {
+                      setImageError(true)
+                    }
+                  }}
+                  unoptimized
+                />
               </div>
-              {flight.seatClass && (
-                <Badge variant="secondary" className="ml-2">
-                  {flight.seatClass}
-                </Badge>
-              )}
+            )}
+            <div className="min-w-0">
+              <p className="font-semibold text-gray-900 truncate">{flight.airline}</p>
+              <p className="text-sm text-gray-500 truncate">{flight.flightNumber}</p>
+            </div>
+            {flight.seatClass && (
+              <Badge variant="secondary" className="ml-auto">
+                {flight.seatClass}
+              </Badge>
+            )}
+          </div>
+
+          {/* Route */}
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex-1">
+              <p className="text-2xl font-bold text-gray-900">{departureTimeDisplay}</p>
+              <p 
+                className={`text-sm text-gray-600 ${
+                  flight.originLatitude && flight.originLongitude && onLocationClick
+                    ? 'cursor-pointer hover:text-blue-600 hover:underline'
+                    : ''
+                }`}
+                onClick={() => {
+                  if (flight.originLatitude && flight.originLongitude && onLocationClick) {
+                    onLocationClick({
+                      lat: flight.originLatitude,
+                      lng: flight.originLongitude,
+                      title: flight.origin,
+                      description: `Điểm khởi hành - ${flight.airline} ${flight.flightNumber}`
+                    })
+                  }
+                }}
+              >
+                {flight.origin}
+              </p>
             </div>
 
-            {/* Route */}
-            <div className="flex items-center gap-4">
-              <div className="flex-1">
-                <p className="text-2xl font-bold text-gray-900">{departureTimeDisplay}</p>
-                <p className="text-sm text-gray-600">{flight.origin}</p>
+            <div className="flex flex-col items-center gap-1 px-4 sm:px-6">
+              <div className="flex items-center gap-2 text-gray-400">
+                <div className="h-px w-8 bg-gray-300" />
+                <Plane className="h-4 w-4" />
+                <div className="h-px w-8 bg-gray-300" />
               </div>
-
-              <div className="flex flex-col items-center gap-1 px-4">
-                <div className="flex items-center gap-2 text-gray-400">
-                  <div className="h-px w-8 bg-gray-300" />
-                  <Plane className="h-4 w-4" />
-                  <div className="h-px w-8 bg-gray-300" />
+              {flight.duration && (
+                <div className="flex items-center gap-1 text-xs text-gray-500">
+                  <Clock className="h-3 w-3" />
+                  <span>{flight.duration}</span>
                 </div>
-                {flight.duration && (
-                  <div className="flex items-center gap-1 text-xs text-gray-500">
-                    <Clock className="h-3 w-3" />
-                    <span>{flight.duration}</span>
-                  </div>
-                )}
-                <p className="text-xs text-gray-500">{stopsDisplay}</p>
-              </div>
+              )}
+              <p className="text-xs text-gray-500">{stopsDisplay}</p>
+            </div>
 
-              <div className="flex-1 text-right">
-                <p className="text-2xl font-bold text-gray-900">{arrivalTimeDisplay}</p>
-                <p className="text-sm text-gray-600">{flight.destination}</p>
-              </div>
+            <div className="flex-1 text-right">
+              <p className="text-2xl font-bold text-gray-900">{arrivalTimeDisplay}</p>
+              <p 
+                className={`text-sm text-gray-600 ${
+                  flight.destinationLatitude && flight.destinationLongitude && onLocationClick
+                    ? 'cursor-pointer hover:text-blue-600 hover:underline'
+                    : ''
+                }`}
+                onClick={() => {
+                  if (flight.destinationLatitude && flight.destinationLongitude && onLocationClick) {
+                    onLocationClick({
+                      lat: flight.destinationLatitude,
+                      lng: flight.destinationLongitude,
+                      title: flight.destination,
+                      description: `Điểm đến - ${flight.airline} ${flight.flightNumber}`
+                    })
+                  }
+                }}
+              >
+                {flight.destination}
+              </p>
             </div>
           </div>
 
           {/* Price & Actions */}
-          <div className="flex flex-col items-end gap-3">
-            <div className="text-right">
+          <div className="flex flex-col gap-3 border-t border-gray-100 pt-4 sm:flex-row sm:items-center sm:justify-between">
+            <div className="text-left sm:text-right">
               <p className="text-2xl font-bold text-blue-600">
                 {formatCurrency(flight.price, flight.currency || 'VND')}
               </p>
               <p className="text-sm text-gray-500">/ khách</p>
             </div>
 
-            <div className="flex flex-col gap-2">
+            <div className="flex flex-wrap gap-2">
               {onViewDetails && (
                 <Button
                   variant="outline"

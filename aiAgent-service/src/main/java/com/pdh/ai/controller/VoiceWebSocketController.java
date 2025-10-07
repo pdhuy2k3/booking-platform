@@ -102,24 +102,29 @@ public class VoiceWebSocketController {
         String destination = "/topic/voice." + request.getUserId();
 
         try {
-            // Stage 1: Transcribing audio
-            // sendTranscriptionUpdate(destination, request, "Đang nhận dạng giọng nói...");
-            
-            // String transcribedText = voiceProcessingService.transcribeAudio(request);
-            
-            // // Send transcription result
-            // sendTranscriptionResult(destination, request, transcribedText);
-            
-            // // Stage 2: Processing with AI
-            // sendProcessingUpdate(destination, request, "Đang xử lý yêu cầu...");
-            
-            // com.pdh.ai.model.dto.StructuredChatPayload payload = voiceProcessingService.processVoiceMessage(request);
-            
-            // // Stage 3: Send final response
-            // long processingTime = System.currentTimeMillis() - startTime;
-            // sendFinalResponse(destination, request, transcribedText, payload, processingTime);
-            
-            // log.info("✅ Voice message completed in {}ms", processingTime);
+            // Stage 1: notify client transcription is happening
+            sendTranscriptionUpdate(destination, request, "Đang nhận dạng giọng nói...");
+
+            String transcribedText = voiceProcessingService.transcribeAudio(request);
+
+            if (transcribedText == null || transcribedText.trim().isEmpty()) {
+                log.warn("⚠️ Transcription returned empty text - aborting processing");
+                sendErrorResponse(destination, request, "Không thể nhận dạng nội dung âm thanh.");
+                return;
+            }
+
+            // Share the transcription result with the client
+            sendTranscriptionResult(destination, request, transcribedText);
+
+            // Stage 2: inform client that AI is processing the text
+            sendProcessingUpdate(destination, request, "Đang xử lý yêu cầu...");
+
+            StructuredChatPayload payload = voiceProcessingService.processVoiceMessage(transcribedText, request);
+
+            long processingTime = System.currentTimeMillis() - startTime;
+            sendFinalResponse(destination, request, transcribedText, payload, processingTime);
+
+            log.info("✅ Voice message completed in {}ms", processingTime);
 
         } catch (Exception e) {
             log.error("❌ Voice message processing failed: {}", e.getMessage(), e);
@@ -183,9 +188,12 @@ public class VoiceWebSocketController {
             String destination,
             VoiceMessageRequest request,
             String transcribedText,
-            com.pdh.ai.model.dto.StructuredChatPayload payload,
+            StructuredChatPayload payload,
             long processingTime) {
-        
+        var suggestions = payload != null && payload.getNextRequestSuggesstions() != null
+                ? payload.getNextRequestSuggesstions()
+                : new String[0];
+
         VoiceMessageResponse response = VoiceMessageResponse.builder()
                 .type(VoiceMessageResponse.ResponseType.RESPONSE)
                 .userId(request.getUserId())
@@ -193,11 +201,12 @@ public class VoiceWebSocketController {
                 .transcribedText(transcribedText)
                 .aiResponse(payload.getMessage())
                 .results(payload.getResults())
+                .nextRequestSuggestions(java.util.Arrays.asList(suggestions))
                 .status("Hoàn tất")
                 .timestamp(LocalDateTime.now())
                 .processingTimeMs(processingTime)
                 .build();
-        
+
         messagingTemplate.convertAndSend(destination, response);
         log.info("✅ Sent final response: {} characters", payload.getMessage().length());
     }

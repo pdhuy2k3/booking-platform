@@ -1,5 +1,5 @@
 import { apiClient } from '@/lib/api-client';
-import { Client, IMessage } from '@stomp/stompjs';
+import { Client, IMessage, StompSubscription } from '@stomp/stompjs';
 import SockJS from 'sockjs-client';
 import { 
   ChatRequest, 
@@ -15,6 +15,10 @@ import {
 class AiChatService {
   private baseUrl = '/ai';
   private wsClient: Client | null = null;
+  private textSubscription: StompSubscription | null = null;
+  private voiceSubscription: StompSubscription | null = null;
+  private textMessageHandler?: (message: ChatMessageResponse) => void;
+  private voiceMessageHandler?: (message: VoiceMessageResponse) => void;
   private reconnectAttempts = 0;
   private readonly MAX_RECONNECT_ATTEMPTS = 5;
   private readonly RECONNECT_DELAY = 3000;
@@ -283,6 +287,118 @@ class AiChatService {
     }
   }
 
+  // ==================== EXPLORE DESTINATIONS ====================
+
+  /**
+   * Get destination recommendations based on a query
+   * @param query Search query like "popular beaches in Vietnam", "best summer destinations"
+   * @param userCountry Optional user's country for region-based suggestions
+   * @returns ChatResponse with destination recommendations including coordinates
+   */
+  async exploreDestinations(query: string, userCountry?: string): Promise<ChatResponse> {
+    try {
+      const params: any = { query };
+      if (userCountry) {
+        params.userCountry = userCountry;
+      }
+
+      const response = await apiClient.get<ChatResponse>(
+        `${this.baseUrl}/explore`,
+        {
+          params,
+          timeout: 30000, // 30 second timeout
+        }
+      );
+
+      return response;
+    } catch (error: any) {
+      console.error('Explore Destinations Error:', error);
+      
+      return {
+        userMessage: query,
+        aiResponse: 'Xin lỗi, tôi không thể tìm kiếm địa điểm lúc này. Vui lòng thử lại sau.',
+        conversationId: '',
+        userId: '',
+        timestamp: new Date().toISOString(),
+        error: error.message || 'Không thể kết nối với Explore service'
+      };
+    }
+  }
+
+  /**
+   * Get trending destinations
+   * @param userCountry Optional user's country for region-based suggestions
+   * @returns ChatResponse with trending destination recommendations
+   */
+  async getTrendingDestinations(userCountry?: string): Promise<ChatResponse> {
+    try {
+      const params: any = {};
+      if (userCountry) {
+        params.userCountry = userCountry;
+      }
+
+      const response = await apiClient.get<ChatResponse>(
+        `${this.baseUrl}/explore/trending`,
+        {
+          params,
+          timeout: 30000,
+        }
+      );
+
+      return response;
+    } catch (error: any) {
+      console.error('Get Trending Destinations Error:', error);
+      
+      return {
+        userMessage: 'trending destinations',
+        aiResponse: 'Xin lỗi, tôi không thể tải điểm đến phổ biến lúc này.',
+        conversationId: '',
+        userId: '',
+        timestamp: new Date().toISOString(),
+        error: error.message || 'Không thể kết nối với Explore service'
+      };
+    }
+  }
+
+  /**
+   * Get seasonal destination recommendations
+   * @param season Optional season (spring, summer, fall, winter)
+   * @param userCountry Optional user's country for region-based suggestions
+   * @returns ChatResponse with seasonal destination recommendations
+   */
+  async getSeasonalDestinations(season?: string, userCountry?: string): Promise<ChatResponse> {
+    try {
+      const params: any = {};
+      if (season) {
+        params.season = season;
+      }
+      if (userCountry) {
+        params.userCountry = userCountry;
+      }
+
+      const response = await apiClient.get<ChatResponse>(
+        `${this.baseUrl}/explore/seasonal`,
+        {
+          params,
+          timeout: 30000,
+        }
+      );
+
+      return response;
+    } catch (error: any) {
+      console.error('Get Seasonal Destinations Error:', error);
+      
+      return {
+        userMessage: season ? `${season} destinations` : 'seasonal destinations',
+        aiResponse: 'Xin lỗi, tôi không thể tải gợi ý theo mùa lúc này.',
+        conversationId: '',
+        userId: '',
+        timestamp: new Date().toISOString(),
+        error: error.message || 'Không thể kết nối với Explore service'
+      };
+    }
+  }
+
   // ==================== WEBSOCKET CHAT ====================
 
   /**
@@ -295,8 +411,18 @@ class AiChatService {
     onConnect?: () => void,
     onError?: (error: any) => void
   ): void {
+    if (onTextMessage) {
+      this.textMessageHandler = onTextMessage;
+    }
+
+    if (onVoiceMessage) {
+      this.voiceMessageHandler = onVoiceMessage;
+    }
+
     if (this.wsClient?.connected) {
       console.log('✅ WebSocket already connected');
+      this.ensureSubscriptions(userId);
+      onConnect?.();
       return;
     }
 
@@ -324,31 +450,7 @@ class AiChatService {
           console.log('✅ WebSocket connected');
           this.reconnectAttempts = 0;
           
-          // Subscribe to user's text chat topic
-          if (onTextMessage) {
-            this.wsClient?.subscribe(`${this.textTopicPrefix}${userId}`, (message: IMessage) => {
-              try {
-                const textResponse: ChatMessageResponse = JSON.parse(message.body);
-                console.log('💬 Received text message:', textResponse.type, textResponse.status);
-                onTextMessage(textResponse);
-              } catch (error) {
-                console.error('❌ Error parsing text message:', error);
-              }
-            });
-          }
-          
-          // Subscribe to user's voice topic
-          if (onVoiceMessage) {
-            this.wsClient?.subscribe(`${this.voiceTopicPrefix}${userId}`, (message: IMessage) => {
-              try {
-                const voiceResponse: VoiceMessageResponse = JSON.parse(message.body);
-                console.log('📨 Received voice message:', voiceResponse.type, voiceResponse.status);
-                onVoiceMessage(voiceResponse);
-              } catch (error) {
-                console.error('❌ Error parsing voice message:', error);
-              }
-            });
-          }
+          this.ensureSubscriptions(userId);
 
           onConnect?.();
         },
@@ -378,6 +480,38 @@ class AiChatService {
     } catch (error) {
       console.error('❌ Failed to initialize WebSocket:', error);
       onError?.(error);
+    }
+  }
+
+  private ensureSubscriptions(userId: string) {
+    if (!this.wsClient?.connected) {
+      return;
+    }
+
+    if (this.textMessageHandler) {
+      this.textSubscription?.unsubscribe();
+      this.textSubscription = this.wsClient.subscribe(`${this.textTopicPrefix}${userId}`, (message: IMessage) => {
+        try {
+          const textResponse: ChatMessageResponse = JSON.parse(message.body);
+          console.log('💬 Received text message:', textResponse.type, textResponse.status);
+          this.textMessageHandler?.(textResponse);
+        } catch (error) {
+          console.error('❌ Error parsing text message:', error);
+        }
+      });
+    }
+
+    if (this.voiceMessageHandler) {
+      this.voiceSubscription?.unsubscribe();
+      this.voiceSubscription = this.wsClient.subscribe(`${this.voiceTopicPrefix}${userId}`, (message: IMessage) => {
+        try {
+          const voiceResponse: VoiceMessageResponse = JSON.parse(message.body);
+          console.log('📨 Received voice message:', voiceResponse.type, voiceResponse.status);
+          this.voiceMessageHandler?.(voiceResponse);
+        } catch (error) {
+          console.error('❌ Error parsing voice message:', error);
+        }
+      });
     }
   }
 
@@ -432,18 +566,42 @@ class AiChatService {
       throw new Error('WebSocket not connected. Call initializeWebSocket first.');
     }
 
+    const messageBody = JSON.stringify(request);
+    const messageSizeKB = Math.round(messageBody.length / 1024);
+    const audioSizeKB = Math.round(request.audioData.length / 1024);
+    
     console.log('🎤 Sending voice message:', {
       userId: request.userId,
       conversationId: request.conversationId,
       audioFormat: request.audioFormat,
       audioDataLength: request.audioData.length,
+      audioSizeKB,
+      messageSizeKB,
+      totalSizeMB: (messageSizeKB / 1024).toFixed(2),
       durationMs: request.durationMs
     });
 
-    this.wsClient.publish({
-      destination: this.voiceAppDestination,
-      body: JSON.stringify(request),
-    });
+    // Validate message size (10MB limit)
+    const maxSizeMB = 10;
+    const maxSizeBytes = maxSizeMB * 1024 * 1024;
+    
+    if (messageBody.length > maxSizeBytes) {
+      const errorMsg = `Audio too large: ${(messageSizeKB / 1024).toFixed(2)}MB exceeds ${maxSizeMB}MB limit`;
+      console.error('❌', errorMsg);
+      throw new Error(errorMsg);
+    }
+
+    try {
+      this.wsClient.publish({
+        destination: this.voiceAppDestination,
+        body: messageBody,
+      });
+      
+      console.log('✅ Voice message sent successfully');
+    } catch (error: any) {
+      console.error('❌ Failed to send voice message:', error);
+      throw new Error(`Failed to send voice message: ${error?.message || 'Unknown error'}`);
+    }
   }
 
   /**
@@ -453,9 +611,15 @@ class AiChatService {
     if (this.wsClient?.connected) {
       console.log('🔌 Disconnecting WebSocket...');
       this.wsClient.deactivate();
-      this.wsClient = null;
-      this.reconnectAttempts = 0;
     }
+    this.wsClient = null;
+    this.reconnectAttempts = 0;
+    this.textSubscription?.unsubscribe();
+    this.voiceSubscription?.unsubscribe();
+    this.textSubscription = null;
+    this.voiceSubscription = null;
+    this.textMessageHandler = undefined;
+    this.voiceMessageHandler = undefined;
   }
 
   /**

@@ -4,10 +4,11 @@ import { useState } from "react"
 import { FlightCard } from "@/components/cards/flight-card"
 import { HotelCard } from "@/components/cards/hotel-card"
 import { Alert, AlertDescription } from "@/components/ui/alert"
-import { Info, Sparkles } from "lucide-react"
+import { Info, Sparkles, MapPin } from "lucide-react"
 import FlightDetailsModal from "@/modules/flight/component/FlightDetailsModal"
 import HotelDetailsModal from "@/modules/hotel/component/HotelDetailsModal"
 import type { ChatStructuredResult } from "@/modules/ai/types"
+import { cn } from "@/lib/utils"
 
 const optionalString = (value: unknown): string | undefined => {
   if (value === null || value === undefined) return undefined
@@ -133,6 +134,7 @@ interface AiResponseRendererProps {
   results?: ChatStructuredResult[]
   onFlightBook?: (flight: any) => void
   onHotelBook?: (hotel: any, room: any) => void
+  onLocationClick?: (location: { lat: number; lng: number; title: string; description?: string }) => void
   canBook?: boolean
 }
 
@@ -141,6 +143,7 @@ export const AiResponseRenderer = ({
   results = [],
   onFlightBook,
   onHotelBook,
+  onLocationClick,
   canBook = true,
 }: AiResponseRendererProps) => {
   const [selectedFlightForModal, setSelectedFlightForModal] = useState<any | null>(null)
@@ -270,6 +273,10 @@ export const AiResponseRenderer = ({
                 scheduleId,
                 fareId,
                 rating: optionalNumber(metadata?.rating),
+                originLatitude: optionalNumber(metadata?.originLatitude),
+                originLongitude: optionalNumber(metadata?.originLongitude),
+                destinationLatitude: optionalNumber(metadata?.destinationLatitude),
+                destinationLongitude: optionalNumber(metadata?.destinationLongitude),
               }
 
               return (
@@ -278,6 +285,7 @@ export const AiResponseRenderer = ({
                   flight={flightData}
                   onViewDetails={handleFlightViewDetails}
                   onBook={() => onFlightBook?.(flightData)}
+                  onLocationClick={onLocationClick}
                   showBookButton={canBook}
                   compact={false}
                   className="h-full"
@@ -346,6 +354,8 @@ export const AiResponseRenderer = ({
                 amenities: Array.isArray(metadata?.amenities) ? (metadata?.amenities as string[]) : undefined,
                 description: optionalString(result.description) || optionalString(metadata?.description),
                 starRating: optionalNumber(metadata?.starRating) ?? subtitleInfo.rating,
+                latitude: optionalNumber(metadata?.latitude),
+                longitude: optionalNumber(metadata?.longitude),
               }
 
               return (
@@ -357,6 +367,7 @@ export const AiResponseRenderer = ({
                     // Open modal for room selection, similar to search tab
                     handleHotelViewDetails(hotelData)
                   }}
+                  onLocationClick={onLocationClick}
                   showBookButton={canBook}
                   compact={false}
                   className="h-full"
@@ -370,22 +381,73 @@ export const AiResponseRenderer = ({
       {/* Info Results (Location, Weather, etc.) */}
       {infoResults.length > 0 && (
         <div className="space-y-2">
-          {infoResults.map((result, index) => (
-            <Alert key={index} className="border-blue-200 bg-blue-50">
-              <Info className="h-4 w-4 text-blue-600" />
-              <AlertDescription className="ml-2">
-                {result.title && (
-                  <div className="font-semibold text-blue-900 mb-1">{result.title}</div>
+          {infoResults.map((result, index) => {
+            const metadata = (result.metadata || {}) as Record<string, unknown>
+            const hasCoordinates = Boolean(metadata.coordinates || (metadata.latitude && metadata.longitude))
+            
+            const handleLocationClick = () => {
+              if (!hasCoordinates || !onLocationClick) return
+              
+              let lat: number | undefined
+              let lng: number | undefined
+              
+              // Try to extract from coordinates string
+              if (metadata.coordinates) {
+                const coordStr = String(metadata.coordinates)
+                const [latStr, lngStr] = coordStr.split(',').map(s => s.trim())
+                lat = parseFloat(latStr)
+                lng = parseFloat(lngStr)
+              }
+              
+              // Try direct lat/lng fields
+              if (!lat || !lng) {
+                lat = metadata.latitude ? parseFloat(String(metadata.latitude)) : undefined
+                lng = metadata.longitude ? parseFloat(String(metadata.longitude)) : undefined
+              }
+              
+              if (lat && lng && !isNaN(lat) && !isNaN(lng)) {
+                const locationDesc = result.subtitle || (typeof metadata.location === 'string' ? metadata.location : undefined) || result.description
+                onLocationClick({
+                  lat,
+                  lng,
+                  title: result.title || 'Location',
+                  description: locationDesc
+                })
+              }
+            }
+            
+            const isClickable = hasCoordinates && Boolean(onLocationClick)
+            
+            return (
+              <Alert 
+                key={index} 
+                className={cn(
+                  "border-blue-200 bg-blue-50",
+                  isClickable && "cursor-pointer hover:bg-blue-100 hover:border-blue-300 transition-colors"
                 )}
-                {result.subtitle && (
-                  <div className="text-sm text-blue-800 mb-1">{result.subtitle}</div>
-                )}
-                {result.description && (
-                  <div className="text-sm text-blue-700">{result.description}</div>
-                )}
-              </AlertDescription>
-            </Alert>
-          ))}
+                onClick={handleLocationClick}
+              >
+                <Info className="h-4 w-4 text-blue-600" />
+                <AlertDescription className="ml-2">
+                  {result.title && (
+                    <div className="font-semibold text-blue-900 mb-1">{result.title}</div>
+                  )}
+                  {result.subtitle && (
+                    <div className="text-sm text-blue-800 mb-1">{result.subtitle}</div>
+                  )}
+                  {result.description && (
+                    <div className="text-sm text-blue-700">{result.description}</div>
+                  )}
+                  {isClickable && (
+                    <div className="text-xs text-blue-600 mt-2 font-medium flex items-center gap-1">
+                      <MapPin className="h-3 w-3" />
+                      Click để xem trên bản đồ
+                    </div>
+                  )}
+                </AlertDescription>
+              </Alert>
+            )
+          })}
         </div>
       )}
 

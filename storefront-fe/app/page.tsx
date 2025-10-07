@@ -1,12 +1,12 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { Search, MessageCircle } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { ChatInterface } from "@/components/chat-interface"
 import { SearchInterface } from "@/components/search-interface"
-import { RecommendationPanel } from "@/components/recommendation-panel"
+import { RecommendPanel, RecommendPanelRef } from "@/components/recommend-panel"
 import { BookingModal } from "@/components/booking-modal"
 import { useBooking } from "@/contexts/booking-context"
 
@@ -18,6 +18,8 @@ export default function HomePage() {
   const [activeTab, setActiveTab] = useState<MainTab>("chat")
   const [conversationId, setConversationId] = useState<string | null>(null)
   const [isBookingModalOpen, setIsBookingModalOpen] = useState(false)
+  const [aiResults, setAiResults] = useState<any[]>([])
+  const recommendPanelRef = useRef<RecommendPanelRef>(null)
   
   const { 
     resetBooking, 
@@ -136,6 +138,21 @@ export default function HomePage() {
     setIsBookingModalOpen(true)
   }
 
+  const handleLocationClick = (location: { 
+    lat: number; 
+    lng: number; 
+    title: string; 
+    description?: string 
+  }) => {
+    console.log('📍 Location clicked:', location)
+    recommendPanelRef.current?.showLocationOnMap(location)
+  }
+
+  const handleSearchResults = (results: any[], type: string) => {
+    console.log('🔍 Search results:', results, type)
+    setAiResults(results)
+  }
+
   const tabs = [
     { id: "chat" as const, label: "Chat", icon: MessageCircle },
     { id: "search" as const, label: "Search", icon: Search },
@@ -172,23 +189,25 @@ export default function HomePage() {
         {activeTab === "chat" && (
           <>
             {/* Chat Interface - Middle */}
-            <div className="flex-1 h-full">
+            <div className="flex-1 h-full max-w-4xl">
               <ChatInterface
-                onSearchResults={() => {}}
+                onSearchResults={handleSearchResults}
                 onStartBooking={() => {}}
                 onChatStart={() => {}}
                 conversationId={conversationId}
                 onFlightBook={handleFlightBook}
                 onHotelBook={handleHotelBook}
+                onLocationClick={handleLocationClick}
               />
             </div>
             
-            {/* Recommendation Panel - Right */}
-            <RecommendationPanel 
-              onItemSelect={(item) => {
-                console.log("Selected recommendation:", item)
-              }}
-            />
+            {/* Recommend Panel - Right - Increased width */}
+            <div className="w-[600px] h-full border-l">
+              <RecommendPanel 
+                ref={recommendPanelRef}
+                results={aiResults}
+              />
+            </div>
           </>
         )}
         {activeTab === "search" && (

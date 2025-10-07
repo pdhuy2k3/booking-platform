@@ -2,6 +2,10 @@ server:
   port: 8036
   servlet:
     context-path: /ai
+  # Tomcat configuration for large payloads
+  tomcat:
+    max-http-form-post-size: 10MB
+    max-swallow-size: 10MB
 
 # OpenAPI Documentation Configuration
 #springdoc:
@@ -23,6 +27,12 @@ spring:
     name: aiAgent-service
   threads:
     virtual:
+      enabled: true
+  # Servlet multipart configuration for large file uploads
+  servlet:
+    multipart:
+      max-file-size: 10MB
+      max-request-size: 10MB
       enabled: true
   autoconfigure:
     exclude:

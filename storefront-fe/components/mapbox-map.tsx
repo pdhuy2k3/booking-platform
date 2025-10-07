@@ -7,7 +7,7 @@ import { cn } from '@/lib/utils';
 // Import Mapbox CSS
 import 'mapbox-gl/dist/mapbox-gl.css';
 import { env } from '@/env.mjs';
-export const dynamic="force-dynamic"
+
 export interface MapLocation {
   id: string;
   name: string;

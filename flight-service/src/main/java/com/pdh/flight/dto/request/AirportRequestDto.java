@@ -33,6 +33,14 @@ public class AirportRequestDto {
     @Size(max = 100, message = "Country name cannot exceed 100 characters")
     private String country;
     
+    @DecimalMin(value = "-90.0", message = "Invalid latitude")
+    @DecimalMax(value = "90.0", message = "Invalid latitude")
+    private Double latitude;
+    
+    @DecimalMin(value = "-180.0", message = "Invalid longitude")
+    @DecimalMax(value = "180.0", message = "Invalid longitude")
+    private Double longitude;
+    
     // Media public IDs for airport images
     private List<String> mediaPublicIds;
 }

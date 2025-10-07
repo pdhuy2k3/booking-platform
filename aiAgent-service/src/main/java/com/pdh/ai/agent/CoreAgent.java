@@ -1,9 +1,7 @@
 package com.pdh.ai.agent;
 
 import java.util.List;
-import java.util.Map;
 import java.util.stream.Collectors;
-
 import com.pdh.ai.util.CurlyBracketEscaper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -13,14 +11,8 @@ import com.pdh.ai.agent.guard.ScopeGuard;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.client.advisor.MessageChatMemoryAdvisor;
 import org.springframework.ai.chat.memory.ChatMemory;
-import org.springframework.ai.chat.model.ChatResponse;
-import org.springframework.ai.chat.prompt.Prompt;
-import org.springframework.ai.chat.prompt.PromptTemplate;
 import org.springframework.ai.converter.BeanOutputConverter;
 import org.springframework.ai.mistralai.MistralAiChatModel;
-import org.springframework.ai.mistralai.api.MistralAiApi.ChatModel;
-import org.springframework.ai.ollama.api.OllamaOptions;
-import org.springframework.ai.openai.OpenAiChatOptions;
 import org.springframework.ai.tool.ToolCallbackProvider;
 import org.springframework.core.Ordered;
 import org.springframework.stereotype.Component;
@@ -119,6 +111,7 @@ public class CoreAgent {
                 .defaultToolCallbacks(toolCallbackProvider)
                 .defaultAdvisors(memoryAdvisor, chatLoggingAdvisor)
                 .build();
+
     }
 
 
@@ -194,11 +187,7 @@ public class CoreAgent {
         logger.info("🔍 [SYNC-TOOL-TRACKER] User message: {}", message);
 
         return Mono.fromCallable(() -> {
-            BeanOutputConverter<StructuredChatPayload> converter =
-                    new BeanOutputConverter<>(StructuredChatPayload.class);
 
-            logger.info("🔧 [SYNC-TOOL-TRACKER] JSON Schema generated for structured output:");
-            logger.info("🔧 [SYNC-TOOL-TRACKER] {}", converter.getFormat());
 
             // Use .entity() for direct structured output instead of streaming
             StructuredChatPayload result = chatClient.prompt()

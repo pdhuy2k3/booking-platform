@@ -24,9 +24,12 @@ interface HotelCardProps {
     amenities?: string[]
     description?: string
     starRating?: number
+    latitude?: number
+    longitude?: number
   }
   onViewDetails?: (hotel: any) => void
   onBook?: (hotel: any) => void
+  onLocationClick?: (location: { lat: number; lng: number; title: string; description?: string }) => void
   showBookButton?: boolean
   compact?: boolean
   className?: string
@@ -36,6 +39,7 @@ export const HotelCard = ({
   hotel,
   onViewDetails,
   onBook,
+  onLocationClick,
   showBookButton = true,
   compact = false,
   className = "",
@@ -87,7 +91,23 @@ export const HotelCard = ({
                 </h3>
                 
                 {location && (
-                  <div className={`flex items-center gap-1 text-gray-600 ${compact ? 'text-xs' : 'text-sm'} mt-1`}>
+                  <div 
+                    className={`flex items-center gap-1 text-gray-600 ${compact ? 'text-xs' : 'text-sm'} mt-1 ${
+                      hotel.latitude && hotel.longitude && onLocationClick
+                        ? 'cursor-pointer hover:text-blue-600'
+                        : ''
+                    }`}
+                    onClick={() => {
+                      if (hotel.latitude && hotel.longitude && onLocationClick) {
+                        onLocationClick({
+                          lat: hotel.latitude,
+                          lng: hotel.longitude,
+                          title: hotel.name,
+                          description: location
+                        })
+                      }
+                    }}
+                  >
                     <MapPin className={`${compact ? 'h-3 w-3' : 'h-4 w-4'}`} />
                     <span className="line-clamp-1">{location}</span>
                   </div>

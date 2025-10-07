@@ -5,14 +5,13 @@ import com.pdh.ai.model.dto.VoiceMessageRequest;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.ai.chat.client.ChatClient;
-import org.springframework.ai.chat.model.ChatResponse;
 import org.springframework.ai.mistralai.MistralAiChatModel;
-import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.core.io.ByteArrayResource;
 import org.springframework.stereotype.Service;
 import org.springframework.util.MimeTypeUtils;
 
 import java.util.Base64;
+import java.util.Collections;
 
 /**
  * Service for processing voice messages using Mistral AI multimodal capabilities.
@@ -128,5 +127,38 @@ public class VoiceProcessingService {
                     Detect the language automatically and transcribe in that language.
                     """;
         };
+    }
+
+    /**
+     * Process the transcribed text through the main AI service to obtain structured results.
+     *
+     * @param transcribedText Text obtained from audio transcription
+     * @param request         Original voice message request containing context identifiers
+     * @return Structured response payload for the client UI
+     */
+    public StructuredChatPayload processVoiceMessage(String transcribedText, VoiceMessageRequest request) {
+        String conversationId = request.getConversationId();
+        String userId = request.getUserId();
+
+        log.info("🧠 Processing transcribed voice message: conversationId={}, userId={}", conversationId, userId);
+
+        try {
+            return aiService.processSyncStructured(transcribedText, conversationId, userId)
+                    .doOnSuccess(payload -> log.info("✅ Voice chat processed successfully: results={}",
+                            payload != null && payload.getResults() != null ? payload.getResults().size() : 0))
+                    .blockOptional()
+                    .orElseGet(this::fallbackPayload);
+        } catch (Exception ex) {
+            log.error("❌ Failed to process voice message: {}", ex.getMessage(), ex);
+            return fallbackPayload();
+        }
+    }
+
+    private StructuredChatPayload fallbackPayload() {
+        return StructuredChatPayload.builder()
+                .message("Xin lỗi, tôi gặp vấn đề khi xử lý yêu cầu giọng nói của bạn. Vui lòng thử lại.")
+                .results(Collections.emptyList())
+                .nextRequestSuggesstions(new String[0])
+                .build();
     }
 }

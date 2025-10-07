@@ -1,6 +1,7 @@
 package com.pdh.ai.model.dto;
 
 import java.util.List;
+import java.util.Set;
 import java.util.Collections;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
@@ -18,6 +19,10 @@ public class StructuredChatPayload {
     @JsonProperty(required = true, value = "message")
     @JsonPropertyDescription("Natural language response message to the user")
     private String message;
+
+    @JsonProperty(required = true, value = "next_request_suggestions")
+    @JsonPropertyDescription("Set of suggested user requests for follow-up interactions")
+    private String[] nextRequestSuggesstions;
     
     @JsonProperty(required = true, value = "results")
     @JsonPropertyDescription("Array of structured result items like flights, hotels, or information cards")

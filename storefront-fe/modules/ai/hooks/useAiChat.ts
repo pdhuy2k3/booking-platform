@@ -27,7 +27,13 @@ interface UseAiChatReturn {
   setMode: (mode: 'stream' | 'sync') => void;
 }
 
-const parseStructuredPayload = (raw?: string | null): { message: string; results: ChatStructuredResult[] } | null => {
+interface ParsedStructuredPayload {
+  message: string;
+  results: ChatStructuredResult[];
+  suggestions: string[];
+}
+
+const parseStructuredPayload = (raw?: string | null): ParsedStructuredPayload | null => {
   if (!raw) {
     return null;
   }
@@ -36,6 +42,9 @@ const parseStructuredPayload = (raw?: string | null): { message: string; results
   if (!content) {
     return null;
   }
+
+  console.log('🔍 Parsing structured payload, raw length:', content.length);
+  console.log('🔍 First 200 chars:', content.substring(0, 200));
 
   if (content.startsWith('```')) {
     const newlineIndex = content.indexOf('\n');
@@ -59,8 +68,11 @@ const parseStructuredPayload = (raw?: string | null): { message: string; results
 
   const tryParse = (value: string): any => {
     try {
-      return JSON.parse(value);
+      const result = JSON.parse(value);
+      console.log('✅ Parse successful:', Object.keys(result));
+      return result;
     } catch (err) {
+      console.log('❌ Parse failed:', err);
       return null;
     }
   };
@@ -87,7 +99,24 @@ const parseStructuredPayload = (raw?: string | null): { message: string; results
     ? parsed.results.filter(Boolean) as ChatStructuredResult[]
     : [];
 
-  return { message, results };
+  const rawSuggestions = parsed.next_request_suggestions ?? parsed.nextRequestSuggestions ?? [];
+  const suggestionArray = Array.isArray(rawSuggestions)
+    ? rawSuggestions
+    : rawSuggestions && typeof rawSuggestions === 'object'
+      ? Object.values(rawSuggestions as Record<string, unknown>)
+      : [];
+
+  const suggestions: string[] = suggestionArray
+    .map((item: unknown) => {
+      if (typeof item === 'string') return item.trim();
+      if (item && typeof item === 'object' && 'value' in item && typeof (item as { value: unknown }).value === 'string') {
+        return ((item as { value: string }).value).trim();
+      }
+      return String(item ?? '').trim();
+    })
+    .filter((item: string) => item.length > 0);
+
+  return { message, results, suggestions };
 };
 
 const createConversationId = (): string => {
@@ -117,6 +146,7 @@ export function useAiChat(options: UseAiChatOptions = {}): UseAiChatReturn {
       content: 'Xin chào! Tôi có thể giúp bạn tìm kiếm chuyến bay, khách sạn hoặc lên kế hoạch du lịch. Bạn muốn đi đâu?',
       isUser: false,
       timestamp: new Date(),
+      suggestions: [],
     },
   ]);
   
@@ -159,8 +189,22 @@ export function useAiChat(options: UseAiChatOptions = {}): UseAiChatReturn {
           setIsLoading(true);
         } else if (response.type === 'RESPONSE') {
           // Sync response: Immediate complete response with all data
+          console.log('📨 Full response object:', response);
           const parsed = parseStructuredPayload(response.aiResponse);
-          
+          console.log('📨 Parsed payload:', parsed);
+
+          // Extract suggestions from multiple possible sources
+          const extractedSuggestions = 
+            response.nextRequestSuggestions ?? 
+            response.next_request_suggestions ??
+            parsed?.suggestions ?? 
+            [];
+
+          console.log('📋 Extracted suggestions:', extractedSuggestions);
+          console.log('📋 From response.nextRequestSuggestions:', response.nextRequestSuggestions);
+          console.log('📋 From response.next_request_suggestions:', response.next_request_suggestions);
+          console.log('📋 From parsed.suggestions:', parsed?.suggestions);
+
           // Update the specific assistant message using the stored message ID
           const targetMessageId = currentAssistantMessageIdRef.current;
           if (targetMessageId) {
@@ -171,6 +215,7 @@ export function useAiChat(options: UseAiChatOptions = {}): UseAiChatReturn {
                   content: parsed?.message ?? response.aiResponse ?? '',
                   results: response.results ?? parsed?.results ?? [],
                   timestamp: new Date(response.timestamp),
+                  suggestions: extractedSuggestions,
                 };
               }
               return msg;
@@ -200,6 +245,7 @@ export function useAiChat(options: UseAiChatOptions = {}): UseAiChatReturn {
                   ...msg,
                   content: response.error ?? 'Đã xảy ra lỗi',
                   timestamp: new Date(response.timestamp),
+                  suggestions: [],
                 };
               }
               return msg;
@@ -253,8 +299,8 @@ export function useAiChat(options: UseAiChatOptions = {}): UseAiChatReturn {
       const historyResponse = await aiChatService.getChatHistory(conversationId);
       
       if (historyResponse.messages && historyResponse.messages.length > 0) {
-        const historyMessages: ChatMessage[] = historyResponse.messages.map((msg, index) => {
-          const parsed = parseStructuredPayload(msg.content);
+       const historyMessages: ChatMessage[] = historyResponse.messages.map((msg, index) => {
+         const parsed = parseStructuredPayload(msg.content);
 
           return {
             id: `history-${index}`,
@@ -262,6 +308,7 @@ export function useAiChat(options: UseAiChatOptions = {}): UseAiChatReturn {
             isUser: msg.role === 'user',
             timestamp: new Date(msg.timestamp),
             results: parsed?.results ?? [],
+            suggestions: parsed?.suggestions ?? [],
           };
         });
         
@@ -288,6 +335,7 @@ export function useAiChat(options: UseAiChatOptions = {}): UseAiChatReturn {
       isUser: true,
       timestamp: new Date(),
       results: [],
+      suggestions: [],
     };
 
     const assistantPlaceholder: ChatMessage = {
@@ -296,6 +344,7 @@ export function useAiChat(options: UseAiChatOptions = {}): UseAiChatReturn {
       isUser: false,
       timestamp: new Date(),
       results: [],
+      suggestions: [],
     };
 
     setMessages(prev => [...prev, userMessage, assistantPlaceholder]);
@@ -371,6 +420,7 @@ export function useAiChat(options: UseAiChatOptions = {}): UseAiChatReturn {
           content: parsedResponse?.message ?? response.aiResponse,
           results: parsedResponse?.results ?? [],
           timestamp: new Date(response.timestamp || Date.now()),
+          suggestions: response.nextRequestSuggestions ?? parsedResponse?.suggestions ?? [],
         };
       }));
 
@@ -390,6 +440,7 @@ export function useAiChat(options: UseAiChatOptions = {}): UseAiChatReturn {
           content: errorMessage,
           results: [],
           timestamp: new Date(),
+          suggestions: [],
         };
       }));
 
@@ -425,6 +476,7 @@ export function useAiChat(options: UseAiChatOptions = {}): UseAiChatReturn {
         isUser: false,
         timestamp: new Date(),
         results: [],
+        suggestions: [],
       },
     ]);
     setError(null);

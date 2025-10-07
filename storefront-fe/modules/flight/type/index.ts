@@ -67,6 +67,10 @@ export type FlightSearchResult = {
   airlineLogo?: string
   scheduleId?: string
   fareId?: string
+  originLatitude?: number
+  originLongitude?: number
+  destinationLatitude?: number
+  destinationLongitude?: number
 }
 
 export type FlightSearchResponse = {
@@ -115,6 +119,10 @@ export type FlightDetails = {
   availableSeats: number
   scheduleId?: string
   fareId?: string
+  originLatitude?: number
+  originLongitude?: number
+  destinationLatitude?: number
+  destinationLongitude?: number
 }
 
 export interface FlightFareDetails {

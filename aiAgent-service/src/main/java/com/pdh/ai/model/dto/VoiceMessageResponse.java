@@ -6,6 +6,7 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import java.time.LocalDateTime;
+import java.util.Collections;
 import java.util.List;
 
 /**
@@ -57,6 +58,12 @@ public class VoiceMessageResponse {
      * Tool call results (flights, hotels, etc.).
      */
     private List<StructuredResultItem> results;
+
+    /**
+     * Suggested follow-up requests for the user.
+     */
+    
+    private List<String> nextRequestSuggestions = Collections.emptyList();
     
     /**
      * Error message (if type = ERROR).

@@ -162,6 +162,8 @@ public class HotelMapper {
         response.put("city", hotel.getCity() != null ? hotel.getCity() : "");
         response.put("country", hotel.getCountry() != null ? hotel.getCountry() : "");
         response.put("rating", hotel.getStarRating() != null ? hotel.getStarRating().intValue() : 3);
+        response.put("latitude", hotel.getLatitude());
+        response.put("longitude", hotel.getLongitude());
 
         List<RoomTypeResponseDto> roomTypes = fetchRoomTypes(hotel.getHotelId());
         double minPrice = resolveMinPrice(roomTypes);
@@ -193,6 +195,8 @@ public class HotelMapper {
         response.put("country", hotel.getCountry() != null ? hotel.getCountry() : "");
         response.put("rating", hotel.getStarRating() != null ? hotel.getStarRating().intValue() : 3);
         response.put("description", hotel.getDescription() != null ? hotel.getDescription() : "");
+        response.put("latitude", hotel.getLatitude());
+        response.put("longitude", hotel.getLongitude());
 
         LocalDate today = LocalDate.now();
         LocalDate tomorrow = today.plusDays(1);

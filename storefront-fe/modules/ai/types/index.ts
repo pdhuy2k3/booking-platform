@@ -21,6 +21,8 @@ export interface ChatMessageResponse {
   error?: string;
   timestamp: string;
   processingTimeMs?: number;
+  nextRequestSuggestions?: string[];
+  next_request_suggestions?: string[]; // Support both naming conventions
 }
 
 // Legacy REST API types (kept for backward compatibility)
@@ -38,6 +40,7 @@ export interface ChatResponse {
   timestamp: string;
   error?: string;
   results?: ChatStructuredResult[];
+  nextRequestSuggestions?: string[];
 }
 
 export interface ChatMessage {
@@ -46,6 +49,7 @@ export interface ChatMessage {
   isUser: boolean;
   timestamp: Date;
   results?: ChatStructuredResult[];
+  suggestions?: string[];
 }
 
 export interface ChatHistoryMessage {
@@ -112,6 +116,8 @@ export interface VoiceMessageResponse {
   error?: string; // Available in ERROR stage
   timestamp: string;
   processingTimeMs?: number; // Total processing time
+  nextRequestSuggestions?: string[];
+  next_request_suggestions?: string[]; // Support both naming conventions
 }
 
 export interface AudioRecorderState {

@@ -93,11 +93,18 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
     /**
      * Increase transport limits so we can ship base64-encoded audio chunks without
      * the broker terminating the connection.
+     * 
+     * <p>Size Limits:</p>
+     * <ul>
+     * <li><b>Message Size</b>: 10 MB (supports ~7 MB raw audio after base64 encoding)</li>
+     * <li><b>Send Buffer</b>: 10 MB (matches message size)</li>
+     * <li><b>Send Timeout</b>: 30 seconds (allows time for large uploads)</li>
+     * </ul>
      */
     @Override
     public void configureWebSocketTransport(WebSocketTransportRegistration registry) {
-        registry.setMessageSizeLimit(1024 * 1024); // 1 MB per message
-        registry.setSendBufferSizeLimit(1024 * 1024);
-        registry.setSendTimeLimit(20000); // 20 seconds
+        registry.setMessageSizeLimit(10 * 1024 * 1024); // 10 MB per message (supports 5MB+ audio)
+        registry.setSendBufferSizeLimit(10 * 1024 * 1024); // 10 MB send buffer
+        registry.setSendTimeLimit(30000); // 30 seconds timeout
     }
 }
