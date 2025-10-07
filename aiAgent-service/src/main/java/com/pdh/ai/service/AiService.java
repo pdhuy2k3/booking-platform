@@ -16,4 +16,7 @@ public interface AiService {
     
     // Streaming structured methods
     Flux<StructuredChatPayload> processStreamStructured(String message, String conversationId, String userId);
+    
+    // Synchronous structured method (no streaming)
+    Mono<StructuredChatPayload> processSyncStructured(String message, String conversationId, String userId);
 }

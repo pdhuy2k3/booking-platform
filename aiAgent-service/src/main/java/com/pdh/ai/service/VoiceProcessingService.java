@@ -6,6 +6,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.model.ChatResponse;
+import org.springframework.ai.mistralai.MistralAiChatModel;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.core.io.ByteArrayResource;
 import org.springframework.stereotype.Service;
@@ -40,17 +41,19 @@ public class VoiceProcessingService {
 
     private final ChatClient mistralChatClient;
     private final LLMAiService aiService;
-
+    private final MistralAiChatModel mistralAiChatModel;
     /**
      * Constructor with Mistral AI ChatClient for audio processing.
      * 
-     * @param mistralChatClient ChatClient configured with Mistral AI
      * @param aiService Main AI service for chat processing
      */
     public VoiceProcessingService(
-            @Qualifier("mistralChatClient") ChatClient mistralChatClient,
-            LLMAiService aiService) {
-        this.mistralChatClient = mistralChatClient;
+
+            LLMAiService aiService,
+            MistralAiChatModel mistralAiChatModel
+    ) {
+        this.mistralAiChatModel = mistralAiChatModel;
+        this.mistralChatClient = ChatClient.create(this.mistralAiChatModel);
         this.aiService = aiService;
     }
 

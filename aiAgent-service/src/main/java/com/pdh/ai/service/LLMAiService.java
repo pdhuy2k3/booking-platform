@@ -189,6 +189,33 @@ public class LLMAiService implements AiService {
         });
     }
 
+    @Override
+    public Mono<StructuredChatPayload> processSyncStructured(String message, String conversationId, String userId) {
+        return Mono.fromCallable(() -> {
+            // Use provided userId for WebSocket scenarios
+            String actualUserId = resolveAuthenticatedUserId(userId);
+            return ensureConversation(conversationId, actualUserId, defaultTitle(message));
+        })
+        .flatMap(conversationUuid -> {
+            String conversationIdStr = conversationUuid.toString();
+            
+            // IMPORTANT: Ensure conversation exists in database BEFORE processing
+            conversationService.getConversation(conversationUuid)
+                    .orElseThrow(() -> new IllegalStateException("Conversation must exist before processing: " + conversationIdStr));
+            
+            // Use CoreAgent's sync structured processing
+            return coreAgent.processSyncStructured(message, conversationIdStr)
+                    .doOnSubscribe(s -> System.out.println("🔄 Starting sync structured processing for conversation: " + conversationIdStr))
+                    .doOnSuccess(result -> System.out.println("✅ Sync structured processing completed for conversation: " + conversationIdStr + 
+                        ", results: " + (result != null && result.getResults() != null ? result.getResults().size() : 0)))
+                    .doOnError(e -> System.err.println("❌ Sync structured processing failed: " + e.getMessage()));
+        })
+        .onErrorResume(e -> {
+            System.err.println("❌ Error in processSyncStructured: " + e.getMessage());
+            return Mono.just(buildErrorResponse());
+        });
+    }
+
 
 
 

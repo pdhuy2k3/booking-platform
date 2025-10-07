@@ -7,6 +7,7 @@ import { cn } from "@/lib/utils"
 import { FlightSearchTab } from "@/components/search/flight-search-tab"
 import { HotelSearchTab } from "@/components/search/hotel-search-tab"
 import SearchMap from "@/components/search-map"
+import { BookingModal } from "@/components/booking-modal"
 import { 
   destinationsToMapLocations, 
   flightsToMapLocations, 
@@ -24,6 +25,7 @@ export function SearchInterface() {
   const searchParams = useSearchParams()
   const [activeTab, setActiveTab] = useState<SearchTab>("flights")
   const [viewMode, setViewMode] = useState<ViewMode>("list")
+  const [isBookingModalOpen, setIsBookingModalOpen] = useState(false)
   
   // Search results state
   const [flightResults, setFlightResults] = useState<FlightSearchResult[]>([])
@@ -184,6 +186,11 @@ export function SearchInterface() {
     setDestinationResults(results)
   }
 
+  // Handler to open booking modal instead of navigating to /bookings page
+  const handleOpenBookingModal = () => {
+    setIsBookingModalOpen(true)
+  }
+
   const searchTabs = [
     { id: "flights" as const, label: "Flights", icon: Plane },
     { id: "hotels" as const, label: "Stays", icon: Hotel },
@@ -247,8 +254,12 @@ export function SearchInterface() {
       <div className="flex-1 overflow-hidden bg-background">
         {viewMode === "list" && (
           <>
-            {activeTab === "flights" && <FlightSearchTab />}
-            {activeTab === "hotels" && <HotelSearchTab />}
+            {activeTab === "flights" && (
+              <FlightSearchTab onBookingStart={handleOpenBookingModal} />
+            )}
+            {activeTab === "hotels" && (
+              <HotelSearchTab onBookingStart={handleOpenBookingModal} />
+            )}
           </>
         )}
         {viewMode === "map" && (
@@ -268,6 +279,12 @@ export function SearchInterface() {
           </div>
         )}
       </div>
+
+      {/* Booking Modal */}
+      <BookingModal 
+        open={isBookingModalOpen} 
+        onOpenChange={setIsBookingModalOpen} 
+      />
     </div>
   )
 }

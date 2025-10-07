@@ -193,8 +193,6 @@ public class FlightController {
                 Map<String, Object> response = Map.of(
                     "flights", flights,
                     "popularDestinations", FlightStaticData.POPULAR_DESTINATIONS,
-                    "origins", getOriginData(),
-                    "destinations", getDestinationData(),
                     "totalCount", flightPage.getTotalElements(),
                     "page", effectivePage,
                     "limit", effectiveLimit,
@@ -648,21 +646,7 @@ public class FlightController {
         );
     }
 
-    /**
-     * Get origin data from external API
-     */
-    private List<Map<String, Object>> getOriginData() {
-        // In production, this calls the tinhthanhpho.com API
-        return cityDataService.getAllProvincesAndCities();
-    }
 
-    /**
-     * Get destination data from external API
-     */
-    private List<Map<String, Object>> getDestinationData() {
-        // In production, this calls the tinhthanhpho.com API
-        return cityDataService.getAllProvincesAndCities();
-    }
 
     private ZonedDateTime parseDepartureDateTime(String departureDateTime) {
         try {
@@ -685,10 +669,7 @@ public class FlightController {
         
         String trimmed = cityOrIataCode.trim();
         
-        // If it's already an IATA code, return as is
-        if (cityMappingService.isIataCode(trimmed)) {
-            return trimmed.toUpperCase();
-        }
+
         
         // Try to resolve city name to IATA code
         List<String> iataCodes = cityMappingService.getIataCodesForCity(trimmed);

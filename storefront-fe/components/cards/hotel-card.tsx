@@ -41,7 +41,8 @@ export const HotelCard = ({
   className = "",
 }: HotelCardProps) => {
   const [imageError, setImageError] = useState(false)
-  const displayRating = hotel.starRating || hotel.rating || 0
+  const rawRating = hotel.starRating ?? hotel.rating ?? 0
+  const displayRating = Math.max(0, Math.min(5, Number(rawRating) || 0))
   const location = hotel.location || `${hotel.city || ""}${hotel.city && hotel.country ? ", " : ""}${hotel.country || ""}`
 
   const getAmenityIcon = (amenity: string) => {

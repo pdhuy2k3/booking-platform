@@ -7,6 +7,8 @@ import { cn } from "@/lib/utils"
 import { ChatInterface } from "@/components/chat-interface"
 import { SearchInterface } from "@/components/search-interface"
 import { RecommendationPanel } from "@/components/recommendation-panel"
+import { BookingModal } from "@/components/booking-modal"
+import { useBooking } from "@/contexts/booking-context"
 
 type MainTab = "chat" | "search"
 
@@ -15,6 +17,16 @@ export default function HomePage() {
   const searchParams = useSearchParams()
   const [activeTab, setActiveTab] = useState<MainTab>("chat")
   const [conversationId, setConversationId] = useState<string | null>(null)
+  const [isBookingModalOpen, setIsBookingModalOpen] = useState(false)
+  
+  const { 
+    resetBooking, 
+    setBookingType, 
+    setSelectedFlight, 
+    setSelectedHotel, 
+    updateBookingData, 
+    setStep 
+  } = useBooking()
 
   // Handle URL parameters
   useEffect(() => {
@@ -47,6 +59,81 @@ export default function HomePage() {
     // Don't add searchTab parameter for chat tab
     
     router.replace(`/?${params.toString()}`, { scroll: false })
+  }
+
+  const handleFlightBook = (flight: any) => {
+    // Reset previous booking
+    resetBooking()
+    
+    // Set booking type to flight
+    setBookingType('flight')
+    
+    // Set selected flight with all required fields
+    setSelectedFlight({
+      id: flight.id,
+      flightNumber: flight.flightNumber,
+      airline: flight.airline,
+      origin: flight.origin,
+      destination: flight.destination,
+      departureTime: flight.departureTime,
+      arrivalTime: flight.arrivalTime,
+      duration: flight.duration,
+      price: flight.price,
+      currency: flight.currency,
+      seatClass: flight.seatClass,
+      logo: flight.logo,
+      scheduleId: flight.scheduleId,
+      fareId: flight.fareId,
+    })
+    
+    // Update booking data
+    updateBookingData({ bookingType: 'FLIGHT' })
+    
+    // Set step to passengers
+    setStep('passengers')
+    
+    // Open booking modal
+    setIsBookingModalOpen(true)
+  }
+
+  const handleHotelBook = (hotel: any, room: any) => {
+    // Reset previous booking
+    resetBooking()
+    
+    // Set booking type to hotel
+    setBookingType('hotel')
+    
+    // Set selected hotel with room details
+    setSelectedHotel({
+      id: hotel.id,
+      name: hotel.name,
+      address: hotel.address,
+      city: hotel.city,
+      country: hotel.country,
+      rating: hotel.rating,
+      roomTypeId: room.roomTypeId,
+      roomId: room.id,
+      roomType: room.type,
+      roomName: room.name,
+      price: room.price,
+      currency: hotel.currency || 'VND',
+      amenities: room.amenities,
+      image: hotel.image,
+      checkInDate: hotel.checkInDate,
+      checkOutDate: hotel.checkOutDate,
+      guests: hotel.guests,
+      rooms: hotel.rooms,
+      nights: hotel.nights,
+    })
+    
+    // Update booking data
+    updateBookingData({ bookingType: 'HOTEL' })
+    
+    // Set step to passengers
+    setStep('passengers')
+    
+    // Open booking modal
+    setIsBookingModalOpen(true)
   }
 
   const tabs = [
@@ -91,6 +178,8 @@ export default function HomePage() {
                 onStartBooking={() => {}}
                 onChatStart={() => {}}
                 conversationId={conversationId}
+                onFlightBook={handleFlightBook}
+                onHotelBook={handleHotelBook}
               />
             </div>
             
@@ -108,6 +197,12 @@ export default function HomePage() {
           </div>
         )}
       </div>
+
+      {/* Booking Modal */}
+      <BookingModal 
+        open={isBookingModalOpen} 
+        onOpenChange={setIsBookingModalOpen}
+      />
     </div>
   )
 }

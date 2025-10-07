@@ -3,7 +3,6 @@ package com.pdh.ai.controller;
 import com.pdh.ai.model.dto.ChatMessageRequest;
 import com.pdh.ai.model.dto.ChatMessageResponse;
 import com.pdh.ai.model.dto.StructuredChatPayload;
-import com.pdh.ai.service.AiService;
 import com.pdh.ai.service.LLMAiService;
 
 import org.slf4j.Logger;
@@ -40,19 +39,33 @@ public class ChatWebSocketController {
     }
 
     /**
-     * Handle chat messages with streaming response (ALWAYS RETURNS STRUCTURED PAYLOAD).
+     * Handle chat messages with automatic mode selection (stream or sync).
      * 
      * <p>Processing Flow:</p>
      * <ol>
      * <li>Receive chat message from client</li>
-     * <li>Send PROCESSING update to client</li>
-     * <li>Stream AI response chunks in real-time</li>
-     * <li>Parse final structured payload (message + results)</li>
-     * <li>Send final RESPONSE with structured data</li>
+     * <li>Check mode field in request</li>
+     * <li>Route to streaming or sync processing based on mode</li>
+     * <li>Send appropriate response format</li>
      * </ol>
      * 
-     * @param request Chat message request with user message
+     * @param request Chat message request with user message and mode
      */
+    @MessageMapping("chat.message")
+    public void handleChatMessage(@Payload ChatMessageRequest request) {
+        String mode = request.getMode() != null ? request.getMode().toLowerCase() : "sync";
+        
+        log.info("🔀 Received chat message with mode '{}': userId={}, conversationId={}, message='{}'",
+                mode, request.getUserId(), request.getConversationId(), 
+                truncateMessage(request.getMessage()));
+        
+        // Route to appropriate handler based on mode
+        if ("stream".equals(mode)) {
+            handleChatMessageStream(request);
+        } else {
+            handleChatMessageSync(request);
+        }
+    }
     @MessageMapping("chat.stream")
     public void handleChatMessageStream(@Payload ChatMessageRequest request) {
         long startTime = System.currentTimeMillis();
@@ -140,6 +153,88 @@ public class ChatWebSocketController {
             sendErrorResponse(destination, request, e.getMessage());
         })
         .subscribe(); // Subscribe to start the stream
+    }
+
+    /**
+     * Handle chat messages with synchronous response (RETURNS STRUCTURED PAYLOAD DIRECTLY).
+     * 
+     * <p>Processing Flow:</p>
+     * <ol>
+     * <li>Receive chat message from client</li>
+     * <li>Send PROCESSING update to client</li>
+     * <li>Process AI request synchronously</li>
+     * <li>Send final RESPONSE with complete structured data</li>
+     * </ol>
+     * 
+     * @param request Chat message request with user message
+     */
+    @MessageMapping("chat.sync")
+    public void handleChatMessageSync(@Payload ChatMessageRequest request) {
+        long startTime = System.currentTimeMillis();
+        
+        log.info("🔄 Received sync chat message: userId={}, conversationId={}, message='{}'",
+                request.getUserId(), request.getConversationId(), 
+                truncateMessage(request.getMessage()));
+
+        // Validate request
+        if (request.getUserId() == null || request.getUserId().trim().isEmpty()) {
+            log.warn("❌ No userId provided in sync request");
+            sendErrorResponse(
+                    "/topic/chat.anonymous",
+                    request,
+                    "User ID is required. Please refresh and log in again."
+            );
+            return;
+        }
+
+        if (request.getMessage() == null || request.getMessage().trim().isEmpty()) {
+            log.warn("❌ Empty message received from user: {}", request.getUserId());
+            sendErrorResponse(
+                    "/topic/chat." + request.getUserId(),
+                    request,
+                    "Message cannot be empty"
+            );
+            return;
+        }
+
+        // Generate conversation ID if not provided
+        String conversationId = request.getConversationId();
+        if (conversationId == null || conversationId.trim().isEmpty()) {
+            conversationId = UUID.randomUUID().toString();
+            request.setConversationId(conversationId);
+            log.debug("📝 Generated new conversation ID: {}", conversationId);
+        }
+
+        String destination = "/topic/chat." + request.getUserId();
+
+        // Stage 1: Processing
+        sendProcessingUpdate(destination, request, "Đang xử lý yêu cầu...");
+
+        try {
+            // Stage 2: Use CoreAgent's synchronous structured processing
+            StructuredChatPayload payload = aiService.processSyncStructured(
+                    request.getMessage(),
+                    request.getConversationId(),
+                    request.getUserId()  // Pass userId for authentication
+            ).block(); // Block to get the result synchronously
+
+            // Check if payload is null
+            if (payload == null) {
+                throw new RuntimeException("Failed to get response from AI service");
+            }
+
+            // Stage 3: Send final response
+            long processingTime = System.currentTimeMillis() - startTime;
+            sendFinalResponse(destination, request, payload, processingTime);
+            
+            log.info("✅ Sync processing completed in {}ms with {} results", 
+                    processingTime, 
+                    payload.getResults() != null ? payload.getResults().size() : 0);
+            
+        } catch (Exception e) {
+            log.error("❌ Sync processing failed: {}", e.getMessage(), e);
+            sendErrorResponse(destination, request, e.getMessage());
+        }
     }
 
     /**

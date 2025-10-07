@@ -243,12 +243,10 @@ services:
     build:
       context: ./storefront-fe
       dockerfile: Dockerfile
-      args:
-        - MAPBOX_ACCESS_TOKEN=${MAPBOX_ACCESS_TOKEN}
-    image: phamduyhuyuit/bookingsmart-storefront-fe:latest
+
     environment:
       - NODE_ENV=production
-      - MAPBOX_ACCESS_TOKEN
+
     networks:
       - booking-network
     restart: unless-stopped
@@ -452,25 +450,25 @@ services:
       - booking-network
 
   #Ollama
-  ollama:
-    image: ollama/ollama:latest
-    restart: unless-stopped
-    environment:
-      - OLLAMA_KEEP_ALIVE=24h
-      - OLLAMA_HOST=0.0.0.0
-    ports:
-       - "11434:11434"
-    volumes:
-       - pulled_models:/root/.ollama
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - driver: nvidia
-              count: all
-              capabilities: [gpu]
-    networks:
-      - booking-network
+  # ollama:
+  #   image: ollama/ollama:latest
+  #   restart: unless-stopped
+  #   environment:
+  #     - OLLAMA_KEEP_ALIVE=24h
+  #     - OLLAMA_HOST=0.0.0.0
+  #   ports:
+  #      - "11434:11434"
+  #   volumes:
+  #      - pulled_models:/root/.ollama
+  #   deploy:
+  #     resources:
+  #       reservations:
+  #         devices:
+  #           - driver: nvidia
+  #             count: all
+  #             capabilities: [gpu]
+  #   networks:
+  #     - booking-network
 #  # PgAdmin for database management
 #  pgadmin:
 #    profiles:
@@ -498,6 +496,6 @@ networks:
 volumes:
   postgres_data:
   redis_data:
-  n8n_data:
-  pulled_models:
+  # n8n_data:
+  # pulled_models:
 #    pgadmin_data:

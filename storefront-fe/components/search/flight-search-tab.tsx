@@ -25,7 +25,11 @@ interface City {
   type: string
 }
 
-export function FlightSearchTab() {
+interface FlightSearchTabProps {
+  onBookingStart?: () => void
+}
+
+export function FlightSearchTab({ onBookingStart }: FlightSearchTabProps = {}) {
   const router = useRouter()
   const { formatTimeOnly } = useDateFormatter()
 
@@ -226,7 +230,13 @@ export function FlightSearchTab() {
       productDetails: undefined,
     })
     setStep('passengers')
-    router.push('/bookings')
+    
+    // Use callback if provided (for modal), otherwise navigate to booking page
+    if (onBookingStart) {
+      onBookingStart()
+    } else {
+      router.push('/bookings')
+    }
   }
 
   const handleModalBookFlight = (details: FlightDetails) => {

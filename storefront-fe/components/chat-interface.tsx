@@ -1,17 +1,15 @@
 "use client"
 
 import React, { useState, useRef, useEffect, forwardRef, useImperativeHandle } from "react"
-import Image from "next/image"
 import { Send, Mic, MicOff, Plus, AlertCircle, Loader2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { cn } from "@/lib/utils"
 import { useAiChat, useVoiceChat, useAudioRecorder } from "@/modules/ai"
 import { useAuth } from "@/contexts/auth-context"
-import type { ChatStructuredResult } from "@/modules/ai"
 import { Alert, AlertDescription } from "@/components/ui/alert"
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { useDateFormatter } from "@/hooks/use-date-formatter"
+import { AiResponseRenderer } from "@/components/ai-response-renderer"
 
 interface ChatMessage {
   id: string
@@ -28,15 +26,15 @@ interface ChatInterfaceProps {
   onChatStart: () => void
   onItemSelect?: (item: any) => void
   conversationId?: string | null
+  onFlightBook?: (flight: any) => void
+  onHotelBook?: (hotel: any, room: any) => void
 }
 
 export const ChatInterface = forwardRef<any, ChatInterfaceProps>(function ChatInterface(
-  { onSearchResults, onStartBooking, onChatStart, onItemSelect, conversationId },
+  { onSearchResults, onStartBooking, onChatStart, onItemSelect, conversationId, onFlightBook, onHotelBook },
   ref,
 ) {
   const [input, setInput] = useState("")
-  const [selectedResult, setSelectedResult] = useState<ChatStructuredResult | null>(null)
-  const [isResultDialogOpen, setIsResultDialogOpen] = useState(false)
   const [isVoiceMode, setIsVoiceMode] = useState(false)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
@@ -52,7 +50,9 @@ export const ChatInterface = forwardRef<any, ChatInterfaceProps>(function ChatIn
     sendMessage, 
     clearMessages,
     suggestions,
-    getSuggestions 
+    getSuggestions,
+    mode,
+    setMode
   } = useAiChat({
     conversationId: conversationId ?? undefined,
     loadHistoryOnMount: true,
@@ -163,10 +163,29 @@ export const ChatInterface = forwardRef<any, ChatInterfaceProps>(function ChatIn
   }
 
   const formatMessageTimestamp = (value: Date | string) => {
-    const date = value instanceof Date ? value : new Date(value)
-    if (Number.isNaN(date.getTime())) {
+    let date: Date | null = null
+
+    if (value instanceof Date) {
+      date = value
+    } else if (typeof value === 'string') {
+      const trimmed = value.trim()
+      if (!trimmed) {
+        return null
+      }
+
+      const hasTimezoneOffset = /([zZ]|[+-]\d{2}:?\d{2})$/.test(trimmed)
+      const normalized = hasTimezoneOffset ? trimmed : `${trimmed.endsWith('Z') ? trimmed : `${trimmed}Z`}`
+
+      const parsed = new Date(normalized)
+      if (!Number.isNaN(parsed.getTime())) {
+        date = parsed
+      }
+    }
+
+    if (!date || Number.isNaN(date.getTime())) {
       return null
     }
+
     // Use timezone-aware formatter
     return formatDateTime(date.toISOString())
   }
@@ -260,182 +279,61 @@ export const ChatInterface = forwardRef<any, ChatInterfaceProps>(function ChatIn
         {/* Voice Response Display */}
         {voiceResponse && (
           <div className="space-y-3">
-            {/* User's transcribed message */}
             {voiceTranscription && (
               <div className="flex justify-end">
-                <div className="max-w-[80%] rounded-2xl px-4 py-3 bg-blue-600 text-white">
-                  <div className="flex items-center gap-2 mb-1">
-                    <Mic className="h-3 w-3" />
-                    <span className="text-xs opacity-75">Ghi âm</span>
-                  </div>
-                  <div className="whitespace-pre-line leading-relaxed text-sm">
-                    {voiceTranscription}
-                  </div>
+                <div className="bg-blue-600 text-white rounded-2xl px-4 py-2">
+                  <p className="text-sm whitespace-pre-wrap">{voiceTranscription}</p>
                 </div>
               </div>
             )}
 
-            {/* AI Voice Response */}
             <div className="flex justify-start">
-              <div className="max-w-[80%] rounded-2xl px-4 py-3 bg-gray-100 text-gray-900">
-                <div className="flex items-center gap-2 mb-1">
-                  <Loader2 className="h-3 w-3 animate-spin" />
-                  <span className="text-xs text-gray-600">AI Voice</span>
-                </div>
-                <div className="whitespace-pre-line leading-relaxed text-sm">
-                  {voiceResponse}
-                </div>
+              <div className="bg-gray-100 rounded-2xl px-4 py-3 w-full">
+                <AiResponseRenderer
+                  message={voiceResponse}
+                  results={voiceResults || []}
+                  onFlightBook={onFlightBook}
+                  onHotelBook={onHotelBook}
+                  canBook={true}
+                />
               </div>
             </div>
-
-            {/* Voice Results */}
-            {voiceResults && voiceResults.length > 0 && (
-              <div className="flex justify-start">
-                <div className="grid gap-3 sm:grid-cols-2 max-w-[90%]">
-                  {voiceResults.map((result, idx) => (
-                    <div
-                      key={`voice-result-${idx}`}
-                      className="rounded-xl border border-gray-200 bg-white shadow-sm p-3 text-left"
-                    >
-                      <div className="flex items-start gap-3">
-                        {result.imageUrl ? (
-                          <div className="relative h-16 w-16 rounded-lg overflow-hidden bg-muted">
-                            <Image
-                              src={result.imageUrl}
-                              alt={result.title ?? "result"}
-                              fill
-                              className="object-cover"
-                            />
-                          </div>
-                        ) : null}
-                        <div className="space-y-1">
-                          {result.type && (
-                            <span className="inline-block text-[11px] uppercase tracking-wide text-muted-foreground">
-                              {result.type}
-                            </span>
-                          )}
-                          {result.title && (
-                            <p className="text-sm font-semibold text-foreground">{result.title}</p>
-                          )}
-                          {result.subtitle && (
-                            <p className="text-xs text-muted-foreground">{result.subtitle}</p>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
           </div>
         )}
 
         {messages.map((message) => {
           const formattedTimestamp = formatMessageTimestamp(message.timestamp)
+          const isUserMessage = message.isUser
 
           return (
-            <div key={message.id} className="space-y-3">
-              <div
-                className={cn(
-                  "flex",
-                  message.isUser ? "justify-end" : "justify-start"
-                )}
-              >
-                <div
-                  className={cn(
-                    "max-w-[80%] rounded-2xl px-4 py-3 text-sm",
-                    message.isUser
-                      ? "bg-blue-600 text-white ml-auto"
-                      : "bg-gray-100 text-gray-900"
-                  )}
-                >
-                  <div className="whitespace-pre-line leading-relaxed">
-                    {message.content}
-                  </div>
-                  {formattedTimestamp && (
-                    <div
-                      className={cn(
-                        "mt-2 text-xs",
-                        message.isUser
-                          ? "text-blue-100/80 text-right"
-                          : "text-gray-500 text-left"
-                      )}
-                    >
-                      {formattedTimestamp}
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              {!message.isUser && message.results && message.results.length > 0 && (
-                <div className="flex justify-start">
-                  <div className="grid gap-3 sm:grid-cols-2 max-w-[90%]">
-                    {message.results.map((result, idx) => (
-                      <div
-                        key={`${message.id}-result-${idx}`}
-                        className="rounded-xl border border-gray-200 bg-white shadow-sm p-3 text-left"
-                      >
-                        <div className="flex items-start gap-3">
-                          {result.imageUrl ? (
-                            <div className="relative h-16 w-16 rounded-lg overflow-hidden bg-muted">
-                              <Image
-                                src={result.imageUrl}
-                                alt={result.title ?? "result"}
-                                fill
-                                className="object-cover"
-                              />
-                            </div>
-                          ) : null}
-                          <div className="space-y-1">
-                            {result.type && (
-                              <span className="inline-block text-[11px] uppercase tracking-wide text-muted-foreground">
-                                {result.type}
-                              </span>
-                            )}
-                            {result.title && (
-                              <p className="text-sm font-semibold text-foreground">{result.title}</p>
-                            )}
-                            {result.subtitle && (
-                              <p className="text-xs text-muted-foreground">{result.subtitle}</p>
-                            )}
-                          </div>
-                        </div>
-                        {result.description && (
-                          <p className="mt-2 text-xs text-muted-foreground leading-snug">
-                            {result.description}
-                          </p>
-                        )}
-                        {result.metadata && Object.keys(result.metadata).length > 0 && (
-                          <div className="mt-3 space-y-1 text-xs">
-                            {Object.entries(result.metadata).map(([key, value]) => (
-                              <div key={key} className="flex justify-between gap-4 text-muted-foreground">
-                                <span className="font-medium capitalize">{key.replace(/_/g, " ")}</span>
-                                <span className="text-right text-foreground">
-                                  {typeof value === "string" || typeof value === "number"
-                                    ? value
-                                    : JSON.stringify(value)}
-                                </span>
-                              </div>
-                            ))}
-                          </div>
-                        )}
-                        <div className="mt-3 flex justify-end">
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => {
-                              setSelectedResult(result)
-                              setIsResultDialogOpen(true)
-                            }}
-                          >
-                            Xem chi tiết
-                          </Button>
-                        </div>
+            <div key={message.id} className={`flex ${isUserMessage ? "justify-end" : "justify-start"}`}>
+              <div className={cn("space-y-2", isUserMessage ? "max-w-[80%]" : "w-full max-w-full") }>
+                {isUserMessage ? (
+                  <div className="bg-blue-600 text-white rounded-2xl px-4 py-2">
+                    <p className="text-sm whitespace-pre-wrap">{message.content}</p>
+                    {formattedTimestamp && (
+                      <div className="mt-2 text-xs text-blue-100/80 text-right">
+                        {formattedTimestamp}
                       </div>
-                    ))}
+                    )}
                   </div>
-                </div>
-              )}
+                ) : (
+                  <div className="bg-gray-100 rounded-2xl px-4 py-3 w-full">
+                    <AiResponseRenderer
+                      message={message.content}
+                      results={message.results || []}
+                      onFlightBook={onFlightBook}
+                      onHotelBook={onHotelBook}
+                      canBook={true}
+                    />
+                    {formattedTimestamp && (
+                      <div className="mt-2 text-xs text-gray-500 text-left">
+                        {formattedTimestamp}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
             </div>
           )
         })}
@@ -475,46 +373,6 @@ export const ChatInterface = forwardRef<any, ChatInterfaceProps>(function ChatIn
 
         <div ref={messagesEndRef} />
       </div>
-
-      <Dialog open={isResultDialogOpen} onOpenChange={setIsResultDialogOpen}>
-        <DialogContent className="max-w-lg">
-          {selectedResult && (
-            <div className="space-y-4">
-              <DialogHeader>
-                <DialogTitle>{selectedResult.title ?? "Chi tiết"}</DialogTitle>
-              </DialogHeader>
-              {selectedResult.imageUrl && (
-                <div className="relative h-48 w-full overflow-hidden rounded-lg">
-                  <Image src={selectedResult.imageUrl} alt={selectedResult.title ?? "result"} fill className="object-cover" />
-                </div>
-              )}
-              {selectedResult.subtitle && (
-                <p className="text-sm text-muted-foreground">{selectedResult.subtitle}</p>
-              )}
-              {selectedResult.description && (
-                <p className="text-sm leading-relaxed text-foreground">{selectedResult.description}</p>
-              )}
-              {selectedResult.metadata && Object.keys(selectedResult.metadata).length > 0 && (
-                <div className="space-y-2">
-                  <h4 className="text-sm font-semibold">Thông tin chi tiết</h4>
-                  <div className="grid gap-2">
-                    {Object.entries(selectedResult.metadata).map(([key, value]) => (
-                      <div key={key} className="flex items-start justify-between gap-4 text-sm">
-                        <span className="min-w-[120px] font-medium capitalize">{key.replace(/_/g, " ")}</span>
-                        <span className="text-right text-muted-foreground">
-                          {typeof value === "string" || typeof value === "number"
-                            ? value
-                            : JSON.stringify(value, null, 2)}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
-          )}
-        </DialogContent>
-      </Dialog>
 
       {/* Message Input */}
       <div className="p-4 border-t border-gray-200 bg-white">
@@ -567,6 +425,31 @@ export const ChatInterface = forwardRef<any, ChatInterfaceProps>(function ChatIn
             )}
           </div>
         )}
+
+        {/* Chat Mode Toggle */}
+        <div className="flex items-center justify-between px-4 py-2 bg-gray-50 rounded-lg border mb-4">
+          <span className="text-sm font-medium text-gray-700">Chế độ chat:</span>
+          <div className="flex items-center gap-2">
+            <Button
+              type="button"
+              variant={mode === 'sync' ? 'default' : 'ghost'}
+              size="sm"
+              onClick={() => setMode('sync')}
+              className="text-xs"
+            >
+              Đồng bộ
+            </Button>
+            <Button
+              type="button"
+              variant={mode === 'stream' ? 'default' : 'ghost'}
+              size="sm"
+              onClick={() => setMode('stream')}
+              className="text-xs"
+            >
+              Streaming
+            </Button>
+          </div>
+        </div>
 
         <form onSubmit={handleSubmit} className="flex items-center gap-3">
           <Button

@@ -164,21 +164,29 @@ spring:
             token-uri: ${KEYCLOAK_HOST}/realms/BookingSmart/protocol/openid-connect/token
 
   ai:
-    ollama:
-      init:
-        pull-model-strategy: when_missing
-        embedding:
-          include: false
+    openai:
+      api-key: ${GEMINI_API_KEY}
+      base-url: https://generativelanguage.googleapis.com/v1beta/openai/
       chat:
         options:
-          model: qwen3:4b
-          temperature: 0.0
-      base-url: http://ollama:11434
+          model: gemini-2.5-flash
+          temperature: 0.3
+#    ollama:
+#      init:
+#
+#        pull-model-strategy: when_missing
+#        embedding:
+#          include: false
+#      chat:
+#        options:
+#          model: qwen3:4b
+#          temperature: 0.0
+#      base-url: http://ollama:11434
     mistralai:
       api-key: ${MISTRAL_API_KEY}
       chat:
         options:
-          model: voxtral-mini-latest 
+          model: voxtral-small-2507
     chat:
       memory:
         repository:

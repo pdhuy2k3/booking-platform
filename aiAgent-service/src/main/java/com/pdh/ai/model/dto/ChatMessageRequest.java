@@ -44,4 +44,11 @@ public class ChatMessageRequest {
      * Client timestamp when message was sent.
      */
     private Long timestamp;
+    
+    /**
+     * Processing mode: "stream" for real-time streaming, "sync" for synchronous response.
+     * Defaults to "sync" if not specified.
+     */
+    @Builder.Default
+    private String mode = "sync";
 }

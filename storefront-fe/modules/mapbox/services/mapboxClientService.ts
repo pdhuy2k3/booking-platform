@@ -1,37 +1,32 @@
 /**
  * Client-side Mapbox Service
- * Wrapper that calls the server-side API route
+ * Direct client-side service using NEXT_PUBLIC_MAPBOX_ACCESS_TOKEN
  */
 
+import { MapboxSearchService } from './mapboxSearchService';
 import type {
   MapboxDestinationResult,
   MapboxSearchResponse,
 } from '../types';
 
 class MapboxClientService {
-  private baseUrl = '/api/mapbox/search';
+  private searchService: MapboxSearchService;
+
+  constructor() {
+    this.searchService = new MapboxSearchService();
+  }
 
   async searchDestinations(
     query?: string,
     limit: number = 10
   ): Promise<MapboxSearchResponse<MapboxDestinationResult>> {
     try {
-      const params = new URLSearchParams({
-        action: 'search',
-        limit: limit.toString(),
-      });
-
-      if (query) {
-        params.append('q', query);
+      if (!query) {
+        // Return popular destinations if no query
+        return await this.getPopularDestinations();
       }
 
-      const response = await fetch(`${this.baseUrl}?${params.toString()}`);
-
-      if (!response.ok) {
-        throw new Error(`Search request failed: ${response.status}`);
-      }
-
-      return await response.json();
+      return await this.searchService.searchDestinations(query, limit);
     } catch (error) {
       console.error('Error searching destinations:', error);
       return {
@@ -39,7 +34,7 @@ class MapboxClientService {
         totalCount: 0,
         query,
         metadata: {
-          source: 'client_api',
+          source: 'client_direct',
           error: error instanceof Error ? error.message : 'Unknown error',
         },
       };
@@ -48,24 +43,14 @@ class MapboxClientService {
 
   async getPopularDestinations(): Promise<MapboxSearchResponse<MapboxDestinationResult>> {
     try {
-      const params = new URLSearchParams({
-        action: 'popular',
-      });
-
-      const response = await fetch(`${this.baseUrl}?${params.toString()}`);
-
-      if (!response.ok) {
-        throw new Error(`Popular request failed: ${response.status}`);
-      }
-
-      return await response.json();
+      return await this.searchService.getPopularDestinations();
     } catch (error) {
       console.error('Error getting popular destinations:', error);
       return {
         results: [],
         totalCount: 0,
         metadata: {
-          source: 'client_api',
+          source: 'client_direct',
           error: error instanceof Error ? error.message : 'Unknown error',
         },
       };
@@ -74,18 +59,7 @@ class MapboxClientService {
 
   async getDestinationById(mapboxId: string): Promise<MapboxDestinationResult | null> {
     try {
-      const params = new URLSearchParams({
-        action: 'retrieve',
-        mapbox_id: mapboxId,
-      });
-
-      const response = await fetch(`${this.baseUrl}?${params.toString()}`);
-
-      if (!response.ok) {
-        throw new Error(`Retrieve request failed: ${response.status}`);
-      }
-
-      return await response.json();
+      return await this.searchService.getDestinationById(mapboxId);
     } catch (error) {
       console.error('Error retrieving destination:', error);
       return null;

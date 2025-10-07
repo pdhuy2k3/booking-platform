@@ -18,7 +18,11 @@ import { HotelDestinationModal } from "@/modules/hotel/component/HotelDestinatio
 import { formatPrice } from "@/lib/currency"
 import { useBooking } from "@/contexts/booking-context"
 
-export function HotelSearchTab() {
+interface HotelSearchTabProps {
+  onBookingStart?: () => void
+}
+
+export function HotelSearchTab({ onBookingStart }: HotelSearchTabProps = {}) {
   const router = useRouter()
   const {
     resetBooking,
@@ -176,7 +180,13 @@ export function HotelSearchTab() {
     })
     setStep('passengers')
     handleCloseModal()
-    router.push('/bookings')
+    
+    // Use callback if provided (for modal), otherwise navigate to booking page
+    if (onBookingStart) {
+      onBookingStart()
+    } else {
+      router.push('/bookings')
+    }
   }
 
   async function loadInitialData() {

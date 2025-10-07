@@ -15,12 +15,12 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor
 @AllArgsConstructor
 public class StructuredChatPayload {
-    @JsonProperty(value = "message",required = true)
+    @JsonProperty(required = true, value = "message")
     @JsonPropertyDescription("Natural language response message to the user")
     private String message;
     
-    @JsonProperty(value = "results",required = true)
+    @JsonProperty(required = true, value = "results")
     @JsonPropertyDescription("Array of structured result items like flights, hotels, or information cards")
-
-    private List<StructuredResultItem> results ;
+    @Builder.Default
+    private List<StructuredResultItem> results = Collections.emptyList();
 }

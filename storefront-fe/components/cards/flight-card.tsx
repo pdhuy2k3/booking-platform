@@ -61,11 +61,27 @@ export const FlightCard = ({
   const departureTimeDisplay = getDisplayTime(flight.departureTime)
   const arrivalTimeDisplay = getDisplayTime(flight.arrivalTime)
 
-  const stopsDisplay = typeof flight.stops === 'number' 
-    ? flight.stops === 0 
-      ? 'Bay thẳng' 
-      : `${flight.stops} điểm dừng`
-    : flight.stops || 'Bay thẳng'
+  const stopsDisplay = (() => {
+    if (typeof flight.stops === 'number') {
+      return flight.stops === 0 ? 'Bay thẳng' : `${flight.stops} điểm dừng`
+    }
+
+    if (typeof flight.stops === 'string') {
+      const trimmed = flight.stops.trim()
+      if (!trimmed || trimmed === '0') {
+        return 'Bay thẳng'
+      }
+
+      const numeric = Number(trimmed)
+      if (!Number.isNaN(numeric)) {
+        return numeric === 0 ? 'Bay thẳng' : `${numeric} điểm dừng`
+      }
+
+      return trimmed
+    }
+
+    return 'Bay thẳng'
+  })()
 
   return (
     <Card className={`hover:shadow-lg transition-shadow ${className}`}>

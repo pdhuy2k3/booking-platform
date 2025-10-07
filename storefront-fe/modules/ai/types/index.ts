@@ -5,6 +5,7 @@ export interface ChatMessageRequest {
   conversationId?: string;
   message: string;
   timestamp?: number;
+  mode?: 'stream' | 'sync'; // Processing mode selection
 }
 
 export type ChatResponseType = 'PROCESSING' | 'RESPONSE' | 'ERROR';
@@ -83,6 +84,7 @@ export interface ChatStructuredResult {
   subtitle?: string;
   description?: string;
   imageUrl?: string;
+  ids?: Record<string, string>; // Map of identifiers (flightId, scheduleId, fareId, hotelId, roomTypeId, etc.)
   metadata?: Record<string, unknown>;
 }
 

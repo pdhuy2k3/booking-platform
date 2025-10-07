@@ -1,8 +1,9 @@
 /**
  * Mapbox Search Service
- * Server-side service using MAPBOX_ACCESS_TOKEN from env.mjs
+ * Client-side service using NEXT_PUBLIC_MAPBOX_ACCESS_TOKEN
  */
 
+import { env } from '@/env.mjs';
 import type {
   MapboxSearchParams,
   MapboxRetrieveParams,
@@ -22,17 +23,10 @@ const DEFAULT_COUNTRY = 'VN';
 const DEFAULT_LIMIT = 10;
 
 /**
- * Get Mapbox access token from server-side environment
- * This should only be called on the server
+ * Get Mapbox access token from client-side environment
  */
 const getAccessToken = (): string => {
-  // This will be imported from env.mjs on server-side
-  if (typeof window !== 'undefined') {
-    throw new Error('getAccessToken should only be called on the server');
-  }
-
-  // Will be imported dynamically in API routes
-  return process.env.MAPBOX_ACCESS_TOKEN || '';
+  return env.NEXT_PUBLIC_MAPBOX_ACCESS_TOKEN;
 };
 
 const buildQueryString = (params: Record<string, string | number | undefined>): string => {
@@ -110,8 +104,8 @@ const calculateRelevanceScore = (resultName: string, query: string): number => {
 };
 
 /**
- * Server-side Mapbox Search Service
- * Must be called from API routes or server components
+ * Client-side Mapbox Search Service
+ * Can be used directly in components and hooks
  */
 export class MapboxSearchService {
   private accessToken: string;
@@ -146,7 +140,7 @@ export class MapboxSearchService {
       q: query,
       access_token: this.accessToken,
       language: options?.language || this.language,
-      limit: options?.limit || this.limit,
+      limit:  this.limit,
       country: options?.country || this.country,
       session_token: options?.session_token || this.currentSessionToken,
       ...options,

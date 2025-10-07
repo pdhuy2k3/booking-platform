@@ -1,6 +1,6 @@
 /**
  * React Hook for Mapbox Search
- * Uses client-side service that calls API route
+ * Uses client-side service that calls Mapbox API directly
  */
 
 import { useState, useEffect, useCallback, useRef } from 'react';

@@ -5,12 +5,9 @@ import com.pdh.hotel.dto.request.HotelRequestDto;
 import com.pdh.hotel.service.BackofficeHotelService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.ai.tool.annotation.Tool;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
-import org.springframework.web.multipart.MultipartFile;
-
 import jakarta.validation.Valid;
 import java.util.HashMap;
 import java.util.List;

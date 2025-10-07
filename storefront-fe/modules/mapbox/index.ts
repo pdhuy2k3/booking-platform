@@ -1,12 +1,12 @@
 /**
  * Mapbox Module
- * Server-side search using MAPBOX_ACCESS_TOKEN from env.mjs
+ * Client-side search using NEXT_PUBLIC_MAPBOX_ACCESS_TOKEN
  */
 
 // Export client service (for client components)
 export { mapboxService } from './services/mapboxClientService';
 
-// Export server service (for API routes and server components)
+// Export search service (for direct client use)
 export { MapboxSearchService } from './services/mapboxSearchService';
 
 // Export hooks

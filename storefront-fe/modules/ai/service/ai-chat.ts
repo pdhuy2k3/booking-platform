@@ -41,7 +41,7 @@ class AiChatService {
   }
 
   private get textAppDestination(): string {
-    return '/app/chat.stream'; // Always use streaming endpoint
+    return '/app/chat.message'; // Use unified endpoint that supports both modes
   }
 
   private generateConversationId(): string {
@@ -272,7 +272,7 @@ class AiChatService {
     try {
       // This could be expanded to call a suggestions endpoint
       return [
-        "Tìm chuyến bay từ TP.HCM đến Đà Nẵng",
+        "Tìm chuyến bay từ Hồ Chí Minh đến Đà Nẵng",
         "Gợi ý khách sạn 4 sao tại Đà Nẵng", 
         "Lập kế hoạch du lịch 3 ngày 2 đêm",
         "Tìm địa điểm ăn uống ngon tại Hội An"
@@ -382,31 +382,46 @@ class AiChatService {
   }
 
   /**
-   * Send text message via WebSocket (always uses streaming)
+   * Send text message via WebSocket with mode selection
    */
   sendTextMessage(request: ChatMessageRequest): void {
     if (!this.wsClient?.connected) {
       throw new Error('WebSocket not connected. Call initializeWebSocket first.');
     }
 
-    console.log('🌊 Sending text message (streaming):', {
+    const mode = request.mode || 'sync'; // Default to sync if not specified
+
+    console.log(`🔄 Sending text message (${mode}):`, {
       userId: request.userId,
       conversationId: request.conversationId,
-      messageLength: request.message.length
+      messageLength: request.message.length,
+      mode
     });
 
+    // Ensure mode is included in the request
+    const requestWithMode = {
+      ...request,
+      mode
+    };
+
     this.wsClient.publish({
-      destination: this.textAppDestination, // Uses /app/chat.stream
-      body: JSON.stringify(request),
+      destination: this.textAppDestination, // Uses /app/chat.message
+      body: JSON.stringify(requestWithMode),
     });
   }
 
   /**
-   * Send text message via WebSocket with streaming response (alias for sendTextMessage)
+   * Send text message via WebSocket with streaming mode
    */
   sendTextMessageStream(request: ChatMessageRequest): void {
-    // Both methods now do the same thing - always stream
-    this.sendTextMessage(request);
+    this.sendTextMessage({ ...request, mode: 'stream' });
+  }
+
+  /**
+   * Send text message via WebSocket with sync mode
+   */
+  sendTextMessageSync(request: ChatMessageRequest): void {
+    this.sendTextMessage({ ...request, mode: 'sync' });
   }
 
   /**
