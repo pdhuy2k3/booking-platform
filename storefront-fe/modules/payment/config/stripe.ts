@@ -1,9 +1,9 @@
 // Stripe configuration for frontend
 import { loadStripe, Stripe } from '@stripe/stripe-js'
 import { StripeElementsOptions } from '../type/stripe'
-
+import {env} from "@/env.mjs";
 // Stripe publishable key from environment
-const STRIPE_PUBLISHABLE_KEY = process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY || 'pk_test_default'
+const STRIPE_PUBLISHABLE_KEY = env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY || 'pk_test_default'
 
 // Stripe currencies without minor units (zero-decimal)
 const ZERO_DECIMAL_CURRENCIES = new Set([

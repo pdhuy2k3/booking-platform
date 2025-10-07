@@ -1,7 +1,6 @@
-
 import type { FlightDetails, FlightFareDetails, FlightSearchParams, FlightSearchResponse, InitialFlightData, SearchResponse, DestinationSearchResult } from "../type"
 import { apiClient } from '@/lib/api-client';
-import { destinationService } from '../../destination/service';
+import { mapboxService } from '../../mapbox';
 
 // Helper to map fare details to flight details
 function mapFareToFlightDetails(fareDetails: FlightFareDetails, flightId: string): FlightDetails {
@@ -62,34 +61,66 @@ export const flightService = {
     )
     return mapFareToFlightDetails(fareDetails, flightId)
   },
-  // Use the new destination service for better Vietnamese administrative units integration
-  async searchAirports(search?: string) {
+  async searchDestinations(search: string): Promise<SearchResponse<DestinationSearchResult>> {
     try {
-      // Use the Vietnamese Administrative Units API for better accuracy
-      return await destinationService.searchDestinations(search, 20);
+      const response = await mapboxService.searchDestinations(search, 20);
+
+      return {
+        results: response.results.map(dest => ({
+          name: dest.name,
+          type: dest.type,
+          country: dest.country,
+          category: dest.category,
+          iataCode: dest.id || '',
+          description: dest.description,
+          latitude: dest.latitude,
+          longitude: dest.longitude,
+          relevanceScore: dest.relevanceScore,
+        })),
+        totalCount: response.totalCount,
+        query: response.query || search,
+        limit: response.limit,
+        page: response.page,
+        hasMore: response.hasMore,
+        metadata: response.metadata,
+      };
     } catch (error) {
-      console.error('Error searching airports with new service, falling back to backend:', error);
-      // Fallback to backend API if the new service fails
-      const response = await apiClient.get<SearchResponse<DestinationSearchResult>>('/flights/storefront/airports/search', {
-        params: { q: search }
+      console.error('Error searching destinations with mapbox, falling back to backend:', error);
+
+      const backendResponse = await apiClient.get<SearchResponse<DestinationSearchResult>>('/flights/storefront/destinations/search', {
+        params: { search }
       });
-      return response;
+      return backendResponse;
     }
   },
-  
-  async getPopularDestinations() {
+
+  async getPopularDestinations(): Promise<SearchResponse<DestinationSearchResult>> {
     try {
-      // Use the Vietnamese Administrative Units API for better accuracy
-      return await destinationService.getPopularDestinations();
+      const response = await mapboxService.getPopularDestinations();
+
+      return {
+        results: response.results.map(dest => ({
+          name: dest.name,
+          type: dest.type,
+          country: dest.country,
+          category: dest.category,
+          iataCode: dest.id || '',
+          description: dest.description,
+          latitude: dest.latitude,
+          longitude: dest.longitude,
+          relevanceScore: dest.relevanceScore,
+        })),
+        totalCount: response.totalCount,
+        query: '',
+        metadata: response.metadata,
+      };
     } catch (error) {
-      console.error('Error getting popular destinations with new service, falling back to backend:', error);
-      // Fallback to backend API if the new service fails
-      const response = await apiClient.get<SearchResponse<DestinationSearchResult>>('/flights/storefront/airports/search', {
-        params: { q: '' } // Empty query returns popular destinations
-      });
-      return response;
+      console.error('Error getting popular destinations with mapbox, falling back to backend:', error);
+
+      const backendResponse = await apiClient.get<SearchResponse<DestinationSearchResult>>('/flights/storefront/destinations/popular');
+      return backendResponse;
     }
-  }
+  },
 }
 
 export type { FlightSearchParams, FlightSearchResponse, FlightDetails, FlightFareDetails, InitialFlightData }

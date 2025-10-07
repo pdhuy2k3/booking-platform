@@ -87,6 +87,7 @@ public class FlightController {
      */
 
     @GetMapping("/storefront/search")
+
     @Tool(name = "search_flights", description = "Search flights with filters for origin, destination, dates, airline, price range, and duration.")
     public ResponseEntity<Map<String, Object>> searchFlights(
             @ToolParam(description = "Origin airport, city, or IATA code", required = false)
@@ -126,6 +127,9 @@ public class FlightController {
 
         log.info("Flight search request: origin={}, destination={}, departureDate={}, airlineName={}, minPrice={}, maxPrice={}, seatClass={}",
                 origin, destination, departureDate, airlineName, minPrice, maxPrice, seatClass);
+        
+        Integer effectivePage = (page != null && page > 0) ? page : 1;
+        Integer effectiveLimit = (limit != null && limit > 0) ? limit : 20;
 
         try {
             SearchValidation.ValidationResult originValidation = SearchValidation.validateSearchQuery(origin);
@@ -133,29 +137,29 @@ public class FlightController {
             SearchValidation.ValidationResult airlineValidation = SearchValidation.validateSearchQuery(airlineName);
 
             if (!originValidation.isValid()) {
-                return ResponseEntity.badRequest().body(FlightSearchResponseBuilder.validationError(originValidation.getErrorMessage(), page, limit));
+                return ResponseEntity.badRequest().body(FlightSearchResponseBuilder.validationError(originValidation.getErrorMessage(), effectivePage, effectiveLimit));
             }
 
             if (!destinationValidation.isValid()) {
-                return ResponseEntity.badRequest().body(FlightSearchResponseBuilder.validationError(destinationValidation.getErrorMessage(), page, limit));
+                return ResponseEntity.badRequest().body(FlightSearchResponseBuilder.validationError(destinationValidation.getErrorMessage(), effectivePage, effectiveLimit));
             }
 
             if (!airlineValidation.isValid()) {
-                return ResponseEntity.badRequest().body(FlightSearchResponseBuilder.validationError(airlineValidation.getErrorMessage(), page, limit));
+                return ResponseEntity.badRequest().body(FlightSearchResponseBuilder.validationError(airlineValidation.getErrorMessage(), effectivePage, effectiveLimit));
             }
 
             if (minPrice != null && maxPrice != null && minPrice.compareTo(maxPrice) > 0) {
-                return ResponseEntity.badRequest().body(FlightSearchResponseBuilder.validationError("minPrice cannot be greater than maxPrice", page, limit));
+                return ResponseEntity.badRequest().body(FlightSearchResponseBuilder.validationError("minPrice cannot be greater than maxPrice", effectivePage, effectiveLimit));
             }
 
             if (minDuration != null && maxDuration != null && minDuration > maxDuration) {
-                return ResponseEntity.badRequest().body(FlightSearchResponseBuilder.validationError("minDuration cannot be greater than maxDuration", page, limit));
+                return ResponseEntity.badRequest().body(FlightSearchResponseBuilder.validationError("minDuration cannot be greater than maxDuration", effectivePage, effectiveLimit));
             }
 
             if (StringUtils.hasText(airlineCode)) {
                 SearchValidation.ValidationResult codeValidation = SearchValidation.validateSearchQuery(airlineCode);
                 if (!codeValidation.isValid()) {
-                    return ResponseEntity.badRequest().body(FlightSearchResponseBuilder.validationError(codeValidation.getErrorMessage(), page, limit));
+                    return ResponseEntity.badRequest().body(FlightSearchResponseBuilder.validationError(codeValidation.getErrorMessage(), effectivePage, effectiveLimit));
                 }
             }
 
@@ -178,7 +182,7 @@ public class FlightController {
                 || minPrice != null || maxPrice != null
                 || minDuration != null || maxDuration != null;
 
-            Pageable pageable = PageRequest.of(Math.max(page - 1, 0), limit);
+            Pageable pageable = PageRequest.of(Math.max(effectivePage - 1, 0), effectiveLimit);
 
             if (!hasSearchCriteria) {
                 Page<Flight> flightPage = flightRepository.findAll(pageable);
@@ -189,11 +193,9 @@ public class FlightController {
                 Map<String, Object> response = Map.of(
                     "flights", flights,
                     "popularDestinations", FlightStaticData.POPULAR_DESTINATIONS,
-                    "origins", getOriginData(),
-                    "destinations", getDestinationData(),
                     "totalCount", flightPage.getTotalElements(),
-                    "page", page,
-                    "limit", limit,
+                    "page", effectivePage,
+                    "limit", effectiveLimit,
                     "hasMore", flightPage.hasNext(),
                     "filters", Map.of("applied", Map.of())
                 );
@@ -205,7 +207,7 @@ public class FlightController {
             try {
                 depDate = LocalDate.parse(departureDate);
             } catch (DateTimeParseException | NullPointerException e) {
-                return ResponseEntity.badRequest().body(FlightSearchResponseBuilder.validationError("Invalid departure date format. Expected YYYY-MM-DD", page, limit));
+                return ResponseEntity.badRequest().body(FlightSearchResponseBuilder.validationError("Invalid departure date format. Expected YYYY-MM-DD", effectivePage, effectiveLimit));
             }
 
             LocalDate retDate = null;
@@ -213,7 +215,7 @@ public class FlightController {
                 try {
                     retDate = LocalDate.parse(returnDate);
                 } catch (DateTimeParseException e) {
-                    return ResponseEntity.badRequest().body(FlightSearchResponseBuilder.validationError("Invalid return date format. Expected YYYY-MM-DD", page, limit));
+                    return ResponseEntity.badRequest().body(FlightSearchResponseBuilder.validationError("Invalid return date format. Expected YYYY-MM-DD", effectivePage, effectiveLimit));
                 }
             }
 
@@ -221,7 +223,7 @@ public class FlightController {
             try {
                 fareClass = FareClass.valueOf(seatClass.toUpperCase());
             } catch (Exception e) {
-                return ResponseEntity.badRequest().body(FlightSearchResponseBuilder.validationError("Invalid seat class. Valid values are: ECONOMY, BUSINESS, FIRST", page, limit));
+                return ResponseEntity.badRequest().body(FlightSearchResponseBuilder.validationError("Invalid seat class. Valid values are: ECONOMY, BUSINESS, FIRST", effectivePage, effectiveLimit));
             }
 
             Page<FlightSearchResultDto> flightPage = flightSearchService.searchFlights(
@@ -264,8 +266,8 @@ public class FlightController {
             Map<String, Object> response = Map.of(
                 "flights", flights,
                 "totalCount", flightPage.getTotalElements(),
-                "page", page,
-                "limit", limit,
+                "page", effectivePage,
+                "limit", effectiveLimit,
                 "hasMore", flightPage.hasNext(),
                 "filters", Map.of("applied", appliedFilters)
             );
@@ -276,7 +278,7 @@ public class FlightController {
         } catch (Exception e) {
             e.printStackTrace();
             log.error("Error searching flights", e);
-            return ResponseEntity.ok(FlightSearchResponseBuilder.failureResponse(e.getMessage(), page, limit));
+            return ResponseEntity.ok(FlightSearchResponseBuilder.failureResponse(e.getMessage(), effectivePage, effectiveLimit));
         }
     }
 
@@ -644,21 +646,7 @@ public class FlightController {
         );
     }
 
-    /**
-     * Get origin data from external API
-     */
-    private List<Map<String, Object>> getOriginData() {
-        // In production, this calls the tinhthanhpho.com API
-        return cityDataService.getAllProvincesAndCities();
-    }
 
-    /**
-     * Get destination data from external API
-     */
-    private List<Map<String, Object>> getDestinationData() {
-        // In production, this calls the tinhthanhpho.com API
-        return cityDataService.getAllProvincesAndCities();
-    }
 
     private ZonedDateTime parseDepartureDateTime(String departureDateTime) {
         try {
@@ -681,10 +669,7 @@ public class FlightController {
         
         String trimmed = cityOrIataCode.trim();
         
-        // If it's already an IATA code, return as is
-        if (cityMappingService.isIataCode(trimmed)) {
-            return trimmed.toUpperCase();
-        }
+
         
         // Try to resolve city name to IATA code
         List<String> iataCodes = cityMappingService.getIataCodesForCity(trimmed);

@@ -1,11 +1,21 @@
 server:
   port: 8086
+  # Tomcat configuration for large payloads
+  tomcat:
+    max-http-form-post-size: 10MB
+    max-swallow-size: 10MB
 
 spring:
   profiles:
     active: local
   application:
     name: STOREFRONT-BFF
+  # Servlet multipart configuration for large file uploads
+  servlet:
+    multipart:
+      max-file-size: 10MB
+      max-request-size: 10MB
+      enabled: true
 logging:
   level:
     "[com.pdh.storefront]": DEBUG
@@ -78,6 +88,13 @@ spring:
           uri: lb://MEDIA-SERVICE
           predicates:
             - Path=/api/media/**
+          filters:
+            - StripPrefix=1
+            - TokenRelay=
+        - id: ai-agent-service
+          uri: lb://AIAGENT-SERVICE
+          predicates:
+            - Path=/api/ai/**
           filters:
             - StripPrefix=1
             - TokenRelay=

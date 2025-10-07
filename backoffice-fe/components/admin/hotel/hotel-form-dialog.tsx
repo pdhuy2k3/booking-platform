@@ -22,6 +22,8 @@ interface HotelFormData {
   city: string
   country: string
   starRating: number
+  latitude?: number
+  longitude?: number
   media?: MediaResponse[]
 }
 
@@ -128,6 +130,32 @@ export function HotelFormDialog({
                 <SelectItem value="5">5 sao</SelectItem>
               </SelectContent>
             </Select>
+          </div>
+          <div className="col-span-2 grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="latitude">Vĩ độ (Latitude)</Label>
+              <Input
+                id="latitude"
+                type="number"
+                step="0.000001"
+                placeholder="21.028511"
+                value={hotel.latitude || ""}
+                onChange={(e) => onHotelChange({...hotel, latitude: e.target.value ? parseFloat(e.target.value) : undefined})}
+              />
+              <p className="text-xs text-gray-500">Phạm vi: -90 đến 90</p>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="longitude">Kinh độ (Longitude)</Label>
+              <Input
+                id="longitude"
+                type="number"
+                step="0.000001"
+                placeholder="105.804817"
+                value={hotel.longitude || ""}
+                onChange={(e) => onHotelChange({...hotel, longitude: e.target.value ? parseFloat(e.target.value) : undefined})}
+              />
+              <p className="text-xs text-gray-500">Phạm vi: -180 đến 180</p>
+            </div>
           </div>
           <div className="col-span-2 space-y-2">
             <Label>Hình ảnh khách sạn</Label>

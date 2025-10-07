@@ -2,10 +2,8 @@ import axios, { type AxiosInstance, type AxiosRequestConfig, type AxiosResponse 
 
 class ApiClient {
   private client: AxiosInstance
-  private BASE_URL: string
 
   constructor() {
-    this.BASE_URL = process.env.NEXT_PUBLIC_BASE_URL || "http://localhost:8086"
 
     this.client = axios.create({
       baseURL: `/api`,

@@ -182,7 +182,7 @@ export default function HotelDetailsModal({
               className="object-cover"
               unoptimized
             />
-            <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/60 to-transparent p-6">
+            <div className="absolute bottom-0 left-0 right-0 bg-linear-to-t from-black/60 to-transparent p-6">
               <h1 className="text-3xl font-bold text-white mb-2">{hotel.name}</h1>
               <div className="flex items-center space-x-2 text-white/90">
                 <MapPin className="h-4 w-4" />

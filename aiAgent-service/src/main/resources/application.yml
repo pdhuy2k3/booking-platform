@@ -2,42 +2,56 @@ server:
   port: 8036
   servlet:
     context-path: /ai
+  # Tomcat configuration for large payloads
+  tomcat:
+    max-http-form-post-size: 10MB
+    max-swallow-size: 10MB
 
 # OpenAPI Documentation Configuration
-springdoc:
-  api-docs:
-    path: /api/docs
-    enabled: true
-  swagger-ui:
-    path: /api/swagger-ui
-    enabled: true
-    operationsSorter: method
-    tagsSorter: alpha
-    try-it-out-enabled: true
-  show-actuator: true
-
-
-# API Documentation Properties
-api:
-  info:
-    title: AI Agent Service API
-    description: AI-powered chat and assistance API for the BookingSmart platform
-    version: '@project.version@'
-    contact:
-      name: BookingSmart AI Team
-      email: ai-team@bookingsmart.com
+#springdoc:
+#  api-docs:
+#    path: /api/docs
+#    enabled: true
+#  swagger-ui:
+#    path: /api/swagger-ui
+#    enabled: true
+#    operationsSorter: method
+#    tagsSorter: alpha
+#    try-it-out-enabled: true
+#  show-actuator: true
 
 spring:
   profiles:
-    active: local,resilience
+    active: local
   application:
     name: aiAgent-service
   threads:
     virtual:
       enabled: true
+  # Servlet multipart configuration for large file uploads
+  servlet:
+    multipart:
+      max-file-size: 10MB
+      max-request-size: 10MB
+      enabled: true
   autoconfigure:
     exclude:
       - org.springframework.ai.mcp.client.autoconfigure.SseWebFluxTransportAutoConfiguration
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    properties:
+      hibernate.format_sql: true
+      hibernate.jdbc.lob.non_contextual_creation: true
+  liquibase:
+    enabled: true
+    change-log: classpath:/db/changelog/db.changelog-master.yaml
+  ai:
+    chat:
+      memory:
+        repository:
+          jdbc:
+            initialize-schema: never
 ---
 spring:
   config:
@@ -49,28 +63,36 @@ spring:
     password: p0stgr3s
     driver-class-name: org.postgresql.Driver
   ai:
-    openai:
-      api-key: ${GEMINI_API_KEY}
+    ollama:
+      init:
+        pull-model-strategy: when_missing
+        embedding:
+          include: false
       chat:
-        base-url: https://generativelanguage.googleapis.com/v1beta/openai/
-        api-key: ${GEMINI_API_KEY}
-        
         options:
-          model: gemini-2.5-flash
+          model: qwen3:4b
+          temperature: 0.0
+    mistralai:
+      api-key: ${MISTRAL_API_KEY}
+      chat:
+        options:
+          model: voxtral-mini-latest 
+
+            
     chat:
       memory:
         repository:
           jdbc:
-            initialize-schema: always
+            initialize-schema: never
 
     mcp:
       client:
         enabled: true
-        name: llm-mcp-client-demo
+        name: bookingsmrt-mcp-client
         version: 1.0.0
 
-        request-timeout: 120s
-        type: sync
+        request-timeout: 300s
+        type: async
         root-change-notification: true
         toolcallback.enabled: true
         sse:
@@ -81,6 +103,30 @@ spring:
             server2:
               url: http://localhost:8081
               sse-endpoint: /flights/sse
+        stdio:
+          connections:
+            openweather:
+              command: docker
+              args:
+                - run
+                - -i
+                - --rm
+                - -e
+                - OWM_API_KEY
+                - mcp/openweather
+              env:
+                OWM_API_KEY: ${OWM_API_KEY}
+            mapbox:
+              command: docker
+              args:
+                - run
+                - -i
+                - --rm
+                - -e
+                - MAPBOX_ACCESS_TOKEN
+                - mcp/mapbox
+              env:
+                MAPBOX_ACCESS_TOKEN: ${MAPBOX_ACCESS_TOKEN}
         initialized: true
   security:
     oauth2:
@@ -99,7 +145,6 @@ spring:
         provider:
           auth-server:
             token-uri: http://localhost:9090/realms/BookingSmart/protocol/openid-connect/token
-
 ---
 spring:
   config:
@@ -131,44 +176,105 @@ spring:
   ai:
     openai:
       api-key: ${GEMINI_API_KEY}
+      base-url: https://generativelanguage.googleapis.com/v1beta/openai/
       chat:
-        base-url: https://generativelanguage.googleapis.com/v1beta/openai/
-        api-key: ${GEMINI_API_KEY}
-        
         options:
           model: gemini-2.5-flash
+          temperature: 0.1
+#    ollama:
+#      init:
+#
+#        pull-model-strategy: when_missing
+#        embedding:
+#          include: false
+#      chat:
+#        options:
+#          model: qwen3:4b
+#          temperature: 0.0
+#      base-url: http://ollama:11434
+    mistralai:
+      api-key: ${MISTRAL_API_KEY}
+      chat:
+        options:
+          model: voxtral-small-2507
     chat:
       memory:
         repository:
           jdbc:
-            initialize-schema: always
+            initialize-schema: never
 
     mcp:
       client:
         enabled: true
-        name: llm-mcp-client-demo
+        name: bookingsmart-mcp-client
         version: 1.0.0
         type: sync
-        request-timeout: 120s
-  
+        request-timeout: 300s
+
         root-change-notification: true
         toolcallback.enabled: true
         sse:
           connections:
-            server1:
+            hotel-mcp-server:
               url: http://hotel-service
               sse-endpoint: /hotels/sse
-            server2:
+            flight-mcp-server:
               url: http://flight-service
               sse-endpoint: /flights/sse
-          # servers-configuration: classpath:mcp-servers.json
+        stdio:
+          connections:
+            openweather:
+              command: docker
+              args:
+                - run
+                - -i
+                - --rm
+                - -e
+                - OWM_API_KEY
+                - mcp/openweather
+              env:
+                OWM_API_KEY: ${OWM_API_KEY}
+            mapbox:
+              command: docker
+              args:
+                - run
+                - -i
+                - --rm
+                - -e
+                - MAPBOX_ACCESS_TOKEN
+                - mcp/mapbox
+              env:
+                MAPBOX_ACCESS_TOKEN: ${MAPBOX_ACCESS_TOKEN}
+            brave:
+              command: docker
+              args:
+                - run
+                - -i
+                - --rm
+                - -e
+                - BRAVE_API_KEY
+                - mcp/brave-search
+              env:
+                BRAVE_API_KEY: ${BRAVE_API_KEY}
         initialized: true
+
+# Logging Configuration for Tool Tracking
+# logging:
+#   level:
+#     '[com.pdh.ai.agent.CoreAgent]': INFO
+#     '[com.pdh.ai.service.ToolResultCollector]': INFO
+#     '[com.pdh.ai.agent.mcp.client.CustomSyncMcpToolCallbackProvider]': INFO
+#     '[com.pdh.ai.agent.advisor.LoggingAdvisor]': INFO
+#     '[org.springframework.ai.mcp]': DEBUG
+#     '[org.springframework.ai.tool]': DEBUG
+#     '[io.modelcontextprotocol]': DEBUG
+#   pattern:
+#     console: "%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n"
+#     file: "%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n"
+
 eureka:
   client:
     serviceUrl:
       defaultZone: ${EUREKA_URI}
   instance:
     prefer-ip-address: true
-
-
-

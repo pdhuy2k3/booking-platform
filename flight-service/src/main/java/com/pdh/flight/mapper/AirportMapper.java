@@ -200,6 +200,14 @@ public class AirportMapper {
         if (StringUtils.hasText(requestDto.getCountry())) {
             airport.setCountry(requestDto.getCountry());
         }
+        
+        if (requestDto.getLatitude() != null) {
+            airport.setLatitude(requestDto.getLatitude());
+        }
+        
+        if (requestDto.getLongitude() != null) {
+            airport.setLongitude(requestDto.getLongitude());
+        }
     }
 
     /**
@@ -215,6 +223,8 @@ public class AirportMapper {
         airport.setIataCode(requestDto.getIataCode().toUpperCase());
         airport.setCity(requestDto.getCity());
         airport.setCountry(requestDto.getCountry());
+        airport.setLatitude(requestDto.getLatitude());
+        airport.setLongitude(requestDto.getLongitude());
         airport.setIsActive(true);
         
         return airport;

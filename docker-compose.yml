@@ -243,9 +243,10 @@ services:
     build:
       context: ./storefront-fe
       dockerfile: Dockerfile
-    image: phamduyhuyuit/bookingsmart-storefront-fe:latest
+
     environment:
       - NODE_ENV=production
+
     networks:
       - booking-network
     restart: unless-stopped
@@ -313,6 +314,13 @@ services:
       - DB_USERNAME
       - DB_PASSWORD
       - GEMINI_API_KEY
+      - OWM_API_KEY
+      - MAPBOX_ACCESS_TOKEN
+      - BRAVE_API_KEY
+      - MISTRAL_API_KEY
+    volumes:
+      # Docker socket for running MCP server on containers
+      - /var/run/docker.sock:/var/run/docker.sock
     networks:
       - booking-network
   # Hotel Service
@@ -443,21 +451,25 @@ services:
       - booking-network
 
   #Ollama
-  #  ollama:
-  #    profiles:
-  #      - aiAgent
-  #      - app
-  #    image: ollama/ollama:latest
-  #    container_name: ollama
-  #    restart: unless-stopped
-  #    environment:
-  #      - OLLAMA_KEEP_ALIVE=24h
-  #      - OLLAMA_HOST=0.0.0.0
-  #    ports:
+  # ollama:
+  #   image: ollama/ollama:latest
+  #   restart: unless-stopped
+  #   environment:
+  #     - OLLAMA_KEEP_ALIVE=24h
+  #     - OLLAMA_HOST=0.0.0.0
+  #   ports:
   #      - "11434:11434"
-  #    volumes:
-  #      - ollama_data:/root/.ollama
-
+  #   volumes:
+  #      - pulled_models:/root/.ollama
+  #   deploy:
+  #     resources:
+  #       reservations:
+  #         devices:
+  #           - driver: nvidia
+  #             count: all
+  #             capabilities: [gpu]
+  #   networks:
+  #     - booking-network
 #  # PgAdmin for database management
 #  pgadmin:
 #    profiles:
@@ -485,6 +497,6 @@ networks:
 volumes:
   postgres_data:
   redis_data:
-  n8n_data:
-#    ollama_data:
+  # n8n_data:
+  # pulled_models:
 #    pgadmin_data:

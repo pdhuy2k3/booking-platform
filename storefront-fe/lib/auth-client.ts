@@ -16,8 +16,8 @@ export class AuthClient {
 
   static async logout(): Promise<void> {
     try {
-      const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || "http://localhost:8086"
-      const response = await fetch(`${baseUrl}/logout`, {
+
+      const response = await fetch(`/logout`, {
         method: 'POST',
         credentials: 'include', // Include cookies for authentication
       })

@@ -4,9 +4,13 @@ import { z } from 'zod';
 export const UserPreferencesSchema = z.object({
   language: z.string().regex(/^[a-z]{2}(-[A-Z]{2})?$/, 'Must be a valid language code (e.g., "en", "en-US")').optional(),
   currency: z.string().regex(/^[A-Z]{3}$/, 'Must be a valid 3-letter currency code').optional(),
+  timezone: z.string().optional(), // User's preferred timezone
+  dateFormat: z.enum(['VN', 'US', 'ISO']).optional(), // Date format preference
   theme: z.enum(['light', 'dark', 'auto']).optional(),
   density: z.enum(['compact', 'comfortable', 'spacious']).optional(),
   notifications: z.enum(['email', 'sms', 'push', 'all', 'none']).optional(),
+  autoDetectLocation: z.boolean().optional(), // Auto-detect location on login
+  countryCode: z.string().optional(), // User's country code
 });
 
 // User Address Schema

@@ -6,6 +6,7 @@ import { cn } from '@/lib/utils';
 
 // Import Mapbox CSS
 import 'mapbox-gl/dist/mapbox-gl.css';
+import { env } from '@/env.mjs';
 
 export interface MapLocation {
   id: string;
@@ -41,7 +42,7 @@ export function MapboxMap({
   onLocationClick,
   onMapLoad,
   interactive = true,
-  height = "400px"
+  height = "100vh"
 }: MapboxMapProps) {
   const mapContainer = useRef<HTMLDivElement>(null);
   const map = useRef<mapboxgl.Map | null>(null);
@@ -53,9 +54,9 @@ export function MapboxMap({
     if (!mapContainer.current || map.current) return;
 
     // Get API key from environment variables
-    const apiKey = process.env.NEXT_PUBLIC_MAPBOX_ACCESS_TOKEN;
+    const apiKey = env.NEXT_PUBLIC_MAPBOX_ACCESS_TOKEN
     if (!apiKey) {
-      console.error('Mapbox API key not found. Please set NEXT_PUBLIC_MAPBOX_API_KEY in your environment variables.');
+      console.error('Mapbox API key not found. Please set NEXT_PUBLIC_MAPBOX_ACCESS_TOKEN in your environment variables.');
       return;
     }
 
@@ -232,7 +233,7 @@ export function MapboxMap({
   };
 
   return (
-    <div className={cn("relative w-full", className)} style={{ height }}>
+    <div className={cn("relative w-full h-full", className)} style={{ height }}>
       <div ref={mapContainer} className="w-full h-full" />
       
       {/* Custom CSS for markers */}

@@ -45,6 +45,8 @@ export type HotelSearchResult = {
   amenities: string[]
   images: string[]
   primaryImage?: string
+  latitude?: number
+  longitude?: number
 }
 
 export type HotelSearchResponse = {
@@ -135,6 +137,8 @@ export type HotelDetails = {
     pets: string
     smoking: string
   }
+  latitude?: number
+  longitude?: number
 }
 
 export interface RoomDetails {

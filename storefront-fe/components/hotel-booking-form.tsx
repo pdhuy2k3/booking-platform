@@ -19,18 +19,20 @@ import {
   PopoverContent, 
   PopoverTrigger 
 } from "@/components/ui/popover"
-import { format } from "date-fns"
+import { useDateFormatter } from "@/hooks/use-date-formatter"
 import { CalendarIcon } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { HotelBookingDetails, GuestDetails } from '@/modules/booking/types'
 
 interface HotelBookingFormProps {
-  hotel: any // Replace with proper hotel type
+  hotel: any
   onSubmit: (details: HotelBookingDetails) => void
   onCancel: () => void
 }
 
 export function HotelBookingForm({ hotel, onSubmit, onCancel }: HotelBookingFormProps) {
+  const { formatDateOnly } = useDateFormatter()
+
   const [checkInDate, setCheckInDate] = useState<Date | undefined>(new Date())
   const [checkOutDate, setCheckOutDate] = useState<Date | undefined>(new Date(Date.now() + 86400000)) // Next day
   const [numberOfRooms, setNumberOfRooms] = useState<number>(1)
@@ -125,8 +127,8 @@ export function HotelBookingForm({ hotel, onSubmit, onCancel }: HotelBookingForm
       roomId: hotel.roomId,
       roomType: hotel.roomType,
       roomName: hotel.roomName,
-      checkInDate: format(checkInDate, 'yyyy-MM-dd'),
-      checkOutDate: format(checkOutDate, 'yyyy-MM-dd'),
+      checkInDate: formatDateOnly(checkInDate.toISOString()),
+      checkOutDate: formatDateOnly(checkOutDate.toISOString()),
       numberOfNights,
       numberOfRooms,
       numberOfGuests,
@@ -144,7 +146,7 @@ export function HotelBookingForm({ hotel, onSubmit, onCancel }: HotelBookingForm
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Hotel Booking Details</CardTitle>
+        <CardTitle>Thông tin đặt phòng khách sạn</CardTitle>
       </CardHeader>
       <CardContent>
         <form onSubmit={handleSubmit} className="space-y-6">
@@ -174,7 +176,7 @@ export function HotelBookingForm({ hotel, onSubmit, onCancel }: HotelBookingForm
           {/* Booking Options */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <Label htmlFor="checkInDate">Check-in Date *</Label>
+              <Label htmlFor="checkInDate">Ngày nhận phòng</Label>
               <Popover>
                 <PopoverTrigger asChild>
                   <Button
@@ -185,7 +187,7 @@ export function HotelBookingForm({ hotel, onSubmit, onCancel }: HotelBookingForm
                     )}
                   >
                     <CalendarIcon className="mr-2 h-4 w-4" />
-                    {checkInDate ? format(checkInDate, "PPP") : <span>Pick a date</span>}
+                    {checkInDate ? formatDateOnly(checkInDate.toISOString()) : <span>Chọn ngày</span>}
                   </Button>
                 </PopoverTrigger>
                 <PopoverContent className="w-auto p-0">
@@ -200,7 +202,7 @@ export function HotelBookingForm({ hotel, onSubmit, onCancel }: HotelBookingForm
             </div>
 
             <div>
-              <Label htmlFor="checkOutDate">Check-out Date *</Label>
+              <Label htmlFor="checkOutDate">Ngày trả phòng</Label>
               <Popover>
                 <PopoverTrigger asChild>
                   <Button
@@ -211,7 +213,7 @@ export function HotelBookingForm({ hotel, onSubmit, onCancel }: HotelBookingForm
                     )}
                   >
                     <CalendarIcon className="mr-2 h-4 w-4" />
-                    {checkOutDate ? format(checkOutDate, "PPP") : <span>Pick a date</span>}
+                    {checkOutDate ? formatDateOnly(checkOutDate.toISOString()) : <span>Chọn ngày</span>}
                   </Button>
                 </PopoverTrigger>
                 <PopoverContent className="w-auto p-0">
@@ -226,18 +228,18 @@ export function HotelBookingForm({ hotel, onSubmit, onCancel }: HotelBookingForm
             </div>
 
             <div>
-              <Label htmlFor="numberOfRooms">Number of Rooms</Label>
-              <Select 
+              <Label htmlFor="numberOfRooms">Số lượng phòng</Label>
+              <Select
                 value={numberOfRooms.toString()} 
                 onValueChange={(value) => setNumberOfRooms(parseInt(value))}
               >
                 <SelectTrigger>
-                  <SelectValue placeholder="Select rooms" />
+                  <SelectValue placeholder="Chọn số phòng" />
                 </SelectTrigger>
                 <SelectContent>
                   {[1, 2, 3, 4, 5].map(num => (
                     <SelectItem key={num} value={num.toString()}>
-                      {num} {num === 1 ? 'Room' : 'Rooms'}
+                      {num} {num === 1 ? 'Phòng' : 'Phòng'}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -245,18 +247,18 @@ export function HotelBookingForm({ hotel, onSubmit, onCancel }: HotelBookingForm
             </div>
 
             <div>
-              <Label htmlFor="numberOfGuests">Number of Guests</Label>
-              <Select 
+              <Label htmlFor="numberOfGuests">Số lượng khách</Label>
+              <Select
                 value={numberOfGuests.toString()} 
                 onValueChange={(value) => setNumberOfGuests(parseInt(value))}
               >
                 <SelectTrigger>
-                  <SelectValue placeholder="Select guests" />
+                  <SelectValue placeholder="Chọn số khách" />
                 </SelectTrigger>
                 <SelectContent>
                   {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map(num => (
                     <SelectItem key={num} value={num.toString()}>
-                      {num} {num === 1 ? 'Guest' : 'Guests'}
+                      {num} {num === 1 ? 'Khách' : 'Khách'}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -264,17 +266,17 @@ export function HotelBookingForm({ hotel, onSubmit, onCancel }: HotelBookingForm
             </div>
 
             <div>
-              <Label htmlFor="bedType">Bed Preference</Label>
+              <Label htmlFor="bedType">Loại giường</Label>
               <Select value={bedType} onValueChange={setBedType}>
                 <SelectTrigger>
-                  <SelectValue placeholder="Select bed type" />
+                  <SelectValue placeholder="Chọn loại giường" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="SINGLE">Single Bed</SelectItem>
-                  <SelectItem value="DOUBLE">Double Bed</SelectItem>
-                  <SelectItem value="TWIN">Twin Beds</SelectItem>
-                  <SelectItem value="KING">King Size</SelectItem>
-                  <SelectItem value="QUEEN">Queen Size</SelectItem>
+                  <SelectItem value="SINGLE">Giường đơn</SelectItem>
+                  <SelectItem value="DOUBLE">Giường đôi</SelectItem>
+                  <SelectItem value="TWIN">Giường đơn đôi</SelectItem>
+                  <SelectItem value="KING">Giường King</SelectItem>
+                  <SelectItem value="QUEEN">Giường Queen</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -282,13 +284,13 @@ export function HotelBookingForm({ hotel, onSubmit, onCancel }: HotelBookingForm
 
           {/* Guest Information */}
           <div>
-            <h3 className="text-lg font-semibold mb-4">Guest Information</h3>
+            <h3 className="text-lg font-semibold mb-4">Thông tin khách</h3>
             {guests.map((guest, index) => (
               <div key={index} className="border rounded-lg p-4 mb-4">
                 <div className="flex justify-between items-center mb-3">
                   <h4 className="font-medium">
-                    {guest.guestType === 'PRIMARY' ? 'Primary Guest (Contact)' : `Guest ${index}`}
-                    {guest.guestType === 'PRIMARY' && <span className="text-sm text-muted-foreground ml-2">(Contact Person)</span>}
+                    {guest.guestType === 'PRIMARY' ? 'Khách chính (Liên hệ)' : `Khách ${index}`}
+                    {guest.guestType === 'PRIMARY' && <span className="text-sm text-muted-foreground ml-2">(Người liên hệ)</span>}
                   </h4>
                   {guest.guestType !== 'PRIMARY' && guests.length > 1 && (
                     <Button 
@@ -297,53 +299,53 @@ export function HotelBookingForm({ hotel, onSubmit, onCancel }: HotelBookingForm
                       size="sm" 
                       onClick={() => handleRemoveGuest(index)}
                     >
-                      Remove
+                      Xóa
                     </Button>
                   )}
                 </div>
                 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
-                    <Label htmlFor={`title-${index}`}>Title *</Label>
-                    <Select 
+                    <Label htmlFor={`title-${index}`}>Danh xưng *</Label>
+                    <Select
                       value={guest.title} 
                       onValueChange={(value) => handleGuestChange(index, 'title', value)}
                     >
                       <SelectTrigger>
-                        <SelectValue placeholder="Select title" />
+                        <SelectValue placeholder="Chọn danh xưng" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="MR">Mr.</SelectItem>
-                        <SelectItem value="MRS">Mrs.</SelectItem>
-                        <SelectItem value="MS">Ms.</SelectItem>
-                        <SelectItem value="MISS">Miss</SelectItem>
-                        <SelectItem value="DR">Dr.</SelectItem>
+                        <SelectItem value="MR">Ông</SelectItem>
+                        <SelectItem value="MRS">Bà</SelectItem>
+                        <SelectItem value="MS">Cô</SelectItem>
+                        <SelectItem value="MISS">Chị</SelectItem>
+                        <SelectItem value="DR">Tiến sĩ</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
 
                   <div>
-                    <Label htmlFor={`firstName-${index}`}>First Name *</Label>
+                    <Label htmlFor={`firstName-${index}`}>Tên *</Label>
                     <Input
                       id={`firstName-${index}`}
                       value={guest.firstName}
                       onChange={(e) => handleGuestChange(index, 'firstName', e.target.value)}
-                      placeholder="First name"
+                      placeholder="Tên"
                     />
                   </div>
 
                   <div>
-                    <Label htmlFor={`lastName-${index}`}>Last Name *</Label>
+                    <Label htmlFor={`lastName-${index}`}>Họ *</Label>
                     <Input
                       id={`lastName-${index}`}
                       value={guest.lastName}
                       onChange={(e) => handleGuestChange(index, 'lastName', e.target.value)}
-                      placeholder="Last name"
+                      placeholder="Họ"
                     />
                   </div>
 
                   <div>
-                    <Label htmlFor={`dateOfBirth-${index}`}>Date of Birth *</Label>
+                    <Label htmlFor={`dateOfBirth-${index}`}>Ngày sinh *</Label>
                     <Input
                       id={`dateOfBirth-${index}`}
                       type="date"
@@ -353,28 +355,28 @@ export function HotelBookingForm({ hotel, onSubmit, onCancel }: HotelBookingForm
                   </div>
 
                   <div>
-                    <Label htmlFor={`gender-${index}`}>Gender *</Label>
-                    <Select 
+                    <Label htmlFor={`gender-${index}`}>Giới tính *</Label>
+                    <Select
                       value={guest.gender} 
                       onValueChange={(value) => handleGuestChange(index, 'gender', value as any)}
                     >
                       <SelectTrigger>
-                        <SelectValue placeholder="Select gender" />
+                        <SelectValue placeholder="Chọn giới tính" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="M">Male</SelectItem>
-                        <SelectItem value="F">Female</SelectItem>
+                        <SelectItem value="M">Nam</SelectItem>
+                        <SelectItem value="F">Nữ</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
 
                   <div>
-                    <Label htmlFor={`nationality-${index}`}>Nationality *</Label>
+                    <Label htmlFor={`nationality-${index}`}>Quốc tịch *</Label>
                     <Input
                       id={`nationality-${index}`}
                       value={guest.nationality}
                       onChange={(e) => handleGuestChange(index, 'nationality', e.target.value)}
-                      placeholder="Country code (e.g., VN)"
+                      placeholder="Mã quốc gia (vd: VN)"
                     />
                   </div>
 
@@ -387,17 +389,17 @@ export function HotelBookingForm({ hotel, onSubmit, onCancel }: HotelBookingForm
                           type="email"
                           value={guest.email}
                           onChange={(e) => handleGuestChange(index, 'email', e.target.value)}
-                          placeholder="Email address"
+                          placeholder="Địa chỉ email"
                         />
                       </div>
 
                       <div>
-                        <Label htmlFor={`phoneNumber-${index}`}>Phone Number</Label>
+                        <Label htmlFor={`phoneNumber-${index}`}>Số điện thoại</Label>
                         <Input
                           id={`phoneNumber-${index}`}
                           value={guest.phoneNumber}
                           onChange={(e) => handleGuestChange(index, 'phoneNumber', e.target.value)}
-                          placeholder="Phone number"
+                          placeholder="Số điện thoại"
                         />
                       </div>
                     </>
@@ -413,19 +415,19 @@ export function HotelBookingForm({ hotel, onSubmit, onCancel }: HotelBookingForm
                 onClick={handleAddGuest}
                 className="mt-2"
               >
-                Add Another Guest
+                Thêm khách khác
               </Button>
             )}
           </div>
 
           {/* Special Requests */}
           <div>
-            <Label htmlFor="specialRequests">Special Requests</Label>
+            <Label htmlFor="specialRequests">Yêu cầu đặc biệt</Label>
             <Textarea
               id="specialRequests"
               value={specialRequests}
               onChange={(e) => setSpecialRequests(e.target.value)}
-              placeholder="Any special requests or requirements"
+              placeholder="Các yêu cầu hoặc điều kiện đặc biệt"
               rows={3}
             />
           </div>
@@ -433,10 +435,10 @@ export function HotelBookingForm({ hotel, onSubmit, onCancel }: HotelBookingForm
           {/* Actions */}
           <div className="flex justify-between">
             <Button type="button" variant="outline" onClick={onCancel}>
-              Cancel
+              Hủy
             </Button>
             <Button type="submit">
-              Continue to Review
+              Tiếp tục đến trang xem xét
             </Button>
           </div>
         </form>

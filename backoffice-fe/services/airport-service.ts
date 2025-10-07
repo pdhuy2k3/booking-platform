@@ -7,6 +7,8 @@ interface AirportCreateRequest {
   city: string
   country: string
   timezone?: string
+  latitude?: number
+  longitude?: number
   images?: string[] // Array of publicIds from MediaSelector
 }
 
@@ -16,6 +18,8 @@ interface AirportUpdateRequest {
   city?: string
   country?: string
   timezone?: string
+  latitude?: number
+  longitude?: number
   images?: string[] // Array of publicIds from MediaSelector
 }
 

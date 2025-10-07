@@ -38,7 +38,7 @@ public class CityMappingService {
         log.debug("Searching IATA codes for city: {} (normalized: {})", cityName, normalizedCity);
         
         // Direct match
-        List<String> directMatch = cityToIataMap.get(normalizedCity);
+        List<String> directMatch = cityToIataMap.get(normalizedCity.toLowerCase());
         if (directMatch != null && !directMatch.isEmpty()) {
             log.debug("Found direct match for city: {}", normalizedCity);
             return directMatch;
@@ -268,6 +268,7 @@ public class CityMappingService {
         mapping.put("thành phố hồ chí minh", List.of("SGN"));
         mapping.put("tp hồ chí minh", List.of("SGN"));
         mapping.put("tp.hcm", List.of("SGN"));
+      
         mapping.put("hồ chí minh", List.of("SGN"));
         mapping.put("sài gòn", List.of("SGN"));
         mapping.put("hà nội", List.of("HAN"));

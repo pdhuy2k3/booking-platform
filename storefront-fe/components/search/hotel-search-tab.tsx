@@ -3,7 +3,7 @@
 import { useEffect, useState, useRef } from "react"
 import { useRouter } from "next/navigation"
 import { HotelCardSkeleton } from "@/modules/hotel/component/HotelCardSkeleton"
-import { HotelCard } from "@/modules/hotel/component/HotelCard"
+import { HotelCard } from "@/components/cards"
 import { Search, Filter, Building2, Calendar, Users, Star, Wifi, Car, Coffee, Dumbbell, ChevronUp, ChevronDown } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -18,7 +18,11 @@ import { HotelDestinationModal } from "@/modules/hotel/component/HotelDestinatio
 import { formatPrice } from "@/lib/currency"
 import { useBooking } from "@/contexts/booking-context"
 
-export function HotelSearchTab() {
+interface HotelSearchTabProps {
+  onBookingStart?: () => void
+}
+
+export function HotelSearchTab({ onBookingStart }: HotelSearchTabProps = {}) {
   const router = useRouter()
   const {
     resetBooking,
@@ -176,7 +180,13 @@ export function HotelSearchTab() {
     })
     setStep('passengers')
     handleCloseModal()
-    router.push('/bookings')
+    
+    // Use callback if provided (for modal), otherwise navigate to booking page
+    if (onBookingStart) {
+      onBookingStart()
+    } else {
+      router.push('/bookings')
+    }
   }
 
   async function loadInitialData() {
@@ -464,7 +474,7 @@ export function HotelSearchTab() {
             <div className="lg:col-span-1">
               <div className="sticky top-0 space-y-4">
                 <Card className="max-h-[calc(100vh-120px)] overflow-hidden flex flex-col">
-                  <CardHeader className="flex-shrink-0">
+                  <CardHeader className="shrink-0">
                     <CardTitle className="flex items-center gap-2">
                       <Filter className="h-5 w-5" />
                       Bộ lọc
@@ -626,10 +636,8 @@ export function HotelSearchTab() {
                     key={hotel.id}
                     hotel={hotel}
                     onViewDetails={handleViewDetails}
-                    onBookNow={handleBookNow}
-                    showPrice={hasSearched}
-                    bookingDisabled={!hasSearched}
-                    onPromptSearch={scrollToSearch}
+                    onBook={handleBookNow}
+                    showBookButton={hasSearched}
                   />
                 ))}
 

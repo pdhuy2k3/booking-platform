@@ -15,6 +15,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -55,6 +56,7 @@ public class FlightSearchService {
      * @param departureAirportId Filter by departure airport ID
      * @return Page of FlightSearchResultDto with pricing
      */
+    @Transactional(readOnly = true)
     public Page<FlightSearchResultDto> searchFlights(
             String origin, String destination, List<String> originTerms, List<String> destinationTerms,
             LocalDate departureDate, LocalDate returnDate, int passengers, FareClass fareClass,

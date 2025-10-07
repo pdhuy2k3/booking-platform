@@ -3,8 +3,8 @@
 import React from 'react'
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { format } from "date-fns"
-import { 
+import { useDateFormatter } from "@/hooks/use-date-formatter"
+import {
   FlightBookingDetails, 
   HotelBookingDetails, 
   ComboBookingDetails 
@@ -30,6 +30,8 @@ export function BookingReview({
   onEdit, 
   onCancel 
 }: BookingReviewProps) {
+  const { formatDateTime, formatDateOnly } = useDateFormatter()
+
   const renderFlightDetails = (details: FlightBookingDetails) => (
     <div className="space-y-4">
       <h3 className="text-lg font-semibold">Thông tin chuyến bay</h3>
@@ -42,10 +44,10 @@ export function BookingReview({
         </div>
         <div>
           <p className="text-sm">
-            <span className="font-medium">Khởi hành:</span> {format(new Date(details.departureDateTime), 'PPP p')}
+            <span className="font-medium">Khởi hành:</span> {formatDateTime(details.departureDateTime)}
           </p>
           <p className="text-sm">
-            <span className="font-medium">Hạ cánh:</span> {format(new Date(details.arrivalDateTime), 'PPP p')}
+            <span className="font-medium">Hạ cánh:</span> {formatDateTime(details.arrivalDateTime)}
           </p>
         </div>
         <div>
@@ -69,7 +71,7 @@ export function BookingReview({
           <div key={index} className="border-b py-2 last:border-b-0">
             <p className="font-medium">{passenger.title} {passenger.firstName} {passenger.lastName}</p>
             <p className="text-sm text-muted-foreground">
-              {passenger.passengerType} • {format(new Date(passenger.dateOfBirth), 'PPP')} • {passenger.nationality}
+              {passenger.passengerType} • {formatDateOnly(passenger.dateOfBirth)} • {passenger.nationality}
             </p>
             {passenger.email && (
               <p className="text-sm">{passenger.email}</p>
@@ -80,72 +82,41 @@ export function BookingReview({
     </div>
   )
 
-  const renderHotelDetails = (details: HotelBookingDetails) => {
-    const nights = Math.max(details.numberOfNights || 1, 1)
-    const rooms = Math.max(details.numberOfRooms || 1, 1)
-    const baseNightlyPrice = details.pricePerNight || details.totalRoomPrice / (nights * rooms)
-
-    return (
-      <div className="space-y-4">
-        <h3 className="text-lg font-semibold">Thông tin khách sạn</h3>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-4 bg-muted rounded-lg">
-          <div>
-            <p className="font-medium">{details.hotelName}</p>
-            <p className="text-sm text-muted-foreground">
-              {details.hotelAddress}, {details.city}, {details.country}
-          </p>
-          <div className="flex items-center mt-1">
-            {[...Array(details.starRating || 0)].map((_, i) => (
-              <span key={i} className="text-yellow-500">★</span>
-            ))}
-          </div>
-          </div>
-          <div>
-            <p className="text-sm">
-              <span className="font-medium">Phòng:</span> {details.roomName} ({details.roomType})
-            </p>
-            <p className="text-sm">
-              <span className="font-medium">Thời gian lưu trú:</span> {format(new Date(details.checkInDate), 'PPP')} - {format(new Date(details.checkOutDate), 'PPP')} ({nights} đêm)
-            </p>
-          </div>
-          <div>
-            <p className="text-sm">
-              <span className="font-medium">Số khách:</span> {details.numberOfGuests}
-            </p>
-            <p className="text-sm">
-              <span className="font-medium">Số phòng:</span> {details.numberOfRooms}
-            </p>
-          </div>
-          <div>
-            <p className="text-sm">
-              <span className="font-medium">Giá mỗi đêm (1 phòng):</span> {formatCurrency(baseNightlyPrice, 'VND')}
-            </p>
-            <p className="text-sm">
-              <span className="font-medium">Thành tiền:</span> {formatCurrency(details.totalRoomPrice, 'VND')} ({rooms} phòng × {nights} đêm)
-            </p>
-          </div>
-        </div>
-
+  const renderHotelDetails = (details: HotelBookingDetails) => (
+    <div className="space-y-4">
+      <h3 className="text-lg font-semibold">Thông tin khách sạn</h3>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-4 bg-muted rounded-lg">
         <div>
-          <h4 className="font-medium mb-2">Danh sách khách</h4>
-          {details.guests.map((guest, index) => (
-            <div key={index} className="border-b py-2 last:border-b-0">
-              <p className="font-medium">
-                {guest.title} {guest.firstName} {guest.lastName}
-                {guest.guestType === 'PRIMARY' && <span className="text-xs bg-primary text-primary-foreground rounded px-2 py-1 ml-2">Liên hệ chính</span>}
-              </p>
-              <p className="text-sm text-muted-foreground">
-                {format(new Date(guest.dateOfBirth), 'PPP')} • {guest.nationality}
-              </p>
-              {guest.email && (
-                <p className="text-sm">{guest.email}</p>
-              )}
-            </div>
-          ))}
+          <p className="font-medium">{details.hotelName}</p>
+          <p className="text-sm text-muted-foreground">{details.hotelAddress}</p>
+        </div>
+        <div>
+          <p className="text-sm">
+            <span className="font-medium">Nhận phòng:</span> {formatDateTime(details.checkInDate)}
+          </p>
+          <p className="text-sm">
+            <span className="font-medium">Trả phòng:</span> {formatDateTime(details.checkOutDate)}
+          </p>
+        </div>
+        <div>
+          <p className="text-sm">
+            <span className="font-medium">Loại phòng:</span> {details.roomType}
+          </p>
+          <p className="text-sm">
+            <span className="font-medium">Số phòng:</span> {details.numberOfRooms}
+          </p>
+        </div>
+        <div>
+          <p className="text-sm">
+            <span className="font-medium">Số khách:</span> {details.numberOfGuests}
+          </p>
+          <p className="text-sm">
+            <span className="font-medium">Tổng chi phí:</span> {formatCurrency(details.totalRoomPrice, 'VND')}
+          </p>
         </div>
       </div>
-    )
-  }
+    </div>
+  )
 
   const calculateTotalAmount = () => {
     let total = 0

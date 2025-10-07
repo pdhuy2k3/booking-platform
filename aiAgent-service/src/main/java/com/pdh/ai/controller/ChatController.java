@@ -1,13 +1,16 @@
 package com.pdh.ai.controller;
 
-import com.pdh.ai.ChatRequest;
+import com.pdh.ai.model.dto.ChatHistoryResponse;
 import com.pdh.ai.service.AiService;
+import com.pdh.common.utils.AuthenticationUtils;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.HashMap;
-import java.util.Map;
+import java.time.LocalDateTime;
+import java.util.UUID;
+
 @RestController
+@RequestMapping("/chat")
 public class ChatController {
     private final AiService aiService;
 
@@ -17,21 +20,75 @@ public class ChatController {
 
 
 
-    @PostMapping("/chat/message")
-    public ResponseEntity<Map<String, Object>> sendMessage(@RequestBody ChatRequest chatRequest) {
-        try
-        {String response = aiService.complete(chatRequest.getMessage());
-        Map<String, Object> map = new HashMap<>();
-        map.put("userMessage", chatRequest.getMessage());
-        map.put("aiResponse", response);
-        return ResponseEntity.ok(map);
+    @GetMapping("/history/{conversationId}")
+    public ResponseEntity<ChatHistoryResponse> getChatHistory(
+            @PathVariable String conversationId,
+            @RequestParam(required = false) String userId) {
+        try {
+            String actualUserId = getUserIdFromRequestOrToken(userId);
+            ChatHistoryResponse history = aiService.getChatHistory(conversationId, actualUserId);
+            return ResponseEntity.ok(history);
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.status(404).body(
+                ChatHistoryResponse.builder()
+                    .conversationId(conversationId)
+                    .messages(java.util.List.of())
+                    .createdAt(LocalDateTime.now())
+                    .lastUpdated(LocalDateTime.now())
+                    .build()
+            );
+        } catch (Exception e) {
+            return ResponseEntity.status(500).body(
+                ChatHistoryResponse.builder()
+                    .conversationId(conversationId)
+                    .messages(java.util.List.of())
+                    .createdAt(LocalDateTime.now())
+                    .lastUpdated(LocalDateTime.now())
+                    .build()
+            );
         }
-        catch (Exception e)
-        {
-            System.out.println("Error: " + e.getMessage());
-            Map<String, Object> map = new HashMap<>();
-            map.put("error", e.getMessage());
-            return ResponseEntity.status(500).body(map);
+    }
+
+    @DeleteMapping("/history/{conversationId}")
+    public ResponseEntity<Void> clearChatHistory(
+            @PathVariable String conversationId,
+            @RequestParam(required = false) String userId) {
+        try {
+            String actualUserId = getUserIdFromRequestOrToken(userId);
+            aiService.clearChatHistory(conversationId, actualUserId);
+            return ResponseEntity.ok().build();
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.status(404).build();
+        } catch (Exception e) {
+            return ResponseEntity.status(500).build();
+        }
+    }
+
+    @GetMapping("/conversations")
+    public ResponseEntity<java.util.List<String>> getUserConversations(
+            @RequestParam(required = false) String userId) {
+        try {
+            String actualUserId = getUserIdFromRequestOrToken(userId);
+            java.util.List<String> conversations = aiService.getUserConversations(actualUserId);
+            return ResponseEntity.ok(conversations);
+        } catch (Exception e) {
+            return ResponseEntity.status(500).body(java.util.List.of());
+        }
+    }
+
+    /**
+     * Get userId from request parameter or extract from JWT token
+     */
+    private String getUserIdFromRequestOrToken(String requestUserId) {
+        if (requestUserId != null && !requestUserId.trim().isEmpty()) {
+            return requestUserId;
+        }
+        
+        try {
+            return AuthenticationUtils.extractUserId();
+        } catch (Exception e) {
+            // If unable to extract userId (e.g., no authentication), return anonymous user
+            return "anonymous-" + UUID.randomUUID().toString().substring(0, 8);
         }
     }
 }

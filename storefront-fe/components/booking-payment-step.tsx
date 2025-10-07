@@ -132,7 +132,7 @@ export function BookingPaymentStep({ onPaymentSuccess, onBack, onCancel }: Booki
       </CardHeader>
       <CardContent className="space-y-6">
         <div className={`flex items-start gap-4 rounded-lg border p-4 transition-colors ${statusMeta.bg}`}>
-          <StatusIcon className={`h-6 w-6 flex-shrink-0 ${statusMeta.tone}`} />
+          <StatusIcon className={`h-6 w-6 shrink-0 ${statusMeta.tone}`} />
           <div>
             <p className="font-medium">{statusMeta.title}</p>
             <p className="text-sm text-muted-foreground">{statusMeta.description}</p>
