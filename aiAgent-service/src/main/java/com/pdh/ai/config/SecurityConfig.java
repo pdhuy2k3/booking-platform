@@ -18,7 +18,6 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.core.convert.converter.Converter;
 import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
-import org.springframework.security.config.annotation.web.configurers.CsrfConfigurer;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.oauth2.client.AuthorizedClientServiceOAuth2AuthorizedClientManager;
@@ -43,11 +42,12 @@ public class SecurityConfig{
                         auth.requestMatchers("/actuator/**").permitAll()
                                 .requestMatchers("/docs/**", "/swagger-ui/**", "/v3/api-docs/**").permitAll()
                                 .requestMatchers("/health/**").permitAll()
+                                .requestMatchers("/ws/**").authenticated()
                                 .anyRequest().authenticated()
                 )
                 .oauth2Client(Customizer.withDefaults())
                 .oauth2ResourceServer(oauth2 -> oauth2.jwt(Customizer.withDefaults()))
-                .csrf(CsrfConfigurer::disable)
+                .csrf(csrf -> csrf.ignoringRequestMatchers("/ws/**", "/sse/**"))
                 .build();
     }
 

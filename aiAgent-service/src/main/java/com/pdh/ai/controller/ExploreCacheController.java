@@ -70,4 +70,15 @@ public class ExploreCacheController {
         return ResponseEntity.ok(Map.of("message", "Default cache cleared for Vietnam"));
     }
 
+    /**
+     * Clear seasonal cache for a specific season
+     */
+    @DeleteMapping("/clear/seasonal/{season}")
+    public ResponseEntity<Map<String, String>> clearSeasonalCache(
+            @PathVariable String season,
+            @RequestParam(required = false, defaultValue = "Việt Nam") String country) {
+        exploreCacheService.clearSeasonalCache(season, country);
+        return ResponseEntity.ok(Map.of("message", "Seasonal cache cleared for " + season + " in " + country));
+    }
+
 }

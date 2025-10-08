@@ -10,10 +10,12 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.messaging.handler.annotation.MessageMapping;
 import org.springframework.messaging.handler.annotation.Payload;
+import org.springframework.messaging.simp.SimpMessageHeaderAccessor;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Controller;
 
 import java.net.Authenticator;
+import java.security.Principal;
 import java.time.LocalDateTime;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicReference;
@@ -53,21 +55,21 @@ public class ChatWebSocketController {
      * 
      * @param request Chat message request with user message and mode
      */
-    @MessageMapping("chat.message")
-    public void handleChatMessage(@Payload ChatMessageRequest request) {
-        String mode = request.getMode() != null ? request.getMode().toLowerCase() : "sync";
-        
-        log.info("🔀 Received chat message with mode '{}': userId={}, conversationId={}, message='{}'",
-                mode, request.getUserId(), request.getConversationId(), 
-                truncateMessage(request.getMessage()));
-        
-        // Route to appropriate handler based on mode
-        if ("stream".equals(mode)) {
-            handleChatMessageStream(request);
-        } else {
-            handleChatMessageSync(request);
-        }
-    }
+//    @MessageMapping("chat.message")
+//    public void handleChatMessage(@Payload ChatMessageRequest request) {
+//        String mode = request.getMode() != null ? request.getMode().toLowerCase() : "sync";
+//
+//        log.info("🔀 Received chat message with mode '{}': userId={}, conversationId={}, message='{}'",
+//                mode, request.getUserId(), request.getConversationId(),
+//                truncateMessage(request.getMessage()));
+//
+//        // Route to appropriate handler based on mode
+//        if ("stream".equals(mode)) {
+//            handleChatMessageStream(request);
+//        } else {
+//            handleChatMessageSync(request);
+//        }
+//    }
     @MessageMapping("chat.stream")
     public void handleChatMessageStream(@Payload ChatMessageRequest request) {
         long startTime = System.currentTimeMillis();
@@ -178,7 +180,7 @@ public class ChatWebSocketController {
                 request.getUserId(), request.getConversationId(), 
                 truncateMessage(request.getMessage()));
 
-        // Validate request
+
         if (request.getUserId() == null || request.getUserId().trim().isEmpty()) {
             log.warn("❌ No userId provided in sync request");
             sendErrorResponse(

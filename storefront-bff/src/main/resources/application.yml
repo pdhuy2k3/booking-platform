@@ -158,6 +158,13 @@ spring:
               uri: http://storefront-fe:3000
               predicates:
                 - Path=/**
+            - id: aiagent-ws
+              uri: lb:ws://aiAgent-service
+              predicates:
+                - Path=/api/ai/ws/**
+              filters:
+                - RewritePath=/api/ai/ws/(?<segment>.*), /ws/${segment}
+                - TokenRelay=
           default-filters:
             - SaveSession
 

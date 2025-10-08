@@ -33,7 +33,7 @@ const toStripeAmount = (amount: number, currency: string): number => {
 export const defaultStripeElementsOptions: StripeElementsOptions = {
   mode: 'payment',
   currency: 'vnd',
-  paymentMethodTypes: ['card', 'apple_pay', 'google_pay'],
+  paymentMethodTypes: ['card'],
   appearance: {
     theme: 'stripe',
     variables: {

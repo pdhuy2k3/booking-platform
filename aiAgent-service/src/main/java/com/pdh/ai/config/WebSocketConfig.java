@@ -1,6 +1,7 @@
 package com.pdh.ai.config;
 
 import org.springframework.context.annotation.Configuration;
+import org.springframework.messaging.simp.config.ChannelRegistration;
 import org.springframework.messaging.simp.config.MessageBrokerRegistry;
 import org.springframework.web.socket.config.annotation.EnableWebSocketMessageBroker;
 import org.springframework.web.socket.config.annotation.StompEndpointRegistry;
@@ -44,7 +45,13 @@ import org.springframework.web.socket.config.annotation.WebSocketTransportRegist
  */
 @Configuration
 @EnableWebSocketMessageBroker
+
 public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
+    private final PrincipalPropagateInterceptor principalPropagateInterceptor;
+
+    public WebSocketConfig(PrincipalPropagateInterceptor principalPropagateInterceptor) {
+        this.principalPropagateInterceptor = principalPropagateInterceptor;
+    }
 
     /**
      * Configure message broker for pub/sub messaging.
@@ -106,5 +113,9 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
         registry.setMessageSizeLimit(10 * 1024 * 1024); // 10 MB per message (supports 5MB+ audio)
         registry.setSendBufferSizeLimit(10 * 1024 * 1024); // 10 MB send buffer
         registry.setSendTimeLimit(30000); // 30 seconds timeout
+    }
+    @Override
+    public void configureClientInboundChannel(ChannelRegistration registration) {
+        registration.interceptors(principalPropagateInterceptor);
     }
 }

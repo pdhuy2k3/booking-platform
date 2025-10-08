@@ -46,7 +46,7 @@ class AiChatService {
   }
 
   private get textAppDestination(): string {
-    return '/app/chat.message'; // Use unified endpoint that supports both modes
+    return '/app/chat.sync'; // Use unified endpoint that supports both modes
   }
 
   private generateConversationId(): string {
@@ -90,10 +90,7 @@ class AiChatService {
 
       const response = await apiClient.post<ChatResponse>(
         `${this.baseUrl}/chat/message`,
-        request,
-        {
-          timeout: 30000, // 30 second timeout for AI responses
-        }
+        request
       );
 
       return response;
@@ -299,10 +296,7 @@ class AiChatService {
   async getDefaultDestinations(): Promise<ExploreResponse> {
     try {
       const response = await apiClient.get<ExploreResponse>(
-        `${this.baseUrl}/explore/default`,
-        {
-          timeout: 15000, // Shorter timeout for cached results
-        }
+        `${this.baseUrl}/explore/default`
       );
 
       return response;
@@ -332,8 +326,7 @@ class AiChatService {
       const response = await apiClient.get<ExploreResponse>(
         `${this.baseUrl}/explore`,
         {
-          params,
-          timeout: 30000, // 30 second timeout
+          params
         }
       );
 
@@ -363,9 +356,7 @@ class AiChatService {
       const response = await apiClient.get<ExploreResponse>(
         `${this.baseUrl}/explore/trending`,
         {
-          params,
-          timeout: 15000, // Shorter timeout for cached results
-        }
+          params        }
       );
 
       return response;
@@ -398,9 +389,7 @@ class AiChatService {
       const response = await apiClient.get<ExploreResponse>(
         `${this.baseUrl}/explore/seasonal`,
         {
-          params,
-          timeout: 15000, // Shorter timeout for cached results
-        }
+          params        }
       );
 
       return response;

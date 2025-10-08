@@ -38,9 +38,25 @@ public class ExploreCacheWarmer implements ApplicationRunner {
         try {
             logger.info("🔥 [CACHE-WARMER] Warming up default explore cache for Vietnam");
 
-            // Only warm up default explore recommendations for Vietnam
+            // Warm up default explore recommendations for Vietnam
             exploreCacheService.getDefaultExploreRecommendations();
             logger.info("✅ [CACHE-WARMER] Default explore recommendations cached for Vietnam");
+
+            // Warm up seasonal recommendations for all seasons in Vietnam
+            String country = "Việt Nam";
+            String[] seasons = {"spring", "summer", "fall", "winter"};
+            
+            logger.info("🔥 [CACHE-WARMER] Warming up seasonal caches for Vietnam");
+            for (String season : seasons) {
+                try {
+                    exploreCacheService.getSeasonalExploreRecommendations(season, country);
+                    logger.info("✅ [CACHE-WARMER] Seasonal recommendations cached for {} in Vietnam", season);
+                } catch (Exception e) {
+                    logger.error("❌ [CACHE-WARMER] Error warming up {} cache: {}", season, e.getMessage());
+                }
+            }
+
+            logger.info("✅ [CACHE-WARMER] All seasonal caches warmed up for Vietnam");
 
         } catch (Exception e) {
             logger.error("❌ [CACHE-WARMER] Error warming up caches: {}", e.getMessage(), e);

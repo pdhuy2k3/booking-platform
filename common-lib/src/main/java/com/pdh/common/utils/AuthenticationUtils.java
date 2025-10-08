@@ -18,15 +18,18 @@ public final class AuthenticationUtils {
     }
 
     public static String extractUserId() {
-        Authentication authentication = getAuthentication();
-
-        if (authentication instanceof AnonymousAuthenticationToken) {
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        if (authentication == null || authentication instanceof AnonymousAuthenticationToken) {
             throw new AccessDeniedException(ApiConstant.ACCESS_DENIED);
         }
-
-        JwtAuthenticationToken contextHolder = (JwtAuthenticationToken) authentication;
-
-        return contextHolder.getToken().getSubject();
+        if (authentication instanceof JwtAuthenticationToken jat) {
+            return jat.getToken().getSubject();
+        }
+        // Fallback khi Principal đã là JwtAuthenticationToken (từ method param)
+        if (authentication.getPrincipal() instanceof Jwt jwt) {
+            return jwt.getSubject();
+        }
+        throw new AccessDeniedException("Unsupported authentication type: " + authentication.getClass());
     }
 
     public static UUID getCurrentUserIdFromContext() {

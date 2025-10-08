@@ -451,46 +451,6 @@ services:
     networks:
       - booking-network
 
-  #Ollama
-  # ollama:
-  #   image: ollama/ollama:latest
-  #   restart: unless-stopped
-  #   environment:
-  #     - OLLAMA_KEEP_ALIVE=24h
-  #     - OLLAMA_HOST=0.0.0.0
-  #   ports:
-  #      - "11434:11434"
-  #   volumes:
-  #      - pulled_models:/root/.ollama
-  #   deploy:
-  #     resources:
-  #       reservations:
-  #         devices:
-  #           - driver: nvidia
-  #             count: all
-  #             capabilities: [gpu]
-  #   networks:
-  #     - booking-network
-#  # PgAdmin for database management
-#  pgadmin:
-#    profiles:
-#      - dev
-#      - auth
-#    image: dpage/pgadmin4:latest
-#    environment:
-#      PGADMIN_CONFIG_SERVER_MODE: 'False'
-#      PGADMIN_DEFAULT_EMAIL: huypd.dev@gmail.com
-#      PGADMIN_DEFAULT_PASSWORD: admin123
-#    ports:
-#      - "8666:80"
-#    volumes:
-#      - pgadmin_data:/var/lib/pgadmin
-#    depends_on:
-#      - postgres
-#    restart: unless-stopped
-#    networks:
-#      - booking-network
-
 networks:
   booking-network:
     driver: bridge
@@ -498,6 +458,4 @@ networks:
 volumes:
   postgres_data:
   redis_data:
-  # n8n_data:
-  # pulled_models:
-#    pgadmin_data:
+

@@ -95,7 +95,7 @@ public class ExploreController {
     }
 
     /**
-     * Get seasonal recommendations based on current time of year (not cached - fresh results)
+     * Get seasonal recommendations based on current time of year (cached)
      * 
      * @param season Required season parameter (spring, summer, fall, winter)
      * @param userCountry Optional user's current country
@@ -106,9 +106,7 @@ public class ExploreController {
             @RequestParam(required = true) String season,
             @RequestParam(required = false, defaultValue = "Việt Nam") String userCountry) {
         try {
-            String query = String.format("Gợi ý 3 điểm đến du lịch phù hợp với mùa %s tại %s. " +
-                                        "Bao gồm lý do tại sao phù hợp với mùa này và hình ảnh đẹp.", season, userCountry);
-            ExploreResponse result = exploreAgent.explore(query, userCountry);
+            ExploreResponse result = exploreCacheService.getSeasonalExploreRecommendations(season, userCountry);
             return ResponseEntity.ok(result);
         } catch (Exception e) {
             return ResponseEntity.status(500).body(
