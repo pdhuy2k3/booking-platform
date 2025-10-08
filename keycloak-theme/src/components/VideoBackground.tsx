@@ -1,20 +1,14 @@
 import React, { useState, useRef, useEffect } from 'react';
 
 // Import all video files
-import background1 from '../login/assets/background.mp4';
-import background2 from '../login/assets/277187_small.mp4';
-import background3 from '../login/assets/289105_small.mp4';
-import background4 from '../login/assets/298643_small.mp4';
-import background5 from '../login/assets/47213-451041047_small.mp4';
-import background6 from '../login/assets/72566-543910236_small.mp4';
+
 
 const videoSources = [
-  background1,
-  background2,
-  background3,
-  background4,
-  background5,
-  background6
+  "https://res.cloudinary.com/de0ler3wa/video/upload/v1759930824/289105_small_ihwcvv.mp4",
+  "https://res.cloudinary.com/de0ler3wa/video/upload/v1759930822/47213-451041047_small_bf1rqh.mp4",
+  "https://res.cloudinary.com/de0ler3wa/video/upload/v1759930798/72566-543910236_small_ja5zzs.mp4",
+  "https://res.cloudinary.com/de0ler3wa/video/upload/v1759930792/277187_small_k5n93g.mp4",
+
 ];
 
 export const VideoBackground: React.FC = () => {
