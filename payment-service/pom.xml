@@ -76,6 +76,12 @@
                 </exclusion>
             </exclusions>
         </dependency>
+
+        <!-- Spring AI MCP Server -->
+        <dependency>
+            <groupId>org.springframework.ai</groupId>
+            <artifactId>spring-ai-starter-mcp-server-webmvc</artifactId>
+        </dependency>
                 <dependency>
             <groupId>com.pdh</groupId>
             <artifactId>common-lib</artifactId>

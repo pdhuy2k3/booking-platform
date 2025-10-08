@@ -84,7 +84,20 @@ spring:
   config:
     activate:
       on-profile: local
-
+  ai:
+    mcp:
+      server:
+        enabled: true
+        stdio: false
+        name: booking-mcp-server
+        version: 1.0.0
+        type: sync
+        base-url: /payments
+        capabilities:
+          prompt: false
+          completion: false
+          resource: false
+          tool: true
   security:
     oauth2:
       resourceserver:
@@ -125,7 +138,20 @@ spring:
     url: ${DB_URL}
     username: ${DB_USERNAME}
     password: ${DB_PASSWORD}
-  
+  ai:
+    mcp:
+      server:
+        enabled: true
+        stdio: false
+        name: booking-mcp-server
+        version: 1.0.0
+        type: sync
+        base-url: /payments
+        capabilities:
+          prompt: false
+          completion: false
+          resource: false
+          tool: true 
   jpa:
     hibernate:
       ddl-auto: none

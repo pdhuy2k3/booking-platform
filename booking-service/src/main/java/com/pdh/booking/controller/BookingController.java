@@ -141,8 +141,15 @@ public class BookingController {
     )
     @SecurityRequirement(name = "oauth2", scopes = {"customer"})
     @GetMapping("/storefront/history")
+    @org.springframework.ai.tool.annotation.Tool(
+        name = "get_booking_history",
+        description = "Get paginated booking history for the current user. Returns list of bookings with details, " +
+                "status, and booking information. Default page=0, size=10."
+    )
     public ResponseEntity<BookingHistoryResponseDto> getBookingHistory(
+            @org.springframework.ai.tool.annotation.ToolParam(description = "Page number (0-based, default: 0)", required = false)
             @RequestParam(name = "page", defaultValue = "0") int page,
+            @org.springframework.ai.tool.annotation.ToolParam(description = "Number of results per page (default: 10)", required = false)
             @RequestParam(name = "size", defaultValue = "10") int size) {
         try {
             UUID userId = AuthenticationUtils.getCurrentUserIdFromContext();
@@ -211,8 +218,15 @@ public class BookingController {
     @SecurityRequirement(name = "oauth2", scopes = {"customer"})
     @OpenApiResponses.CreationApiResponses
     @PostMapping("/storefront")
+    @org.springframework.ai.tool.annotation.Tool(
+        name = "create_booking",
+        description = "Create a new booking for flights or hotels. Required fields: bookingType (FLIGHT/HOTEL), " +
+                "serviceItemId (flight/hotel ID), totalAmount, currency. Optional: specialRequests, passengerInfo. " +
+                "Returns sagaId for tracking booking status."
+    )
     public ResponseEntity<StorefrontBookingResponseDto> createStorefrontBooking(
             @Parameter(description = "Storefront booking creation request", required = true)
+            @org.springframework.ai.tool.annotation.ToolParam(description = "Booking request with bookingType, serviceItemId, totalAmount, currency, and optional details")
             @Valid @RequestBody StorefrontCreateBookingRequestDto request) {
         try {
             log.info("Creating storefront booking with type: {} ", request.getBookingType());
@@ -280,6 +294,11 @@ public class BookingController {
      * Get booking status for polling (Storefront) using CQRS
      * Used by frontend to check validation progress
      */
+    @org.springframework.ai.tool.annotation.Tool(
+        name = "get_booking_status",
+        description = "Get the current status of a booking by sagaId. Returns status (PENDING/CONFIRMED/COMPLETED/FAILED/CANCELLED), " +
+                "booking details, and validation progress. Use this to track booking creation progress."
+    )
     @Operation(
         summary = "Get booking status",
         description = "Poll booking status to track validation and processing progress",
@@ -290,6 +309,7 @@ public class BookingController {
     @GetMapping("/storefront/{bookingId}/status")
     public ResponseEntity<BookingStatusResponseDto> getBookingStatus(
             @Parameter(description = "Booking ID", required = true, example = "123e4567-e89b-12d3-a456-426614174000")
+            @org.springframework.ai.tool.annotation.ToolParam(description = "The booking ID (UUID) to check status for")
             @PathVariable UUID bookingId) {
         try {
             UUID userId = AuthenticationUtils.getCurrentUserIdFromContext();

@@ -2,7 +2,7 @@ package com.pdh.ai.controller;
 
 import com.pdh.ai.agent.ExploreAgent;
 import com.pdh.ai.model.dto.ExploreResponse;
-import org.springframework.http.MediaType;
+import com.pdh.ai.service.ExploreCacheService;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -11,9 +11,33 @@ import org.springframework.web.bind.annotation.*;
 public class ExploreController {
     
     private final ExploreAgent exploreAgent;
+    private final ExploreCacheService exploreCacheService;
 
-    public ExploreController(ExploreAgent exploreAgent) {
+    public ExploreController(ExploreAgent exploreAgent, ExploreCacheService exploreCacheService) {
         this.exploreAgent = exploreAgent;
+        this.exploreCacheService = exploreCacheService;
+    }
+
+    /**
+     * Get default explore recommendations (cached)
+     * This endpoint is called when user first loads the page
+     * Always returns recommendations for Vietnam
+     * 
+     * @return ResponseEntity with cached ExploreResponse containing default recommendations for Vietnam
+     */
+    @GetMapping("/default")
+    public ResponseEntity<ExploreResponse> getDefaultRecommendations() {
+        try {
+            ExploreResponse result = exploreCacheService.getDefaultExploreRecommendations();
+            return ResponseEntity.ok(result);
+        } catch (Exception e) {
+            return ResponseEntity.status(500).body(
+                ExploreResponse.builder()
+                    .message("Xin lỗi, có lỗi xảy ra khi tải gợi ý du lịch.")
+                    .results(java.util.List.of())
+                    .build()
+            );
+        }
     }
 
     /**
@@ -29,12 +53,12 @@ public class ExploreController {
      * @param userCountry Optional user's current country (for region-based suggestions)
      * @return ResponseEntity with ExploreResponse containing destination recommendations
      */
-    @GetMapping(produces = MediaType.APPLICATION_JSON_VALUE)
+    @GetMapping()
     public ResponseEntity<ExploreResponse> explore(
             @RequestParam String query,
             @RequestParam(required = false) String userCountry) {
         try {
-            ExploreResponse result = exploreAgent.exploreSyncStructured(query, userCountry).block();
+            ExploreResponse result = exploreAgent.explore(query, userCountry);
             return ResponseEntity.ok(result);
         } catch (Exception e) {
             return ResponseEntity.status(500).body(
@@ -47,17 +71,18 @@ public class ExploreController {
     }
 
     /**
-     * Get trending destinations (predefined popular queries)
+     * Get trending destinations (not cached - fresh results)
      * 
      * @param userCountry Optional user's current country
      * @return ResponseEntity with trending destination recommendations
      */
-    @GetMapping(value = "/trending", produces = MediaType.APPLICATION_JSON_VALUE)
+    @GetMapping("/trending")
     public ResponseEntity<ExploreResponse> getTrending(
-            @RequestParam(required = true) String userCountry) {
+            @RequestParam(required = false, defaultValue = "Việt Nam") String userCountry) {
         try {
-            String trendingQuery = "Giúp tôi liệt kê 6 điểm đến du lịch đang thịnh hành hiện nay tại" + userCountry+". Bao gồm các điểm đến biển về thành phố, nhà hàng, bảo tàng";
-            ExploreResponse result = exploreAgent.exploreSyncStructured(trendingQuery, userCountry).block();
+            String trendingQuery = "Giúp tôi liệt kê 3 điểm đến du lịch đang thịnh hành hiện nay tại " + userCountry + 
+                                 ". Bao gồm các điểm đến biển, thành phố, và thiên nhiên với hình ảnh đẹp.";
+            ExploreResponse result = exploreAgent.explore(trendingQuery, userCountry);
             return ResponseEntity.ok(result);
         } catch (Exception e) {
             return ResponseEntity.status(500).body(
@@ -70,24 +95,20 @@ public class ExploreController {
     }
 
     /**
-     * Get seasonal recommendations based on current time of year
+     * Get seasonal recommendations based on current time of year (not cached - fresh results)
      * 
-     * @param season Optional season parameter (spring, summer, fall, winter)
+     * @param season Required season parameter (spring, summer, fall, winter)
      * @param userCountry Optional user's current country
      * @return ResponseEntity with seasonal destination recommendations
      */
-    @GetMapping(value = "/seasonal", produces = MediaType.APPLICATION_JSON_VALUE)
+    @GetMapping(value = "/seasonal")
     public ResponseEntity<ExploreResponse> getSeasonalRecommendations(
-            @RequestParam(required = false) String season,
-            @RequestParam(required = false) String userCountry) {
+            @RequestParam(required = true) String season,
+            @RequestParam(required = false, defaultValue = "Việt Nam") String userCountry) {
         try {
-            String query;
-            if (season != null && !season.isEmpty()) {
-                query = String.format("What are the best destinations to visit during %s? Suggest 5-6 locations with reasons.", season);
-            } else {
-                query = "What are the best destinations to visit right now based on current season? Suggest 5-6 locations with reasons.";
-            }
-            ExploreResponse result = exploreAgent.exploreSyncStructured(query, userCountry).block();
+            String query = String.format("Gợi ý 3 điểm đến du lịch phù hợp với mùa %s tại %s. " +
+                                        "Bao gồm lý do tại sao phù hợp với mùa này và hình ảnh đẹp.", season, userCountry);
+            ExploreResponse result = exploreAgent.explore(query, userCountry);
             return ResponseEntity.ok(result);
         } catch (Exception e) {
             return ResponseEntity.status(500).body(

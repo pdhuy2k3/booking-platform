@@ -4,6 +4,7 @@ import com.pdh.ai.model.dto.ChatMessageRequest;
 import com.pdh.ai.model.dto.ChatMessageResponse;
 import com.pdh.ai.model.dto.StructuredChatPayload;
 import com.pdh.ai.service.LLMAiService;
+import com.pdh.common.utils.AuthenticationUtils;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -12,6 +13,7 @@ import org.springframework.messaging.handler.annotation.Payload;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Controller;
 
+import java.net.Authenticator;
 import java.time.LocalDateTime;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicReference;
@@ -171,7 +173,7 @@ public class ChatWebSocketController {
     @MessageMapping("chat.sync")
     public void handleChatMessageSync(@Payload ChatMessageRequest request) {
         long startTime = System.currentTimeMillis();
-        
+        log.info("User id from auth context: {}", AuthenticationUtils.getCurrentUserIdFromContext());
         log.info("🔄 Received sync chat message: userId={}, conversationId={}, message='{}'",
                 request.getUserId(), request.getConversationId(), 
                 truncateMessage(request.getMessage()));

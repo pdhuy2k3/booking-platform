@@ -9,6 +9,7 @@ import FlightDetailsModal from "@/modules/flight/component/FlightDetailsModal"
 import HotelDetailsModal from "@/modules/hotel/component/HotelDetailsModal"
 import type { ChatStructuredResult } from "@/modules/ai/types"
 import { cn } from "@/lib/utils"
+import Image from "next/image"
 
 const optionalString = (value: unknown): string | undefined => {
   if (value === null || value === undefined) return undefined
@@ -380,74 +381,131 @@ export const AiResponseRenderer = ({
 
       {/* Info Results (Location, Weather, etc.) */}
       {infoResults.length > 0 && (
-        <div className="space-y-2">
-          {infoResults.map((result, index) => {
-            const metadata = (result.metadata || {}) as Record<string, unknown>
-            const hasCoordinates = Boolean(metadata.coordinates || (metadata.latitude && metadata.longitude))
-            
-            const handleLocationClick = () => {
-              if (!hasCoordinates || !onLocationClick) return
+        <div className="space-y-3">
+          <div className="flex items-center gap-2 text-sm font-semibold text-gray-700">
+            <Info className="h-4 w-4 text-blue-500" />
+            <span>Thông tin địa điểm ({infoResults.length})</span>
+          </div>
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+            {infoResults.map((result, index) => {
+              const metadata = (result.metadata || {}) as Record<string, unknown>
+              const hasCoordinates = Boolean(metadata.coordinates || (metadata.latitude && metadata.longitude))
               
-              let lat: number | undefined
-              let lng: number | undefined
+              // Extract image URL from multiple possible sources
+              const imageUrl = result.imageUrl || 
+                               optionalString(metadata.image_url) || 
+                               optionalString(metadata.imageUrl) || 
+                               optionalString(metadata.image) || 
+                               optionalString(metadata.thumbnail)
               
-              // Try to extract from coordinates string
-              if (metadata.coordinates) {
-                const coordStr = String(metadata.coordinates)
-                const [latStr, lngStr] = coordStr.split(',').map(s => s.trim())
-                lat = parseFloat(latStr)
-                lng = parseFloat(lngStr)
+              const handleLocationClick = () => {
+                if (!hasCoordinates || !onLocationClick) return
+                
+                let lat: number | undefined
+                let lng: number | undefined
+                
+                // Try to extract from coordinates string
+                if (metadata.coordinates) {
+                  const coordStr = String(metadata.coordinates)
+                  const [latStr, lngStr] = coordStr.split(',').map(s => s.trim())
+                  lat = parseFloat(latStr)
+                  lng = parseFloat(lngStr)
+                }
+                
+                // Try direct lat/lng fields
+                if (!lat || !lng) {
+                  lat = metadata.latitude ? parseFloat(String(metadata.latitude)) : undefined
+                  lng = metadata.longitude ? parseFloat(String(metadata.longitude)) : undefined
+                }
+                
+                if (lat && lng && !isNaN(lat) && !isNaN(lng)) {
+                  const locationDesc = result.subtitle || (typeof metadata.location === 'string' ? metadata.location : undefined) || result.description
+                  onLocationClick({
+                    lat,
+                    lng,
+                    title: result.title || 'Location',
+                    description: locationDesc
+                  })
+                }
               }
               
-              // Try direct lat/lng fields
-              if (!lat || !lng) {
-                lat = metadata.latitude ? parseFloat(String(metadata.latitude)) : undefined
-                lng = metadata.longitude ? parseFloat(String(metadata.longitude)) : undefined
-              }
+              const isClickable = hasCoordinates && Boolean(onLocationClick)
               
-              if (lat && lng && !isNaN(lat) && !isNaN(lng)) {
-                const locationDesc = result.subtitle || (typeof metadata.location === 'string' ? metadata.location : undefined) || result.description
-                onLocationClick({
-                  lat,
-                  lng,
-                  title: result.title || 'Location',
-                  description: locationDesc
-                })
-              }
-            }
-            
-            const isClickable = hasCoordinates && Boolean(onLocationClick)
-            
-            return (
-              <Alert 
-                key={index} 
-                className={cn(
-                  "border-blue-200 bg-blue-50",
-                  isClickable && "cursor-pointer hover:bg-blue-100 hover:border-blue-300 transition-colors"
-                )}
-                onClick={handleLocationClick}
-              >
-                <Info className="h-4 w-4 text-blue-600" />
-                <AlertDescription className="ml-2">
-                  {result.title && (
-                    <div className="font-semibold text-blue-900 mb-1">{result.title}</div>
+              return (
+                <div 
+                  key={index} 
+                  className={cn(
+                    "bg-white border border-gray-200 rounded-lg overflow-hidden shadow-sm",
+                    isClickable && "cursor-pointer hover:shadow-md hover:border-blue-300 transition-all duration-200"
                   )}
-                  {result.subtitle && (
-                    <div className="text-sm text-blue-800 mb-1">{result.subtitle}</div>
-                  )}
-                  {result.description && (
-                    <div className="text-sm text-blue-700">{result.description}</div>
-                  )}
-                  {isClickable && (
-                    <div className="text-xs text-blue-600 mt-2 font-medium flex items-center gap-1">
-                      <MapPin className="h-3 w-3" />
-                      Click để xem trên bản đồ
+                  onClick={handleLocationClick}
+                >
+                  {/* Image */}
+                  {imageUrl && (
+                    <div className="relative h-48 w-full">
+                      <img
+                        src={imageUrl}
+                        alt={result.title || 'Location image'}
+                        className="w-full h-full object-cover"
+                        onError={(e) => {
+                          // Hide image if it fails to load
+                          const target = e.target as HTMLImageElement
+                          target.style.display = 'none'
+                        }}
+                      />
                     </div>
                   )}
-                </AlertDescription>
-              </Alert>
-            )
-          })}
+                  
+                  {/* Content */}
+                  <div className="p-4">
+                    {result.title && (
+                      <h3 className="font-semibold text-gray-900 mb-2">{result.title}</h3>
+                    )}
+                    {result.subtitle && (
+                      <p className="text-sm text-gray-600 mb-3">{result.subtitle}</p>
+                    )}
+                    {result.description && (
+                      <p className="text-sm text-gray-700 mb-3">{result.description}</p>
+                    )}
+                    
+                    {/* Additional metadata */}
+                    {optionalString(metadata.best_time) && (
+                      <div className="text-xs text-green-600 mb-2">
+                        <span className="font-medium">Thời gian lý tưởng:</span> {optionalString(metadata.best_time)}
+                      </div>
+                    )}
+                    {optionalString(metadata.estimated_cost) && (
+                      <div className="text-xs text-orange-600 mb-2">
+                        <span className="font-medium">Chi phí ước tính:</span> {optionalString(metadata.estimated_cost)}
+                      </div>
+                    )}
+                    {Array.isArray(metadata.highlights) && metadata.highlights.length > 0 && (
+                      <div className="text-xs text-blue-600 mb-3">
+                        <span className="font-medium">Điểm nổi bật:</span>
+                        <div className="flex flex-wrap gap-1 mt-1">
+                          {(metadata.highlights as string[]).slice(0, 3).map((highlight, idx) => (
+                            <span key={idx} className="bg-blue-100 text-blue-800 px-2 py-1 rounded text-xs">
+                              {highlight}
+                            </span>
+                          ))}
+                          {(metadata.highlights as string[]).length > 3 && (
+                            <span className="text-blue-600 text-xs">+{(metadata.highlights as string[]).length - 3} more</span>
+                          )}
+                        </div>
+                      </div>
+                    )}
+                    
+                    {isClickable && (
+                      <div className="text-xs text-blue-600 font-medium flex items-center gap-1">
+                        <MapPin className="h-3 w-3" />
+                        Click để xem trên bản đồ
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )
+            })}
+          </div>
         </div>
       )}
 

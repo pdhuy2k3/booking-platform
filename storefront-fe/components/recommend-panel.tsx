@@ -1,6 +1,6 @@
 "use client"
 
-import React, { useState, useEffect } from "react"
+import React, { useState, useEffect, useRef, useCallback } from "react"
 import { Map as MapIcon, Compass, MapPin, Search, TrendingUp, Calendar, Loader2 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { Card } from "@/components/ui/card"
@@ -16,6 +16,7 @@ interface RecommendPanelProps {
   className?: string
   externalLocation?: { lat: number; lng: number; title: string; description?: string } | null
   onExternalLocationHandled?: () => void
+  onWidthChange?: (width: number) => void
 }
 
 type TabMode = "explore" | "map"
@@ -33,13 +34,20 @@ export interface RecommendPanelRef {
 }
 
 export const RecommendPanel = React.forwardRef<RecommendPanelRef, RecommendPanelProps>(
-  ({ results = [], className, externalLocation, onExternalLocationHandled }, ref) => {
+  ({ results = [], className, externalLocation, onExternalLocationHandled, onWidthChange }, ref) => {
     const { locationInfo } = usePreferences()
     const [activeTab, setActiveTab] = useState<TabMode>("explore")
     const [selectedLocationIndex, setSelectedLocationIndex] = useState<number>(0)
     const [mapCenter, setMapCenter] = useState<[number, number]>([108.2022, 16.0544]) // Da Nang default
     const [mapZoom, setMapZoom] = useState<number>(12)
     const [externalLocationState, setExternalLocationState] = useState<MapLocation | null>(null)
+    const [isExpanded, setIsExpanded] = useState<boolean>(true)
+    const [panelWidth, setPanelWidth] = useState<number>(0) // 0 means use default CSS width
+    const [isResizing, setIsResizing] = useState<boolean>(false)
+    
+    const panelRef = useRef<HTMLDivElement>(null)
+    const MIN_WIDTH = 280 // 280px minimum
+    const MAX_WIDTH = 600 // 600px maximum
     
     // Explore tab state
     const [exploreQuery, setExploreQuery] = useState("")
@@ -142,8 +150,21 @@ export const RecommendPanel = React.forwardRef<RecommendPanelRef, RecommendPanel
       const locations: MapLocation[] = []
       let idCounter = 0
       
+      // The exploreData is actually the results array from the API response
       exploreData.forEach((item) => {
-        if (item.destinations?.length > 0) {
+        // Check if item has metadata with coordinates directly (new structure)
+        if (item.metadata?.latitude && item.metadata?.longitude) {
+          locations.push({
+            id: `explore-${item.id || idCounter++}`,
+            name: item.title || item.name,
+            latitude: parseFloat(item.metadata.latitude),
+            longitude: parseFloat(item.metadata.longitude),
+            description: item.subtitle || item.metadata?.highlights?.[0] || item.description,
+            type: 'destination'
+          })
+        }
+        // Legacy structure - check for destinations array
+        else if (item.destinations?.length > 0) {
           item.destinations.forEach((dest: any) => {
             if (dest.coordinates?.latitude && dest.coordinates?.longitude) {
               locations.push({
@@ -190,18 +211,8 @@ export const RecommendPanel = React.forwardRef<RecommendPanelRef, RecommendPanel
       const userCountry = locationInfo?.country
       const response = await aiChatService.exploreDestinations(exploreQuery, userCountry)
       
-      // Parse response - expecting { message, results } structure
-      if (response.aiResponse) {
-        try {
-          const parsed = JSON.parse(response.aiResponse)
-          setExploreMessage(parsed.message || "")
-          setExploreResults(parsed.results || [])
-        } catch {
-          // If not JSON, treat as plain message
-          setExploreMessage(response.aiResponse)
-          setExploreResults([])
-        }
-      }
+      setExploreMessage(response.message || "")
+      setExploreResults(response.results || [])
     } catch (error) {
       console.error("Explore search error:", error)
       setExploreMessage("Xin lỗi, không thể tìm kiếm địa điểm lúc này.")
@@ -221,16 +232,8 @@ export const RecommendPanel = React.forwardRef<RecommendPanelRef, RecommendPanel
       const userCountry = locationInfo?.country
       const response = await aiChatService.getTrendingDestinations(userCountry)
       
-      if (response.aiResponse) {
-        try {
-          const parsed = JSON.parse(response.aiResponse)
-          setExploreMessage(parsed.message || "")
-          setExploreResults(parsed.results || [])
-        } catch {
-          setExploreMessage(response.aiResponse)
-          setExploreResults([])
-        }
-      }
+      setExploreMessage(response.message || "")
+      setExploreResults(response.results || [])
     } catch (error) {
       console.error("Trending error:", error)
       setExploreMessage("Xin lỗi, không thể tải địa điểm thịnh hành.")
@@ -258,16 +261,8 @@ export const RecommendPanel = React.forwardRef<RecommendPanelRef, RecommendPanel
       const userCountry = locationInfo?.country
       const response = await aiChatService.getSeasonalDestinations(season, userCountry)
       
-      if (response.aiResponse) {
-        try {
-          const parsed = JSON.parse(response.aiResponse)
-          setExploreMessage(parsed.message || "")
-          setExploreResults(parsed.results || [])
-        } catch {
-          setExploreMessage(response.aiResponse)
-          setExploreResults([])
-        }
-      }
+      setExploreMessage(response.message || "")
+      setExploreResults(response.results || [])
     } catch (error) {
       console.error("Seasonal error:", error)
       setExploreMessage("Xin lỗi, không thể tải gợi ý theo mùa.")
@@ -332,13 +327,153 @@ export const RecommendPanel = React.forwardRef<RecommendPanelRef, RecommendPanel
     }
   }, [externalLocation, onExternalLocationHandled])
 
+  // Load default explore destinations on component mount
+  useEffect(() => {
+    const loadDefaultDestinations = async () => {
+      if (exploreResults.length > 0) return // Don't reload if we already have data
+      
+      setExploreLoading(true)
+      setExploreMessage("")
+      
+      try {
+        // Load default destinations for Vietnam (cached)
+        const response = await aiChatService.getDefaultDestinations()
+        
+        console.log("🎯 Default destinations response:", response)
+        setExploreMessage(response.message || "Gợi ý điểm đến cho bạn")
+        setExploreResults(response.results || [])
+        console.log("📍 Set exploreResults:", response.results || [])
+      } catch (error) {
+        console.error("Default destinations error:", error)
+        setExploreMessage("Chào mừng! Sử dụng tìm kiếm hoặc nút Thịnh hành để khám phá điểm đến.")
+        setExploreResults([])
+      } finally {
+        setExploreLoading(false)
+      }
+    }
+
+    // Only load on mount and when we're on explore tab
+    if (activeTab === "explore") {
+      loadDefaultDestinations()
+    }
+  }, [activeTab]) // Dependencies: tab change only
+
+  // Handle resize
+  const handleMouseDown = useCallback((e: React.MouseEvent) => {
+    e.preventDefault()
+    setIsResizing(true)
+  }, [])
+
+  useEffect(() => {
+    const handleMouseMove = (e: MouseEvent) => {
+      if (!isResizing || !panelRef.current) return
+      
+      const containerRect = panelRef.current.getBoundingClientRect()
+      const newWidth = containerRect.right - e.clientX
+      
+      // Clamp width between MIN and MAX
+      const clampedWidth = Math.max(MIN_WIDTH, Math.min(MAX_WIDTH, newWidth))
+      setPanelWidth(clampedWidth)
+      onWidthChange?.(clampedWidth)
+    }
+
+    const handleMouseUp = () => {
+      setIsResizing(false)
+    }
+
+    if (isResizing) {
+      document.addEventListener('mousemove', handleMouseMove)
+      document.addEventListener('mouseup', handleMouseUp)
+      document.body.style.cursor = 'ew-resize'
+      document.body.style.userSelect = 'none'
+    }
+
+    return () => {
+      document.removeEventListener('mousemove', handleMouseMove)
+      document.removeEventListener('mouseup', handleMouseUp)
+      document.body.style.cursor = ''
+      document.body.style.userSelect = ''
+    }
+  }, [isResizing, onWidthChange])
+
   const tabs = [
     { id: "explore" as const, label: "Khám phá", icon: Compass },
     { id: "map" as const, label: "Bản đồ", icon: MapIcon },
   ]
 
   return (
-    <div className={cn("flex flex-col h-full bg-white", className)}>
+    <div 
+      ref={panelRef}
+      className={cn(
+        "flex flex-col h-full bg-white relative transition-all",
+        !isExpanded && "w-0 overflow-hidden",
+        isExpanded && !isResizing && "duration-300",
+        className
+      )}
+      style={isExpanded && panelWidth > 0 ? { width: `${panelWidth}px` } : undefined}
+    >
+      {/* Resize Handle */}
+      {isExpanded && (
+        <div
+          onMouseDown={handleMouseDown}
+          className={cn(
+            "absolute left-0 top-0 bottom-0 w-1 cursor-ew-resize z-40 hover:bg-blue-500 transition-colors",
+            isResizing && "bg-blue-500"
+          )}
+          style={{ marginLeft: '-2px' }}
+        />
+      )}
+      {/* Expand/Collapse Button */}
+      <button
+        onClick={() => {
+          setIsExpanded(!isExpanded)
+          if (!isExpanded) {
+            // Reset to default width when expanding
+            setPanelWidth(0)
+          }
+        }}
+        className={cn(
+          "absolute top-1/2 -translate-y-1/2 z-50 bg-white border border-gray-300 rounded-l-lg shadow-md hover:shadow-lg transition-all duration-200 hover:bg-gray-50",
+          isExpanded ? "-left-8 border-r-0" : "-left-8"
+        )}
+        style={{ width: '32px', height: '64px' }}
+        aria-label={isExpanded ? "Thu gọn panel" : "Mở rộng panel"}
+      >
+        <div className="flex items-center justify-center h-full">
+          {isExpanded ? (
+            <svg 
+              xmlns="http://www.w3.org/2000/svg" 
+              width="20" 
+              height="20" 
+              viewBox="0 0 24 24" 
+              fill="none" 
+              stroke="currentColor" 
+              strokeWidth="2" 
+              strokeLinecap="round" 
+              strokeLinejoin="round"
+              className="text-gray-600"
+            >
+              <polyline points="9 18 15 12 9 6"></polyline>
+            </svg>
+          ) : (
+            <svg 
+              xmlns="http://www.w3.org/2000/svg" 
+              width="20" 
+              height="20" 
+              viewBox="0 0 24 24" 
+              fill="none" 
+              stroke="currentColor" 
+              strokeWidth="2" 
+              strokeLinecap="round" 
+              strokeLinejoin="round"
+              className="text-gray-600"
+            >
+              <polyline points="15 18 9 12 15 6"></polyline>
+            </svg>
+          )}
+        </div>
+      </button>
+
       {/* Tab Navigation */}
       <div className="flex items-center border-b bg-white px-4 py-2">
         <div className="flex bg-gray-100 rounded-lg p-1">
@@ -442,9 +577,24 @@ export const RecommendPanel = React.forwardRef<RecommendPanelRef, RecommendPanel
                     </div>
                   )}
                   
+                  {/* Debug info */}
+                  {process.env.NODE_ENV === 'development' && (
+                    <div className="text-xs text-gray-500 p-2 bg-gray-100 rounded">
+                      Debug: {exploreResults.length} results found
+                    </div>
+                  )}
+                  
                   {exploreResults.map((result, index) => {
+                    console.log("🏷️ Rendering explore result:", index, result)
                     const hasLocation = !!(result.metadata?.latitude && result.metadata?.longitude)
-                    const hasImage = !!result.metadata?.imageUrl
+                    // Extract image URL from multiple possible sources
+                    const imageUrl = result.imageUrl || 
+                                   result.metadata?.image_url || 
+                                   result.metadata?.imageUrl || 
+                                   result.metadata?.image || 
+                                   result.metadata?.thumbnail
+                    
+                    console.log("🖼️ Image URL found:", imageUrl)
                     
                     return (
                       <Card 
@@ -455,11 +605,13 @@ export const RecommendPanel = React.forwardRef<RecommendPanelRef, RecommendPanel
                         )}
                         onClick={() => hasLocation && handleExploreCardClick(index)}
                       >
-                        {hasImage && (
+                        {imageUrl && (
                           <div className="w-full h-40 overflow-hidden">
                             <Image 
-                              src={result.metadata.imageUrl} 
+                              src={imageUrl} 
                               alt={result.title}
+                              width={400}
+                              height={160}
                               className="w-full h-full object-cover hover:scale-105 transition-transform duration-300"
                               onError={(e) => {
                                 // Hide image if it fails to load
@@ -607,16 +759,6 @@ export const RecommendPanel = React.forwardRef<RecommendPanelRef, RecommendPanel
                 console.log('Map location clicked:', location)
               }}
             />
-            
-            {/* Show overlay message if no coordinates */}
-            {allLocations.length === 0 && (
-              <div className="absolute top-4 left-1/2 transform -translate-x-1/2 bg-white shadow-lg rounded-lg p-3 border border-gray-200 z-10">
-                <div className="flex items-center gap-2 text-sm text-gray-600">
-                  <MapIcon className="h-4 w-4 text-gray-400" />
-                  <span>Không có địa điểm để đánh dấu. Bản đồ hiển thị vị trí mặc định.</span>
-                </div>
-              </div>
-            )}
           </div>
         )}
       </div>

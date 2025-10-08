@@ -651,4 +651,20 @@ public class PaymentService {
 
         return failedTransaction;
     }
+
+    /**
+     * Get payment by booking ID
+     */
+    public Optional<Payment> getPaymentByBookingId(UUID bookingId) {
+        log.debug("Getting payment for bookingId: {}", bookingId);
+        return paymentRepository.findByBookingId(bookingId);
+    }
+
+    /**
+     * Get all transactions for a payment
+     */
+    public java.util.List<PaymentTransaction> getPaymentTransactions(UUID paymentId) {
+        log.debug("Getting transactions for paymentId: {}", paymentId);
+        return paymentTransactionRepository.findByPayment_PaymentIdOrderByCreatedAtDesc(paymentId);
+    }
 }

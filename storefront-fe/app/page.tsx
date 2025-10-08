@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useRef } from "react"
+import { useState, useEffect, useRef, Suspense } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { Search, MessageCircle } from "lucide-react"
 import { cn } from "@/lib/utils"
@@ -12,13 +12,14 @@ import { useBooking } from "@/contexts/booking-context"
 
 type MainTab = "chat" | "search"
 
-export default function HomePage() {
+function HomePageContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const [activeTab, setActiveTab] = useState<MainTab>("chat")
   const [conversationId, setConversationId] = useState<string | null>(null)
   const [isBookingModalOpen, setIsBookingModalOpen] = useState(false)
   const [aiResults, setAiResults] = useState<any[]>([])
+  const [panelWidth, setPanelWidth] = useState<number>(0)
   const recommendPanelRef = useRef<RecommendPanelRef>(null)
   
   const { 
@@ -29,6 +30,10 @@ export default function HomePage() {
     updateBookingData, 
     setStep 
   } = useBooking()
+
+  const handlePanelWidthChange = (width: number) => {
+    setPanelWidth(width)
+  }
 
   // Handle URL parameters
   useEffect(() => {
@@ -160,7 +165,10 @@ export default function HomePage() {
 
   return (
     <>
-      <main className="flex-1 flex flex-col h-full w-full md:w-[60%] overflow-hidden">
+      <main 
+        className="flex-1 flex flex-col h-full overflow-hidden"
+        style={panelWidth > 0 ? { width: `calc(100% - ${panelWidth}px)` } : undefined}
+      >
         {/* Main Tab Navigation */}
         <div className="flex items-center justify-center p-4 border-b border-border shrink-0">
           <div className="flex bg-muted rounded-full p-1">
@@ -205,10 +213,14 @@ export default function HomePage() {
       </main>
 
       {/* Recommend Panel - Right */}
-      <aside className="hidden md:flex w-full md:w-[30%] h-full border-l flex-col overflow-hidden">
+      <aside 
+        className="hidden md:flex h-full border-l flex-col overflow-hidden shrink-0"
+        style={panelWidth > 0 ? { width: `${panelWidth}px` } : { width: '30%' }}
+      >
         <RecommendPanel 
           ref={recommendPanelRef}
           results={aiResults}
+          onWidthChange={handlePanelWidthChange}
         />
       </aside>
 
@@ -218,5 +230,36 @@ export default function HomePage() {
         onOpenChange={setIsBookingModalOpen}
       />
     </>
+  )
+}
+
+export default function HomePage() {
+  return (
+    <Suspense 
+      fallback={
+        <div className="flex h-full w-full">
+          <main className="flex-1 flex flex-col h-full overflow-hidden">
+            <div className="flex items-center justify-center p-4 border-b border-border shrink-0">
+              <div className="flex bg-muted rounded-full p-1">
+                <div className="flex items-center gap-2 px-4 md:px-6 py-2 rounded-full text-sm font-medium bg-background text-foreground shadow-sm">
+                  <MessageCircle className="h-4 w-4" />
+                  <span className="hidden sm:inline">Chat</span>
+                </div>
+              </div>
+            </div>
+            <div className="flex-1 flex items-center justify-center">
+              <div className="text-sm text-muted-foreground">Loading...</div>
+            </div>
+          </main>
+          <aside className="hidden md:flex h-full border-l flex-col overflow-hidden shrink-0" style={{ width: '30%' }}>
+            <div className="flex-1 flex items-center justify-center">
+              <div className="text-sm text-muted-foreground">Loading...</div>
+            </div>
+          </aside>
+        </div>
+      }
+    >
+      <HomePageContent />
+    </Suspense>
   )
 }
