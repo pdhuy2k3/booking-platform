@@ -33,14 +33,20 @@ spring:
   config:
     activate:
       on-profile: local
-  devtools:
-    restart:
-      enabled: true
-      poll-interval: 2000
-      quiet-period: 1000
-    livereload:
-      enabled: true
-      port: 35731
+  ai:
+    mcp:
+      server:
+        enabled: true
+        stdio: false
+        name: booking-mcp-server
+        version: 1.0.0
+        type: sync
+        base-url: /bookings
+        capabilities:
+          prompt: false
+          completion: false
+          resource: false
+          tool: true
   datasource:
     url: jdbc:postgresql://localhost:5432/booking_db
     username: postgres
@@ -126,6 +132,20 @@ spring:
   config:
     activate:
       on-profile: docker
+  ai:
+    mcp:
+      server:
+        enabled: true
+        stdio: false
+        name: booking-mcp-server
+        version: 1.0.0
+        type: sync
+        base-url: /bookings
+        capabilities:
+          prompt: false
+          completion: false
+          resource: false
+          tool: true
   datasource:
     url: ${DB_URL}
     username: ${DB_USERNAME}

@@ -74,13 +74,23 @@ export const StripeProvider: React.FC<StripeProviderProps> = ({
   const getElementsOptions = (): any => {
     switch (mode) {
       case 'payment':
-        return createPaymentElementsOptions(amount, currency, appearance)
+        return {
+          ...createPaymentElementsOptions(amount, currency, appearance),
+          wallets: {
+            applePay: 'auto',
+            googlePay: 'auto',
+          },
+        }
       case 'setup':
         return {
           mode: 'setup',
           appearance: {
             theme: 'stripe',
             ...appearance,
+          },
+          wallets: {
+            applePay: 'auto',
+            googlePay: 'auto',
           },
         }
       case 'subscription':
@@ -90,9 +100,19 @@ export const StripeProvider: React.FC<StripeProviderProps> = ({
             theme: 'stripe',
             ...appearance,
           },
+          wallets: {
+            applePay: 'auto',
+            googlePay: 'auto',
+          },
         }
       default:
-        return createPaymentElementsOptions(amount, currency, appearance)
+        return {
+          ...createPaymentElementsOptions(amount, currency, appearance),
+          wallets: {
+            applePay: 'auto',
+            googlePay: 'auto',
+          },
+        }
     }
   }
 

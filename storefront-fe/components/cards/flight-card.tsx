@@ -90,11 +90,11 @@ export const FlightCard = ({
   })()
 
   return (
-    <Card className={`hover:shadow-lg transition-shadow ${className}`}>
+    <Card className={`hover:shadow-lg transition-shadow overflow-hidden ${className}`}>
       <CardContent className={`${compact ? 'p-4' : 'p-6'}`}>
         <div className="space-y-4">
           {/* Airline */}
-          <div className="flex flex-wrap items-center gap-3">
+          <div className="flex items-center gap-3 min-w-0">
             {flight.logo && (
               <div className="relative h-8 w-8 shrink-0">
                 <Image
@@ -112,23 +112,24 @@ export const FlightCard = ({
                 />
               </div>
             )}
-            <div className="min-w-0">
-              <p className="font-semibold text-gray-900 truncate">{flight.airline}</p>
-              <p className="text-sm text-gray-500 truncate">{flight.flightNumber}</p>
+            <div className="min-w-0 flex-1">
+              <p className="font-semibold text-gray-900 truncate text-sm">{flight.airline}</p>
+              <p className="text-xs text-gray-500 truncate">{flight.flightNumber}</p>
             </div>
             {flight.seatClass && (
-              <Badge variant="secondary" className="ml-auto">
+              <Badge variant="secondary" className="shrink-0 text-xs">
                 {flight.seatClass}
               </Badge>
             )}
           </div>
 
           {/* Route */}
-          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-            <div className="flex-1">
-              <p className="text-2xl font-bold text-gray-900">{departureTimeDisplay}</p>
+          <div className="grid grid-cols-[1fr_auto_1fr] gap-2 items-center min-w-0">
+            {/* Departure */}
+            <div className="min-w-0">
+              <p className="text-lg sm:text-xl font-bold text-gray-900 truncate">{departureTimeDisplay}</p>
               <p 
-                className={`text-sm text-gray-600 ${
+                className={`text-xs sm:text-sm text-gray-600 truncate ${
                   flight.originLatitude && flight.originLongitude && onLocationClick
                     ? 'cursor-pointer hover:text-blue-600 hover:underline'
                     : ''
@@ -148,25 +149,27 @@ export const FlightCard = ({
               </p>
             </div>
 
-            <div className="flex flex-col items-center gap-1 px-4 sm:px-6">
-              <div className="flex items-center gap-2 text-gray-400">
-                <div className="h-px w-8 bg-gray-300" />
-                <Plane className="h-4 w-4" />
-                <div className="h-px w-8 bg-gray-300" />
+            {/* Flight Info */}
+            <div className="flex flex-col items-center gap-1 px-2 shrink-0">
+              <div className="flex items-center gap-1 sm:gap-2 text-gray-400">
+                <div className="h-px w-4 sm:w-6 bg-gray-300" />
+                <Plane className="h-3 w-3 sm:h-4 sm:w-4" />
+                <div className="h-px w-4 sm:w-6 bg-gray-300" />
               </div>
               {flight.duration && (
-                <div className="flex items-center gap-1 text-xs text-gray-500">
+                <div className="flex items-center gap-1 text-xs text-gray-500 whitespace-nowrap">
                   <Clock className="h-3 w-3" />
-                  <span>{flight.duration}</span>
+                  <span className="text-[10px] sm:text-xs">{flight.duration}</span>
                 </div>
               )}
-              <p className="text-xs text-gray-500">{stopsDisplay}</p>
+              <p className="text-[10px] sm:text-xs text-gray-500 whitespace-nowrap">{stopsDisplay}</p>
             </div>
 
-            <div className="flex-1 text-right">
-              <p className="text-2xl font-bold text-gray-900">{arrivalTimeDisplay}</p>
+            {/* Arrival */}
+            <div className="text-right min-w-0">
+              <p className="text-lg sm:text-xl font-bold text-gray-900 truncate">{arrivalTimeDisplay}</p>
               <p 
-                className={`text-sm text-gray-600 ${
+                className={`text-xs sm:text-sm text-gray-600 truncate ${
                   flight.destinationLatitude && flight.destinationLongitude && onLocationClick
                     ? 'cursor-pointer hover:text-blue-600 hover:underline'
                     : ''
@@ -188,20 +191,21 @@ export const FlightCard = ({
           </div>
 
           {/* Price & Actions */}
-          <div className="flex flex-col gap-3 border-t border-gray-100 pt-4 sm:flex-row sm:items-center sm:justify-between">
-            <div className="text-left sm:text-right">
-              <p className="text-2xl font-bold text-blue-600">
+          <div className="flex flex-col sm:flex-row gap-3 border-t border-gray-100 pt-4 items-start sm:items-center justify-between min-w-0">
+            <div className="min-w-0">
+              <p className="text-xl sm:text-2xl font-bold text-blue-600 truncate">
                 {formatCurrency(flight.price, flight.currency || 'VND')}
               </p>
-              <p className="text-sm text-gray-500">/ khách</p>
+              <p className="text-xs sm:text-sm text-gray-500">/ khách</p>
             </div>
 
-            <div className="flex flex-wrap gap-2">
+            <div className="flex flex-wrap gap-2 shrink-0">
               {onViewDetails && (
                 <Button
                   variant="outline"
                   size={compact ? "sm" : "default"}
                   onClick={() => onViewDetails(flight)}
+                  className="text-xs sm:text-sm"
                 >
                   Chi tiết
                 </Button>
@@ -210,7 +214,7 @@ export const FlightCard = ({
                 <Button
                   size={compact ? "sm" : "default"}
                   onClick={() => onBook(flight)}
-                  className="bg-blue-600 hover:bg-blue-700"
+                  className="bg-blue-600 hover:bg-blue-700 text-xs sm:text-sm"
                 >
                   Đặt ngay
                 </Button>

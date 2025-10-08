@@ -170,7 +170,7 @@ export const StripePaymentForm: React.FC<StripePaymentFormProps> = ({
         setTransactionId(activeTransactionId)
 
         if (elements && activeClientSecret) {
-          const updateOptions: StripeElementsUpdateOptions = {
+          const updateOptions: any = {
             clientSecret: activeClientSecret,
           }
           elements.update(updateOptions)
@@ -205,7 +205,9 @@ export const StripePaymentForm: React.FC<StripePaymentFormProps> = ({
         // Start polling for 3D Secure or other actions
         setIsPolling(true)
         setPaymentStatus('processing')
-        startPollingForPaymentStatus(activeTransactionId)
+        if (activeTransactionId) {
+          startPollingForPaymentStatus(activeTransactionId)
+        }
       }
     } catch (error) {
       console.error('Payment error:', error)
@@ -429,8 +431,31 @@ export const StripePaymentForm: React.FC<StripePaymentFormProps> = ({
           <div className="space-y-4">
             <h3 className="text-lg font-medium">Payment Method</h3>
             <div className="border rounded-lg p-4">
-              <PaymentElement />
+              <PaymentElement
+                options={{
+                  layout: {
+                    type: 'accordion',
+                    defaultCollapsed: false,
+                    radios: true,
+                    spacedAccordionItems: false
+                  },
+                  wallets: {
+                    applePay: 'auto',
+                    googlePay: 'auto',
+                  },
+                  fields: {
+                    billingDetails: {
+                      address: {
+                        country: 'auto',
+                      }
+                    }
+                  }
+                }}
+              />
             </div>
+            <p className="text-xs text-gray-500">
+              Apple Pay and Google Pay will appear automatically if available on your device.
+            </p>
           </div>
 
           {/* Error Message */}

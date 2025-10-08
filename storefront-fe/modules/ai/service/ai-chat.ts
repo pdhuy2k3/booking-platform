@@ -9,7 +9,8 @@ import {
   ChatMessageRequest,
   ChatMessageResponse,
   VoiceMessageRequest,
-  VoiceMessageResponse 
+  VoiceMessageResponse,
+  ExploreResponse
 } from '../types';
 
 class AiChatService {
@@ -290,19 +291,45 @@ class AiChatService {
   // ==================== EXPLORE DESTINATIONS ====================
 
   /**
+   * Get default destination recommendations (cached)
+   * This method is called when user first loads the page for instant results
+   * Always returns recommendations for Vietnam
+   * @returns ExploreResponse with default destination recommendations from cache
+   */
+  async getDefaultDestinations(): Promise<ExploreResponse> {
+    try {
+      const response = await apiClient.get<ExploreResponse>(
+        `${this.baseUrl}/explore/default`,
+        {
+          timeout: 15000, // Shorter timeout for cached results
+        }
+      );
+
+      return response;
+    } catch (error: any) {
+      console.error('Get Default Destinations Error:', error);
+      
+      return {
+        message: 'Xin lỗi, tôi không thể tải gợi ý du lịch lúc này.',
+        results: []
+      };
+    }
+  }
+
+  /**
    * Get destination recommendations based on a query
    * @param query Search query like "popular beaches in Vietnam", "best summer destinations"
    * @param userCountry Optional user's country for region-based suggestions
-   * @returns ChatResponse with destination recommendations including coordinates
+   * @returns ExploreResponse with destination recommendations including coordinates
    */
-  async exploreDestinations(query: string, userCountry?: string): Promise<ChatResponse> {
+  async exploreDestinations(query: string, userCountry?: string): Promise<ExploreResponse> {
     try {
       const params: any = { query };
       if (userCountry) {
         params.userCountry = userCountry;
       }
 
-      const response = await apiClient.get<ChatResponse>(
+      const response = await apiClient.get<ExploreResponse>(
         `${this.baseUrl}/explore`,
         {
           params,
@@ -315,33 +342,29 @@ class AiChatService {
       console.error('Explore Destinations Error:', error);
       
       return {
-        userMessage: query,
-        aiResponse: 'Xin lỗi, tôi không thể tìm kiếm địa điểm lúc này. Vui lòng thử lại sau.',
-        conversationId: '',
-        userId: '',
-        timestamp: new Date().toISOString(),
-        error: error.message || 'Không thể kết nối với Explore service'
+        message: 'Xin lỗi, tôi không thể tìm kiếm địa điểm lúc này. Vui lòng thử lại sau.',
+        results: []
       };
     }
   }
 
   /**
-   * Get trending destinations
+   * Get trending destinations (cached)
    * @param userCountry Optional user's country for region-based suggestions
-   * @returns ChatResponse with trending destination recommendations
+   * @returns ExploreResponse with trending destination recommendations from cache
    */
-  async getTrendingDestinations(userCountry?: string): Promise<ChatResponse> {
+  async getTrendingDestinations(userCountry?: string): Promise<ExploreResponse> {
     try {
       const params: any = {};
       if (userCountry) {
         params.userCountry = userCountry;
       }
 
-      const response = await apiClient.get<ChatResponse>(
+      const response = await apiClient.get<ExploreResponse>(
         `${this.baseUrl}/explore/trending`,
         {
           params,
-          timeout: 30000,
+          timeout: 15000, // Shorter timeout for cached results
         }
       );
 
@@ -350,23 +373,19 @@ class AiChatService {
       console.error('Get Trending Destinations Error:', error);
       
       return {
-        userMessage: 'trending destinations',
-        aiResponse: 'Xin lỗi, tôi không thể tải điểm đến phổ biến lúc này.',
-        conversationId: '',
-        userId: '',
-        timestamp: new Date().toISOString(),
-        error: error.message || 'Không thể kết nối với Explore service'
+        message: 'Xin lỗi, tôi không thể tải điểm đến phổ biến lúc này.',
+        results: []
       };
     }
   }
 
   /**
-   * Get seasonal destination recommendations
-   * @param season Optional season (spring, summer, fall, winter)
+   * Get seasonal destination recommendations (cached)
+   * @param season Required season (spring, summer, fall, winter)
    * @param userCountry Optional user's country for region-based suggestions
-   * @returns ChatResponse with seasonal destination recommendations
+   * @returns ExploreResponse with seasonal destination recommendations from cache
    */
-  async getSeasonalDestinations(season?: string, userCountry?: string): Promise<ChatResponse> {
+  async getSeasonalDestinations(season?: string, userCountry?: string): Promise<ExploreResponse> {
     try {
       const params: any = {};
       if (season) {
@@ -376,11 +395,11 @@ class AiChatService {
         params.userCountry = userCountry;
       }
 
-      const response = await apiClient.get<ChatResponse>(
+      const response = await apiClient.get<ExploreResponse>(
         `${this.baseUrl}/explore/seasonal`,
         {
           params,
-          timeout: 30000,
+          timeout: 15000, // Shorter timeout for cached results
         }
       );
 
@@ -389,12 +408,8 @@ class AiChatService {
       console.error('Get Seasonal Destinations Error:', error);
       
       return {
-        userMessage: season ? `${season} destinations` : 'seasonal destinations',
-        aiResponse: 'Xin lỗi, tôi không thể tải gợi ý theo mùa lúc này.',
-        conversationId: '',
-        userId: '',
-        timestamp: new Date().toISOString(),
-        error: error.message || 'Không thể kết nối với Explore service'
+        message: 'Xin lỗi, tôi không thể tải gợi ý theo mùa lúc này.',
+        results: []
       };
     }
   }

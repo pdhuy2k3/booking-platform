@@ -9,6 +9,13 @@ import {
 } from '../type'
 import { stripePaymentService } from './stripe'
 
+// Re-export payment method service
+export { paymentMethodService } from './payment-method'
+export type { 
+  PaymentMethodResponse, 
+  AddPaymentMethodRequest 
+} from './payment-method'
+
 export const paymentService = {
   /**
    * Create a payment intent

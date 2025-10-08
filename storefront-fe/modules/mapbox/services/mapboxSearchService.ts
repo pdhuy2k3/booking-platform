@@ -136,14 +136,16 @@ export class MapboxSearchService {
       throw new Error('Mapbox access token is required');
     }
 
+    // Ensure limit is within Mapbox's valid range [1, 10]
+    const limit = Math.min(Math.max(options?.limit || this.limit, 1), 10);
+
     const params: MapboxSearchParams = {
       q: query,
       access_token: this.accessToken,
       language: options?.language || this.language,
-      limit:  this.limit,
+      limit,
       country: options?.country || this.country,
       session_token: options?.session_token || this.currentSessionToken,
-      ...options,
     };
 
     const queryString = buildQueryString(params as any);
@@ -201,7 +203,9 @@ export class MapboxSearchService {
     }
 
     try {
-      const suggestResponse = await this.suggest(sanitizedQuery, { limit });
+      // Ensure limit is within Mapbox's valid range [1, 10]
+      const clampedLimit = Math.min(Math.max(limit, 1), 10);
+      const suggestResponse = await this.suggest(sanitizedQuery, { limit: clampedLimit });
 
       const destinations = suggestResponse.suggestions.map((suggestion: MapboxSuggestion) => {
         const relevanceScore = calculateRelevanceScore(suggestion.name, sanitizedQuery);

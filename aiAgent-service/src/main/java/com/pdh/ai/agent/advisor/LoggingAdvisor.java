@@ -33,64 +33,24 @@ import reactor.core.publisher.Flux;
  * 
  * @author BookingSmart AI Team
  */
-public class LoggingAdvisor implements CallAdvisor, StreamAdvisor {
+public class LoggingAdvisor implements CallAdvisor,StreamAdvisor {
 
     private static final Logger logger = LoggerFactory.getLogger(LoggingAdvisor.class);
     
-    private final String workflowType;
-    private final boolean logContent;
-    private final int order;
+ 
 
-    /**
-     * Creates a new Logging Advisor.
-     * 
-     * @param workflowType The type of workflow (e.g., "routing", "parallel", "search")
-     * @param logContent Whether to log full request/response content
-     * @param order The advisor execution order
-     */
-    public LoggingAdvisor(String workflowType, boolean logContent, int order) {
-        this.workflowType = workflowType;
-        this.logContent = logContent;
-        this.order = order;
-    }
 
-    /**
-     * Creates a Logging Advisor for routing workflows.
-     */
-    public static LoggingAdvisor forRouting() {
-        return new LoggingAdvisor("routing", false, Ordered.HIGHEST_PRECEDENCE + 5);
-    }
 
-    /**
-     * Creates a Logging Advisor for parallel workflows.
-     */
-    public static LoggingAdvisor forParallel() {
-        return new LoggingAdvisor("parallel", true, Ordered.HIGHEST_PRECEDENCE + 55);
-    }
-
-    /**
-     * Creates a Logging Advisor for search workflows.
-     */
-    public static LoggingAdvisor forSearch() {
-        return new LoggingAdvisor("search", true, Ordered.HIGHEST_PRECEDENCE + 55);
-    }
-
-    /**
-     * Creates a Logging Advisor for main chat workflows.
-     */
-    public static LoggingAdvisor forChat() {
-        return new LoggingAdvisor("chat", true, Ordered.HIGHEST_PRECEDENCE + 30);
-    }
 
     @Override
     @NonNull
     public String getName() {
-        return "LoggingAdvisor-" + workflowType;
+        return "LoggingAdvisor";
     }
 
     @Override
     public int getOrder() {
-        return order;
+        return Integer.MAX_VALUE;
     }
 
     @Override
@@ -129,21 +89,12 @@ public class LoggingAdvisor implements CallAdvisor, StreamAdvisor {
         
         return chain.nextStream(request)
             .doOnNext(response -> {
-                // Log each stream chunk if content logging is enabled
-                if (logContent && logger.isDebugEnabled()) {
-                    String content = extractResponseContent(response);
-                    logger.debug("📡 [{}] Stream chunk: {}", 
-                        requestId, 
-                        content != null ? 
-                            content.substring(0, Math.min(50, content.length())) + "..." : 
-                            "null"
-                    );
-                }
+                long duration = System.currentTimeMillis() - startTime;
+                logResponse(requestId, response, duration);
             })
             .doOnComplete(() -> {
                 long duration = System.currentTimeMillis() - startTime;
-                logger.info("🎯 [{}] Stream completed - Type: {} - Duration: {}ms", 
-                    requestId, workflowType, duration);
+                logger.info("✅ [{}] Stream completed in {} ms", requestId, duration);
             })
             .doOnError(error -> {
                 long duration = System.currentTimeMillis() - startTime;
@@ -155,16 +106,15 @@ public class LoggingAdvisor implements CallAdvisor, StreamAdvisor {
      * Logs the incoming request.
      */
     private void logRequest(String requestId, ChatClientRequest request) {
-        logger.info("🚀 [{}] Starting {} workflow request", requestId, workflowType);
+
         
-        if (logContent && logger.isDebugEnabled()) {
-            String userMessage = extractUserMessage(request);
-            logger.debug("📝 [{}] Request content: {}", 
+        String userMessage = extractUserMessage(request);
+        if (userMessage != null) {
+            logger.info("📝 [{}] New request {}", 
                 requestId, 
-                userMessage != null ? 
-                    userMessage.substring(0, Math.min(100, userMessage.length())) + "..." : 
-                    "null"
-            );
+                userMessage.length() > 200 ? userMessage.substring(0, 200) + "..." : userMessage);
+        } else {
+            logger.info("📝 [{}] New request with no user message", requestId);
         }
         
         // Log context information if available
@@ -179,20 +129,10 @@ public class LoggingAdvisor implements CallAdvisor, StreamAdvisor {
      * Logs the successful response.
      */
     private void logResponse(String requestId, ChatClientResponse response, long duration) {
-        logger.info("✅ [{}] {} workflow completed - Duration: {}ms", 
-            requestId, workflowType, duration);
+
         
-        if (logContent && logger.isDebugEnabled()) {
-            String content = extractResponseContent(response);
-            logger.debug("📄 [{}] Response content: {}", 
-                requestId, 
-                content != null ? 
-                    content.substring(0, Math.min(100, content.length())) + "..." : 
-                    "null"
-            );
-        }
-        
-        // Log tool calls in response if available
+
+
         try {
             if (response.chatResponse() != null && response.chatResponse().getResult() != null &&
                 response.chatResponse().getResult().getOutput() != null) {
@@ -227,8 +167,7 @@ public class LoggingAdvisor implements CallAdvisor, StreamAdvisor {
      * Logs errors that occur during processing.
      */
     private void logError(String requestId, Throwable error, long duration) {
-        logger.error("❌ [{}] {} workflow failed - Duration: {}ms - Error: {}", 
-            requestId, workflowType, duration, error.getMessage());
+
         
         if (logger.isDebugEnabled()) {
             logger.debug("🔍 [{}] Error stack trace:", requestId, error);
@@ -271,7 +210,7 @@ public class LoggingAdvisor implements CallAdvisor, StreamAdvisor {
      * Generates a unique request ID for correlation.
      */
     private String generateRequestId() {
-        return workflowType + "-" + System.currentTimeMillis() + "-" + 
+        return System.currentTimeMillis() + "-" + 
                Thread.currentThread().getName().hashCode();
     }
 }

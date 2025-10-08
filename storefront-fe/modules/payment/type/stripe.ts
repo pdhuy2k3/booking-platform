@@ -112,6 +112,10 @@ export interface StripeElementsOptions {
   paymentMethodTypes?: string[]
   appearance?: StripeAppearance
   locale?: string
+  wallets?: {
+    applePay?: 'auto' | 'never' | 'always'
+    googlePay?: 'auto' | 'never' | 'always'
+  }
 }
 
 export interface StripeAppearance {

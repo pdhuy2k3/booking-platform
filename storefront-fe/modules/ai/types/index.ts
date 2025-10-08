@@ -128,3 +128,46 @@ export interface AudioRecorderState {
   duration: number; // in milliseconds
   error: string | null;
 }
+
+// ==================== EXPLORE TYPES ====================
+
+/**
+ * Explore API response structure
+ * Matches backend ExploreResponse.java
+ */
+export interface ExploreResponse {
+  /** Natural language introduction message */
+  message: string;
+  /** Array of destination recommendations */
+  results: ExploreDestination[];
+}
+
+export interface ExploreDestination {
+  /** Always 'info' for destination cards */
+  type: string;
+  /** Destination name (e.g., 'Đà Nẵng', 'Hạ Long Bay') */
+  title: string;
+  /** Brief compelling description of the destination */
+  subtitle: string;
+  /** Detailed destination information */
+  metadata: DestinationMetadata;
+}
+
+export interface DestinationMetadata {
+  /** Full location string (e.g., 'Đà Nẵng, Việt Nam') */
+  location: string;
+  /** Latitude coordinate (decimal degrees) */
+  latitude: number;
+  /** Longitude coordinate (decimal degrees) */
+  longitude: number;
+  /** URL to destination image from Brave image search */
+  image_url: string;
+  /** Alternative field name for image URL (for compatibility) */
+  imageUrl?: string;
+  /** Array of key attractions or features */
+  highlights: string[];
+  /** Best time to visit (e.g., 'Tháng 3-8', 'April to October') */
+  best_time: string;
+  /** Estimated daily cost range (e.g., '2-5 triệu VND/ngày') */
+  estimated_cost: string;
+}

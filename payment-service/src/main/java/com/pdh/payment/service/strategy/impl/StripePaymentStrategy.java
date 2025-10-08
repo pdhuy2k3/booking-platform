@@ -66,13 +66,33 @@ public class StripePaymentStrategy implements PaymentStrategy {
         PaymentTransaction transaction = createBaseTransaction(payment, paymentMethod);
         
         try {
-            // Create Stripe PaymentIntent with simple retry
-            PaymentIntent paymentIntent = createPaymentIntentWithRetry(payment, paymentMethod, additionalData);
+            PaymentIntent paymentIntent;
+            
+            // Check if this is an off-session payment with stored payment method
+            boolean isOffSession = additionalData != null && 
+                                   Boolean.TRUE.equals(additionalData.get("offSession"));
+            
+            // Check if payment method has stored Stripe payment method ID
+            boolean hasStoredPaymentMethod = paymentMethod.getProviderData() != null && 
+                                             !paymentMethod.getProviderData().isEmpty() &&
+                                             paymentMethod.getProviderData().startsWith("pm_");
+            
+            if (isOffSession || hasStoredPaymentMethod) {
+                // Server-side off-session payment with stored payment method
+                log.info("Processing off-session payment with stored payment method for payment: {}", 
+                        payment.getPaymentId());
+                paymentIntent = createAndConfirmPaymentIntent(payment, paymentMethod, additionalData);
+            } else {
+                // Traditional payment intent creation (for manual confirmation flows)
+                log.info("Processing traditional payment intent for payment: {}", payment.getPaymentId());
+                paymentIntent = createPaymentIntentWithRetry(payment, paymentMethod, additionalData);
+            }
             
             // Update transaction with Stripe data
             updateTransactionWithStripeData(transaction, paymentIntent);
             
-            log.info("Stripe payment intent created successfully: {}", paymentIntent.getId());
+            log.info("Stripe payment intent created successfully: {} with status: {}", 
+                    paymentIntent.getId(), paymentIntent.getStatus());
             
         } catch (StripeException e) {
             log.error("Stripe payment failed for payment ID: {} - {}", payment.getPaymentId(), e.getMessage());
@@ -278,6 +298,103 @@ public class StripePaymentStrategy implements PaymentStrategy {
         }
 
         return PaymentIntent.create(paramsBuilder.build());
+    }
+
+    /**
+     * Create and confirm a PaymentIntent for server-side processing with stored payment method
+     * This is used for MCP/API-initiated payments where the user is not present (off_session)
+     */
+    public PaymentIntent createAndConfirmPaymentIntent(Payment payment, PaymentMethod paymentMethod,
+                                                       Map<String, Object> additionalData) throws StripeException {
+        String currency = payment.getCurrency() != null
+                ? payment.getCurrency().toLowerCase()
+                : stripeConfig.getSettings().getCurrency();
+
+        long amountInMinorUnits = toStripeAmount(payment.getAmount(), currency);
+
+        // Get stored Stripe payment method ID from providerData
+        String stripePaymentMethodId = paymentMethod.getProviderData();
+        if (stripePaymentMethodId == null || stripePaymentMethodId.isEmpty()) {
+            throw new IllegalStateException("Payment method does not have Stripe payment method ID stored");
+        }
+
+        // Build payment intent params for off-session charge
+        PaymentIntentCreateParams.Builder paramsBuilder = PaymentIntentCreateParams.builder()
+                .setAmount(amountInMinorUnits)
+                .setCurrency(currency)
+                .setPaymentMethod(stripePaymentMethodId) // Use stored payment method ID
+                .setConfirm(true) // Auto-confirm the payment
+                .setOffSession(true) // Indicate this is an off-session payment (no user present)
+                .setCaptureMethod(PaymentIntentCreateParams.CaptureMethod.AUTOMATIC) // Capture immediately
+                .setStatementDescriptor(stripeConfig.getSettings().getStatementDescriptor())
+                .setConfirmationMethod(PaymentIntentCreateParams.ConfirmationMethod.AUTOMATIC);
+
+        // Add metadata
+        Map<String, String> metadata = new HashMap<>();
+        metadata.put("payment_id", payment.getPaymentId().toString());
+        metadata.put("booking_id", payment.getBookingId().toString());
+        metadata.put("user_id", payment.getUserId().toString());
+        metadata.put("payment_method_id", paymentMethod.getMethodId().toString());
+        metadata.put("processing_type", "off_session");
+        metadata.put("initiated_by", "mcp_server");
+        if (payment.getSagaId() != null) {
+            metadata.put("saga_id", payment.getSagaId());
+        }
+        paramsBuilder.putAllMetadata(metadata);
+
+        // Add customer email if available
+        if (additionalData != null) {
+            if (additionalData.containsKey("customer_email")) {
+                paramsBuilder.setReceiptEmail((String) additionalData.get("customer_email"));
+            }
+            
+            // Extract customer ID from providerData if available
+            String customerId = extractCustomerId(paymentMethod.getProviderData());
+            if (customerId != null) {
+                paramsBuilder.setCustomer(customerId);
+            }
+        }
+
+        log.info("Creating off-session payment intent for payment {} with stored payment method {}", 
+                payment.getPaymentId(), paymentMethod.getMethodId());
+
+        try {
+            // Create and confirm the payment intent
+            PaymentIntent paymentIntent = PaymentIntent.create(paramsBuilder.build());
+            
+            log.info("Off-session payment intent created and confirmed: {} with status: {}", 
+                    paymentIntent.getId(), paymentIntent.getStatus());
+            
+            return paymentIntent;
+            
+        } catch (StripeException e) {
+            // Handle specific off-session payment errors
+            if ("authentication_required".equals(e.getCode())) {
+                log.error("3D Secure authentication required for off-session payment. Payment method may need re-authentication.");
+                throw new IllegalStateException(
+                    "Payment requires authentication. User needs to re-authenticate their payment method.", e
+                );
+            }
+            throw e;
+        }
+    }
+
+    /**
+     * Extract Stripe customer ID from providerData string
+     * ProviderData format: "pm_abc123;customerId=cus_xyz789" or just "pm_abc123"
+     */
+    private String extractCustomerId(String providerData) {
+        if (providerData == null || !providerData.contains("customerId=")) {
+            return null;
+        }
+        
+        String[] parts = providerData.split(";");
+        for (String part : parts) {
+            if (part.startsWith("customerId=")) {
+                return part.substring("customerId=".length());
+            }
+        }
+        return null;
     }
 
     /**

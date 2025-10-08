@@ -1,0 +1,262 @@
+"use client"
+
+import { useState } from "react"
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { Alert, AlertDescription } from "@/components/ui/alert"
+import { useToast } from "@/hooks/use-toast"
+import { Loader2, AlertCircle } from "lucide-react"
+import { CardElement, useStripe, useElements } from '@stripe/react-stripe-js'
+import { paymentMethodService, AddPaymentMethodRequest } from "@/modules/payment/service/payment-method"
+
+interface AddPaymentMethodDialogProps {
+  open: boolean
+  onOpenChange: (open: boolean) => void
+  onSuccess: () => void
+}
+
+export function AddPaymentMethodDialog({ open, onOpenChange, onSuccess }: AddPaymentMethodDialogProps) {
+  const stripe = useStripe()
+  const elements = useElements()
+  const { toast } = useToast()
+  
+  const [isProcessing, setIsProcessing] = useState(false)
+  const [displayName, setDisplayName] = useState("")
+  const [cardHolderName, setCardHolderName] = useState("")
+  const [cardHolderEmail, setCardHolderEmail] = useState("")
+  const [setAsDefault, setSetAsDefault] = useState(false)
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+
+    if (!stripe || !elements) {
+      toast({
+        title: "Error",
+        description: "Stripe has not loaded yet. Please wait.",
+        variant: "destructive",
+      })
+      return
+    }
+
+    if (!displayName) {
+      toast({
+        title: "Validation Error",
+        description: "Please enter a display name for this payment method",
+        variant: "destructive",
+      })
+      return
+    }
+
+    setIsProcessing(true)
+
+    try {
+      // Get the CardElement
+      const cardElement = elements.getElement(CardElement)
+      
+      if (!cardElement) {
+        throw new Error("Card element not found")
+      }
+
+      // Create payment method with Stripe
+      const { error, paymentMethod } = await stripe.createPaymentMethod({
+        type: 'card',
+        card: cardElement,
+        billing_details: {
+          name: cardHolderName || undefined,
+          email: cardHolderEmail || undefined,
+        },
+      })
+
+      if (error) {
+        console.error('Stripe error:', error)
+        toast({
+          title: "Payment Method Error",
+          description: error.message || "Failed to create payment method",
+          variant: "destructive",
+        })
+        return
+      }
+
+      if (!paymentMethod) {
+        throw new Error("No payment method returned from Stripe")
+      }
+
+      // Prepare request for backend
+      const request: AddPaymentMethodRequest = {
+        methodType: 'CREDIT_CARD',
+        provider: 'STRIPE',
+        displayName: displayName,
+        cardLastFour: paymentMethod.card?.last4,
+        cardBrand: paymentMethod.card?.brand?.toUpperCase(),
+        cardExpiryMonth: paymentMethod.card?.exp_month,
+        cardExpiryYear: paymentMethod.card?.exp_year,
+        cardHolderName: cardHolderName || undefined,
+        cardHolderEmail: cardHolderEmail || undefined,
+        stripePaymentMethodId: paymentMethod.id, // pm_abc123...
+        setAsDefault: setAsDefault,
+      }
+
+      // Save to backend
+      await paymentMethodService.addPaymentMethod(request)
+
+      toast({
+        title: "Success",
+        description: "Payment method added successfully",
+      })
+
+      // Reset form
+      setDisplayName("")
+      setCardHolderName("")
+      setCardHolderEmail("")
+      setSetAsDefault(false)
+      cardElement.clear()
+
+      onSuccess()
+      onOpenChange(false)
+
+    } catch (error: any) {
+      console.error('Failed to add payment method:', error)
+      toast({
+        title: "Error",
+        description: error.message || "Failed to add payment method. Please try again.",
+        variant: "destructive",
+      })
+    } finally {
+      setIsProcessing(false)
+    }
+  }
+
+  const handleCancel = () => {
+    setDisplayName("")
+    setCardHolderName("")
+    setCardHolderEmail("")
+    setSetAsDefault(false)
+    
+    const cardElement = elements?.getElement(CardElement)
+    if (cardElement) {
+      cardElement.clear()
+    }
+    
+    onOpenChange(false)
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-[550px]">
+        <DialogHeader>
+          <DialogTitle>Add Payment Method</DialogTitle>
+          <DialogDescription>
+            Add a new payment method to your account. Card details are securely processed by Stripe.
+          </DialogDescription>
+        </DialogHeader>
+
+        <Alert>
+          <AlertCircle className="h-4 w-4" />
+          <AlertDescription>
+            For testing, use card: 4242 4242 4242 4242, any future expiry date, and any CVC.
+          </AlertDescription>
+        </Alert>
+
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div className="space-y-2">
+            <Label htmlFor="displayName">Display Name *</Label>
+            <Input
+              id="displayName"
+              placeholder="My Credit Card"
+              value={displayName}
+              onChange={(e) => setDisplayName(e.target.value)}
+              required
+            />
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="cardHolderName">Cardholder Name</Label>
+            <Input
+              id="cardHolderName"
+              placeholder="John Doe"
+              value={cardHolderName}
+              onChange={(e) => setCardHolderName(e.target.value)}
+            />
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="cardHolderEmail">Cardholder Email</Label>
+            <Input
+              id="cardHolderEmail"
+              type="email"
+              placeholder="john@example.com"
+              value={cardHolderEmail}
+              onChange={(e) => setCardHolderEmail(e.target.value)}
+            />
+          </div>
+
+          <div className="space-y-2">
+            <Label>Card Details *</Label>
+            <div className="border rounded-md p-3 bg-white">
+              <CardElement
+                options={{
+                  style: {
+                    base: {
+                      fontSize: '16px',
+                      color: '#424770',
+                      '::placeholder': {
+                        color: '#aab7c4',
+                      },
+                    },
+                    invalid: {
+                      color: '#9e2146',
+                    },
+                  },
+                  hidePostalCode: false,
+                }}
+              />
+            </div>
+            <p className="text-xs text-gray-500">
+              Stripe securely processes your card details. We never see your full card number.
+            </p>
+          </div>
+
+          <div className="flex items-center space-x-2">
+            <input
+              type="checkbox"
+              id="setAsDefault"
+              checked={setAsDefault}
+              onChange={(e) => setSetAsDefault(e.target.checked)}
+              className="rounded border-gray-300"
+            />
+            <Label htmlFor="setAsDefault" className="cursor-pointer font-normal">
+              Set as default payment method
+            </Label>
+          </div>
+
+          <div className="flex justify-end gap-2 pt-4">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={handleCancel}
+              disabled={isProcessing}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="submit"
+              disabled={!stripe || isProcessing}
+              className="bg-cyan-500 hover:bg-cyan-600"
+            >
+              {isProcessing ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Processing...
+                </>
+              ) : (
+                'Add Payment Method'
+              )}
+            </Button>
+          </div>
+        </form>
+      </DialogContent>
+    </Dialog>
+  )
+}
