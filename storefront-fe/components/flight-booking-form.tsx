@@ -23,6 +23,7 @@ import { format } from "date-fns"
 import { CalendarIcon } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { FlightBookingDetails, PassengerDetails } from '@/modules/booking/types'
+import { useToast } from "@/hooks/use-toast"
 
 const formatDateTimeLabel = (value?: string) => {
   if (!value) return 'Chưa có'
@@ -38,10 +39,10 @@ interface FlightBookingFormProps {
 }
 
 export function FlightBookingForm({ flight, onSubmit, onCancel }: FlightBookingFormProps) {
+  const { toast } = useToast();
   const [passengerCount, setPassengerCount] = useState<number>(1)
   const [seatClass, setSeatClass] = useState<string>('ECONOMY')
   const [specialRequests, setSpecialRequests] = useState<string>('')
-  const [departureDate, setDepartureDate] = useState<Date | undefined>(new Date())
   const [passengers, setPassengers] = useState<PassengerDetails[]>([
     {
       passengerType: 'ADULT',
@@ -56,14 +57,61 @@ export function FlightBookingForm({ flight, onSubmit, onCancel }: FlightBookingF
     }
   ])
 
+  // Calculate initial total price
+  const [initialTotalPrice, setInitialTotalPrice] = useState<number>(flight.price || 0);
+  const [currentTotal, setCurrentTotal] = useState<number>(flight.price);
+  const [isFetching, setIsFetching] = useState<boolean>(false);
+
+  // Show toast when passenger count changes
   useEffect(() => {
-    if (flight?.departureTime) {
-      const parsed = new Date(flight.departureTime)
-      if (!Number.isNaN(parsed.getTime())) {
-        setDepartureDate(parsed)
-      }
+    if (passengerCount !== 1) { // Only show toast if not the initial value
+      toast({
+        title: "Thông báo thay đổi giá",
+        description: `Giá vé đã thay đổi từ ${initialTotalPrice.toLocaleString()} VND sang ${(flight.price * passengerCount).toLocaleString()} VND do thay đổi số hành khách.`,
+        duration: 3000,
+      });
     }
-  }, [flight?.departureTime])
+  }, [passengerCount, initialTotalPrice, flight.price, toast]);
+
+  // Show toast when seat class changes and fetch updated price
+  useEffect(() => {
+    if (seatClass !== 'ECONOMY') { // Only when not the initial value
+      setIsFetching(true);
+      
+      // Fetch updated price based on selected seat class
+      import('@/modules/flight/service').then(module => {
+        module.flightService.getFareDetails(
+          flight.id.toString(), 
+          { 
+            seatClass: seatClass,
+            scheduleId: flight.scheduleId,
+            fareId: flight.fareId
+          }
+        )
+        .then(updatedFlight => {
+          setCurrentTotal(updatedFlight.price);
+          toast({
+            title: "Thông báo thay đổi giá",
+            description: `Giá vé đã cập nhật theo hạng ghế: ${seatClass}. Mới: ${(updatedFlight.price * passengerCount).toLocaleString()} VND.`,
+            duration: 3000,
+          });
+        })
+        .catch(error => {
+          console.error("Error fetching updated flight price:", error);
+          toast({
+            title: "Lỗi",
+            description: "Không thể cập nhật giá vé, vui lòng thử lại.",
+            variant: "destructive",
+          });
+        })
+        .finally(() => {
+          setIsFetching(false);
+        });
+      });
+    }
+  }, [seatClass, flight, passengerCount, toast]);
+
+
 
   const handleAddPassenger = () => {
     if (passengers.length < 9) { // Max 9 passengers
@@ -120,15 +168,15 @@ export function FlightBookingForm({ flight, onSubmit, onCancel }: FlightBookingF
       airline: flight.airline,
       originAirport: flight.origin,
       destinationAirport: flight.destination,
-      departureDateTime: departureDate ? departureDate.toISOString() : new Date().toISOString(),
-      arrivalDateTime: flight.arrivalTime,
+      departureDateTime: flight.departureTime, // Use flight's fixed departure time
+      arrivalDateTime: flight.arrivalTime, // Use flight's fixed arrival time
       seatClass,
       scheduleId: flight.scheduleId,
       fareId: flight.fareId,
       passengerCount,
       passengers,
-      pricePerPassenger: flight.price,
-      totalFlightPrice: flight.price * passengerCount
+      pricePerPassenger: currentTotal / passengerCount, // Calculate price per passenger based on current total
+      totalFlightPrice: currentTotal // Use the dynamically calculated total
     }
 
     onSubmit(bookingDetails)
@@ -193,32 +241,6 @@ export function FlightBookingForm({ flight, onSubmit, onCancel }: FlightBookingF
                   <SelectItem value="FIRST">Hạng nhất</SelectItem>
                 </SelectContent>
               </Select>
-            </div>
-
-            <div>
-              <Label htmlFor="departureDate">Ngày khởi hành</Label>
-              <Popover>
-                <PopoverTrigger asChild>
-                  <Button
-                    variant={"outline"}
-                    className={cn(
-                      "w-full justify-start text-left font-normal",
-                      !departureDate && "text-muted-foreground"
-                    )}
-                  >
-                    <CalendarIcon className="mr-2 h-4 w-4" />
-                    {departureDate ? format(departureDate, "PPP") : <span>Chọn ngày</span>}
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-auto p-0">
-                  <Calendar
-                    mode="single"
-                    selected={departureDate}
-                    onSelect={setDepartureDate}
-                    initialFocus
-                  />
-                </PopoverContent>
-              </Popover>
             </div>
           </div>
 

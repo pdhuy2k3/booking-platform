@@ -74,6 +74,7 @@ export const createSetupElementsOptions = (
 ): StripeElementsOptions => ({
   ...defaultStripeElementsOptions,
   mode: 'setup',
+  paymentMethodCreation: 'manual',
   appearance: {
     ...defaultStripeElementsOptions.appearance,
     ...customAppearance,

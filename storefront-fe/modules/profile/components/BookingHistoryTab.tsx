@@ -152,35 +152,35 @@ const renderFlightDetails = (flight?: FlightFareDetails, fallback?: any) => {
   const availableSeats = availableSeatsRaw != null ? Number(availableSeatsRaw) : null
 
   return (
-    <div className="space-y-2 rounded-lg border border-cyan-500/20 bg-cyan-500/5 p-4">
-      <h4 className="font-semibold text-cyan-200">Flight Details</h4>
-      <div className="grid gap-2 text-sm text-cyan-100 md:grid-cols-2">
+    <div className="space-y-2 rounded-lg border border-gray-300/30 bg-gray-100 p-4">
+      <h4 className="font-semibold text-gray-700">Flight Details</h4>
+      <div className="grid gap-2 text-sm text-gray-600 md:grid-cols-2">
         <div>
-          <span className="text-xs uppercase text-cyan-300">Flight</span>
+          <span className="text-xs uppercase text-gray-500">Flight</span>
           <p className="font-medium">{flightNumber || 'N/A'}</p>
-          {airline && <p className="text-xs text-cyan-300">{airline}</p>}
+          {airline && <p className="text-xs text-gray-500">{airline}</p>}
         </div>
         <div>
-          <span className="text-xs uppercase text-cyan-300">Route</span>
+          <span className="text-xs uppercase text-gray-500">Route</span>
           <p className="font-medium">{origin || '—'} → {destination || '—'}</p>
         </div>
         <div>
-          <span className="text-xs uppercase text-cyan-300">Departure</span>
+          <span className="text-xs uppercase text-gray-500">Departure</span>
           <p>{formatDateTime(departure)}</p>
         </div>
         <div>
-          <span className="text-xs uppercase text-cyan-300">Arrival</span>
+          <span className="text-xs uppercase text-gray-500">Arrival</span>
           <p>{formatDateTime(arrival)}</p>
         </div>
         <div>
-          <span className="text-xs uppercase text-cyan-300">Seat Class</span>
+          <span className="text-xs uppercase text-gray-500">Seat Class</span>
           <p>{seatClass}</p>
         </div>
         <div>
-          <span className="text-xs uppercase text-cyan-300">Fare</span>
+          <span className="text-xs uppercase text-gray-500">Fare</span>
           <p>{formatCurrency(price ?? priceRaw, currency)}</p>
           {availableSeats != null && Number.isFinite(availableSeats) && (
-            <p className="text-xs text-cyan-300">Available seats: {availableSeats}</p>
+            <p className="text-xs text-gray-500">Available seats: {availableSeats}</p>
           )}
         </div>
       </div>
@@ -202,28 +202,28 @@ const renderHotelDetails = (hotel?: RoomDetails, fallback?: any) => {
   const roomNumber = hotel?.roomNumber ?? source?.roomId
 
   return (
-    <div className="space-y-2 rounded-lg border border-emerald-500/20 bg-emerald-500/5 p-4">
-      <h4 className="font-semibold text-emerald-200">Room Details</h4>
-      <div className="grid gap-2 text-sm text-emerald-100 md:grid-cols-2">
+    <div className="space-y-2 rounded-lg border border-gray-300/30 bg-gray-100 p-4">
+      <h4 className="font-semibold text-gray-700">Room Details</h4>
+      <div className="grid gap-2 text-sm text-gray-600 md:grid-cols-2">
         <div>
-          <span className="text-xs uppercase text-emerald-300">Room</span>
+          <span className="text-xs uppercase text-gray-500">Room</span>
           <p className="font-medium">{title || 'Room'}</p>
-          {roomNumber && <p className="text-xs text-emerald-300">Room ID: {roomNumber}</p>}
+          {roomNumber && <p className="text-xs text-gray-500">Room ID: {roomNumber}</p>}
         </div>
         <div>
-          <span className="text-xs uppercase text-emerald-300">Price</span>
+          <span className="text-xs uppercase text-gray-500">Price</span>
           <p>{formatCurrency(price ?? priceRaw, currency)}</p>
         </div>
         <div>
-          <span className="text-xs uppercase text-emerald-300">Capacity</span>
+          <span className="text-xs uppercase text-gray-500">Capacity</span>
           <p>{capacity ? `${capacity} guests` : '—'}</p>
         </div>
         <div>
-          <span className="text-xs uppercase text-emerald-300">Bed Type</span>
+          <span className="text-xs uppercase text-gray-500">Bed Type</span>
           <p>{bedType || '—'}</p>
         </div>
       </div>
-      {description && <p className="text-sm text-emerald-100/80">{description}</p>}
+      {description && <p className="text-sm text-gray-600/80">{description}</p>}
     </div>
   )
 }
@@ -372,18 +372,18 @@ export function BookingHistoryTab() {
 
   return (
     <div className="space-y-6">
-      <Card className="bg-white border-gray-200">
+      <Card className="bg-white/70 border-gray-200">
         <CardHeader>
           <CardTitle className="text-gray-900">Booking History</CardTitle>
           <CardDescription>Review your completed and in-progress bookings</CardDescription>
         </CardHeader>
         <CardContent className="space-y-5">
           {error && (
-            <div className="rounded-lg border border-red-500/40 bg-red-500/5 p-4">
+            <div className="rounded-lg border border-red-500/30 bg-red-50 p-4">
               <div className="flex items-center gap-3">
-                <AlertTriangle className="h-5 w-5 text-red-400" />
+                <AlertTriangle className="h-5 w-5 text-red-500" />
                 <div>
-                  <p className="text-sm text-red-300">{error}</p>
+                  <p className="text-sm text-red-600">{error}</p>
                   <Button variant="outline" size="sm" className="mt-2" onClick={handleRetry}>
                     Retry
                   </Button>
@@ -393,7 +393,7 @@ export function BookingHistoryTab() {
           )}
 
           {items.length === 0 && !isLoading && !error && (
-            <div className="text-center py-12">
+            <div className="text-center py-12 bg-gray-50 rounded-lg">
               <Calendar className="h-12 w-12 text-gray-500 mx-auto mb-4" />
               <h3 className="text-lg font-medium text-gray-900 mb-2">No bookings yet</h3>
               <p className="text-gray-600">Plan your next trip to see bookings listed here.</p>
@@ -415,7 +415,7 @@ export function BookingHistoryTab() {
                   return (
                     <div
                       key={bookingId}
-                      className="rounded-lg border border-gray-200 bg-white p-4"
+                      className="rounded-lg border border-gray-200 bg-gray-50 p-4"
                     >
                       <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
                         <div className="flex items-start gap-4">

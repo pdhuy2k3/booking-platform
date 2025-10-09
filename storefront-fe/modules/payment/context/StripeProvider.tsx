@@ -84,6 +84,7 @@ export const StripeProvider: React.FC<StripeProviderProps> = ({
       case 'setup':
         return {
           mode: 'setup',
+          paymentMethodCreation: 'manual',
           appearance: {
             theme: 'stripe',
             ...appearance,

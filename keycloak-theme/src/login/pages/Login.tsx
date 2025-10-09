@@ -3,6 +3,7 @@ import { getKcClsx } from "keycloakify/login/lib/kcClsx";
 import type { KcContext } from "../KcContext";
 import type { I18n } from "../i18n";
 import { SocialProviderButton } from "../../components/SocialProviderButton";
+import { TurnstileWidget } from "../../components/TurnstileWidget";
 
 
 export default function Login(props: PageProps<Extract<KcContext, { pageId: "login.ftl" }>, I18n>) {
@@ -16,6 +17,9 @@ export default function Login(props: PageProps<Extract<KcContext, { pageId: "log
     const { social, realm, url, usernameHidden, login, auth, registrationDisabled, messagesPerField } = kcContext;
 
     const { msg, msgStr } = i18n;
+    
+    // Get Turnstile site key from environment variables
+    const turnstileSiteKey = (kcContext as any).properties?.TURNSTILE_SITE_KEY || "";
 
     return (
         <Template
@@ -79,7 +83,13 @@ export default function Login(props: PageProps<Extract<KcContext, { pageId: "log
                                                 : msgStr("email")
                                     }
                                     aria-invalid={messagesPerField.existsError("username", "password")}
+                                    aria-describedby={messagesPerField.existsError("username") ? "username-error" : undefined}
                                 />
+                                {messagesPerField.existsError("username") && (
+                                    <div id="username-error" className="bookingsmart-error-enhanced">
+                                        {messagesPerField.get("username")}
+                                    </div>
+                                )}
                                 {messagesPerField.existsError("username") && (
                                     <div className="bookingsmart-error-enhanced">
                                         {messagesPerField.get("username")}
@@ -101,9 +111,10 @@ export default function Login(props: PageProps<Extract<KcContext, { pageId: "log
                                 autoComplete="current-password"
                                 placeholder={msgStr("password")}
                                 aria-invalid={messagesPerField.existsError("username", "password")}
+                                aria-describedby={messagesPerField.existsError("password") ? "password-error" : undefined}
                             />
                             {messagesPerField.existsError("password") && (
-                                <div className="bookingsmart-error-enhanced">
+                                <div id="password-error" className="bookingsmart-error-enhanced">
                                     {messagesPerField.get("password")}
                                 </div>
                             )}
@@ -134,6 +145,30 @@ export default function Login(props: PageProps<Extract<KcContext, { pageId: "log
                                 </a>
                             )}
                         </div>
+
+                        {turnstileSiteKey && (
+                            <div className="form-group-enhanced slide-up">
+                                <TurnstileWidget 
+                                    siteKey={turnstileSiteKey} 
+                                    onVerify={(token) => {
+                                        // Add the token to a hidden input field in the form
+                                        const form = document.getElementById('kc-form-login') as HTMLFormElement;
+                                        let tokenInput = document.getElementById('cf-turnstile-response') as HTMLInputElement;
+                                        
+                                        if (!tokenInput) {
+                                            tokenInput = document.createElement('input');
+                                            tokenInput.type = 'hidden';
+                                            tokenInput.id = 'cf-turnstile-response';
+                                            tokenInput.name = 'cf-turnstile-response';
+                                            form.appendChild(tokenInput);
+                                        }
+                                        
+                                        tokenInput.value = token;
+                                    }}
+                                    className="flex justify-center"
+                                />
+                            </div>
+                        )}
 
                         <div className="pt-6 scale-in">
                             <input

@@ -23,6 +23,7 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/actuator/prometheus", "/actuator/health/**",
                                 "/swagger-ui", "/swagger-ui/**", "/error", "/v3/api-docs/**").permitAll()
+                        .requestMatchers("/storefront/public/**").permitAll()  // Allow public registration
                         .requestMatchers("/storefront/**").hasAnyRole("CUSTOMER","ADMIN")
                         .requestMatchers("/backoffice/admin/**").hasRole("ADMIN")
                         .requestMatchers("/backoffice/partner/**").hasRole("PARTNER")

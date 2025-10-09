@@ -42,6 +42,9 @@ export default function Template(props: TemplateProps<KcContext, I18n>) {
  
                 {/* Link to our compiled CSS */}
                 <link rel="stylesheet" href="./assets/index.css" />
+                
+                {/* Cloudflare Turnstile */}
+                <script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
             </head>
 
             <body className={clsx(bodyClassName, "bookingsmart-theme min-h-screen relative")}>
@@ -66,14 +69,36 @@ export default function Template(props: TemplateProps<KcContext, I18n>) {
                             {displayMessage && message !== undefined && (
                                 <div
                                     className={clsx(
-                                        "p-3 rounded-md mb-4 text-sm",
-                                        message.type === "success" && "bg-green-50 text-green-800 border border-green-200",
-                                        message.type === "warning" && "bg-yellow-50 text-yellow-800 border border-yellow-200",
-                                        message.type === "error" && "bg-red-50 text-red-800 border border-red-200",
-                                        message.type === "info" && "bg-blue-50 text-blue-800 border border-blue-200"
+                                        "p-4 rounded-xl mb-6 text-sm flex items-start space-x-3 transition-all duration-300",
+                                        message.type === "success" && "bg-green-50/80 text-green-800 border border-green-200/50",
+                                        message.type === "warning" && "bg-yellow-50/80 text-yellow-800 border border-yellow-200/50",
+                                        message.type === "error" && "bg-red-50/80 text-red-800 border border-red-200/50",
+                                        message.type === "info" && "bg-blue-50/80 text-blue-800 border border-blue-200/50"
                                     )}
                                 >
-                                    <span dangerouslySetInnerHTML={{ __html: message.summary }} />
+                                    <div className="flex-shrink-0 mt-0.5">
+                                        {message.type === "success" && (
+                                            <svg className="w-5 h-5 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                                            </svg>
+                                        )}
+                                        {message.type === "warning" && (
+                                            <svg className="w-5 h-5 text-yellow-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                                            </svg>
+                                        )}
+                                        {message.type === "error" && (
+                                            <svg className="w-5 h-5 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                            </svg>
+                                        )}
+                                        {message.type === "info" && (
+                                            <svg className="w-5 h-5 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                            </svg>
+                                        )}
+                                    </div>
+                                    <span className="leading-relaxed" dangerouslySetInnerHTML={{ __html: message.summary }} />
                                 </div>
                             )}
 
@@ -87,25 +112,29 @@ export default function Template(props: TemplateProps<KcContext, I18n>) {
                             {displayInfo && infoNode && <div className="mt-4 p-4 bg-gray-50 rounded-md border border-gray-200">{infoNode}</div>}
 
                             {/* Footer Links */}
-                            {/* <div className="text-center mt-6 pt-6 border-t border-gray-200">
-                                {kcContext.pageId !== "login.ftl" && (
-                                    <a href={url.loginUrl} className="text-primary hover:text-primary/80 transition-colors text-sm">
-                                        ← {msg("backToLogin")}
+                            <div className="text-center mt-6 pt-6 border-t border-gray-200/30">
+                                {kcContext.pageId && kcContext.pageId !== "login.ftl" && (
+                                    <a href={(kcContext as any).url.loginUrl} className="text-primary hover:text-primary/80 transition-colors text-sm font-medium">
+                                        ← {i18n.msg("backToLogin")}
                                     </a>
                                 )}
                                 
-                                {kcContext.pageId === "login.ftl" && (url as any).registrationUrl && (
-                                    <a href={(url as any).registrationUrl} className="text-primary hover:text-primary/80 transition-colors text-sm">
-                                        {msg("doRegister")}
-                                    </a>
+                                {kcContext.pageId && kcContext.pageId === "login.ftl" && (
+                                    <div className="flex flex-wrap justify-center gap-4 text-sm">
+                                        {(kcContext as any).url && (kcContext as any).url.registrationUrl && (
+                                            <a href={(kcContext as any).url.registrationUrl} className="text-primary hover:text-primary/80 transition-colors font-medium">
+                                                {i18n.msg("doRegister")}
+                                            </a>
+                                        )}
+                                        
+                                        {(kcContext as any).url && (kcContext as any).url.loginResetCredentialsUrl && (
+                                            <a href={(kcContext as any).url.loginResetCredentialsUrl} className="text-primary hover:text-primary/80 transition-colors font-medium">
+                                                {i18n.msg("doForgotPassword")}
+                                            </a>
+                                        )}
+                                    </div>
                                 )}
-                                
-                                {kcContext.pageId === "login.ftl" && (url as any).loginResetCredentialsUrl && (
-                                    <a href={(url as any).loginResetCredentialsUrl} className="text-primary hover:text-primary/80 transition-colors text-sm ml-4 pl-4 border-l border-gray-200">
-                                        {msg("doForgotPassword")}
-                                    </a>
-                                )}
-                            </div> */}
+                            </div>
                         </div>
                     </div>
                 </div>

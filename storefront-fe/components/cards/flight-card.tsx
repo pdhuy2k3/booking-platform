@@ -245,9 +245,6 @@ export const FlightCard = ({
                 <span className="font-semibold">
                   {formatCurrency(flight.price, flight.currency || "VND")}
                 </span>
-                <span className="text-[10px] sm:text-xs text-blue-100">
-                  / khách
-                </span>
               </Button>
             )}
           </div>

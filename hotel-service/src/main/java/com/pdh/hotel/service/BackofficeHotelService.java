@@ -191,6 +191,8 @@ public class BackofficeHotelService {
         response.put("description", hotel.getDescription() != null ? hotel.getDescription() : "");
         response.put("isActive", hotel.getIsActive() != null ? hotel.getIsActive() : Boolean.TRUE);
         response.put("status", hotel.getIsActive() != null && hotel.getIsActive() ? "ACTIVE" : "INACTIVE");
+        response.put("latitude", hotel.getLatitude());
+        response.put("longitude", hotel.getLongitude());
 
         List<RoomType> roomTypes = roomTypeRepository.findByHotelId(hotel.getHotelId());
         response.put("availableRooms", calculateAvailableRooms(roomTypes));

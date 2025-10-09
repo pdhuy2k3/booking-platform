@@ -315,7 +315,8 @@ export function useAiChat(options: UseAiChatOptions = {}): UseAiChatReturn {
       // Clear the assistant message reference on error
       currentAssistantMessageIdRef.current = null;
     } finally {
-
+      // Always set loading to false after the operation completes
+      setIsLoading(false);
     }
   }, [isLoading, conversationId, context, refreshChatConversations, onError, user]);
 

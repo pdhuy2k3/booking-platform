@@ -73,23 +73,32 @@ export function Sidebar() {
       >
         <Link
           href="/"
-          aria-label="mindtrip Home"
-          className={cn("flex h-10 w-10 items-center justify-center rounded-full", isExpanded ? "mb-4" : "mb-4")}
+          aria-label="BookingSmart Home"
+          className={cn("flex h-10 w-10 items-center justify-center rounded-full overflow-hidden", isExpanded ? "mb-4" : "mb-4")}
         >
-          <div className="text-2xl font-bold">
-            <span className="text-foreground">🧠</span>
-          </div>
+          <Image
+            src="/logo_brand-removebg-preview.png"
+            alt="BookingSmart Logo"
+            width={40}
+            height={40}
+            className="object-contain"
+          />
         </Link>
-        {isExpanded && (
-          <button
-            type="button"
-            onClick={() => setIsExpanded(false)}
-            className="h-8 w-8 rounded-full text-muted-foreground hover:bg-secondary hover:text-foreground transition-colors"
-            aria-label="Thu gọn"
-          >
+        <button
+          type="button"
+          onClick={() => setIsExpanded(!isExpanded)}
+          className={cn(
+            "h-8 w-8 rounded-full text-muted-foreground hover:bg-secondary hover:text-foreground transition-colors",
+            isExpanded ? "ml-2" : "w-10 justify-center"
+          )}
+          aria-label={isExpanded ? "Thu gọn" : "Mở rộng"}
+        >
+          {isExpanded ? (
             <PanelRightClose className="h-4 w-4" />
-          </button>
-        )}
+          ) : (
+            <PanelRightOpen className="h-4 w-4" />
+          )}
+        </button>
       </div>
 
       <nav className={cn("flex flex-col gap-2", isExpanded ? "items-stretch" : "items-center")}
@@ -251,16 +260,6 @@ export function Sidebar() {
           </Link>
         </div>
 
-        {!isExpanded && (
-          <button
-            type="button"
-            onClick={() => setIsExpanded(true)}
-            className="flex h-9 w-10 items-center justify-center rounded-full border border-border text-muted-foreground hover:bg-secondary hover:text-foreground transition-colors"
-            aria-label="Mở rộng"
-          >
-            <PanelRightOpen className="h-4 w-4" />
-          </button>
-        )}
       </div>
     </nav>
   )

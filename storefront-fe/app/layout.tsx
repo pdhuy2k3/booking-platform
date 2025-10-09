@@ -15,7 +15,11 @@ import { Toaster } from "@/components/ui/toaster"
 export const metadata: Metadata = {
   title: "BookingSmart - Smart Travel Planning",
   description: "AI-powered travel planning platform for flights and hotels",
-  
+  icons: {
+    icon: '/favicon.ico',
+    shortcut: '/favicon-32x32.png',
+    apple: '/apple-touch-icon.png',
+  }
 }
 
 export default function RootLayout({

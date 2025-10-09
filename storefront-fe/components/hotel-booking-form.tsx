@@ -1,6 +1,6 @@
 "use client"
 
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -20,6 +20,7 @@ import {
   PopoverTrigger 
 } from "@/components/ui/popover"
 import { useDateFormatter } from "@/hooks/use-date-formatter"
+import { useToast } from "@/hooks/use-toast"
 import { CalendarIcon } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { HotelBookingDetails, GuestDetails } from '@/modules/booking/types'
@@ -32,6 +33,7 @@ interface HotelBookingFormProps {
 
 export function HotelBookingForm({ hotel, onSubmit, onCancel }: HotelBookingFormProps) {
   const { formatDateOnly } = useDateFormatter()
+  const { toast } = useToast()
 
   const [checkInDate, setCheckInDate] = useState<Date | undefined>(new Date())
   const [checkOutDate, setCheckOutDate] = useState<Date | undefined>(new Date(Date.now() + 86400000)) // Next day
@@ -61,6 +63,94 @@ export function HotelBookingForm({ hotel, onSubmit, onCancel }: HotelBookingForm
       nationality: 'VN'
     }
   ])
+
+  // Calculate the number of nights between check-in and check-out dates
+  const calculateNights = () => {
+    if (!checkInDate || !checkOutDate) return 0;
+    const timeDiff = checkOutDate.getTime() - checkInDate.getTime();
+    return Math.ceil(timeDiff / (1000 * 3600 * 24));
+  };
+
+  // Calculate initial total price
+  const initialNights = calculateNights();
+  const [initialTotalPrice, setInitialTotalPrice] = useState<number>(hotel.price * initialNights * 1);
+  const [currentTotal, setCurrentTotal] = useState<number>(hotel.price * initialNights * 1);
+  const [isFetching, setIsFetching] = useState<boolean>(false);
+
+  // Show toast when check-in date changes
+  useEffect(() => {
+    if (checkInDate) {
+      const newNights = calculateNights();
+      const newTotal = hotel.price * newNights * numberOfRooms;
+      if (newNights > 0) {
+        toast({
+          title: "Thông báo thay đổi giá",
+          description: `Giá phòng đã thay đổi từ ${initialTotalPrice.toLocaleString()} VND sang ${newTotal.toLocaleString()} VND do thay đổi ngày nhận/trả phòng.`,
+          duration: 3000,
+        });
+      }
+    }
+  }, [checkInDate, checkOutDate, initialTotalPrice, hotel.price, numberOfRooms, toast]);
+
+  // Show toast when number of rooms changes
+  useEffect(() => {
+    const newTotal = hotel.price * calculateNights() * numberOfRooms;
+    if (numberOfRooms !== 1) { // Only show toast if not the initial value
+      toast({
+        title: "Thông báo thay đổi giá",
+        description: `Giá phòng đã thay đổi từ ${initialTotalPrice.toLocaleString()} VND sang ${newTotal.toLocaleString()} VND do thay đổi số lượng phòng.`,
+        duration: 3000,
+      });
+    }
+  }, [numberOfRooms, initialTotalPrice, hotel.price, toast]);
+
+  // Show toast when number of guests changes
+  useEffect(() => {
+    if (numberOfGuests !== 2) { // Only show toast if not the initial value
+      toast({
+        title: "Thông báo đặt phòng",
+        description: `Số lượng khách đã được cập nhật thành ${numberOfGuests}.`,
+        duration: 3000,
+      });
+    }
+  }, [numberOfGuests, toast]);
+
+  // Add the room type functionality
+  const [selectedRoomTypeId, setSelectedRoomTypeId] = useState<number>(hotel.roomTypeId || hotel.id || 1);
+  
+  // Show toast when room type changes and fetch updated price
+  useEffect(() => {
+    const initialRoomTypeId = hotel.roomTypeId || hotel.id || 1;
+    if (selectedRoomTypeId !== initialRoomTypeId) { // Only when not the initial value
+      setIsFetching(true);
+      
+      // Fetch updated room details based on selected room type
+      import('@/modules/hotel/service').then(module => {
+        module.hotelService.getRoomDetails(selectedRoomTypeId)
+        .then(updatedRoom => {
+          // Calculate new total based on new price
+          const newTotal = updatedRoom.price * calculateNights() * numberOfRooms;
+          setCurrentTotal(newTotal);
+          toast({
+            title: "Thông báo thay đổi giá",
+            description: `Giá phòng đã được cập nhật theo loại phòng đã chọn: ${(newTotal).toLocaleString()} VND.`,
+            duration: 3000,
+          });
+        })
+        .catch(error => {
+          console.error("Error fetching updated room price:", error);
+          toast({
+            title: "Lỗi",
+            description: "Không thể cập nhật giá phòng, vui lòng thử lại.",
+            variant: "destructive",
+          });
+        })
+        .finally(() => {
+          setIsFetching(false);
+        });
+      });
+    }
+  }, [selectedRoomTypeId, numberOfRooms, toast, calculateNights, hotel.roomTypeId, hotel.id]);
 
   const handleAddGuest = () => {
     if (guests.length < 10) { // Max 10 guests
@@ -123,7 +213,7 @@ export function HotelBookingForm({ hotel, onSubmit, onCancel }: HotelBookingForm
       city: hotel.city,
       country: hotel.country,
       starRating: hotel.rating,
-      roomTypeId: hotel.roomTypeId,
+      roomTypeId: selectedRoomTypeId || hotel.roomTypeId || hotel.id || 1,
       roomId: hotel.roomId,
       roomType: hotel.roomType,
       roomName: hotel.roomName,
@@ -133,8 +223,8 @@ export function HotelBookingForm({ hotel, onSubmit, onCancel }: HotelBookingForm
       numberOfRooms,
       numberOfGuests,
       guests,
-      pricePerNight: hotel.price,
-      totalRoomPrice: hotel.price * numberOfNights * numberOfRooms,
+      pricePerNight: currentTotal / numberOfNights / numberOfRooms, // Calculate price per night based on current total
+      totalRoomPrice: currentTotal, // Use the dynamically calculated total
       bedType,
       amenities: hotel.amenities,
       specialRequests
@@ -277,6 +367,26 @@ export function HotelBookingForm({ hotel, onSubmit, onCancel }: HotelBookingForm
                   <SelectItem value="TWIN">Giường đơn đôi</SelectItem>
                   <SelectItem value="KING">Giường King</SelectItem>
                   <SelectItem value="QUEEN">Giường Queen</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            
+            <div>
+              <Label htmlFor="roomType">Loại phòng</Label>
+              <Select value={selectedRoomTypeId?.toString() || (hotel.roomTypeId?.toString() || hotel.id?.toString() || '1')} onValueChange={(value) => setSelectedRoomTypeId(Number(value))}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Chọn loại phòng" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={hotel.roomTypeId?.toString() || hotel.id?.toString() || '1'}>
+                    {hotel.roomType || 'Phòng hiện tại'}
+                  </SelectItem>
+                  {/* Add more room types if available */}
+                  {hotel.roomTypes && Array.isArray(hotel.roomTypes) && hotel.roomTypes.map((roomType: any) => (
+                    <SelectItem key={roomType.id} value={roomType.id?.toString()}>
+                      {roomType.name} - {roomType.price?.toLocaleString()} VND/đêm
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>

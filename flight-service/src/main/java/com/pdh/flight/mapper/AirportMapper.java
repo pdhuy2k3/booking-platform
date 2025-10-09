@@ -40,6 +40,8 @@ public class AirportMapper {
                 .iataCode(airport.getIataCode())
                 .city(airport.getCity())
                 .country(airport.getCountry())
+                .latitude(airport.getLatitude())
+                .longitude(airport.getLongitude())
                 .isActive(airport.getIsActive())
                 .createdAt(convertToLocalDateTime(airport.getCreatedAt()))
                 .createdBy(airport.getCreatedBy())

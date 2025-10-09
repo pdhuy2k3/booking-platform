@@ -13,6 +13,8 @@ services:
       KC_DB_PASSWORD: ${DB_PASSWORD}
       KC_HEALTH_ENABLED: true
       KC_HTTP_PORT: 80
+      # Turnstile Site Key - available to the theme during runtime
+      TURNSTILE_SITE_KEY: ${TURNSTILE_SITE_KEY}
     volumes:
       - ./identity/bookingsmart-keycloak-theme.jar:/opt/keycloak/providers/bookingsmart-keycloak-theme.jar
       - ./identity/realm-export.json:/opt/keycloak/data/import/realm-export.json
@@ -409,6 +411,7 @@ services:
       - DB_USERNAME
       - DB_PASSWORD
       - SERVER_PORT
+      - TURNSTILE_SECRET_KEY
     networks:
       - booking-network
   # Media Service -

@@ -23,6 +23,10 @@ public class AirportDto {
     
     private String country;
     
+    private Double latitude;
+    
+    private Double longitude;
+    
     private Boolean isActive;
     
     // Images as publicIds - frontend can use these to generate URLs

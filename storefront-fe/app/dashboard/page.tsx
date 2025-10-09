@@ -60,7 +60,7 @@ export default function DashboardPage() {
   return (
     <ProtectedRoute>
       <div className="min-h-screen bg-gray-50 text-gray-900 p-6">
-        <div className="max-w-6xl mx-auto space-y-8">
+        <div className="w-full space-y-8">
           {/* Header */}
           <div className="flex items-center justify-between">
             <div>
@@ -110,27 +110,37 @@ export default function DashboardPage() {
 
             {/* Profile Tab */}
             <TabsContent value="profile" className="space-y-6">
-              <ProfileInfo user={user} onUpdate={refreshUser} />
+              <div className="max-w-3xl">
+                <ProfileInfo user={user} onUpdate={refreshUser} />
+              </div>
             </TabsContent>
 
             {/* Address Tab */}
             <TabsContent value="address" className="space-y-6">
-              <AddressForm user={user} onUpdate={refreshUser} />
+              <div className="max-w-3xl">
+                <AddressForm user={user} onUpdate={refreshUser} />
+              </div>
             </TabsContent>
 
             {/* Preferences Tab */}
             <TabsContent value="preferences" className="space-y-6">
-              <AttributeManager user={user} onUpdate={refreshUser} />
+              <div className="max-w-3xl">
+                <AttributeManager user={user} onUpdate={refreshUser} />
+              </div>
             </TabsContent>
 
             {/* Payment Methods Tab */}
             <TabsContent value="payments" className="space-y-6">
-              <PaymentMethodsTab />
+              <div className="max-w-3xl">
+                <PaymentMethodsTab />
+              </div>
             </TabsContent>
 
             {/* Booking History Tab */}
             <TabsContent value="bookings" className="space-y-6">
-              <BookingHistoryTab />
+              <div className="max-w-3xl">
+                <BookingHistoryTab />
+              </div>
             </TabsContent>
           </Tabs>
 

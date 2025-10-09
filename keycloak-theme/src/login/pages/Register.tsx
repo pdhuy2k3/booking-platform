@@ -1,6 +1,7 @@
 import type { PageProps } from "keycloakify/login/pages/PageProps";
 import type { KcContext } from "../KcContext";
 import type { I18n } from "../i18n";
+import { TurnstileWidget } from "../../components/TurnstileWidget";
 
 export default function Register(props: PageProps<Extract<KcContext, { pageId: "register.ftl" }>, I18n>) {
     const { kcContext, i18n, doUseDefaultCss, Template, classes } = props;
@@ -8,6 +9,9 @@ export default function Register(props: PageProps<Extract<KcContext, { pageId: "
     const { realm, url, messagesPerField, passwordRequired, recaptchaRequired, recaptchaSiteKey } = kcContext;
 
     const { msg, msgStr } = i18n;
+    
+    // Get Turnstile site key from environment variables
+    const turnstileSiteKey = (kcContext as any).properties?.TURNSTILE_SITE_KEY || "";
 
     return (
         <Template
@@ -38,6 +42,7 @@ export default function Register(props: PageProps<Extract<KcContext, { pageId: "
                                     className="bookingsmart-input-enhanced"
                                     name="firstName"
                                     defaultValue=""
+                                    placeholder={msgStr("firstName")}
                                     aria-invalid={messagesPerField.existsError("firstName")}
                                 />
                                 {messagesPerField.existsError("firstName") && (
@@ -57,6 +62,7 @@ export default function Register(props: PageProps<Extract<KcContext, { pageId: "
                                     className="bookingsmart-input-enhanced"
                                     name="lastName"
                                     defaultValue=""
+                                    placeholder={msgStr("lastName")}
                                     aria-invalid={messagesPerField.existsError("lastName")}
                                 />
                                 {messagesPerField.existsError("lastName") && (
@@ -79,6 +85,7 @@ export default function Register(props: PageProps<Extract<KcContext, { pageId: "
                                 defaultValue=""
                                 autoComplete="email"
                                 aria-invalid={messagesPerField.existsError("email")}
+                                placeholder={msgStr("email")}
                             />
                             {messagesPerField.existsError("email") && (
                                 <div className="bookingsmart-error-enhanced">
@@ -99,6 +106,7 @@ export default function Register(props: PageProps<Extract<KcContext, { pageId: "
                                     name="username"
                                     defaultValue=""
                                     autoComplete="username"
+                                    placeholder={msgStr("username")}
                                     aria-invalid={messagesPerField.existsError("username")}
                                 />
                                 {messagesPerField.existsError("username") && (
@@ -121,6 +129,7 @@ export default function Register(props: PageProps<Extract<KcContext, { pageId: "
                                         className="bookingsmart-input-enhanced"
                                         name="password"
                                         autoComplete="new-password"
+                                        placeholder={msgStr("password")}
                                         aria-invalid={messagesPerField.existsError("password", "password-confirm")}
                                     />
                                     {messagesPerField.existsError("password") && (
@@ -140,6 +149,7 @@ export default function Register(props: PageProps<Extract<KcContext, { pageId: "
                                         className="bookingsmart-input-enhanced"
                                         name="password-confirm"
                                         autoComplete="new-password"
+                                        placeholder={msgStr("passwordConfirm")}
                                         aria-invalid={messagesPerField.existsError("password-confirm")}
                                     />
                                     {messagesPerField.existsError("password-confirm") && (
@@ -153,6 +163,30 @@ export default function Register(props: PageProps<Extract<KcContext, { pageId: "
 
                         {recaptchaRequired && (
                             <div className="g-recaptcha slide-up" data-size="compact" data-sitekey={recaptchaSiteKey}></div>
+                        )}
+
+                        {turnstileSiteKey && (
+                            <div className="form-group-enhanced slide-up">
+                                <TurnstileWidget 
+                                    siteKey={turnstileSiteKey} 
+                                    onVerify={(token) => {
+                                        // Add the token to a hidden input field in the form
+                                        const form = document.getElementById('kc-register-form') as HTMLFormElement;
+                                        let tokenInput = document.getElementById('cf-turnstile-response') as HTMLInputElement;
+                                        
+                                        if (!tokenInput) {
+                                            tokenInput = document.createElement('input');
+                                            tokenInput.type = 'hidden';
+                                            tokenInput.id = 'cf-turnstile-response';
+                                            tokenInput.name = 'cf-turnstile-response';
+                                            form.appendChild(tokenInput);
+                                        }
+                                        
+                                        tokenInput.value = token;
+                                    }}
+                                    className="flex justify-center"
+                                />
+                            </div>
                         )}
 
                         <div className="pt-6 scale-in">
