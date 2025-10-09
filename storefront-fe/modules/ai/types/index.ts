@@ -1,18 +1,17 @@
-// ==================== TEXT CHAT TYPES (WebSocket) ====================
+// ==================== TEXT CHAT TYPES (REST API) ====================
 
 export interface ChatMessageRequest {
-  userId: string;
   conversationId?: string;
   message: string;
   timestamp?: number;
-  mode?: 'stream' | 'sync'; // Processing mode selection
+  // Note: userId is automatically extracted from JWT token on backend
 }
 
 export type ChatResponseType = 'PROCESSING' | 'RESPONSE' | 'ERROR';
 
 export interface ChatMessageResponse {
   type: ChatResponseType;
-  userId: string;
+  userId: string; // Populated by backend from JWT
   conversationId: string;
   userMessage: string;
   aiResponse?: string;
@@ -29,14 +28,14 @@ export interface ChatMessageResponse {
 export interface ChatRequest {
   message: string;
   conversationId?: string;
-  userId?: string; // Optional - backend automatically extracts from JWT token if not provided
+  // Note: userId is automatically extracted from JWT token on backend
 }
 
 export interface ChatResponse {
   userMessage: string;
   aiResponse: string;
   conversationId: string;
-  userId: string; // Populated by backend from JWT token
+  userId?: string; // Optional - populated by backend from JWT token
   timestamp: string;
   error?: string;
   results?: ChatStructuredResult[];
@@ -73,7 +72,7 @@ export interface ChatConversationSummary {
 
 export interface ChatContext {
   conversationId?: string;
-  userId?: string; // Optional - backend automatically extracts from JWT token
+  // Note: userId is automatically extracted from JWT token on backend
   previousMessages?: ChatMessage[];
   userPreferences?: {
     language?: string;

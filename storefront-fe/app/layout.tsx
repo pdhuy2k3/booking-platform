@@ -40,7 +40,7 @@ export default function RootLayout({
                   >
                     <Sidebar />
                   </Suspense>
-                  <div className="flex flex-1 h-full">
+                  <div className="flex flex-auto h-full">
                     {children}
                   </div>
                 </div>

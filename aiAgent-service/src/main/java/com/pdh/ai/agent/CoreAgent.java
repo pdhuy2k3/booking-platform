@@ -3,6 +3,7 @@ package com.pdh.ai.agent;
 import java.util.List;
 import java.util.stream.Collectors;
 import com.pdh.ai.util.CurlyBracketEscaper;
+import com.pdh.ai.agent.workflow.ParallelizationWorkflow;
 import io.modelcontextprotocol.client.McpClient;
 import io.modelcontextprotocol.client.McpSyncClient;
 import org.slf4j.Logger;
@@ -234,17 +235,20 @@ public class CoreAgent {
     private final ChatMemory chatMemory;
     private final MistralAiChatModel mistraModel;
     private final ChatClient chatClient;
+    private final ParallelizationWorkflow parallelizationWorkflow;
 
     public CoreAgent(
             List<McpSyncClient> toolCallbackProvider,
             JpaChatMemory chatMemory,
             InputValidationGuard inputValidationGuard,
             ScopeGuard scopeGuard,
-            MistralAiChatModel mistraModel
+            MistralAiChatModel mistraModel,
+            ParallelizationWorkflow parallelizationWorkflow
     ) {
 
         this.chatMemory = chatMemory;
         this.mistraModel = mistraModel;
+        this.parallelizationWorkflow = parallelizationWorkflow;
         // Advisors
 
         MessageChatMemoryAdvisor memoryAdvisor = MessageChatMemoryAdvisor.builder(chatMemory)
@@ -293,7 +297,8 @@ public class CoreAgent {
                     .advisors(advisorSpec -> advisorSpec
                             .param(ChatMemory.CONVERSATION_ID, conversationId))
                     .stream()
-                    .content();
+                    .content()
+                    ;
 
             return contentStream
                     .collectList()
@@ -345,6 +350,7 @@ public class CoreAgent {
 
                     .advisors(advisorSpec -> advisorSpec.param(ChatMemory.CONVERSATION_ID, conversationId))
                     .call()
+
                     .entity(StructuredChatPayload.class);
 
             logger.info("✅ [SYNC-TOOL-TRACKER] Successfully got structured response: message={}, results={}",
@@ -365,5 +371,14 @@ public class CoreAgent {
         });
     }
 
+    /**
+     * Get the ParallelizationWorkflow instance for advanced use cases.
+     * Allows direct access to parallel processing capabilities.
+     *
+     * @return the ParallelizationWorkflow instance
+     */
+    public ParallelizationWorkflow getParallelizationWorkflow() {
+        return parallelizationWorkflow;
+    }
 
 }

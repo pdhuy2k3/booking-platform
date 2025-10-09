@@ -28,6 +28,24 @@ spring:
   threads:
     virtual:
       enabled: true
+
+# AI Workflow Configuration
+ai:
+  workflow:
+    hybrid:
+      # Enable/disable hybrid workflow (Routing + Parallelization)
+      # When enabled, system automatically detects queries that benefit from parallel processing
+      enabled: true
+      # Parallelization settings
+      parallelization:
+        # Default number of worker threads for parallel operations (2-4 recommended)
+        default-workers: 3
+        # Maximum worker threads allowed
+        max-workers: 4
+      # Routing settings
+      routing:
+        # Enable automatic route detection based on query keywords
+        auto-detect: true
   # Servlet multipart configuration for large file uploads
   servlet:
     multipart:

@@ -7,16 +7,15 @@ import java.util.Collections;
 import java.util.List;
 import java.util.UUID;
 
-import com.pdh.ai.agent.CoreAgent;
 import com.pdh.ai.model.dto.ChatHistoryResponse;
 import com.pdh.ai.model.dto.StructuredChatPayload;
 import com.pdh.ai.model.entity.ChatConversation;
 import com.pdh.ai.model.entity.ChatMessage;
 import com.pdh.common.utils.AuthenticationUtils;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
-import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
-
 
 import com.pdh.ai.repository.ChatMessageRepository;
 
@@ -24,16 +23,19 @@ import com.pdh.ai.repository.ChatMessageRepository;
 @Service
 public class LLMAiService implements AiService {
 
-    private final CoreAgent coreAgent;
+    private static final Logger logger = LoggerFactory.getLogger(LLMAiService.class);
+
     private final ConversationService conversationService;
     private final ChatMessageRepository chatMessageRepository;
+    private final AgenticWorkflowService agenticWorkflowService;
 
-    public LLMAiService(CoreAgent coreAgent,
+    public LLMAiService(
                         ConversationService conversationService,
-                        ChatMessageRepository chatMessageRepository) {
-        this.coreAgent = coreAgent;
+                        ChatMessageRepository chatMessageRepository,
+                        AgenticWorkflowService agenticWorkflowService) {
         this.conversationService = conversationService;
         this.chatMessageRepository = chatMessageRepository;
+        this.agenticWorkflowService = agenticWorkflowService;
     }
 
 
@@ -164,32 +166,6 @@ public class LLMAiService implements AiService {
     }
 
     @Override
-    public Flux<StructuredChatPayload> processStreamStructured(String message, String conversationId, String userId) {
-        return Mono.fromCallable(() -> {
-            // Use provided userId for WebSocket scenarios
-            String actualUserId = resolveAuthenticatedUserId(userId);
-            return ensureConversation(conversationId, actualUserId, defaultTitle(message));
-        })
-        .flatMapMany(conversationUuid -> {
-            String conversationIdStr = conversationUuid.toString();
-            
-            // IMPORTANT: Ensure conversation exists in database BEFORE processing
-            conversationService.getConversation(conversationUuid)
-                    .orElseThrow(() -> new IllegalStateException("Conversation must exist before processing: " + conversationIdStr));
-            
-            // Use CoreAgent's streaming structured processing
-            return coreAgent.processStreamStructured(message, conversationIdStr)
-                    .doOnSubscribe(s -> System.out.println("🌊 Starting structured stream for conversation: " + conversationIdStr))
-                    .doOnComplete(() -> System.out.println("✅ Structured stream completed for conversation: " + conversationIdStr))
-                    .doOnError(e -> System.err.println("❌ Structured stream failed: " + e.getMessage()));
-        })
-        .onErrorResume(e -> {
-            System.err.println("❌ Error in processStreamStructured: " + e.getMessage());
-            return Flux.just(buildErrorResponse());
-        });
-    }
-
-    @Override
     public Mono<StructuredChatPayload> processSyncStructured(String message, String conversationId, String userId) {
         return Mono.fromCallable(() -> {
             // Use provided userId for WebSocket scenarios
@@ -198,20 +174,45 @@ public class LLMAiService implements AiService {
         })
         .flatMap(conversationUuid -> {
             String conversationIdStr = conversationUuid.toString();
+            logger.debug("🎯 [LLMAI] Processing sync message for conversation: {}", conversationIdStr);
             
             // IMPORTANT: Ensure conversation exists in database BEFORE processing
             conversationService.getConversation(conversationUuid)
                     .orElseThrow(() -> new IllegalStateException("Conversation must exist before processing: " + conversationIdStr));
             
-            // Use CoreAgent's sync structured processing
-            return coreAgent.processSyncStructured(message, conversationIdStr)
-                    .doOnSubscribe(s -> System.out.println("🔄 Starting sync structured processing for conversation: " + conversationIdStr))
-                    .doOnSuccess(result -> System.out.println("✅ Sync structured processing completed for conversation: " + conversationIdStr + 
-                        ", results: " + (result != null && result.getResults() != null ? result.getResults().size() : 0)))
-                    .doOnError(e -> System.err.println("❌ Sync structured processing failed: " + e.getMessage()));
+            logger.info("🤖 [LLMAI] Using AgenticWorkflowService for query: {}", 
+                       message.substring(0, Math.min(message.length(), 50)));
+            
+            // Use AgenticWorkflowService for ALL queries - it will intelligently route
+            return Mono.fromCallable(() -> {
+                // Save user message
+                ChatMessage userMsg = new ChatMessage(
+                    conversationUuid, 
+                    ChatMessage.Role.USER, 
+                    message, 
+                    Instant.now()
+                );
+                chatMessageRepository.save(userMsg);
+                
+                // Process with unified agentic workflow service
+                StructuredChatPayload payload = agenticWorkflowService.processQuery(message, conversationIdStr);
+                
+                // Save assistant response
+                ChatMessage assistantMsg = new ChatMessage(
+                    conversationUuid, 
+                    ChatMessage.Role.ASSISTANT, 
+                    payload.getMessage(), 
+                    Instant.now()
+                );
+                chatMessageRepository.save(assistantMsg);
+                
+                logger.info("✅ [LLMAI] AgenticWorkflowService completed for conversation: {}", conversationIdStr);
+                return payload;
+            })
+            .doOnError(e -> logger.error("❌ [LLMAI] AgenticWorkflowService error: {}", e.getMessage()));
         })
         .onErrorResume(e -> {
-            System.err.println("❌ Error in processSyncStructured: " + e.getMessage());
+            logger.error("❌ Error in processSyncStructured: {}", e.getMessage(), e);
             return Mono.just(buildErrorResponse());
         });
     }

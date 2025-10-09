@@ -1,11 +1,11 @@
 "use client"
 
 import React, { useState, useRef, useEffect, forwardRef, useImperativeHandle } from "react"
-import { Send, Mic, MicOff, Plus, AlertCircle, Loader2 } from "lucide-react"
+import { Send, Plus, AlertCircle, Loader2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { cn } from "@/lib/utils"
-import { useAiChat, useVoiceChat, useAudioRecorder } from "@/modules/ai"
+import { useAiChat } from "@/modules/ai"
 import { useAuth } from "@/contexts/auth-context"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { useDateFormatter } from "@/hooks/use-date-formatter"
@@ -36,7 +36,6 @@ export const ChatInterface = forwardRef<any, ChatInterfaceProps>(function ChatIn
   ref,
 ) {
   const [input, setInput] = useState("")
-  const [isVoiceMode, setIsVoiceMode] = useState(false)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
   
@@ -51,78 +50,16 @@ export const ChatInterface = forwardRef<any, ChatInterfaceProps>(function ChatIn
     sendMessage, 
     clearMessages,
     suggestions,
-    getSuggestions,
-    mode,
-    setMode
+    getSuggestions
   } = useAiChat({
     conversationId: conversationId ?? undefined,
     loadHistoryOnMount: true,
-    context: user?.id ? { userId: user.id } : undefined,
+    // Note: userId is automatically extracted from JWT token on backend
+    context: {},
     onError: (errorMsg) => {
       console.error('Chat error:', errorMsg);
     }
   })
-
-  // Use voice chat hook
-  const {
-    isConnected: voiceConnected,
-    isProcessing: voiceProcessing,
-    currentStage: voiceStage,
-    transcription: voiceTranscription,
-    response: voiceResponse,
-    results: voiceResults,
-    suggestions: voiceSuggestions,
-    error: voiceError,
-    connect: connectVoice,
-    disconnect: disconnectVoice,
-    sendAudio,
-    clearState: clearVoiceState,
-  } = useVoiceChat({
-    userId: user?.id,
-    conversationId: conversationId ?? undefined,
-    autoConnect: false,
-    onTranscription: (text) => {
-      console.log('📝 Transcription received:', text);
-    },
-    onResponse: (message, results) => {
-      console.log('💬 Voice response received:', message);
-      if (results && results.length > 0) {
-        onSearchResults(results, 'voice');
-      }
-    },
-    onError: (error) => {
-      console.error('❌ Voice error:', error);
-    },
-  });
-
-  // Use audio recorder hook
-  const {
-    isRecording,
-    isPaused,
-    duration: recordingDuration,
-    error: recorderError,
-    startRecording,
-    stopRecording,
-    resetRecording,
-    isSupported: audioSupported,
-  } = useAudioRecorder({
-    maxDuration: 60000, // 60 seconds
-    onRecordingComplete: async (audioBlob, audioUrl) => {
-      console.log('🎤 Recording complete:', {
-        size: audioBlob.size,
-        type: audioBlob.type
-      });
-      
-      try {
-        await sendAudio(audioBlob, audioBlob.type || 'audio/webm', 'vi');
-      } catch (error) {
-        console.error('❌ Failed to send audio:', error);
-      }
-    },
-    onError: (error) => {
-      console.error('❌ Recorder error:', error);
-    },
-  });
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })
@@ -132,26 +69,17 @@ export const ChatInterface = forwardRef<any, ChatInterfaceProps>(function ChatIn
     scrollToBottom()
   }, [messages])
 
-  // Get current suggestions from last message, voice chat, or default
+  // Get current suggestions from last message or default
   const currentSuggestions = React.useMemo(() => {
-    // Priority 1: Voice suggestions (if in voice mode)
-    if (isVoiceMode && voiceSuggestions && voiceSuggestions.length > 0) {
-      console.log('💡 Using voice suggestions:', voiceSuggestions);
-      return voiceSuggestions;
-    }
-    
-    // Priority 2: Last assistant message suggestions
+    // Priority 1: Last assistant message suggestions
     const lastAssistantMessage = [...messages].reverse().find(m => !m.isUser);
-    console.log('💡 Last assistant message:', lastAssistantMessage);
     if (lastAssistantMessage?.suggestions && lastAssistantMessage.suggestions.length > 0) {
-      console.log('💡 Using message suggestions:', lastAssistantMessage.suggestions);
       return lastAssistantMessage.suggestions;
     }
     
-    // Priority 3: Default suggestions
-    console.log('💡 Using default suggestions:', suggestions);
+    // Priority 2: Default suggestions
     return suggestions;
-  }, [isVoiceMode, voiceSuggestions, messages, suggestions]);
+  }, [messages, suggestions]);
 
   useEffect(() => {
     // Load suggestions on component mount
@@ -213,73 +141,6 @@ export const ChatInterface = forwardRef<any, ChatInterfaceProps>(function ChatIn
     return formatDateTime(date.toISOString())
   }
 
-  // Handle voice mode toggle
-  const handleVoiceModeToggle = () => {
-    if (!user?.id) {
-      alert('Bạn cần đăng nhập để sử dụng trò chuyện bằng giọng nói.');
-      return;
-    }
-
-    if (!audioSupported) {
-      alert('Trình duyệt của bạn không hỗ trợ ghi âm');
-      return;
-    }
-
-    setIsVoiceMode((prev) => {
-      const newMode = !prev;
-      if (newMode) {
-        connectVoice();
-      } else {
-        disconnectVoice();
-        if (isRecording) {
-          resetRecording();
-        }
-      }
-      return newMode;
-    });
-  };
-
-  // Handle voice recording
-  const handleVoiceRecord = async () => {
-    if (!user?.id) {
-      alert('Bạn cần đăng nhập để sử dụng trò chuyện bằng giọng nói.');
-      return;
-    }
-
-    if (isRecording) {
-      await stopRecording();
-    } else {
-      clearVoiceState();
-      await startRecording();
-    }
-  };
-
-  // Get voice status text
-  const getVoiceStatusText = (): string => {
-    if (isRecording) return 'Đang ghi âm...';
-    if (voiceProcessing) {
-      switch (voiceStage) {
-        case 'transcription':
-          return 'Đang nhận dạng giọng nói...';
-        case 'processing':
-          return 'Đang xử lý yêu cầu...';
-        case 'response':
-          return 'Đang tạo phản hồi...';
-        default:
-          return 'Đang xử lý...';
-      }
-    }
-    return '';
-  };
-
-  // Format duration (MM:SS)
-  const formatRecordingDuration = (ms: number): string => {
-    const totalSeconds = Math.floor(ms / 1000);
-    const minutes = Math.floor(totalSeconds / 60);
-    const seconds = totalSeconds % 60;
-    return `${minutes}:${seconds.toString().padStart(2, '0')}`;
-  };
-
   return (
     <div className="flex flex-col h-full bg-white">
       {/* Header with trip info */}
@@ -297,32 +158,6 @@ export const ChatInterface = forwardRef<any, ChatInterfaceProps>(function ChatIn
             <AlertCircle className="h-4 w-4" />
             <AlertDescription>{error}</AlertDescription>
           </Alert>
-        )}
-
-        {/* Voice Response Display */}
-        {voiceResponse && (
-          <div className="space-y-3">
-            {voiceTranscription && (
-              <div className="flex justify-end">
-                <div className="bg-blue-600 text-white rounded-2xl px-4 py-2">
-                  <p className="text-sm whitespace-pre-wrap">{voiceTranscription}</p>
-                </div>
-              </div>
-            )}
-
-            <div className="flex justify-start">
-              <div className="bg-gray-100 rounded-2xl px-4 py-3 w-full">
-                <AiResponseRenderer
-                  message={voiceResponse}
-                  results={voiceResults || []}
-                  onFlightBook={onFlightBook}
-                  onHotelBook={onHotelBook}
-                  onLocationClick={onLocationClick}
-                  canBook={true}
-                />
-              </div>
-            </div>
-          </div>
         )}
 
         {messages.map((message) => {
@@ -382,83 +217,6 @@ export const ChatInterface = forwardRef<any, ChatInterfaceProps>(function ChatIn
 
       {/* Message Input */}
       <div className="p-4 border-t border-gray-200 bg-white">
-        {/* Voice Status Bar */}
-        {(isRecording || voiceProcessing || voiceTranscription || voiceError || recorderError) && (
-          <div className="mb-3 p-3 rounded-lg bg-gray-50 border border-gray-200">
-            {/* Recording Status */}
-            {isRecording && (
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <div className="w-3 h-3 bg-red-500 rounded-full animate-pulse" />
-                  <span className="text-sm font-medium text-gray-700">
-                    {getVoiceStatusText()}
-                  </span>
-                </div>
-                <span className="text-sm text-gray-500 font-mono">
-                  {formatRecordingDuration(recordingDuration)}
-                </span>
-              </div>
-            )}
-
-            {/* Processing Status */}
-            {voiceProcessing && (
-              <div className="flex items-center gap-2">
-                <Loader2 className="w-4 h-4 animate-spin text-blue-600" />
-                <span className="text-sm font-medium text-gray-700">
-                  {getVoiceStatusText()}
-                </span>
-              </div>
-            )}
-
-            {/* Transcription Display */}
-            {voiceTranscription && !voiceProcessing && (
-              <div className="space-y-1">
-                <div className="text-xs text-gray-500">Đã nhận dạng:</div>
-                <div className="text-sm text-gray-900 italic">
-                  "{voiceTranscription}"
-                </div>
-              </div>
-            )}
-
-            {/* Error Display */}
-            {(voiceError || recorderError) && (
-              <Alert variant="destructive" className="py-2">
-                <AlertCircle className="h-4 w-4" />
-                <AlertDescription className="text-xs">
-                  {voiceError || recorderError}
-                </AlertDescription>
-              </Alert>
-            )}
-          </div>
-        )}
-
-        {/* Chat Mode Toggle - Temporarily Hidden */}
-        {false && (
-          <div className="flex items-center justify-between px-4 py-2 bg-gray-50 rounded-lg border mb-4">
-            <span className="text-sm font-medium text-gray-700">Chế độ chat:</span>
-            <div className="flex items-center gap-2">
-              <Button
-                type="button"
-                variant={mode === 'sync' ? 'default' : 'ghost'}
-                size="sm"
-                onClick={() => setMode('sync')}
-                className="text-xs"
-              >
-                Đồng bộ
-              </Button>
-              <Button
-                type="button"
-                variant={mode === 'stream' ? 'default' : 'ghost'}
-                size="sm"
-                onClick={() => setMode('stream')}
-                className="text-xs"
-              >
-                Streaming
-              </Button>
-            </div>
-          </div>
-        )}
-
         {/* Suggestions */}
         {currentSuggestions.length > 0 && (
           <div className="mb-3 px-4 py-2 bg-gray-50 rounded-lg border">
@@ -471,7 +229,7 @@ export const ChatInterface = forwardRef<any, ChatInterfaceProps>(function ChatIn
                   size="sm"
                   className="text-xs h-7 rounded-full hover:bg-blue-50 hover:border-blue-300"
                   onClick={() => handleSuggestionClick(suggestion)}
-                  disabled={isLoading || isRecording || voiceProcessing}
+                  disabled={isLoading}
                 >
                   {suggestion}
                 </Button>
@@ -492,78 +250,27 @@ export const ChatInterface = forwardRef<any, ChatInterfaceProps>(function ChatIn
             <Plus className="h-5 w-5 text-gray-600" />
           </Button>
 
-          {!isVoiceMode ? (
-            // Text Input Mode
-            <div className="flex-1 relative">
-              <Input
-                ref={inputRef}
-                value={input}
-                onChange={(e) => setInput(e.target.value)}
-                placeholder="Hỏi về địa điểm du lịch, khách sạn, chuyến bay..."
-                className="w-full rounded-full border-gray-300 pr-28 h-12 text-sm"
-                disabled={isLoading}
-              />
-              <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-2">
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  className={cn(
-                    "h-8 w-8 rounded-full",
-                    audioSupported ? "hover:bg-gray-100" : "opacity-50 cursor-not-allowed"
-                  )}
-                  onClick={handleVoiceModeToggle}
-                  disabled={isLoading || !audioSupported}
-                  title={audioSupported ? "Chuyển sang chế độ voice" : "Trình duyệt không hỗ trợ"}
-                >
-                  <Mic className="h-4 w-4 text-gray-600" />
-                </Button>
-                <Button
-                  type="submit"
-                  variant="ghost"
-                  size="icon"
-                  className="h-8 w-8 rounded-full hover:bg-gray-100"
-                  disabled={isLoading || !input.trim()}
-                >
-                  <Send className="h-4 w-4 text-gray-600" />
-                </Button>
-              </div>
-            </div>
-          ) : (
-            // Voice Input Mode
-            <div className="flex-1 flex items-center justify-center gap-4">
+          <div className="flex-1 relative">
+            <Input
+              ref={inputRef}
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              placeholder="Hỏi về địa điểm du lịch, khách sạn, chuyến bay..."
+              className="w-full rounded-full border-gray-300 pr-12 h-12 text-sm"
+              disabled={isLoading}
+            />
+            <div className="absolute right-3 top-1/2 -translate-y-1/2">
               <Button
-                type="button"
-                variant={isRecording ? "destructive" : "default"}
-                size="lg"
-                className={cn(
-                  "h-14 w-14 rounded-full transition-all",
-                  isRecording && "animate-pulse"
-                )}
-                onClick={handleVoiceRecord}
-                disabled={voiceProcessing || !voiceConnected}
-              >
-                <Mic className="h-6 w-6" />
-              </Button>
-              
-              <Button
-                type="button"
+                type="submit"
                 variant="ghost"
                 size="icon"
                 className="h-8 w-8 rounded-full hover:bg-gray-100"
-                onClick={handleVoiceModeToggle}
-                title="Chuyển về chế độ text"
+                disabled={isLoading || !input.trim()}
               >
-                <MicOff className="h-4 w-4 text-gray-600" />
+                <Send className="h-4 w-4 text-gray-600" />
               </Button>
-
-              {!voiceConnected && (
-                <span className="text-xs text-orange-600">
-                  Đang kết nối...
-                </span>
-              )}
             </div>
-          )}
+          </div>
         </form>
       </div>
     </div>
