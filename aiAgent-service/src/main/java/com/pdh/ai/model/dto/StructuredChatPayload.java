@@ -1,7 +1,7 @@
 package com.pdh.ai.model.dto;
 
 import java.util.List;
-import java.util.Set;
+import java.util.Map;
 import java.util.Collections;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
@@ -28,4 +28,38 @@ public class StructuredChatPayload {
     @JsonPropertyDescription("Array of structured result items like flights, hotels, or information cards")
     @Builder.Default
     private List<StructuredResultItem> results = Collections.emptyList();
+    
+    @JsonProperty(required = false, value = "requiresConfirmation")
+    @JsonPropertyDescription("Whether this response requires explicit user confirmation before proceeding (for booking/payment operations)")
+    @Builder.Default
+    private Boolean requiresConfirmation = false;
+    
+    @JsonProperty(required = false, value = "confirmationContext")
+    @JsonPropertyDescription("Context data needed to execute the operation after user confirms. Contains operation type and pending data.")
+    private ConfirmationContext confirmationContext;
+    
+    /**
+     * Confirmation context for operations requiring user approval.
+     */
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class ConfirmationContext {
+        @JsonProperty(required = true, value = "operation")
+        @JsonPropertyDescription("Type of operation pending confirmation: create_booking, process_payment, cancel_booking")
+        private String operation;
+        
+        @JsonProperty(required = true, value = "summary")
+        @JsonPropertyDescription("Human-readable summary of what will happen if user confirms")
+        private String summary;
+        
+        @JsonProperty(required = true, value = "pendingData")
+        @JsonPropertyDescription("Data needed to execute the operation after confirmation (bookingDetails, paymentDetails, etc.)")
+        private Map<String, Object> pendingData;
+        
+        @JsonProperty(required = false, value = "conversationId")
+        @JsonPropertyDescription("Conversation ID to resume after confirmation")
+        private String conversationId;
+    }
 }

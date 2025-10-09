@@ -1,43 +1,48 @@
-"use client"
+"use client";
 
-import { useState } from "react"
-import Image from "next/image"
-import { Clock, Plane } from "lucide-react"
-import { Button } from "@/components/ui/button"
-import { Card, CardContent } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
-import { formatCurrency } from "@/lib/currency"
-import { useDateFormatter } from "@/hooks/use-date-formatter"
+import { useState } from "react";
+import Image from "next/image";
+import { Clock, Plane } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { formatCurrency } from "@/lib/currency";
+import { useDateFormatter } from "@/hooks/use-date-formatter";
 
 interface FlightCardProps {
   flight: {
-    id: string
-    airline: string
-    flightNumber: string
-    origin: string
-    destination: string
-    departureTime: string
-    arrivalTime: string
-    duration?: string
-    stops?: string | number
-    price: number
-    currency?: string
-    seatClass?: string
-    logo?: string
-    rating?: number
-    scheduleId?: string
-    fareId?: string
-    originLatitude?: number
-    originLongitude?: number
-    destinationLatitude?: number
-    destinationLongitude?: number
-  }
-  onViewDetails?: (flight: any) => void
-  onBook?: (flight: any) => void
-  onLocationClick?: (location: { lat: number; lng: number; title: string; description?: string }) => void
-  showBookButton?: boolean
-  compact?: boolean
-  className?: string
+    id: string;
+    airline: string;
+    flightNumber: string;
+    origin: string;
+    destination: string;
+    departureTime: string;
+    arrivalTime: string;
+    duration?: string;
+    stops?: string | number;
+    price: number;
+    currency?: string;
+    seatClass?: string;
+    logo?: string;
+    rating?: number;
+    scheduleId?: string;
+    fareId?: string;
+    originLatitude?: number;
+    originLongitude?: number;
+    destinationLatitude?: number;
+    destinationLongitude?: number;
+  };
+  onViewDetails?: (flight: any) => void;
+  onBook?: (flight: any) => void;
+  onLocationClick?: (location: {
+    lat: number;
+    lng: number;
+    title: string;
+    description?: string;
+  }) => void;
+  showBookButton?: boolean;
+  compact?: boolean;
+  className?: string;
 }
 
 export const FlightCard = ({
@@ -49,49 +54,51 @@ export const FlightCard = ({
   compact = false,
   className = "",
 }: FlightCardProps) => {
-  const { formatTimeOnly } = useDateFormatter()
-  const [imageError, setImageError] = useState(false)
+  const { formatTimeOnly } = useDateFormatter();
+  const [imageError, setImageError] = useState(false);
 
   const getDisplayTime = (time: string) => {
     try {
-      const date = new Date(time)
+      const date = new Date(time);
       if (!isNaN(date.getTime())) {
-        return formatTimeOnly(date.toISOString())
+        return formatTimeOnly(date.toISOString());
       }
     } catch (e) {
       // Fallback to original format
     }
-    return time
-  }
+    return time;
+  };
 
-  const departureTimeDisplay = getDisplayTime(flight.departureTime)
-  const arrivalTimeDisplay = getDisplayTime(flight.arrivalTime)
+  const departureTimeDisplay = getDisplayTime(flight.departureTime);
+  const arrivalTimeDisplay = getDisplayTime(flight.arrivalTime);
 
   const stopsDisplay = (() => {
-    if (typeof flight.stops === 'number') {
-      return flight.stops === 0 ? 'Bay thẳng' : `${flight.stops} điểm dừng`
+    if (typeof flight.stops === "number") {
+      return flight.stops === 0 ? "Bay thẳng" : `${flight.stops} điểm dừng`;
     }
 
-    if (typeof flight.stops === 'string') {
-      const trimmed = flight.stops.trim()
-      if (!trimmed || trimmed === '0') {
-        return 'Bay thẳng'
+    if (typeof flight.stops === "string") {
+      const trimmed = flight.stops.trim();
+      if (!trimmed || trimmed === "0") {
+        return "Bay thẳng";
       }
 
-      const numeric = Number(trimmed)
+      const numeric = Number(trimmed);
       if (!Number.isNaN(numeric)) {
-        return numeric === 0 ? 'Bay thẳng' : `${numeric} điểm dừng`
+        return numeric === 0 ? "Bay thẳng" : `${numeric} điểm dừng`;
       }
 
-      return trimmed
+      return trimmed;
     }
 
-    return 'Bay thẳng'
-  })()
+    return "Bay thẳng";
+  })();
 
   return (
-    <Card className={`hover:shadow-lg transition-shadow overflow-hidden ${className}`}>
-      <CardContent className={`${compact ? 'p-4' : 'p-6'}`}>
+    <Card
+      className={`hover:shadow-lg transition-shadow overflow-hidden ${className}`}
+    >
+      <CardContent className={`${compact ? "p-4" : "p-6"}`}>
         <div className="space-y-4">
           {/* Airline */}
           <div className="flex items-center gap-3 min-w-0">
@@ -105,7 +112,7 @@ export const FlightCard = ({
                   className="rounded object-contain"
                   onError={() => {
                     if (!imageError) {
-                      setImageError(true)
+                      setImageError(true);
                     }
                   }}
                   unoptimized
@@ -113,8 +120,12 @@ export const FlightCard = ({
               </div>
             )}
             <div className="min-w-0 flex-1">
-              <p className="font-semibold text-gray-900 truncate text-sm">{flight.airline}</p>
-              <p className="text-xs text-gray-500 truncate">{flight.flightNumber}</p>
+              <p className="font-semibold text-gray-900 truncate text-sm">
+                {flight.airline}
+              </p>
+              <p className="text-xs text-gray-500 truncate">
+                {flight.flightNumber}
+              </p>
             </div>
             {flight.seatClass && (
               <Badge variant="secondary" className="shrink-0 text-xs">
@@ -127,21 +138,29 @@ export const FlightCard = ({
           <div className="grid grid-cols-[1fr_auto_1fr] gap-2 items-center min-w-0">
             {/* Departure */}
             <div className="min-w-0">
-              <p className="text-lg sm:text-xl font-bold text-gray-900 truncate">{departureTimeDisplay}</p>
-              <p 
+              <p className="text-lg sm:text-xl font-bold text-gray-900 truncate">
+                {departureTimeDisplay}
+              </p>
+              <p
                 className={`text-xs sm:text-sm text-gray-600 truncate ${
-                  flight.originLatitude && flight.originLongitude && onLocationClick
-                    ? 'cursor-pointer hover:text-blue-600 hover:underline'
-                    : ''
+                  flight.originLatitude &&
+                  flight.originLongitude &&
+                  onLocationClick
+                    ? "cursor-pointer hover:text-blue-600 hover:underline"
+                    : ""
                 }`}
                 onClick={() => {
-                  if (flight.originLatitude && flight.originLongitude && onLocationClick) {
+                  if (
+                    flight.originLatitude &&
+                    flight.originLongitude &&
+                    onLocationClick
+                  ) {
                     onLocationClick({
                       lat: flight.originLatitude,
                       lng: flight.originLongitude,
                       title: flight.origin,
-                      description: `Điểm khởi hành - ${flight.airline} ${flight.flightNumber}`
-                    })
+                      description: `Điểm khởi hành - ${flight.airline} ${flight.flightNumber}`,
+                    });
                   }
                 }}
               >
@@ -159,29 +178,41 @@ export const FlightCard = ({
               {flight.duration && (
                 <div className="flex items-center gap-1 text-xs text-gray-500 whitespace-nowrap">
                   <Clock className="h-3 w-3" />
-                  <span className="text-[10px] sm:text-xs">{flight.duration}</span>
+                  <span className="text-[10px] sm:text-xs">
+                    {flight.duration}
+                  </span>
                 </div>
               )}
-              <p className="text-[10px] sm:text-xs text-gray-500 whitespace-nowrap">{stopsDisplay}</p>
+              <p className="text-[10px] sm:text-xs text-gray-500 whitespace-nowrap">
+                {stopsDisplay}
+              </p>
             </div>
 
             {/* Arrival */}
             <div className="text-right min-w-0">
-              <p className="text-lg sm:text-xl font-bold text-gray-900 truncate">{arrivalTimeDisplay}</p>
-              <p 
+              <p className="text-lg sm:text-xl font-bold text-gray-900 truncate">
+                {arrivalTimeDisplay}
+              </p>
+              <p
                 className={`text-xs sm:text-sm text-gray-600 truncate ${
-                  flight.destinationLatitude && flight.destinationLongitude && onLocationClick
-                    ? 'cursor-pointer hover:text-blue-600 hover:underline'
-                    : ''
+                  flight.destinationLatitude &&
+                  flight.destinationLongitude &&
+                  onLocationClick
+                    ? "cursor-pointer hover:text-blue-600 hover:underline"
+                    : ""
                 }`}
                 onClick={() => {
-                  if (flight.destinationLatitude && flight.destinationLongitude && onLocationClick) {
+                  if (
+                    flight.destinationLatitude &&
+                    flight.destinationLongitude &&
+                    onLocationClick
+                  ) {
                     onLocationClick({
                       lat: flight.destinationLatitude,
                       lng: flight.destinationLongitude,
                       title: flight.destination,
-                      description: `Điểm đến - ${flight.airline} ${flight.flightNumber}`
-                    })
+                      description: `Điểm đến - ${flight.airline} ${flight.flightNumber}`,
+                    });
                   }
                 }}
               >
@@ -191,15 +222,8 @@ export const FlightCard = ({
           </div>
 
           {/* Price & Actions */}
-          <div className="flex flex-col sm:flex-row gap-3 border-t border-gray-100 pt-4 items-start sm:items-center justify-between min-w-0">
+          <div className="flex sm:flex-row gap-3 border-t border-gray-100 pt-4 items-start sm:items-center justify-between min-w-0">
             <div className="min-w-0">
-              <p className="text-xl sm:text-2xl font-bold text-blue-600 truncate">
-                {formatCurrency(flight.price, flight.currency || 'VND')}
-              </p>
-              <p className="text-xs sm:text-sm text-gray-500">/ khách</p>
-            </div>
-
-            <div className="flex flex-wrap gap-2 shrink-0">
               {onViewDetails && (
                 <Button
                   variant="outline"
@@ -210,19 +234,25 @@ export const FlightCard = ({
                   Chi tiết
                 </Button>
               )}
-              {showBookButton && onBook && (
-                <Button
-                  size={compact ? "sm" : "default"}
-                  onClick={() => onBook(flight)}
-                  className="bg-blue-600 hover:bg-blue-700 text-xs sm:text-sm"
-                >
-                  Đặt ngay
-                </Button>
-              )}
             </div>
+
+            {showBookButton && onBook && (
+              <Button
+                size={compact ? "sm" : "default"}
+                onClick={() => onBook(flight)}
+                className="bg-blue-600 hover:bg-blue-700 text-white flex flex-col items-center text-xs sm:text-sm px-4 py-2"
+              >
+                <span className="font-semibold">
+                  {formatCurrency(flight.price, flight.currency || "VND")}
+                </span>
+                <span className="text-[10px] sm:text-xs text-blue-100">
+                  / khách
+                </span>
+              </Button>
+            )}
           </div>
         </div>
       </CardContent>
     </Card>
-  )
-}
+  );
+};

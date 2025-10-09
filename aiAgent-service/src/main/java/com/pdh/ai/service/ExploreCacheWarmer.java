@@ -24,7 +24,9 @@ public class ExploreCacheWarmer implements ApplicationRunner {
         logger.info("🚀 [CACHE-WARMER] Starting explore cache warming...");
         
         // Warm up caches asynchronously to not block application startup
-        CompletableFuture.runAsync(this::warmupCaches)
+        // Thread.sleep(10_000); // Delay to allow other services to initialize
+        CompletableFuture
+        .runAsync(this::warmupCaches)
             .whenComplete((result, throwable) -> {
                 if (throwable != null) {
                     logger.error("❌ [CACHE-WARMER] Error during cache warming: {}", throwable.getMessage(), throwable);
@@ -38,25 +40,9 @@ public class ExploreCacheWarmer implements ApplicationRunner {
         try {
             logger.info("🔥 [CACHE-WARMER] Warming up default explore cache for Vietnam");
 
-            // Warm up default explore recommendations for Vietnam
+            // Only warm up default explore recommendations for Vietnam
             exploreCacheService.getDefaultExploreRecommendations();
             logger.info("✅ [CACHE-WARMER] Default explore recommendations cached for Vietnam");
-
-            // Warm up seasonal recommendations for all seasons in Vietnam
-            String country = "Việt Nam";
-            String[] seasons = {"spring", "summer", "fall", "winter"};
-            
-            logger.info("🔥 [CACHE-WARMER] Warming up seasonal caches for Vietnam");
-            for (String season : seasons) {
-                try {
-                    exploreCacheService.getSeasonalExploreRecommendations(season, country);
-                    logger.info("✅ [CACHE-WARMER] Seasonal recommendations cached for {} in Vietnam", season);
-                } catch (Exception e) {
-                    logger.error("❌ [CACHE-WARMER] Error warming up {} cache: {}", season, e.getMessage());
-                }
-            }
-
-            logger.info("✅ [CACHE-WARMER] All seasonal caches warmed up for Vietnam");
 
         } catch (Exception e) {
             logger.error("❌ [CACHE-WARMER] Error warming up caches: {}", e.getMessage(), e);

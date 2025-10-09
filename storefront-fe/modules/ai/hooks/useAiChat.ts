@@ -8,7 +8,6 @@ interface UseAiChatOptions {
   loadHistoryOnMount?: boolean;
   context?: ChatContext;
   onError?: (error: string) => void;
-  useWebSocket?: boolean; // Enable WebSocket mode
   mode?: 'stream' | 'sync'; // Processing mode
 }
 
@@ -17,7 +16,6 @@ interface UseAiChatReturn {
   isLoading: boolean;
   error: string | null;
   conversationId: string | null;
-  isConnected: boolean; // WebSocket connection status
   sendMessage: (message: string) => Promise<void>;
   clearMessages: () => void;
   loadChatHistory: () => Promise<void>;
@@ -136,7 +134,6 @@ export function useAiChat(options: UseAiChatOptions = {}): UseAiChatReturn {
     loadHistoryOnMount = false, 
     context, 
     onError,
-    useWebSocket = true, // Default to WebSocket
     mode: initialMode = 'sync' // Default to sync mode
   } = options;
 
@@ -154,7 +151,6 @@ export function useAiChat(options: UseAiChatOptions = {}): UseAiChatReturn {
   const [error, setError] = useState<string | null>(null);
   const [conversationId, setConversationId] = useState<string | null>(initialConversationId || null);
   const [suggestions, setSuggestions] = useState<string[]>([]);
-  const [isConnected, setIsConnected] = useState(false);
   const [mode, setMode] = useState<'stream' | 'sync'>(initialMode);
   const { user, refreshChatConversations } = useAuth();
   const pendingMessageRef = useRef<string | null>(null);
@@ -171,109 +167,7 @@ export function useAiChat(options: UseAiChatOptions = {}): UseAiChatReturn {
     onErrorRef.current = onError;
   }, [onError]);
 
-  // Initialize WebSocket connection (only once per user)
-  useEffect(() => {
-    if (!useWebSocket || !user?.id) {
-      return;
-    }
 
-    console.log('🔌 Initializing WebSocket for text chat...');
-
-    aiChatService.initializeWebSocket(
-      user.id,
-      (response: ChatMessageResponse) => {
-        console.log('📨 Received WebSocket response:', response.type, response.status);
-
-        if (response.type === 'PROCESSING') {
-          // Update loading state
-          setIsLoading(true);
-        } else if (response.type === 'RESPONSE') {
-          // Sync response: Immediate complete response with all data
-          console.log('📨 Full response object:', response);
-          const parsed = parseStructuredPayload(response.aiResponse);
-          console.log('📨 Parsed payload:', parsed);
-
-          // Extract suggestions from multiple possible sources
-          const extractedSuggestions = 
-            response.nextRequestSuggestions ?? 
-            response.next_request_suggestions ??
-            parsed?.suggestions ?? 
-            [];
-
-          console.log('📋 Extracted suggestions:', extractedSuggestions);
-          console.log('📋 From response.nextRequestSuggestions:', response.nextRequestSuggestions);
-          console.log('📋 From response.next_request_suggestions:', response.next_request_suggestions);
-          console.log('📋 From parsed.suggestions:', parsed?.suggestions);
-
-          // Update the specific assistant message using the stored message ID
-          const targetMessageId = currentAssistantMessageIdRef.current;
-          if (targetMessageId) {
-            setMessages(prev => prev.map(msg => {
-              if (msg.id === targetMessageId && !msg.isUser) {
-                return {
-                  ...msg,
-                  content: parsed?.message ?? response.aiResponse ?? '',
-                  results: response.results ?? parsed?.results ?? [],
-                  timestamp: new Date(response.timestamp),
-                  suggestions: extractedSuggestions,
-                };
-              }
-              return msg;
-            }));
-          }
-          
-          // Sync response is always complete
-          setIsLoading(false);
-          currentAssistantMessageIdRef.current = null; // Clear the reference
-          
-          // Update conversation ID if needed
-          if (response.conversationId && response.conversationId !== conversationIdRef.current) {
-            setConversationId(response.conversationId);
-            refreshChatConversations().catch(console.error);
-          }
-        } else if (response.type === 'ERROR') {
-          setError(response.error ?? 'Đã xảy ra lỗi');
-          setIsLoading(false);
-          onErrorRef.current?.(response.error ?? 'Đã xảy ra lỗi');
-          
-          // Update the specific assistant message with error
-          const targetMessageId = currentAssistantMessageIdRef.current;
-          if (targetMessageId) {
-            setMessages(prev => prev.map(msg => {
-              if (msg.id === targetMessageId && !msg.isUser) {
-                return {
-                  ...msg,
-                  content: response.error ?? 'Đã xảy ra lỗi',
-                  timestamp: new Date(response.timestamp),
-                  suggestions: [],
-                };
-              }
-              return msg;
-            }));
-          }
-          currentAssistantMessageIdRef.current = null; // Clear the reference
-        }
-      },
-      undefined, // No voice message handler
-      () => {
-        console.log('✅ WebSocket connected');
-        setIsConnected(true);
-      },
-      (error) => {
-        console.error('❌ WebSocket error:', error);
-        setIsConnected(false);
-        setError('Không thể kết nối WebSocket');
-      }
-    );
-
-    return () => {
-      console.log('🔌 Disconnecting WebSocket...');
-      aiChatService.disconnectWebSocket();
-      setIsConnected(false);
-    };
-    // Only reconnect if user changes, not on every conversation change
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [useWebSocket, user?.id]);
 
   useEffect(() => {
     if (initialConversationId === undefined) {
@@ -355,34 +249,8 @@ export function useAiChat(options: UseAiChatOptions = {}): UseAiChatReturn {
       setConversationId(effectiveConversationId);
     }
 
-    // Store the assistant message ID for WebSocket updates
     currentAssistantMessageIdRef.current = assistantMessageId;
 
-    // Use WebSocket if enabled and connected (SYNC PROCESSING)
-    if (useWebSocket && user?.id) {
-      try {
-        if (!aiChatService.isWebSocketConnected()) {
-          throw new Error('WebSocket not connected');
-        }
-
-        // Send via WebSocket with selected mode
-        aiChatService.sendTextMessage({
-          userId: user.id,
-          conversationId: effectiveConversationId,
-          message: trimmedMessage,
-          timestamp: Date.now(),
-          mode,
-        });
-        
-        // Response will be handled by WebSocket listener
-        return;
-      } catch (wsError) {
-        console.error('WebSocket send failed, falling back to REST:', wsError);
-        // Fall through to REST API
-      }
-    }
-
-    // Fallback to REST API (sync)
     try {
       const chatContext: ChatContext = {
         ...context,
@@ -447,15 +315,9 @@ export function useAiChat(options: UseAiChatOptions = {}): UseAiChatReturn {
       // Clear the assistant message reference on error
       currentAssistantMessageIdRef.current = null;
     } finally {
-      // Only set loading to false if using REST API
-      // WebSocket responses handle this in the listener
-      if (!useWebSocket) {
-        setIsLoading(false);
-        // Clear the reference for REST API cases
-        currentAssistantMessageIdRef.current = null;
-      }
+
     }
-  }, [isLoading, conversationId, context, refreshChatConversations, onError, useWebSocket, user]);
+  }, [isLoading, conversationId, context, refreshChatConversations, onError, user]);
 
   const clearMessages = useCallback(async () => {
     if (conversationId) {
@@ -500,7 +362,7 @@ export function useAiChat(options: UseAiChatOptions = {}): UseAiChatReturn {
     isLoading,
     error,
     conversationId,
-    isConnected,
+ 
     sendMessage,
     clearMessages,
     loadChatHistory,

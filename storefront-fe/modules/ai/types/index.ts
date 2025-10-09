@@ -40,6 +40,8 @@ export interface ChatResponse {
   error?: string;
   results?: ChatStructuredResult[];
   nextRequestSuggestions?: string[];
+  requiresConfirmation?: boolean; // Whether this response requires user confirmation
+  confirmationContext?: ConfirmationContext; // Context for confirmation flow
 }
 
 export interface ChatMessage {
@@ -49,6 +51,8 @@ export interface ChatMessage {
   timestamp: Date;
   results?: ChatStructuredResult[];
   suggestions?: string[];
+  requiresConfirmation?: boolean; // Whether this message requires confirmation
+  confirmationContext?: ConfirmationContext; // Context for confirmation UI
 }
 
 export interface ChatHistoryMessage {
@@ -89,6 +93,20 @@ export interface ChatStructuredResult {
   imageUrl?: string;
   ids?: Record<string, string>; // Map of identifiers (flightId, scheduleId, fareId, hotelId, roomTypeId, etc.)
   metadata?: Record<string, unknown>;
+}
+
+/**
+ * Confirmation context for operations requiring user approval (booking, payment).
+ */
+export interface ConfirmationContext {
+  /** Type of operation: 'create_booking', 'process_payment', 'cancel_booking' */
+  operation: string;
+  /** Human-readable summary of what will happen if user confirms */
+  summary: string;
+  /** Data needed to execute the operation (bookingDetails, paymentDetails, etc.) */
+  pendingData: Record<string, unknown>;
+  /** Conversation ID to resume after confirmation */
+  conversationId?: string;
 }
 
 // ==================== VOICE CHAT TYPES ====================

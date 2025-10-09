@@ -324,12 +324,11 @@ public class FlightController {
     public ResponseEntity<FlightFareDetailsResponse> getFareDetails(
             @PathVariable Long flightId,
             @RequestParam(name = "seatClass", required = false) String seatClass,
-            @RequestParam(name = "departureDateTime", required = false) String departureDateTime,
             @RequestParam(name = "scheduleId", required = false) UUID scheduleId,
             @RequestParam(name = "fareId", required = false) UUID fareId) {
 
-        log.info("Fare details request flightId={}, seatClass={}, departureDateTime={}, scheduleId={}, fareId={}",
-                flightId, seatClass, departureDateTime, scheduleId, fareId);
+        log.info("Fare details request flightId={}, seatClass={}, scheduleId={}, fareId={}",
+                flightId, seatClass, scheduleId, fareId);
 
         try {
             FlightSchedule schedule = null;
@@ -377,36 +376,27 @@ public class FlightController {
 
             if (resolvedScheduleId != null) {
                 schedule = flightScheduleRepository.findById(resolvedScheduleId).orElse(null);
-                if (schedule == null || schedule.isDeleted() || !schedule.getFlightId().equals(flightId)) {
+                if (schedule == null || schedule.isDeleted() ) {
+                    System.out.println("Schedule not found or does not belong to flight");
                     return ResponseEntity.notFound().build();
                 }
             }
 
-            if (schedule == null && departureDateTime != null) {
-                final ZonedDateTime departureTime = parseDepartureDateTime(departureDateTime);
+            if (schedule == null ) {
+               
 
                 List<FlightSchedule> schedules = flightScheduleRepository.findByFlightId(flightId);
                 if (schedules.isEmpty()) {
+                    System.out.println(" No schedules found for flight");
                     return ResponseEntity.notFound().build();
                 }
 
-                schedule = schedules.stream()
-                        .min(Comparator.comparingLong(sched -> Math.abs(Duration.between(departureTime, sched.getDepartureTime()).toMinutes())))
-                        .orElse(null);
 
-                if (schedule == null) {
-                    return ResponseEntity.notFound().build();
-                }
 
-                long minutesDifference = Math.abs(Duration.between(departureTime, schedule.getDepartureTime()).toMinutes());
-                if (minutesDifference > 360) {
-                    return ResponseEntity.notFound().build();
-                }
+
             }
 
-            if (schedule == null) {
-                return ResponseEntity.notFound().build();
-            }
+        
 
             if (fare == null) {
                 if (requestedFareClass != null) {
@@ -668,7 +658,10 @@ public class FlightController {
         }
         
         String trimmed = cityOrIataCode.trim();
-        
+        // If already an IATA code, return as is
+        if (trimmed.length() == 3 && trimmed.equals(trimmed.toUpperCase())) {
+            return trimmed;
+        }
 
         
         // Try to resolve city name to IATA code
@@ -677,6 +670,7 @@ public class FlightController {
             log.debug("Resolved city '{}' to IATA code '{}'", trimmed, iataCodes.get(0));
             return iataCodes.get(0);
         }
+        //Try to resolve city name to IATA code
         
         // If no resolution found, return original input for flexible search
         log.debug("Could not resolve city '{}' to IATA code, using original input", trimmed);

@@ -47,7 +47,7 @@ public class SecurityConfig{
                 )
                 .oauth2Client(Customizer.withDefaults())
                 .oauth2ResourceServer(oauth2 -> oauth2.jwt(Customizer.withDefaults()))
-                .csrf(csrf -> csrf.ignoringRequestMatchers("/ws/**", "/sse/**"))
+                .csrf(csrf -> csrf.ignoringRequestMatchers( "/sse/**"))
                 .build();
     }
 

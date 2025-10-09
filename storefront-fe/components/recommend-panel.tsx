@@ -607,7 +607,7 @@ export const RecommendPanel = React.forwardRef<RecommendPanelRef, RecommendPanel
                       >
                         {imageUrl && (
                           <div className="w-full h-40 overflow-hidden">
-                            <Image 
+                            <img 
                               src={imageUrl} 
                               alt={result.title}
                               width={400}
@@ -699,7 +699,7 @@ export const RecommendPanel = React.forwardRef<RecommendPanelRef, RecommendPanel
                     >
                       <div className="flex items-start gap-3">
                         {result.imageUrl && (
-                          <Image
+                          <img
                             src={result.imageUrl}
                             alt={result.title}
                             className="w-20 h-20 rounded-lg object-cover shrink-0"

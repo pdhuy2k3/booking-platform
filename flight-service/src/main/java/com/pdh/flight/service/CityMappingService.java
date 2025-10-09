@@ -33,7 +33,7 @@ public class CityMappingService {
         if (cityName == null || cityName.trim().isEmpty()) {
             return Collections.emptyList();
         }
-        
+     
         String normalizedCity = normalizeCityName(cityName);
         log.debug("Searching IATA codes for city: {} (normalized: {})", cityName, normalizedCity);
         

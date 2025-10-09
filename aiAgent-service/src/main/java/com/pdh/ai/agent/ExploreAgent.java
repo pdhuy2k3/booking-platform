@@ -7,10 +7,8 @@ import org.slf4j.LoggerFactory;
 import com.pdh.ai.agent.advisor.LoggingAdvisor;
 import com.pdh.ai.model.dto.ExploreResponse;
 
-import io.modelcontextprotocol.client.McpSyncClient;
 
 import org.springframework.ai.chat.client.ChatClient;
-import org.springframework.ai.mcp.SyncMcpToolCallbackProvider;
 import org.springframework.ai.mistralai.MistralAiChatModel;
 import org.springframework.ai.openai.OpenAiChatModel;
 import org.springframework.ai.tool.ToolCallbackProvider;
@@ -67,40 +65,18 @@ public class ExploreAgent {
             - Validate URLs start with http:// or https://
             - If brave_image_search returns empty or no valid URLs, use empty string ""
             
-            ## Required JSON Response Format
-            ```json
-            {
-              "message": "Your descriptive message about the destinations",
-              "results": [
-                {
-                  "title": "Destination Name",
-                  "subtitle": "Brief description",
-                  "type": "info",
-                  "metadata": {
-                    "latitude": 16.068,
-                    "longitude": 108.212,
-                    "location": "City, Country",
-                    "image_url": "https://actual-image-url-from-brave-search.jpg",
-                    "highlights": ["Attraction 1", "Attraction 2", "Activity 3"],
-                    "best_time": "Month - Month",
-                    "estimated_cost": "X - Y currency/day"
-                  }
-                }
-              ]
-            }
-            ```
             
             ## Example Tool Usage Flow:
             1. User asks for "trending destinations in Vietnam"
             2. You identify: Da Nang, Ho Chi Minh City
             3. For Da Nang:
                - Call search_and_geocode_tool("Da Nang")
-               - Call brave_image_search(query="Da Nang Vietnam tourism", country="US", count=3)
+               - Call brave_image_search(query="Da Nang Vietnam tourism", country="US", count=1) request for each destination resulted from mapbox for onyly 1 image
                - Extract coordinates from geocode response
                - Extract image URL from brave search response.items[0].properties.url
             4. For Ho Chi Minh City:
                - Call search_and_geocode_tool("Ho Chi Minh City") 
-               - Call brave_image_search(query="Ho Chi Minh City Vietnam travel", country="US", count=3)
+               - Call brave_image_search(query="Ho Chi Minh City Vietnam travel", country="US", count={based on context})
                - Extract coordinates and image URL
             5. Return structured JSON with all data
             
@@ -117,7 +93,7 @@ public class ExploreAgent {
             3. **Visual appeal**: Every destination MUST have image_url (use brave_image_search)
             4. **Map integration**: Always provide accurate coordinates
             5. **Practical information**: Include costs, timing, highlights
-            
+     
             Remember: NEVER return a destination without using both geocode AND image search tools!
             """;
 
@@ -125,7 +101,7 @@ public class ExploreAgent {
     private final ChatClient chatClient;
 
     public ExploreAgent(
-            List<McpSyncClient> mcpSyncClients,
+            ToolCallbackProvider toolCallbackProvider,
             MistralAiChatModel openAiModel
     ) {
         this.openAiModel = openAiModel;
@@ -134,7 +110,7 @@ public class ExploreAgent {
         
         this.chatClient = ChatClient.builder(openAiModel)
                 .defaultSystem(EXPLORE_SYSTEM_PROMPT)
-                .defaultToolCallbacks(new SyncMcpToolCallbackProvider(mcpSyncClients))
+                .defaultToolCallbacks(toolCallbackProvider)
                 .defaultAdvisors(loggingAdvisor)
                 .build();
     }
@@ -167,7 +143,7 @@ public class ExploreAgent {
 
             logger.info("✅ [EXPLORE-AGENT] Successfully got structured response: message={}, results={}",
                     result != null ? result.getMessage() : "null",
-                    result != null && result.getResults() != null ? result.getResults().size() : 0);
+                    result != null && result.getResults() != null ? result.getResults().toString() : 0);
 
             return result != null ? result : ExploreResponse.builder()
                     .message("Không tìm thấy điểm đến phù hợp.")

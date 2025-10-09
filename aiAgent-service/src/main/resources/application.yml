@@ -6,7 +6,22 @@ server:
   tomcat:
     max-http-form-post-size: 10MB
     max-swallow-size: 10MB
-
+ai:
+  workflow:
+    hybrid:
+      # Enable/disable hybrid workflow (Routing + Parallelization)
+      # When enabled, system automatically detects queries that benefit from parallel processing
+      enabled: true
+      # Parallelization settings
+      parallelization:
+        # Default number of worker threads for parallel operations (2-4 recommended)
+        default-workers: 3
+        # Maximum worker threads allowed
+        max-workers: 4
+      # Routing settings
+      routing:
+        # Enable automatic route detection based on query keywords
+        auto-detect: true
 # OpenAPI Documentation Configuration
 #springdoc:
 #  api-docs:
@@ -29,23 +44,6 @@ spring:
     virtual:
       enabled: true
 
-# AI Workflow Configuration
-ai:
-  workflow:
-    hybrid:
-      # Enable/disable hybrid workflow (Routing + Parallelization)
-      # When enabled, system automatically detects queries that benefit from parallel processing
-      enabled: true
-      # Parallelization settings
-      parallelization:
-        # Default number of worker threads for parallel operations (2-4 recommended)
-        default-workers: 3
-        # Maximum worker threads allowed
-        max-workers: 4
-      # Routing settings
-      routing:
-        # Enable automatic route detection based on query keywords
-        auto-detect: true
   # Servlet multipart configuration for large file uploads
   servlet:
     multipart:
@@ -94,9 +92,8 @@ spring:
       api-key: ${MISTRAL_API_KEY}
       chat:
         options:
-          model: voxtral-mini-latest 
+          model: voxtral-mini-latest
 
-            
     chat:
       memory:
         repository:
@@ -110,7 +107,7 @@ spring:
         version: 1.0.0
 
         request-timeout: 300s
-        type: async
+        type: sync
         root-change-notification: true
         toolcallback.enabled: true
         sse:
@@ -156,13 +153,13 @@ spring:
                 - mcp/brave-search
               env:
                 BRAVE_API_KEY: ${BRAVE_API_KEY}
-            stripe: 
+            stripe:
               command: docker
-              args: 
+              args:
                 - run
                 - --rm
                 - -i
-                - -e  
+                - -e
                 - STRIPE_SECRET_KEY
                 - mcp/stripe
                 - --tools=all
@@ -220,25 +217,24 @@ spring:
       base-url: https://generativelanguage.googleapis.com/v1beta/openai/
       chat:
         options:
-          model: gemini-2.5-flash
-          temperature: 0.1
-#    ollama:
-#      init:
-#
-#        pull-model-strategy: when_missing
-#        embedding:
-#          include: false
-#      chat:
-#        options:
-#          model: qwen3:4b
-#          temperature: 0.0
-#      base-url: http://ollama:11434
+          model: gemini-2.5-flash-lite
+              
+    #    ollama:
+    #      init:
+    #
+    #        pull-model-strategy: when_missing
+    #        embedding:
+    #          include: false
+    #      chat:
+    #        options:
+    #          model: qwen3:4b
+    #          temperature: 0.0
+    #      base-url: http://ollama:11434
     mistralai:
       api-key: ${MISTRAL_API_KEY}
       chat:
         options:
-          model: open-mistral-nemo
-          temperature: 0.1
+          model: mistral-small-2506
     chat:
       memory:
         repository:
@@ -248,11 +244,10 @@ spring:
     mcp:
       client:
         enabled: true
-        name: bookingsmart-mcp-client
         version: 1.0.0
         type: sync
         request-timeout: 300s
-
+        name: bookingsmrt-mcp-client
         root-change-notification: true
         toolcallback.enabled: true
         sse:
@@ -269,7 +264,7 @@ spring:
             payment-mcp-server:
               url: http://payment-service
               sse-endpoint: /payments/sse
-            
+
         stdio:
           connections:
             openweather:
@@ -305,18 +300,6 @@ spring:
                 - mcp/brave-search
               env:
                 BRAVE_API_KEY: ${BRAVE_API_KEY}
-            stripe: 
-              command: docker
-              args: 
-                - run
-                - --rm
-                - -i
-                - -e  
-                - STRIPE_SECRET_KEY
-                - mcp/stripe
-                - --tools=all
-              env:
-                STRIPE_SECRET_KEY: ${STRIPE_SECRET_KEY}
         initialized: true
 
 # Logging Configuration for Tool Tracking

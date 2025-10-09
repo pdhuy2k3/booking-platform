@@ -4,10 +4,11 @@ import { useState } from "react"
 import { FlightCard } from "@/components/cards/flight-card"
 import { HotelCard } from "@/components/cards/hotel-card"
 import { Alert, AlertDescription } from "@/components/ui/alert"
-import { Info, Sparkles, MapPin } from "lucide-react"
+import { Button } from "@/components/ui/button"
+import { Info, Sparkles, MapPin, CheckCircle, XCircle, AlertTriangle } from "lucide-react"
 import FlightDetailsModal from "@/modules/flight/component/FlightDetailsModal"
 import HotelDetailsModal from "@/modules/hotel/component/HotelDetailsModal"
-import type { ChatStructuredResult } from "@/modules/ai/types"
+import type { ChatStructuredResult, ConfirmationContext } from "@/modules/ai/types"
 import { cn } from "@/lib/utils"
 import Image from "next/image"
 
@@ -137,6 +138,10 @@ interface AiResponseRendererProps {
   onHotelBook?: (hotel: any, room: any) => void
   onLocationClick?: (location: { lat: number; lng: number; title: string; description?: string }) => void
   canBook?: boolean
+  requiresConfirmation?: boolean // Whether this response needs user confirmation
+  confirmationContext?: ConfirmationContext // Context for confirmation operations
+  onConfirm?: (context: ConfirmationContext) => void // Called when user confirms
+  onCancel?: () => void // Called when user cancels
 }
 
 export const AiResponseRenderer = ({
@@ -146,6 +151,10 @@ export const AiResponseRenderer = ({
   onHotelBook,
   onLocationClick,
   canBook = true,
+  requiresConfirmation = false,
+  confirmationContext,
+  onConfirm,
+  onCancel,
 }: AiResponseRendererProps) => {
   const [selectedFlightForModal, setSelectedFlightForModal] = useState<any | null>(null)
   const [isFlightModalOpen, setIsFlightModalOpen] = useState(false)
@@ -506,6 +515,62 @@ export const AiResponseRenderer = ({
               )
             })}
           </div>
+        </div>
+      )}
+
+      {/* Confirmation UI - Shows interactive Yes/No buttons for booking/payment operations */}
+      {requiresConfirmation && confirmationContext && (
+        <div className="mt-6 p-6 bg-gradient-to-r from-yellow-50 to-orange-50 border-2 border-yellow-400 rounded-xl shadow-lg">
+          {/* Warning Header */}
+          <div className="flex items-center gap-3 mb-4">
+            <div className="p-2 bg-yellow-400 rounded-lg">
+              <AlertTriangle className="h-6 w-6 text-yellow-900" />
+            </div>
+            <div>
+              <h3 className="text-lg font-bold text-gray-900">
+                ⚠️ Xác nhận yêu cầu 
+              </h3>
+              <p className="text-sm text-gray-600">
+                Vui lòng xác nhận trước khi tiếp tục 
+              </p>
+            </div>
+          </div>
+
+          {/* Operation Summary */}
+          <div className="mb-4 p-4 bg-white rounded-lg border border-yellow-200">
+            <p className="text-sm font-medium text-gray-700 mb-2">
+              Thao tác: <span className="text-blue-600">{confirmationContext.operation}</span>
+            </p>
+            <div className="text-sm text-gray-800 whitespace-pre-line">
+              {confirmationContext.summary}
+            </div>
+          </div>
+
+          {/* Confirmation Buttons */}
+          <div className="flex flex-col sm:flex-row gap-3">
+            <Button
+              onClick={() => onConfirm?.(confirmationContext)}
+              className="flex-1 bg-green-600 hover:bg-green-700 text-white font-semibold py-3 px-6 rounded-lg shadow-md hover:shadow-lg transition-all duration-200 flex items-center justify-center gap-2"
+            >
+              <CheckCircle className="h-5 w-5" />
+              <span>✅ Yes, Proceed / Xác nhận</span>
+            </Button>
+            
+            <Button
+              onClick={onCancel}
+              variant="outline"
+              className="flex-1 bg-white hover:bg-red-50 text-red-600 border-2 border-red-300 hover:border-red-400 font-semibold py-3 px-6 rounded-lg shadow-md hover:shadow-lg transition-all duration-200 flex items-center justify-center gap-2"
+            >
+              <XCircle className="h-5 w-5" />
+              <span>❌ Cancel / Hủy bỏ</span>
+            </Button>
+          </div>
+
+          {/* Security Notice */}
+          <p className="mt-4 text-xs text-gray-500 text-center">
+            🔒 Hệ thống yêu cầu xác nhận để bảo vệ tài khoản của bạn / 
+            System requires confirmation to protect your account
+          </p>
         </div>
       )}
 
