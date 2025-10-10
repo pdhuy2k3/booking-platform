@@ -90,11 +90,7 @@ export default function Login(props: PageProps<Extract<KcContext, { pageId: "log
                                         {messagesPerField.get("username")}
                                     </div>
                                 )}
-                                {messagesPerField.existsError("username") && (
-                                    <div className="bookingsmart-error-enhanced">
-                                        {messagesPerField.get("username")}
-                                    </div>
-                                )}
+                  
                             </div>
                         )}
 

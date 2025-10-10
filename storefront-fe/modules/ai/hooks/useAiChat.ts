@@ -143,6 +143,7 @@ export function useAiChat(options: UseAiChatOptions = {}): UseAiChatReturn {
       content: 'Xin chào! Tôi có thể giúp bạn tìm kiếm chuyến bay, khách sạn hoặc lên kế hoạch du lịch. Bạn muốn đi đâu?',
       isUser: false,
       timestamp: new Date(),
+      results: [], // Make sure results is initialized
       suggestions: [],
     },
   ]);
@@ -201,8 +202,8 @@ export function useAiChat(options: UseAiChatOptions = {}): UseAiChatReturn {
             content: parsed?.message ?? msg.content,
             isUser: msg.role === 'user',
             timestamp: new Date(msg.timestamp),
-            results: parsed?.results ?? [],
-            suggestions: parsed?.suggestions ?? [],
+            results: [...(parsed?.results ?? [])], // Create new array to ensure change detection
+            suggestions: [...(parsed?.suggestions ?? [])], // Create new array to ensure change detection
           };
         });
         
@@ -279,18 +280,23 @@ export function useAiChat(options: UseAiChatOptions = {}): UseAiChatReturn {
       // Parse structured response
       const parsedResponse = parseStructuredPayload(response.aiResponse);
 
-      setMessages(prev => prev.map(msg => {
-        if (msg.id !== assistantMessageId) {
-          return msg;
+      setMessages(prev => {
+        // Create a new array to ensure React detects the change
+        const newMessages = [...prev];
+        const messageIndex = newMessages.findIndex(msg => msg.id === assistantMessageId);
+        
+        if (messageIndex !== -1) {
+          newMessages[messageIndex] = {
+            ...newMessages[messageIndex],
+            content: parsedResponse?.message ?? response.aiResponse,
+            results: [...(parsedResponse?.results ?? [])], // Create new array to ensure change detection
+            timestamp: new Date(response.timestamp || Date.now()),
+            suggestions: [...(response.nextRequestSuggestions ?? parsedResponse?.suggestions ?? [])], // Create new array
+          };
         }
-        return {
-          ...msg,
-          content: parsedResponse?.message ?? response.aiResponse,
-          results: parsedResponse?.results ?? [],
-          timestamp: new Date(response.timestamp || Date.now()),
-          suggestions: response.nextRequestSuggestions ?? parsedResponse?.suggestions ?? [],
-        };
-      }));
+        
+        return newMessages;
+      });
 
       // Clear the assistant message reference when using REST API
       currentAssistantMessageIdRef.current = null;
@@ -299,18 +305,23 @@ export function useAiChat(options: UseAiChatOptions = {}): UseAiChatReturn {
       setError(errorMessage);
       onError?.(errorMessage);
 
-      setMessages(prev => prev.map(msg => {
-        if (msg.id !== assistantMessageId) {
-          return msg;
+      setMessages(prev => {
+        // Create a new array to ensure React detects the change
+        const newMessages = [...prev];
+        const messageIndex = newMessages.findIndex(msg => msg.id === assistantMessageId);
+        
+        if (messageIndex !== -1) {
+          newMessages[messageIndex] = {
+            ...newMessages[messageIndex],
+            content: errorMessage,
+            results: [],
+            timestamp: new Date(),
+            suggestions: [],
+          };
         }
-        return {
-          ...msg,
-          content: errorMessage,
-          results: [],
-          timestamp: new Date(),
-          suggestions: [],
-        };
-      }));
+        
+        return newMessages;
+      });
 
       // Clear the assistant message reference on error
       currentAssistantMessageIdRef.current = null;

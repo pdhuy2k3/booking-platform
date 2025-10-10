@@ -22,6 +22,7 @@ import {
   XCircle,
   AlertTriangle,
 } from "lucide-react"
+import { useDateFormatter } from "@/hooks/use-date-formatter"
 
 const PAGE_SIZE = 10
 
@@ -116,120 +117,122 @@ const parseProductDetails = (json?: string | null) => {
     console.warn("Failed to parse product details", err)
     return null
   }
-}
-
-const renderStatusBadge = (status?: string | null) => {
-  if (!status) return null
-  const meta = STATUS_BADGE_MAP[status] ?? {
-    label: status,
-    className: "bg-gray-500/10 text-gray-300",
-    icon: <Clock3 className="h-4 w-4" />,
   }
 
-  return (
-    <Badge className={`gap-1 ${meta.className}`}>
-      {meta.icon}
-      {meta.label}
-    </Badge>
-  )
-}
+  const renderStatusBadge = (status?: string | null) => {
+    if (!status) return null
+    const meta = STATUS_BADGE_MAP[status] ?? {
+      label: status,
+      className: "bg-gray-500/10 text-gray-300",
+      icon: <Clock3 className="h-4 w-4" />,
+    }
 
-const renderFlightDetails = (flight?: FlightFareDetails, fallback?: any) => {
-  const source = flight ?? fallback
-  if (!source) return null
+    return (
+      <Badge className={`gap-1 ${meta.className}`}>
+        {meta.icon}
+        {meta.label}
+      </Badge>
+    )
+  }
 
-  const departure = flight?.departureTime ?? source?.departureDateTime
-  const arrival = flight?.arrivalTime ?? source?.arrivalDateTime
-  const seatClass = flight?.seatClass ?? ensureSeatClass(source?.seatClass)
-  const priceRaw = flight?.price ?? source?.pricePerPassenger ?? source?.totalFlightPrice
-  const price = priceRaw != null ? Number(priceRaw) : undefined
-  const currency = flight?.currency ?? source?.currency ?? "VND"
-  const airline = flight?.airline ?? source?.airline
-  const flightNumber = flight?.flightNumber ?? source?.flightNumber
-  const origin = flight?.originAirport ?? source?.originAirport
-  const destination = flight?.destinationAirport ?? source?.destinationAirport
-  const availableSeatsRaw = flight?.availableSeats ?? source?.availableSeats
-  const availableSeats = availableSeatsRaw != null ? Number(availableSeatsRaw) : null
+  const renderFlightDetails = (flight?: FlightFareDetails, fallback?: any) => {
+    const source = flight ?? fallback
+    if (!source) return null
 
-  return (
-    <div className="space-y-2 rounded-lg border border-gray-300/30 bg-gray-100 p-4">
-      <h4 className="font-semibold text-gray-700">Flight Details</h4>
-      <div className="grid gap-2 text-sm text-gray-600 md:grid-cols-2">
-        <div>
-          <span className="text-xs uppercase text-gray-500">Flight</span>
-          <p className="font-medium">{flightNumber || 'N/A'}</p>
-          {airline && <p className="text-xs text-gray-500">{airline}</p>}
-        </div>
-        <div>
-          <span className="text-xs uppercase text-gray-500">Route</span>
-          <p className="font-medium">{origin || '—'} → {destination || '—'}</p>
-        </div>
-        <div>
-          <span className="text-xs uppercase text-gray-500">Departure</span>
+    const departure = flight?.departureTime ?? source?.departureDateTime
+    const arrival = flight?.arrivalTime ?? source?.arrivalDateTime
+    const seatClass = flight?.seatClass ?? ensureSeatClass(source?.seatClass)
+    const priceRaw = flight?.price ?? source?.pricePerPassenger ?? source?.totalFlightPrice
+    const price = priceRaw != null ? Number(priceRaw) : undefined
+    const currency = flight?.currency ?? source?.currency ?? "VND"
+    const airline = flight?.airline ?? source?.airline
+    const flightNumber = flight?.flightNumber ?? source?.flightNumber
+    
+    // Handle both FlightFareDetails and API response structure
+    const origin = flight?.originAirport ?? source?.originAirport ?? source?.origin
+    const destination = flight?.destinationAirport ?? source?.destinationAirport ?? source?.destination
+    const availableSeatsRaw = flight?.availableSeats ?? source?.availableSeats
+    const availableSeats = availableSeatsRaw != null ? Number(availableSeatsRaw) : null
+
+    return (
+      <div className="space-y-2 rounded-lg border border-gray-300/30 bg-gray-100 p-4">
+        <h4 className="font-semibold text-gray-700">Flight Details</h4>
+        <div className="grid gap-2 text-sm text-gray-600 md:grid-cols-2">
+          <div>
+            <span className="text-xs uppercase text-gray-500">Flight</span>
+            <p className="font-medium">{flightNumber || 'N/A'}</p>
+            {airline && <p className="text-xs text-gray-500">{airline}</p>}
+          </div>
+          <div>
+            <span className="text-xs uppercase text-gray-500">Route</span>
+            <p className="font-medium">{origin || '—'} → {destination || '—'}</p>
+          </div>
+          <div>
+            <span className="text-xs uppercase text-gray-500">Departure</span>
           <p>{formatDateTime(departure)}</p>
-        </div>
-        <div>
-          <span className="text-xs uppercase text-gray-500">Arrival</span>
+          </div>
+          <div>
+            <span className="text-xs uppercase text-gray-500">Arrival</span>
           <p>{formatDateTime(arrival)}</p>
-        </div>
-        <div>
-          <span className="text-xs uppercase text-gray-500">Seat Class</span>
-          <p>{seatClass}</p>
-        </div>
-        <div>
-          <span className="text-xs uppercase text-gray-500">Fare</span>
-          <p>{formatCurrency(price ?? priceRaw, currency)}</p>
-          {availableSeats != null && Number.isFinite(availableSeats) && (
-            <p className="text-xs text-gray-500">Available seats: {availableSeats}</p>
-          )}
-        </div>
-      </div>
-    </div>
-  )
-}
-
-const renderHotelDetails = (hotel?: RoomDetails, fallback?: any) => {
-  const source = hotel ?? fallback
-  if (!source) return null
-
-  const title = hotel?.roomType?.name ?? source?.roomName ?? source?.roomType
-  const description = hotel?.description ?? source?.description
-  const priceRaw = hotel?.price ?? source?.pricePerNight ?? source?.totalRoomPrice
-  const price = priceRaw != null ? Number(priceRaw) : undefined
-  const currency = source?.currency ?? "VND"
-  const capacity = hotel?.maxOccupancy ?? source?.numberOfGuests
-  const bedType = hotel?.bedType ?? source?.bedType
-  const roomNumber = hotel?.roomNumber ?? source?.roomId
-
-  return (
-    <div className="space-y-2 rounded-lg border border-gray-300/30 bg-gray-100 p-4">
-      <h4 className="font-semibold text-gray-700">Room Details</h4>
-      <div className="grid gap-2 text-sm text-gray-600 md:grid-cols-2">
-        <div>
-          <span className="text-xs uppercase text-gray-500">Room</span>
-          <p className="font-medium">{title || 'Room'}</p>
-          {roomNumber && <p className="text-xs text-gray-500">Room ID: {roomNumber}</p>}
-        </div>
-        <div>
-          <span className="text-xs uppercase text-gray-500">Price</span>
-          <p>{formatCurrency(price ?? priceRaw, currency)}</p>
-        </div>
-        <div>
-          <span className="text-xs uppercase text-gray-500">Capacity</span>
-          <p>{capacity ? `${capacity} guests` : '—'}</p>
-        </div>
-        <div>
-          <span className="text-xs uppercase text-gray-500">Bed Type</span>
-          <p>{bedType || '—'}</p>
+          </div>
+          <div>
+            <span className="text-xs uppercase text-gray-500">Seat Class</span>
+            <p>{seatClass}</p>
+          </div>
+          <div>
+            <span className="text-xs uppercase text-gray-500">Fare</span>
+            <p>{formatCurrency(price ?? priceRaw, currency)}</p>
+            {availableSeats != null && Number.isFinite(availableSeats) && (
+              <p className="text-xs text-gray-500">Available seats: {availableSeats}</p>
+            )}
+          </div>
         </div>
       </div>
-      {description && <p className="text-sm text-gray-600/80">{description}</p>}
-    </div>
-  )
-}
+    )
+  }
 
-const renderFallbackFlightDetails = (fallback: any) => renderFlightDetails(undefined, fallback)
-const renderFallbackHotelDetails = (fallback: any) => renderHotelDetails(undefined, fallback)
+  const renderHotelDetails = (hotel?: RoomDetails, fallback?: any) => {
+    const source = hotel ?? fallback
+    if (!source) return null
+
+    const title = hotel?.roomType?.name ?? source?.roomName ?? source?.roomType
+    const description = hotel?.description ?? source?.description
+    const priceRaw = hotel?.price ?? source?.pricePerNight ?? source?.totalRoomPrice
+    const price = priceRaw != null ? Number(priceRaw) : undefined
+    const currency = source?.currency ?? "VND"
+    const capacity = hotel?.maxOccupancy ?? source?.numberOfGuests
+    const bedType = hotel?.bedType ?? source?.bedType
+    const roomNumber = hotel?.roomNumber ?? source?.roomId
+
+    return (
+      <div className="space-y-2 rounded-lg border border-gray-300/30 bg-gray-100 p-4">
+        <h4 className="font-semibold text-gray-700">Room Details</h4>
+        <div className="grid gap-2 text-sm text-gray-600 md:grid-cols-2">
+          <div>
+            <span className="text-xs uppercase text-gray-500">Room</span>
+            <p className="font-medium">{title || 'Room'}</p>
+            {roomNumber && <p className="text-xs text-gray-500">Room ID: {roomNumber}</p>}
+          </div>
+          <div>
+            <span className="text-xs uppercase text-gray-500">Price</span>
+            <p>{formatCurrency(price ?? priceRaw, currency)}</p>
+          </div>
+          <div>
+            <span className="text-xs uppercase text-gray-500">Capacity</span>
+            <p>{capacity ? `${capacity} guests` : '—'}</p>
+          </div>
+          <div>
+            <span className="text-xs uppercase text-gray-500">Bed Type</span>
+            <p>{bedType || '—'}</p>
+          </div>
+        </div>
+        {description && <p className="text-sm text-gray-600/80">{description}</p>}
+      </div>
+    )
+  }
+
+  const renderFallbackFlightDetails = (fallback: any) => renderFlightDetails(undefined, fallback)
+  const renderFallbackHotelDetails = (fallback: any) => renderHotelDetails(undefined, fallback)
 
 type BookingDetailState = {
   flight?: FlightFareDetails

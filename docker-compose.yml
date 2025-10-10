@@ -245,7 +245,7 @@ services:
     build:
       context: ./storefront-fe
       dockerfile: Dockerfile
-
+    image: phamduyhuyuit/bookingsmart-storefront-fe:latest
     environment:
       - NODE_ENV=production
 

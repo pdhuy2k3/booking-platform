@@ -111,30 +111,7 @@ export default function Template(props: TemplateProps<KcContext, I18n>) {
                             {/* Info Section */}
                             {displayInfo && infoNode && <div className="mt-4 p-4 bg-gray-50 rounded-md border border-gray-200">{infoNode}</div>}
 
-                            {/* Footer Links */}
-                            <div className="text-center mt-6 pt-6 border-t border-gray-200/30">
-                                {kcContext.pageId && kcContext.pageId !== "login.ftl" && (
-                                    <a href={(kcContext as any).url.loginUrl} className="text-primary hover:text-primary/80 transition-colors text-sm font-medium">
-                                        ← {i18n.msg("backToLogin")}
-                                    </a>
-                                )}
-                                
-                                {kcContext.pageId && kcContext.pageId === "login.ftl" && (
-                                    <div className="flex flex-wrap justify-center gap-4 text-sm">
-                                        {(kcContext as any).url && (kcContext as any).url.registrationUrl && (
-                                            <a href={(kcContext as any).url.registrationUrl} className="text-primary hover:text-primary/80 transition-colors font-medium">
-                                                {i18n.msg("doRegister")}
-                                            </a>
-                                        )}
-                                        
-                                        {(kcContext as any).url && (kcContext as any).url.loginResetCredentialsUrl && (
-                                            <a href={(kcContext as any).url.loginResetCredentialsUrl} className="text-primary hover:text-primary/80 transition-colors font-medium">
-                                                {i18n.msg("doForgotPassword")}
-                                            </a>
-                                        )}
-                                    </div>
-                                )}
-                            </div>
+
                         </div>
                     </div>
                 </div>
