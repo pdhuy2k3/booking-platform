@@ -8,13 +8,14 @@ import java.util.List;
 import java.util.UUID;
 
 import com.pdh.ai.agent.CoreAgent;
+import com.pdh.ai.model.dto.ChatConversationSummaryDto;
 import com.pdh.ai.model.dto.ChatHistoryResponse;
 import com.pdh.ai.model.dto.StructuredChatPayload;
 import com.pdh.ai.model.entity.ChatConversation;
 import com.pdh.ai.model.entity.ChatMessage;
 import com.pdh.common.utils.AuthenticationUtils;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
-import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
 
@@ -83,10 +84,15 @@ public class LLMAiService implements AiService {
     }
 
     @Override
-    public List<String> getUserConversations(String userId) {
+    public List<ChatConversationSummaryDto> getUserConversations(String userId) {
         String actualUserId = resolveAuthenticatedUserId(userId);
         return conversationService.listConversations(actualUserId).stream()
-                .map(conversation -> conversation.getId().toString())
+                .map(conversation -> ChatConversationSummaryDto.builder()
+                        .id(conversation.getId().toString())
+                        .title(normalizeTitle(conversation.getTitle()))
+                        .createdAt(conversation.getCreatedAt())
+                        .lastUpdated(resolveLastUpdated(conversation.getId(), conversation.getCreatedAt()))
+                        .build())
                 .toList();
     }
 
@@ -161,6 +167,27 @@ public class LLMAiService implements AiService {
         int maxLength = 60;
         String sanitized = message.replaceAll("\s+", " ").trim();
         return sanitized.length() <= maxLength ? sanitized : sanitized.substring(0, maxLength) + "...";
+    }
+
+    private String normalizeTitle(String title) {
+        if (title != null) {
+            String trimmed = title.trim();
+            if (!trimmed.isEmpty()) {
+                return trimmed;
+            }
+        }
+        return defaultTitle();
+    }
+
+    private Instant resolveLastUpdated(UUID conversationId, Instant createdAt) {
+        var latest = chatMessageRepository.findByConversationIdOrderByTimestampDesc(conversationId, PageRequest.of(0, 1));
+        if (!latest.isEmpty()) {
+            ChatMessage mostRecent = latest.get(0);
+            if (mostRecent != null && mostRecent.getTimestamp() != null) {
+                return mostRecent.getTimestamp();
+            }
+        }
+        return createdAt != null ? createdAt : Instant.now();
     }
 
 

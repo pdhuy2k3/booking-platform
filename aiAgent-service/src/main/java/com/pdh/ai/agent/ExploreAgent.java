@@ -171,6 +171,7 @@ public class ExploreAgent {
             }
 
             StructuredChatPayload result = chatClient.prompt()
+                   
                     .user(enhancedQuery)
                     .call()
                     .entity(StructuredChatPayload.class);

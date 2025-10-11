@@ -15,6 +15,7 @@ export const bookingService = {
   getStatus: bookingApiService.getBookingStatus,
   cancel: bookingApiService.cancelBooking,
   confirm: bookingApiService.confirmBooking,
+  requestPaymentInitiation: bookingApiService.initiatePayment,
   history: bookingApiService.getBookingHistory,
 }
 

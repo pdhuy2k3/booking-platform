@@ -37,7 +37,7 @@ export function Sidebar() {
   }, [isLoading, isAuthenticated, chatConversations.length, refreshChatConversations])
 
   const handleNavigateTab = useCallback(
-    (tab: "chat" | "search", options?: { conversationId?: string }) => {
+    (tab: "chat" | "search", options?: { conversationId?: string; newChat?: boolean }) => {
       const params = new URLSearchParams()
       params.set("tab", tab)
 
@@ -51,6 +51,11 @@ export function Sidebar() {
         params.set("conversationId", options.conversationId)
       }
 
+      if (options?.newChat) {
+        params.set("new", "1")
+        params.delete("conversationId")
+      }
+
       router.push(`/?${params.toString()}`, { scroll: false })
     },
     [router, searchParams],
@@ -61,20 +66,27 @@ export function Sidebar() {
     { label: "Search", icon: Search, tab: "search" as const },
   ]
 
+  const handleStartNewChat = useCallback(() => {
+    handleNavigateTab("chat", { newChat: true })
+  }, [handleNavigateTab])
+
   return (
     <nav
       className={cn(
-        "shrink-0 border-r border-border bg-background flex h-full flex-col py-4 gap-2 transition-all duration-200",
-        "w-16 md:w-[10%] min-w-[64px] md:min-w-[80px]",
-        isExpanded ? "px-3" : "items-center px-2"
+        "shrink-0 border-r border-border bg-background flex h-full flex-col gap-3 py-4 transition-[width] duration-200 ease-in-out",
+        isExpanded ? "w-[260px] min-w-[260px] px-4" : "w-[72px] min-w-[72px] items-center px-2"
       )}
     >
-      <div className={cn("w-full", isExpanded ? "flex items-center justify-between" : "flex items-center justify-center")}
+      <div
+        className={cn(
+          "w-full flex",
+          isExpanded ? "items-center justify-between" : "flex-col items-center gap-2"
+        )}
       >
         <Link
           href="/"
           aria-label="BookingSmart Home"
-          className={cn("flex h-10 w-10 items-center justify-center rounded-full overflow-hidden", isExpanded ? "mb-4" : "mb-4")}
+          className="flex h-10 w-10 items-center justify-center rounded-full overflow-hidden mb-4"
         >
           <Image
             src="/logo_brand-removebg-preview.png"
@@ -88,8 +100,8 @@ export function Sidebar() {
           type="button"
           onClick={() => setIsExpanded(!isExpanded)}
           className={cn(
-            "h-8 w-8 rounded-full text-muted-foreground hover:bg-secondary hover:text-foreground transition-colors",
-            isExpanded ? "ml-2" : "w-10 justify-center"
+            "flex h-8 w-8 items-center justify-center rounded-full text-muted-foreground hover:bg-secondary hover:text-foreground transition-colors",
+            isExpanded ? "ml-2" : "mt-1"
           )}
           aria-label={isExpanded ? "Thu gọn" : "Mở rộng"}
         >
@@ -101,7 +113,7 @@ export function Sidebar() {
         </button>
       </div>
 
-      <nav className={cn("flex flex-col gap-2", isExpanded ? "items-stretch" : "items-center")}
+      <nav className={cn("flex flex-col gap-2", isExpanded ? "items-stretch" : "items-center w-full")}
       >
         {navItems.map((item) => {
           const Icon = item.icon
@@ -126,8 +138,24 @@ export function Sidebar() {
         })}
       </nav>
 
-      <div className={cn("flex-1 w-full overflow-y-auto", isExpanded ? "mt-2" : "mt-2 px-2")}
-      >
+      <div className={cn("flex-1 w-full overflow-y-auto", isExpanded ? "mt-2 space-y-2 px-1" : "mt-2 space-y-2 px-1")}>
+        {isAuthenticated && (
+          <button
+            type="button"
+            onClick={handleStartNewChat}
+            className={cn(
+              "flex w-full items-center justify-center rounded-full border border-dashed border-primary/60 bg-primary/5 text-primary transition-colors hover:bg-primary/10",
+              isExpanded ? "px-3 py-2 text-sm font-medium" : "h-12 w-12 flex-col px-1 py-2 text-[10px] font-medium leading-tight"
+            )}
+          >
+            {isExpanded ? (
+              <span className="text-center">Cuộc trò chuyện mới</span>
+            ) : (
+              <span className="whitespace-pre-line text-center">Chat{"\n"}mới</span>
+            )}
+          </button>
+        )}
+
         {isAuthenticated && chatConversations.length > 0 ? (
           <div className="space-y-1">
             {chatConversations.map((conversation) => {
@@ -142,7 +170,7 @@ export function Sidebar() {
                     isConversationActive ? "bg-primary/10 text-primary" : "text-muted-foreground hover:bg-secondary hover:text-foreground",
                   )}
                 >
-                  <span className="block truncate">{conversation.title}</span>
+                  <span className="block truncate">{conversation.title || "Cuộc trò chuyện"}</span>
                 </button>
               )
             })}

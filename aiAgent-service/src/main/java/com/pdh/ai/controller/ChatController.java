@@ -1,5 +1,6 @@
 package com.pdh.ai.controller;
 
+import com.pdh.ai.model.dto.ChatConversationSummaryDto;
 import com.pdh.ai.model.dto.ChatHistoryResponse;
 import com.pdh.ai.model.dto.ChatMessageRequest;
 import com.pdh.ai.model.dto.StructuredChatPayload;
@@ -162,14 +163,14 @@ public class ChatController {
     }
 
     @GetMapping("/conversations")
-    public ResponseEntity<java.util.List<String>> getUserConversations() {
+    public ResponseEntity<java.util.List<ChatConversationSummaryDto>> getUserConversations() {
         try {
             // Extract userId from JWT token
             String userId = AuthenticationUtils.extractUserId();
-            java.util.List<String> conversations = aiService.getUserConversations(userId);
+            java.util.List<ChatConversationSummaryDto> conversations = aiService.getUserConversations(userId);
             return ResponseEntity.ok(conversations);
         } catch (Exception e) {
-            return ResponseEntity.status(500).body(java.util.List.of());
+            return ResponseEntity.status(500).body(java.util.List.<ChatConversationSummaryDto>of());
         }
     }
 }

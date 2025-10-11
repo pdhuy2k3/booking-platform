@@ -18,6 +18,7 @@ interface UseAiChatReturn {
   conversationId: string | null;
   sendMessage: (message: string) => Promise<void>;
   clearMessages: () => void;
+  startNewConversation: () => void;
   loadChatHistory: () => Promise<void>;
   suggestions: string[];
   getSuggestions: () => Promise<void>;
@@ -124,6 +125,17 @@ const createConversationId = (): string => {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
 };
 
+const createInitialMessages = (): ChatMessage[] => [
+  {
+    id: '1',
+    content: 'Xin chào! Tôi có thể giúp bạn tìm kiếm chuyến bay, khách sạn hoặc lên kế hoạch du lịch. Bạn muốn đi đâu?',
+    isUser: false,
+    timestamp: new Date(),
+    results: [],
+    suggestions: [],
+  },
+];
+
 const createMessageId = (prefix: 'user' | 'assistant'): string => {
   return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 };
@@ -137,16 +149,7 @@ export function useAiChat(options: UseAiChatOptions = {}): UseAiChatReturn {
     mode: initialMode = 'sync' // Default to sync mode
   } = options;
 
-  const [messages, setMessages] = useState<ChatMessage[]>([
-    {
-      id: '1',
-      content: 'Xin chào! Tôi có thể giúp bạn tìm kiếm chuyến bay, khách sạn hoặc lên kế hoạch du lịch. Bạn muốn đi đâu?',
-      isUser: false,
-      timestamp: new Date(),
-      results: [], // Make sure results is initialized
-      suggestions: [],
-    },
-  ]);
+  const [messages, setMessages] = useState<ChatMessage[]>(() => createInitialMessages());
   
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -333,6 +336,12 @@ export function useAiChat(options: UseAiChatOptions = {}): UseAiChatReturn {
     }
   }, [isLoading, conversationId, context, refreshChatConversations, onError, user]);
 
+  const startNewConversation = useCallback(() => {
+    setMessages(createInitialMessages());
+    setError(null);
+    setConversationId(null);
+  }, []);
+
   const clearMessages = useCallback(async () => {
     if (conversationId) {
       try {
@@ -345,16 +354,7 @@ export function useAiChat(options: UseAiChatOptions = {}): UseAiChatReturn {
       }
     }
     
-    setMessages([
-      {
-        id: '1',
-        content: 'Xin chào! Tôi có thể giúp bạn tìm kiếm chuyến bay, khách sạn hoặc lên kế hoạch du lịch. Bạn muốn đi đâu?',
-        isUser: false,
-        timestamp: new Date(),
-        results: [],
-        suggestions: [],
-      },
-    ]);
+    setMessages(createInitialMessages());
     setError(null);
     setConversationId(null);
   }, [conversationId, refreshChatConversations]);
@@ -379,6 +379,7 @@ export function useAiChat(options: UseAiChatOptions = {}): UseAiChatReturn {
  
     sendMessage,
     clearMessages,
+    startNewConversation,
     loadChatHistory,
     suggestions,
     getSuggestions,

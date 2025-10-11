@@ -12,6 +12,7 @@ import com.pdh.booking.mapper.BookingDtoMapper;
 import com.pdh.booking.model.Booking;
 import com.pdh.booking.service.BookingCqrsService;
 import com.pdh.booking.service.BookingService;
+import com.pdh.booking.saga.BookingSagaOrchestrator;
 import com.pdh.booking.model.enums.BookingStatus;
 import com.pdh.common.config.OpenApiResponses;
 import com.pdh.common.utils.AuthenticationUtils;
@@ -22,6 +23,7 @@ import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 
 import java.math.BigDecimal;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -32,8 +34,10 @@ import org.springframework.data.domain.Pageable;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.server.ResponseStatusException;
 
 import jakarta.validation.Valid;
 
@@ -55,6 +59,7 @@ public class BookingController {
     private final BookingDtoMapper bookingDtoMapper;
     private final ObjectMapper objectMapper;
     private final BookingService bookingService;
+    private final BookingSagaOrchestrator bookingSagaOrchestrator;
     @Value("${booking.validation.bypass:true}")
     private boolean bypassValidation;
 
@@ -132,6 +137,42 @@ public class BookingController {
             log.error("Error confirming booking {}", bookingId, e);
             return ResponseEntity.internalServerError().build();
         }
+    }
+
+    @Operation(
+        summary = "Initiate payment for booking (Storefront)",
+        description = "Mark the booking as ready for payment once the customer confirms the intent",
+        tags = {"Public API", "Status Tracking"}
+    )
+    @SecurityRequirement(name = "oauth2", scopes = {"customer"})
+    @PostMapping("/storefront/{bookingId}/payment/initiate")
+    public ResponseEntity<BookingStatusResponseDto> initiatePayment(
+            @PathVariable UUID bookingId,
+            @RequestBody(required = false) Map<String, String> payload) {
+        UUID currentUser = AuthenticationUtils.getCurrentUserIdFromContext();
+
+        Booking booking = bookingService.findByBookingId(bookingId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND));
+
+        if (booking.getUserId() != null && !booking.getUserId().equals(currentUser)) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+        }
+
+        bookingSagaOrchestrator.markPaymentInitiated(bookingId);
+
+        Booking refreshed = bookingService.findByBookingId(bookingId).orElse(booking);
+
+        BookingStatusResponseDto response = BookingStatusResponseDto.builder()
+                .bookingId(refreshed.getBookingId().toString())
+                .bookingReference(refreshed.getBookingReference())
+                .status(refreshed.getStatus())
+                .lastUpdated(refreshed.getUpdatedAt() != null ? refreshed.getUpdatedAt().toString() : null)
+                .message("Payment initiation acknowledged. Please complete payment to confirm booking.")
+                .build();
+        response.setProgressPercentage(null);
+        response.setEstimatedCompletion(null);
+
+        return ResponseEntity.accepted().body(response);
     }
 
     @Operation(

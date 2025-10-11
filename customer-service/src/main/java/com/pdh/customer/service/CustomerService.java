@@ -131,7 +131,11 @@ public class CustomerService {
                 for (Map.Entry<String, String> entry : attributes.entrySet()) {
                     String key = entry.getKey();
                     String value = entry.getValue();
-                    
+
+                    if (value != null && ( "phone".equalsIgnoreCase(key) || "phone_number".equalsIgnoreCase(key))) {
+                        value = value.replaceAll("\\s+", "");
+                    }
+
                     // Use the attribute name directly (frontend now sends simple names)
                     String keycloakKey = key;
                     
@@ -172,7 +176,11 @@ public class CustomerService {
                     keycloak.realm(keycloakPropsConfig.getRealm()).users().get(id).toRepresentation();
             if (userRepresentation != null) {
                 // Update single attribute
-                userRepresentation.singleAttribute(attributeName, attributeRequestVm.value());
+                String value = attributeRequestVm.value();
+                if (value != null && ("phone".equalsIgnoreCase(attributeName) || "phone_number".equalsIgnoreCase(attributeName))) {
+                    value = value.replaceAll("\\s+", "");
+                }
+                userRepresentation.singleAttribute(attributeName, value);
 
                 RealmResource realmResource = keycloak.realm(keycloakPropsConfig.getRealm());
                 UserResource userResource = realmResource.users().get(id);

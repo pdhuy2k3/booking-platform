@@ -1,37 +1,36 @@
 package com.pdh.ai.agent;
 
-import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Locale;
-import java.util.Map;
+import java.util.stream.Collectors;
+
+import com.pdh.ai.agent.tools.CurrentDateTimeZoneTool;
+import com.pdh.ai.util.CurlyBracketEscaper;
+
+import io.modelcontextprotocol.client.McpSyncClient;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import com.pdh.ai.agent.advisor.LoggingAdvisor;
 import com.pdh.ai.agent.guard.InputValidationGuard;
 import com.pdh.ai.agent.guard.ScopeGuard;
-import com.pdh.ai.agent.tools.CurrentDateTimeZoneTool;
-import com.pdh.ai.agent.workflow.OrchestratorWorkers;
-import com.pdh.ai.agent.workflow.RoutingWorkflow;
-import com.pdh.ai.agent.workflow.ChainWorkflow;
-
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.client.advisor.MessageChatMemoryAdvisor;
 import org.springframework.ai.chat.memory.ChatMemory;
+import org.springframework.ai.converter.BeanOutputConverter;
+import org.springframework.ai.mcp.SyncMcpToolCallbackProvider;
 import org.springframework.ai.mistralai.MistralAiChatModel;
-import org.springframework.ai.tool.ToolCallbackProvider;
+
 import org.springframework.core.Ordered;
 import org.springframework.stereotype.Component;
-import org.springframework.util.StringUtils;
 
+import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import com.pdh.ai.service.JpaChatMemory;
 
 import com.pdh.ai.model.dto.StructuredChatPayload;
-import com.pdh.ai.model.dto.StructuredResultItem;
 
 
 @Component
+
 public class CoreAgent {
 
     private static final Logger logger = LoggerFactory.getLogger(CoreAgent.class);
@@ -93,7 +92,6 @@ public class CoreAgent {
             - User searches flights/hotels
             - Present options with prices and images
 
-            
             **Step 2: Create Booking (Requires Confirmation)**
 
             -User requests to book a selected flight/hotel from search results 
@@ -202,21 +200,13 @@ public class CoreAgent {
             
             Help users plan trips with real data, inspiring visuals, and secure payment processing.
             """;
-    private static final Map<String, String> WORKFLOW_ROUTE_DESCRIPTIONS = Map.of(
-            "MULTI_STEP", "Các yêu cầu phức tạp cần chia nhỏ và tổng hợp nhiều góc nhìn hoặc đề xuất",
-            "NUMERIC_ANALYSIS", "Các câu hỏi tập trung vào số liệu, KPI hoặc cần chuẩn hóa dữ liệu",
-            "DIRECT_STRUCTURED", "Các yêu cầu trò chuyện/đặt dịch vụ thông thường cần phản hồi chuẩn"
-    );
     private final ChatMemory chatMemory;
     private final MistralAiChatModel mistraModel;
     private final ChatClient chatClient;
-    private final OrchestratorWorkers orchestratorWorkers;
-    private final RoutingWorkflow routingWorkflow;
-    private final ChainWorkflow chainWorkflow;
-   
+
 
     public CoreAgent(
-            ToolCallbackProvider toolCallbackProvider,
+            List<McpSyncClient> toolCallbackProvider,
             JpaChatMemory chatMemory,
             InputValidationGuard inputValidationGuard,
             ScopeGuard scopeGuard,
@@ -225,14 +215,13 @@ public class CoreAgent {
 
         this.chatMemory = chatMemory;
         this.mistraModel = mistraModel;
-        
+
         // Advisors
 
         MessageChatMemoryAdvisor memoryAdvisor = MessageChatMemoryAdvisor.builder(chatMemory)
                 .order(Ordered.HIGHEST_PRECEDENCE + 10) // Ensure memory advisor runs early
                 
                 .build();
-        
 //        SecurityGuardAdvisor chatSecurityAdvisor = SecurityGuardAdvisor
 //                .forChat(inputValidationGuard, scopeGuard);
 
@@ -240,17 +229,73 @@ public class CoreAgent {
         LoggingAdvisor chatLoggingAdvisor = new LoggingAdvisor();
         this.chatClient = ChatClient.builder(mistraModel)
                 .defaultSystem(SYSTEM_PROMPT)
-                .defaultToolCallbacks(toolCallbackProvider)
+                .defaultToolCallbacks(new SyncMcpToolCallbackProvider(toolCallbackProvider))
                 .defaultAdvisors(memoryAdvisor, chatLoggingAdvisor)
                 .defaultTools(new CurrentDateTimeZoneTool())
                 .build();
 
-        this.orchestratorWorkers = new OrchestratorWorkers(this.chatClient);
-        this.routingWorkflow = new RoutingWorkflow(this.chatClient);
-        this.chainWorkflow = new ChainWorkflow(this.chatClient);
-
     }
 
+
+    /**
+     * Streaming structured processing - returns Flux of StructuredChatPayload.
+     * Follows Spring AI test pattern: collect stream, then convert to structured output.
+     *
+     * @param message        User message to process
+     * @param conversationId Conversation ID for context
+     * @return Flux of StructuredChatPayload chunks
+     */
+    public Flux<StructuredChatPayload> processStreamStructured(String message, String conversationId) {
+
+        return Flux.defer(() -> {
+            BeanOutputConverter<StructuredChatPayload> converter =
+                    new BeanOutputConverter<>(StructuredChatPayload.class);
+
+            logger.info("🚀 [STREAM-TOOL-TRACKER] Starting processStreamStructured - conversationId: {}", conversationId);
+            logger.info("🔍 [STREAM-TOOL-TRACKER] User message: {}", message);
+            logger.info("🔧 [STREAM-TOOL-TRACKER] JSON Schema generated: {}", converter.getFormat());
+
+            // Stream content and collect into single StructuredChatPayload
+            Flux<String> contentStream = chatClient.prompt()
+                    .user(u->{
+                        u.text(message+System.lineSeparator()+"{format}")
+                                .param("format", CurlyBracketEscaper.escapeCurlyBrackets(converter.getFormat()));
+                    })
+                    
+                    .advisors(advisorSpec -> advisorSpec
+                            .param(ChatMemory.CONVERSATION_ID, conversationId))
+                    .stream()
+                    .content()
+                    ;
+
+            return contentStream
+                    .collectList()
+                    .flatMapMany(chunks -> {
+                        String generatedText = chunks.stream().collect(Collectors.joining());
+                        logger.info("✅ [STREAM-TOOL-TRACKER] Collected {} chunks, total length: {}",
+                                chunks.size(), generatedText.length());
+
+                        try {
+                            StructuredChatPayload result = converter.convert(generatedText);
+                            logger.info("✅ [STREAM-TOOL-TRACKER] Converted to structured payload: message={}, results={}",
+                                    result.getMessage(), result.getResults() != null ? result.getResults().size() : 0);
+                            return Flux.just(result);
+                        } catch (Exception e) {
+                            logger.error("❌ [STREAM-TOOL-TRACKER] Conversion error: {}", e.getMessage(), e);
+                            return Flux.just(StructuredChatPayload.builder()
+                                    .message(ERROR_MESSAGE)
+                                    .results(List.of())
+                                    .build());
+                        }
+                    });
+        }).onErrorResume(e -> {
+            logger.error("❌ [STREAM-TOOL-TRACKER] Error in processStreamStructured: {}", e.getMessage(), e);
+            return Flux.just(StructuredChatPayload.builder()
+                    .message(ERROR_MESSAGE)
+                    .results(List.of())
+                    .build());
+        });
+    }
 
     /**
      * Synchronous structured processing - returns single StructuredChatPayload.
@@ -265,121 +310,34 @@ public class CoreAgent {
         logger.info("🔍 [SYNC-TOOL-TRACKER] User message: {}", message);
 
         return Mono.fromCallable(() -> {
-            String sanitizedMessage = message != null ? message.trim() : "";
-            String selectedRoute = selectWorkflowRoute(sanitizedMessage);
 
-            logger.info("🧭 [SYNC-TOOL-TRACKER] Selected workflow route: {}", selectedRoute);
 
-            StructuredChatPayload raw = switch (selectedRoute) {
-            case "MULTI_STEP" -> orchestratorWorkers.process(sanitizedMessage, conversationId);
-            case "NUMERIC_ANALYSIS" -> executeChainWorkflow(sanitizedMessage, conversationId);
-            default -> executeDirectStructuredWorkflow(sanitizedMessage, conversationId);
-            };
+            // Use .entity() for direct structured output instead of streaming
+            StructuredChatPayload result = chatClient.prompt()
+                    .user(message)
+                    .advisors(advisorSpec -> advisorSpec.param(ChatMemory.CONVERSATION_ID, conversationId))
+                    .call()
 
-            StructuredChatPayload result = sanitizePayload(raw);
+                    .entity(StructuredChatPayload.class);
 
             logger.info("✅ [SYNC-TOOL-TRACKER] Successfully got structured response: message={}, results={}",
-                    result.getMessage(),
-                    result.getResults() != null ? result.getResults().size() : 0);
+                    result != null ? result.getMessage() : "null",
+                    result != null && result.getResults() != null ? result.getResults().toString() : 0);
 
-            return result;
+            return result != null ? result : StructuredChatPayload.builder()
+                    .message("Đã xử lý yêu cầu nhưng không có kết quả.")
+                    .results(List.of())
+                    .build();
 
         }).onErrorResume(e -> {
             logger.error("❌ [SYNC-TOOL-TRACKER] Error in processSyncStructured: {}", e.getMessage(), e);
             return Mono.just(StructuredChatPayload.builder()
                     .message(ERROR_MESSAGE)
-                    .nextRequestSuggesstions(new String[] { "Vui lòng thử lại với yêu cầu khác." })
                     .results(List.of())
                     .build());
         });
     }
 
-    private String selectWorkflowRoute(String message) {
-        if (!StringUtils.hasText(message)) {
-            return "DIRECT_STRUCTURED";
-        }
 
-        try {
-            String route = routingWorkflow.classify(message, WORKFLOW_ROUTE_DESCRIPTIONS);
-            if (!StringUtils.hasText(route)) {
-                return "DIRECT_STRUCTURED";
-            }
-            return route.trim().toUpperCase(Locale.ROOT);
-        } catch (Exception ex) {
-            logger.warn("⚠️ [SYNC-TOOL-TRACKER] Routing failed, falling back to direct workflow: {}", ex.getMessage());
-            return "DIRECT_STRUCTURED";
-        }
-    }
 
-    private StructuredChatPayload executeDirectStructuredWorkflow(String message, String conversationId) {
-        return this.chatClient.prompt()
-                .user(message)
-                .advisors(advisorSpec -> {
-                    if (StringUtils.hasText(conversationId)) {
-                        advisorSpec.param(ChatMemory.CONVERSATION_ID, conversationId);
-                    }
-                })
-                .call()
-                .entity(StructuredChatPayload.class);
-    }
-
-    private StructuredChatPayload executeChainWorkflow(String message, String conversationId) {
-        String chainResult = this.chainWorkflow.chain(message);
-        if (!StringUtils.hasText(chainResult)) {
-            chainResult = "Không thể trích xuất số liệu từ nội dung bạn cung cấp.";
-        }
-
-        StructuredResultItem chainItem = StructuredResultItem.builder()
-                .type("info")
-                .title("Phân tích số liệu")
-                .subtitle("Chuỗi xử lý dữ liệu")
-                .description(chainResult)
-                .metadata(createMetadata("chain", conversationId))
-                .build();
-
-        return StructuredChatPayload.builder()
-                .message("Tôi đã chuẩn hóa và sắp xếp lại các số liệu bạn cung cấp.")
-                .nextRequestSuggesstions(new String[] {
-                        "Bạn muốn tôi phân tích thêm bộ số liệu nào khác?",
-                        "Bạn có cần chuyển kết quả này thành báo cáo không?" })
-                .results(List.of(chainItem))
-                .build();
-    }
-
-    private Map<String, Object> createMetadata(String workflow, String conversationId) {
-        Map<String, Object> metadata = new HashMap<>();
-        metadata.put("workflow", workflow);
-        if (StringUtils.hasText(conversationId)) {
-            metadata.put("conversationId", conversationId);
-        }
-        return metadata;
-    }
-
-    private StructuredChatPayload sanitizePayload(StructuredChatPayload payload) {
-        if (payload == null) {
-            return StructuredChatPayload.builder()
-                    .message("Tôi đã xử lý yêu cầu của bạn nhưng chưa tạo được phản hồi phù hợp.")
-                    .nextRequestSuggesstions(new String[] { "Hãy cung cấp thêm chi tiết để tôi hỗ trợ tốt hơn." })
-                    .results(List.of())
-                    .build();
-        }
-
-        if (!StringUtils.hasText(payload.getMessage())) {
-            payload.setMessage("Tôi đã xử lý yêu cầu của bạn.");
-        }
-
-        if (payload.getResults() == null) {
-            payload.setResults(Collections.emptyList());
-        }
-
-        if (payload.getNextRequestSuggesstions() == null) {
-            payload.setNextRequestSuggesstions(new String[0]);
-        }
-
-        if (payload.getRequiresConfirmation() == null) {
-            payload.setRequiresConfirmation(Boolean.FALSE);
-        }
-
-        return payload;
-    }
 }

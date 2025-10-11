@@ -148,6 +148,7 @@ export function HotelSearchTab({ onBookingStart }: HotelSearchTabProps = {}) {
     const nights = checkInDate && checkOutDate
       ? Math.max(1, Math.round((new Date(checkOutDate).getTime() - new Date(checkInDate).getTime()) / (1000 * 60 * 60 * 24)))
       : undefined
+    const totalPrice = price * (roomCount ?? 1) * (nights ?? 1)
 
     resetBooking()
     setBookingType('hotel')
@@ -163,6 +164,8 @@ export function HotelSearchTab({ onBookingStart }: HotelSearchTabProps = {}) {
       roomType,
       roomName,
       price,
+      pricePerNight: price,
+      totalPrice,
       currency: hotel.currency || 'VND',
       amenities,
       image: room.image || hotel.primaryImage || hotel.images?.[0],

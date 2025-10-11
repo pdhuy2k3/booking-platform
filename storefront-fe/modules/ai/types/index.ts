@@ -71,6 +71,7 @@ export interface ChatHistoryResponse {
 export interface ChatConversationSummary {
   id: string;
   title: string;
+  createdAt?: string;
   lastUpdated?: string;
 }
 
@@ -154,4 +155,3 @@ export interface AudioRecorderState {
   duration: number; // in milliseconds
   error: string | null;
 }
-

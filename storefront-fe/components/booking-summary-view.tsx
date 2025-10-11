@@ -86,7 +86,12 @@ export function BookingSummaryView() {
   const hotelPricing = useMemo(() => {
     if (!selectedHotel) return null
 
-    const pricePerNight = Number(selectedHotel.price ?? 0)
+    const pricePerNight = Number(
+      selectedHotel.pricePerNight ??
+      selectedHotel.price ??
+      selectedHotel.totalPrice ??
+      0
+    )
     const rooms = Math.max(1, Number(selectedHotel.rooms ?? 1))
 
     let nights = Number(selectedHotel.nights ?? 0)
@@ -108,7 +113,10 @@ export function BookingSummaryView() {
       nights = 1
     }
 
-    const total = pricePerNight * nights * rooms
+    const total = Number(
+      selectedHotel.totalPrice ??
+      pricePerNight * nights * rooms
+    )
 
     return {
       pricePerNight,
@@ -318,7 +326,14 @@ export function BookingSummaryView() {
             </div>
             <div className="text-right">
               <p className="text-xs uppercase text-muted-foreground">Giá mỗi đêm</p>
-              <p className="text-lg font-semibold">{formatPrice(pricing?.pricePerNight || selectedHotel.price || 0)}</p>
+              <p className="text-lg font-semibold">
+                {formatPrice(
+                  pricing?.pricePerNight ??
+                  selectedHotel.pricePerNight ??
+                  selectedHotel.price ??
+                  0
+                )}
+              </p>
               {pricing && (
                 <>
                   <p className="mt-1 text-xs text-muted-foreground">

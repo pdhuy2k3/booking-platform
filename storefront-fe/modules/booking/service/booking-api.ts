@@ -97,6 +97,18 @@ class BookingApiService {
     }
   }
 
+  async initiatePayment(bookingId: string, payload?: { paymentMethodId?: string }): Promise<BookingStatusPollResponse> {
+    try {
+      return await apiClient.post<BookingStatusPollResponse>(
+        `/bookings/storefront/${bookingId}/payment/initiate`,
+        payload ?? {}
+      )
+    } catch (error: any) {
+      console.error('Error initiating payment:', error)
+      throw new Error(error?.response?.data?.message || 'Failed to initiate payment')
+    }
+  }
+
   async getBookingHistory(page = 0, size = 10): Promise<BookingHistoryResponseDto> {
     try {
       return await apiClient.get<BookingHistoryResponseDto>(

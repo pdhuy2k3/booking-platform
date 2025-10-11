@@ -71,7 +71,9 @@ export function HotelBookingForm({ hotel, onSubmit, onCancel }: HotelBookingForm
     return Math.ceil(timeDiff / (1000 * 3600 * 24));
   };
 
-  const [roomPrice, setRoomPrice] = useState<number>(hotel.price);
+  const [roomPrice, setRoomPrice] = useState<number>(
+    hotel.pricePerNight ?? hotel.price ?? hotel.totalPrice ?? 0
+  );
   const [isFetching, setIsFetching] = useState<boolean>(false);
 
   const numberOfNights = Math.max(1, calculateNights());
@@ -81,8 +83,8 @@ export function HotelBookingForm({ hotel, onSubmit, onCancel }: HotelBookingForm
   const skipNextPriceToastRef = useRef<boolean>(false);
 
   useEffect(() => {
-    setRoomPrice(hotel.price)
-  }, [hotel.price])
+    setRoomPrice(hotel.pricePerNight ?? hotel.price ?? hotel.totalPrice ?? 0)
+  }, [hotel.pricePerNight, hotel.price, hotel.totalPrice])
 
   useEffect(() => {
     if (!initializedPriceRef.current) {
@@ -211,10 +213,11 @@ export function HotelBookingForm({ hotel, onSubmit, onCancel }: HotelBookingForm
     const totalPrice = roomPrice * numberOfNights * numberOfRooms
 
     const normalizeDate = (value: Date | undefined): string => {
-      if (!value) {
-        return ''
-      }
-      return value.toISOString().split('T')[0]
+      if (!value) return ''
+      const year = value.getFullYear()
+      const month = String(value.getMonth() + 1).padStart(2, '0')
+      const day = String(value.getDate()).padStart(2, '0')
+      return `${year}-${month}-${day}`
     }
 
     const bookingDetails: HotelBookingDetails = {

@@ -9,7 +9,7 @@ import { paymentMethodService, type PaymentMethodResponse } from '../service/pay
 
 interface PaymentMethodSelectorProps {
   selectedMethodId?: string
-  onSelectMethod: (methodId: string | null) => void
+  onSelectMethod: (method: PaymentMethodResponse | null) => void
   onAddNewMethod: () => void
   className?: string
 }
@@ -32,6 +32,7 @@ export const PaymentMethodSelector: React.FC<PaymentMethodSelectorProps> = ({
     try {
       setIsLoading(true)
       const methods = await paymentMethodService.getPaymentMethods()
+      setError(null)
       setPaymentMethods(methods)
     } catch (error) {
       console.error('Error loading payment methods:', error)
@@ -49,6 +50,7 @@ export const PaymentMethodSelector: React.FC<PaymentMethodSelectorProps> = ({
       if (selectedMethodId === methodId) {
         onSelectMethod(null)
       }
+      setError(null)
     } catch (error) {
       console.error('Error deleting payment method:', error)
       setError('Failed to delete payment method')
@@ -56,7 +58,7 @@ export const PaymentMethodSelector: React.FC<PaymentMethodSelectorProps> = ({
   }
 
   const getCardIcon = (brand?: string) => {
-    switch (brand) {
+    switch (brand?.toLowerCase()) {
       case 'visa':
         return '💳'
       case 'mastercard':
@@ -142,12 +144,12 @@ export const PaymentMethodSelector: React.FC<PaymentMethodSelectorProps> = ({
                     ? 'border-blue-500 bg-blue-50'
                     : 'border-gray-200 hover:border-gray-300'
                 }`}
-                onClick={() => onSelectMethod(method.methodId)}
+                onClick={() => onSelectMethod(method)}
               >
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-3">
                     <div className="text-2xl">
-                      {getCardIcon(method.brand)}
+                      {getCardIcon(method.cardBrand)}
                     </div>
                     <div>
                       <div className="flex items-center gap-2">

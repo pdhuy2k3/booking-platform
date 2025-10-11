@@ -1,6 +1,6 @@
 package com.pdh.notification.service;
 
-import java.util.UUID;
+import java.util.Map;
 
 public interface NotificationService {
 
@@ -8,5 +8,5 @@ public interface NotificationService {
 
     Object getNotificationStatus(String notificationId);
 
-    void sendBookingConfirmation(UUID bookingId);
+    void handleBookingEvent(String eventType, Map<String, Object> payload);
 }

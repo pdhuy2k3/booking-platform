@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useMemo, useState } from "react"
 import { FlightCard } from "@/components/cards/flight-card"
 import { HotelCard } from "@/components/cards/hotel-card"
 import { Button } from "@/components/ui/button"
@@ -161,9 +161,20 @@ export const AiResponseRenderer = ({
   const [isHotelModalOpen, setIsHotelModalOpen] = useState(false)
 
   // Group results by type
-  const flightResults = results.filter((r) => r.type === "flight")
-  const hotelResults = results.filter((r) => r.type === "hotel")
-  const infoResults = results.filter((r) => r.type === "info" || r.type === "location" || r.type === "weather")
+  const normalizedResults = useMemo(() => (Array.isArray(results) ? results : []), [results])
+
+  const flightResults = useMemo(
+    () => normalizedResults.filter((r) => r.type === "flight"),
+    [normalizedResults]
+  )
+  const hotelResults = useMemo(
+    () => normalizedResults.filter((r) => r.type === "hotel"),
+    [normalizedResults]
+  )
+  const infoResults = useMemo(
+    () => normalizedResults.filter((r) => r.type === "info" || r.type === "location" || r.type === "weather"),
+    [normalizedResults]
+  )
 
   // Handlers
   const handleFlightViewDetails = (flight: any) => {

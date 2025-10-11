@@ -96,12 +96,18 @@ public class PaymentMethodService {
             paymentMethod.setCardExpiryMonth(request.getCardExpiryMonth());
             paymentMethod.setCardExpiryYear(request.getCardExpiryYear());
             paymentMethod.setCardHolderName(request.getCardHolderName());
-            
-            // Store Stripe payment method ID in provider data if provided
+
             if (request.getStripePaymentMethodId() != null) {
-                paymentMethod.setProviderData(request.getStripePaymentMethodId());
+                String sanitized = request.getStripePaymentMethodId().trim();
+                paymentMethod.setToken(sanitized);
+                paymentMethod.setProviderData(buildStripeProviderData(
+                    sanitized,
+                    request.getStripeCustomerId()
+                ));
+            } else if (request.getStripeCustomerId() != null) {
+                paymentMethod.setProviderData(buildStripeProviderData(null, request.getStripeCustomerId()));
             }
-            
+
             // Generate fingerprint for duplicate detection
             paymentMethod.setFingerprint(generateFingerprint(request));
         }
@@ -122,11 +128,11 @@ public class PaymentMethodService {
         // Create Stripe customer if using Stripe (optional - can be done later)
         if (request.getProvider() == PaymentProvider.STRIPE && request.getStripeCustomerId() != null) {
             try {
-                // Store customer ID in provider data or notes
-                String providerData = savedMethod.getProviderData() != null ? 
-                    savedMethod.getProviderData() + ";customerId=" + request.getStripeCustomerId() :
-                    "customerId=" + request.getStripeCustomerId();
-                savedMethod.setProviderData(providerData);
+                String updatedProviderData = buildStripeProviderData(
+                    savedMethod.getToken(),
+                    request.getStripeCustomerId()
+                );
+                savedMethod.setProviderData(updatedProviderData);
                 paymentMethodRepository.save(savedMethod);
             } catch (Exception e) {
                 log.warn("Failed to store Stripe customer ID", e);
@@ -230,6 +236,23 @@ public class PaymentMethodService {
     }
 
     // Helper methods
+
+    private String buildStripeProviderData(String paymentMethodId, String customerId) {
+        StringBuilder builder = new StringBuilder();
+
+        if (paymentMethodId != null && !paymentMethodId.isBlank()) {
+            builder.append("stripePaymentMethodId=").append(paymentMethodId.trim());
+        }
+
+        if (customerId != null && !customerId.isBlank()) {
+            if (builder.length() > 0) {
+                builder.append(';');
+            }
+            builder.append("customerId=").append(customerId.trim());
+        }
+
+        return builder.length() == 0 ? null : builder.toString();
+    }
 
     private String generateFingerprint(AddPaymentMethodRequest request) {
         // Simple fingerprint generation - in production, use more sophisticated method

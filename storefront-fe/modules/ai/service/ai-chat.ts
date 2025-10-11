@@ -4,7 +4,8 @@ import {
   ChatContext, 
   ChatHistoryResponse,
   ChatMessageRequest,
-  StructuredChatPayload
+  StructuredChatPayload,
+  ChatConversationSummary
 } from '../types';
 
 class AiChatService {
@@ -98,9 +99,9 @@ class AiChatService {
   /**
    * List user's conversations
    */
-  async listConversations(): Promise<string[]> {
+  async listConversations(): Promise<ChatConversationSummary[]> {
     try {
-      const response = await apiClient.get<string[]>(
+      const response = await apiClient.get<ChatConversationSummary[]>(
         `${this.baseUrl}/chat/conversations`
       );
       return response;

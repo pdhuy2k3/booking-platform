@@ -36,7 +36,9 @@ interface SelectedHotel {
   roomId: string
   roomType: string
   roomName: string
-  price: number
+  price: number // deprecated: kept for compatibility (represents price per night)
+  pricePerNight: number
+  totalPrice?: number
   currency: string
   amenities: string[]
   image?: string

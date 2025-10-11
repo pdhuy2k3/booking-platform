@@ -2,7 +2,9 @@
 
 import { useState, useEffect } from "react"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { User, CreditCard, Calendar, MapPin, Settings } from "lucide-react"
+import { Card, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
+import { Button } from "@/components/ui/button"
+import { User, CreditCard, Calendar, MapPin, Settings, ShieldCheck } from "lucide-react"
 import { useAuth } from "@/contexts/auth-context"
 import { ProtectedRoute } from "@/components/protected-route"
 import { AttributeManager } from "@/components/attribute-manager"
@@ -110,8 +112,24 @@ export default function DashboardPage() {
 
             {/* Profile Tab */}
             <TabsContent value="profile" className="space-y-6">
-              <div className="max-w-3xl">
+              <div className="max-w-3xl space-y-4">
                 <ProfileInfo user={user} onUpdate={refreshUser} />
+                <Card className="border-gray-200">
+                  <CardHeader className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                    <div className="flex items-start gap-3">
+                      <ShieldCheck className="mt-1 h-5 w-5 text-blue-500" />
+                      <div>
+                        <CardTitle className="text-gray-900">Account Security</CardTitle>
+                        <CardDescription>
+                          Keep your account secure by updating your password regularly.
+                        </CardDescription>
+                      </div>
+                    </div>
+                    <Button variant="outline" onClick={() => setIsChangingPassword(true)}>
+                      Change Password
+                    </Button>
+                  </CardHeader>
+                </Card>
               </div>
             </TabsContent>
 

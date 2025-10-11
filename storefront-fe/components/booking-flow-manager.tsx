@@ -184,6 +184,8 @@ export function BookingFlowManager({ onBookingComplete, showSelection = true }: 
       roomType: details.roomType,
       roomName: details.roomName,
       price: details.pricePerNight,
+      pricePerNight: details.pricePerNight,
+      totalPrice: details.totalRoomPrice,
       currency: selectedHotel?.currency || hotel?.currency || bookingData.currency || 'VND',
       amenities: hotel?.amenities || selectedHotel?.amenities || [],
       image: hotel?.image,

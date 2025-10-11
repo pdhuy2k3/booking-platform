@@ -1,14 +1,47 @@
-#!/usr/bin/env bash
+#!/bin/sh
+set -e
 
+echo "==================== DEPLOYING KAFKA CONNECTORS ===================="
 
-# Flight
-curl -i -X PUT -H "Content-Type: application/json" --data-binary /tmp/connectors/flight-db-connector.json http://connect:8083/connectors/flight-connector/config
+connectors="
+flight-connector=/tmp/connectors/flight-db-connector.json
+booking-connector=/tmp/connectors/booking-saga-outbox-connector.json
+hotel-connector=/tmp/connectors/hotel-db-connector.json
+payment-connector=/tmp/connectors/payment-db-connector.json
+"
 
-# Booking (saga outbox)
-curl -i -X PUT -H "Content-Type: application/json" --data-binary /tmp/connectors/booking-saga-outbox-connector.json http://connect:8083/connectors/booking-connector/config
+deploy_connector() {
+  name=$1
+  file=$2
 
-# Hotel
-curl -i -X PUT -H "Content-Type: application/json" --data-binary /tmp/connectors/hotel-db-connector.json http://connect:8083/connectors/hotel-connector/config
+  if [ ! -f "$file" ]; then
+    echo "File not found: $file"
+    return 1
+  fi
 
-# Payment
-curl -i -X PUT -H "Content-Type: application/json" --data-binary /tmp/connectors/payment-db-connector.json http://connect:8083/connectors/payment-connector/config
+  echo "→ Deploying connector: $name"
+  status_code=$(curl -s -o /dev/null -w "%{http_code}" \
+    -X PUT \
+    -H "Accept: application/json" \
+    -H "Content-Type: application/json" \
+    --data-binary @"$file" \
+    "http://connect:8083/connectors/${name}/config")
+
+  if [ "$status_code" -ge 200 ] && [ "$status_code" -lt 300 ]; then
+    echo "✓ Success: $name ($status_code)"
+  else
+    echo "Failed: $name (HTTP $status_code)"
+  fi
+  echo "-------------------------------------------------------------------"
+}
+
+echo "Waiting 5s before deploying connectors..."
+sleep 5
+
+for entry in $connectors; do
+  name=${entry%%=*} 
+  file=${entry#*=} 
+  deploy_connector "$name" "$file"
+done
+
+echo "==================== ALL CONNECTORS DEPLOYED ===================="

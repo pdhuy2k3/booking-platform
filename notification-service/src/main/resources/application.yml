@@ -15,27 +15,25 @@ springdoc:
     authorization-url: ${KEYCLOAK_ISSUER_URI:http://localhost:9090}/protocol/openid-connect/auth
     token-url: ${KEYCLOAK_ISSUER_URI:http://localhost:9090}/protocol/openid-connect/token
   show-actuator: true
-  group-configs:
-    - group: 'internal'
-      display-name: 'Internal API'
-      paths-to-match: ['/send/**', '/template/**']
-    - group: 'admin'
-      display-name: 'Admin API'
-      paths-to-match: '/admin/**'
 
-# API Documentation Properties
-api:
-  info:
-    title: Notification Service API
-    description: Notification and messaging API for the BookingSmart platform
-    version: '@project.version@'
-    contact:
-      name: BookingSmart Notification Team
-      email: notification-team@bookingsmart.com
+
+
 
 spring:
   application:
     name: notification-service
+  mail:
+    host: ${MAIL_HOST:smtp.gmail.com}
+    port: ${MAIL_PORT:587}
+    username: ${MAIL_USERNAME:}
+    password: ${MAIL_PASSWORD:}
+    properties:
+      mail:
+        smtp:
+          auth: true
+          starttls:
+            enable: true
+        debug: false
   datasource:
     url: ${DB_URL:jdbc:postgresql://localhost:5432/notification_db}
     username: ${DB_USERNAME:postgres}
@@ -53,12 +51,32 @@ spring:
     serialization:
       fail-on-empty-beans: false
     default-property-inclusion: NON_NULL
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          issuer-uri: ${JWT_ISSUER_URI:http://localhost:9090/realms/BookingSmart}
   
   # Kafka Configuration - Minimal, inherit từ BaseKafkaConfig
   kafka:
-    bootstrap-servers: localhost:9092
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
     consumer:
       group-id: notification-service
+      auto-offset-reset: earliest
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      properties:
+        spring.json.trusted.packages: "*"
+    listener:
+      missing-topics-fatal: false
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.apache.kafka.common.serialization.StringSerializer
+    properties:
+      spring:
+        json:
+          trusted:
+            packages: "*"
 
 eureka:
   client:
@@ -83,6 +101,12 @@ spring:
     bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
     consumer:
       group-id: notification-service
+      auto-offset-reset: earliest
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          issuer-uri: ${JWT_ISSUER_URI}
 
 eureka:
   client:

@@ -44,6 +44,10 @@ public class PaymentMethodResponse {
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
 
+    // Gateway references (sanitized)
+    private String stripePaymentMethodId;
+    private String stripeCustomerId;
+
     /**
      * Get a user-friendly description of the payment method
      */

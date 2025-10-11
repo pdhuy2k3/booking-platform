@@ -9,6 +9,7 @@ import com.pdh.payment.model.PaymentMethod;
 import com.pdh.payment.model.PaymentTransaction;
 import com.pdh.payment.model.enums.PaymentProvider;
 import com.pdh.payment.repository.PaymentMethodRepository;
+import com.pdh.payment.repository.PaymentRepository;
 import com.pdh.payment.service.PaymentService;
 import com.pdh.payment.service.strategy.PaymentStrategyFactory;
 import jakarta.validation.Valid;
@@ -33,6 +34,7 @@ public class PaymentController {
 
     private final PaymentService paymentService;
     private final PaymentMethodRepository paymentMethodRepository;
+    private final PaymentRepository paymentRepository;
     private final PaymentStrategyFactory strategyFactory;
 
 
@@ -175,6 +177,31 @@ public class PaymentController {
             );
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(errorResponse);
         }
+    }
+
+    @GetMapping("/storefront/bookings/{bookingId}/summary")
+    public ResponseEntity<Map<String, Object>> getPaymentSummary(@PathVariable UUID bookingId) {
+        UUID currentUser = AuthenticationUtils.getCurrentUserIdFromContext();
+
+        Optional<Payment> paymentOpt = paymentRepository.findByBookingId(bookingId);
+        if (paymentOpt.isEmpty()) {
+            return ResponseEntity.notFound().build();
+        }
+
+        Payment payment = paymentOpt.get();
+        if (payment.getUserId() != null && !payment.getUserId().equals(currentUser)) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+        }
+
+        Map<String, Object> summary = new HashMap<>();
+        summary.put("bookingId", payment.getBookingId());
+        summary.put("paymentId", payment.getPaymentId());
+        summary.put("amount", payment.getAmount());
+        summary.put("currency", payment.getCurrency());
+        summary.put("status", payment.getStatus());
+        summary.put("updatedAt", payment.getUpdatedAt());
+
+        return ResponseEntity.ok(summary);
     }
 
     /**

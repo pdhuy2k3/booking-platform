@@ -6,11 +6,75 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { Edit3, CheckCircle, Clock, Settings } from "lucide-react"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Edit3, CheckCircle, Clock } from "lucide-react"
 import { toast } from "@/hooks/use-toast"
 import { ProfileService } from "@/lib/profile-service"
 import { mediaService } from "@/modules/media"
 import { UserInfo } from "@/lib/auth-client"
+
+type PhoneCountry = {
+  code: string
+  dialCode: string
+  label: string
+}
+
+const PHONE_COUNTRIES: PhoneCountry[] = [
+  { code: "VN", dialCode: "+84", label: "Vietnam" },
+  { code: "US", dialCode: "+1", label: "United States" },
+  { code: "SG", dialCode: "+65", label: "Singapore" },
+  { code: "JP", dialCode: "+81", label: "Japan" },
+  { code: "KR", dialCode: "+82", label: "South Korea" },
+  { code: "AU", dialCode: "+61", label: "Australia" },
+]
+
+const DEFAULT_PHONE_COUNTRY = PHONE_COUNTRIES[0]
+
+const parsePhoneNumber = (rawPhone: string): { country: PhoneCountry; number: string } => {
+  if (!rawPhone) {
+    return { country: DEFAULT_PHONE_COUNTRY, number: "" }
+  }
+
+  const trimmed = rawPhone.trim()
+  if (!trimmed) {
+    return { country: DEFAULT_PHONE_COUNTRY, number: "" }
+  }
+
+  const normalized = trimmed.startsWith("+")
+    ? trimmed.replace(/\s+/g, "")
+    : `+${trimmed.replace(/\s+/g, "")}`
+
+  const matchedCountry =
+    PHONE_COUNTRIES.find((country) => normalized.startsWith(country.dialCode)) ?? DEFAULT_PHONE_COUNTRY
+
+  const nationalNumber = normalized
+    .slice(matchedCountry.dialCode.length)
+    .replace(/^0+/, "") // remove leading zeros to avoid duplicates with country code
+
+  return {
+    country: matchedCountry,
+    number: nationalNumber,
+  }
+}
+
+const normalizeNationalNumber = (number: string): string => number.replace(/\s+/g, "").replace(/^0+/, "")
+
+const buildE164PhoneNumber = (dialCode: string, rawNumber: string): string => {
+  const sanitizedDial = dialCode.replace(/\D+/g, "")
+  const nationalNumber = normalizeNationalNumber(rawNumber).replace(/\D+/g, "")
+  if (!nationalNumber) {
+    return ""
+  }
+  return `+${sanitizedDial}${nationalNumber}`
+}
+
+const formatInternationalPhone = (dialCode: string, number: string): string => {
+  const nationalNumber = normalizeNationalNumber(number).replace(/\D+/g, "")
+  if (!nationalNumber) {
+    return ""
+  }
+  return `${dialCode} ${nationalNumber}`.trim()
+}
 
 interface ProfileInfoProps {
   user: UserInfo
@@ -39,6 +103,10 @@ export function ProfileInfo({ user, onUpdate }: ProfileInfoProps) {
     dateOfBirth: user.dateOfBirth || "",
   })
 
+  const initialPhone = parsePhoneNumber(user.phone || "")
+  const [phoneCountry, setPhoneCountry] = useState<PhoneCountry>(initialPhone.country)
+  const [phoneNumber, setPhoneNumber] = useState<string>(initialPhone.number)
+
   const handleSaveProfile = async () => {
     setIsSaving(true)
     try {
@@ -48,11 +116,14 @@ export function ProfileInfo({ user, onUpdate }: ProfileInfoProps) {
         email: userInfo.email,
       }
 
+      const formattedPhone = buildE164PhoneNumber(phoneCountry.dialCode, phoneNumber)
+      const phoneDisplayLabel = formatInternationalPhone(phoneCountry.dialCode, phoneNumber)
+
       await ProfileService.updateProfile(profileData)
       
       // Update basic info attributes
       const basicAttributes: Record<string, string> = {
-        'phone': userInfo.phone,
+        'phone': formattedPhone,
         'dateOfBirth': userInfo.dateOfBirth,
       }
 
@@ -65,10 +136,17 @@ export function ProfileInfo({ user, onUpdate }: ProfileInfoProps) {
       }
 
       await onUpdate()
+      setUserInfo((prev) => ({
+        ...prev,
+        phone: formattedPhone,
+      }))
+      setPhoneNumber(normalizeNationalNumber(phoneNumber))
       setIsEditing(false)
       toast({
         title: "Profile Updated",
-        description: "Your profile has been successfully updated.",
+        description: formattedPhone
+          ? `Phone saved as ${phoneDisplayLabel}`
+          : "Your profile has been successfully updated.",
       })
     } catch (error) {
       console.error('Failed to update profile:', error)
@@ -235,14 +313,40 @@ export function ProfileInfo({ user, onUpdate }: ProfileInfoProps) {
           </div>
           <div className="space-y-2">
             <Label htmlFor="phone">Phone Number</Label>
-            <Input
-              id="phone"
-              type="tel"
-              value={userInfo.phone}
-              onChange={(e) => setUserInfo((prev) => ({ ...prev, phone: e.target.value }))}
-              disabled={!isEditing}
-              className="bg-white border-gray-300 disabled:opacity-60"
-            />
+            <div className="flex gap-2">
+              <Select
+                value={phoneCountry.code}
+                onValueChange={(code) => {
+                  const selected = PHONE_COUNTRIES.find((country) => country.code === code) ?? DEFAULT_PHONE_COUNTRY
+                  setPhoneCountry(selected)
+                  setPhoneNumber((prev) => prev.replace(/^0+/, ""))
+                }}
+                disabled={!isEditing}
+              >
+                <SelectTrigger className="w-[140px] bg-white border-gray-300 disabled:opacity-60">
+                  <SelectValue placeholder="Country" />
+                </SelectTrigger>
+                <SelectContent>
+                  {PHONE_COUNTRIES.map((country) => (
+                    <SelectItem key={country.code} value={country.code}>
+                      {country.label} ({country.dialCode})
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Input
+                id="phone"
+                type="tel"
+                value={phoneNumber}
+                onChange={(e) => setPhoneNumber(e.target.value.replace(/[^\d\s]/g, ""))}
+                disabled={!isEditing}
+                placeholder="772 726 533"
+                className="bg-white border-gray-300 disabled:opacity-60"
+              />
+            </div>
+            <p className="text-xs text-gray-500">
+              {formatInternationalPhone(phoneCountry.dialCode, phoneNumber) || `${phoneCountry.dialCode} • Example: 772 726 533`}
+            </p>
           </div>
           <div className="space-y-2">
             <Label htmlFor="dateOfBirth">Date of Birth</Label>
