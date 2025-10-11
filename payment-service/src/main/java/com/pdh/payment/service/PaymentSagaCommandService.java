@@ -132,16 +132,17 @@ public class PaymentSagaCommandService {
     }
 
     private void publishPaymentEvent(String eventType, Payment payment, PaymentTransaction transaction) {
-        Map<String, Object> payload = Map.of(
-            "paymentId", payment.getPaymentId(),
-            "bookingId", payment.getBookingId(),
-            "userId", payment.getUserId(),
-            "transactionId", transaction.getTransactionId(),
-            "amount", transaction.getAmount(),
-            "currency", transaction.getCurrency(),
-            "status", transaction.getStatus(),
-            "provider", transaction.getProvider(),
-            "sagaId", payment.getSagaId()
+        Map<String, Object> payload = Map.ofEntries(
+            Map.entry("eventType", eventType),
+            Map.entry("paymentId", payment.getPaymentId()),
+            Map.entry("bookingId", payment.getBookingId()),
+            Map.entry("userId", payment.getUserId()),
+            Map.entry("transactionId", transaction.getTransactionId()),
+            Map.entry("amount", transaction.getAmount()),
+            Map.entry("currency", transaction.getCurrency()),
+            Map.entry("status", transaction.getStatus()),
+            Map.entry("provider", transaction.getProvider()),
+            Map.entry("sagaId", payment.getSagaId())
         );
 
         outboxEventService.publishEvent(eventType, "Payment", payment.getPaymentId().toString(), payload);

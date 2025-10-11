@@ -19,17 +19,20 @@ import {
   PopoverContent, 
   PopoverTrigger 
 } from "@/components/ui/popover"
-import { format } from "date-fns"
 import { CalendarIcon } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { FlightBookingDetails, PassengerDetails } from '@/modules/booking/types'
 import { useToast } from "@/hooks/use-toast"
+import { useDateFormatter } from "@/hooks/use-date-formatter"
+import { formatBookingDateTime } from '@/lib/date-format'
 
-const formatDateTimeLabel = (value?: string) => {
-  if (!value) return 'Chưa có'
-  const parsed = new Date(value)
-  if (Number.isNaN(parsed.getTime())) return value
-  return format(parsed, 'PPP p')
+const pickDateTimeValue = (...values: (string | null | undefined)[]): string | undefined => {
+  for (const value of values) {
+    if (typeof value === 'string' && value.trim().length > 0) {
+      return value
+    }
+  }
+  return undefined
 }
 
 interface FlightBookingFormProps {
@@ -40,6 +43,7 @@ interface FlightBookingFormProps {
 
 export function FlightBookingForm({ flight, onSubmit, onCancel }: FlightBookingFormProps) {
   const { toast } = useToast();
+  const { timezone, language } = useDateFormatter()
   const [passengerCount, setPassengerCount] = useState<number>(1)
   const [seatClass, setSeatClass] = useState<string>('ECONOMY')
   const [specialRequests, setSpecialRequests] = useState<string>('')
@@ -61,6 +65,18 @@ export function FlightBookingForm({ flight, onSubmit, onCancel }: FlightBookingF
   const [initialTotalPrice, setInitialTotalPrice] = useState<number>(flight.price || 0);
   const [currentTotal, setCurrentTotal] = useState<number>(flight.price);
   const [isFetching, setIsFetching] = useState<boolean>(false);
+  const departureDisplaySource = pickDateTimeValue(
+    flight.departureDateTime,
+    flight.raw?.departureDateTime,
+    flight.departureTime,
+    flight.raw?.departureTime,
+  )
+  const arrivalDisplaySource = pickDateTimeValue(
+    flight.arrivalDateTime,
+    flight.raw?.arrivalDateTime,
+    flight.arrivalTime,
+    flight.raw?.arrivalTime,
+  )
 
   // Show toast when passenger count changes
   useEffect(() => {
@@ -162,14 +178,48 @@ export function FlightBookingForm({ flight, onSubmit, onCancel }: FlightBookingF
       return
     }
 
+    const normalizeDateTime = (value?: string | null): string => {
+      if (!value) {
+        return ''
+      }
+
+      // If the value already looks like an ISO string, keep it as-is
+      const isoMatch = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2})?(\.\d+)?(Z|[+-]\d{2}:?\d{2})?$/.test(value)
+      if (isoMatch) {
+        return value
+      }
+
+      // Otherwise try to parse in a timezone-friendly way
+      const parsed = new Date(value)
+      if (!Number.isNaN(parsed.getTime())) {
+        return parsed.toISOString()
+      }
+
+      // Fallback: return the original string to avoid crashing downstream
+      return value
+    }
+
+    const departureDateValue = pickDateTimeValue(
+      flight.departureDateTime,
+      flight.raw?.departureDateTime,
+      flight.departureTime,
+      flight.raw?.departureTime,
+    )
+    const arrivalDateValue = pickDateTimeValue(
+      flight.arrivalDateTime,
+      flight.raw?.arrivalDateTime,
+      flight.arrivalTime,
+      flight.raw?.arrivalTime,
+    )
+
     const bookingDetails: FlightBookingDetails = {
       flightId: flight.id,
       flightNumber: flight.flightNumber,
       airline: flight.airline,
       originAirport: flight.origin,
       destinationAirport: flight.destination,
-      departureDateTime: flight.departureTime, // Use flight's fixed departure time
-      arrivalDateTime: flight.arrivalTime, // Use flight's fixed arrival time
+      departureDateTime: normalizeDateTime(departureDateValue),
+      arrivalDateTime: normalizeDateTime(arrivalDateValue),
       seatClass,
       scheduleId: flight.scheduleId,
       fareId: flight.fareId,
@@ -199,10 +249,10 @@ export function FlightBookingForm({ flight, onSubmit, onCancel }: FlightBookingF
             </div>
             <div>
               <p className="text-sm">
-                <span className="font-medium">Khởi hành:</span> {formatDateTimeLabel(flight.departureTime)}
+                <span className="font-medium">Khởi hành:</span> {formatBookingDateTime(departureDisplaySource, { locale: language, timeZone: timezone })}
               </p>
               <p className="text-sm">
-                <span className="font-medium">Hạ cánh:</span> {formatDateTimeLabel(flight.arrivalTime)}
+                <span className="font-medium">Hạ cánh:</span> {formatBookingDateTime(arrivalDisplaySource, { locale: language, timeZone: timezone })}
               </p>
             </div>
           </div>

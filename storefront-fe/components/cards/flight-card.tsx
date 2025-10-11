@@ -18,15 +18,19 @@ interface FlightCardProps {
     destination: string;
     departureTime: string;
     arrivalTime: string;
+    departureDateTime?: string;
+    arrivalDateTime?: string;
     duration?: string;
     stops?: string | number;
     price: number;
     currency?: string;
     seatClass?: string;
+    class?: string;
     logo?: string;
     rating?: number;
     scheduleId?: string;
     fareId?: string;
+    raw?: any;
     originLatitude?: number;
     originLongitude?: number;
     destinationLatitude?: number;
@@ -59,7 +63,10 @@ export const FlightCard = ({
 
   const getDisplayTime = (time: string) => {
     try {
-      const date = new Date(time);
+      let date = new Date(time);
+      if (Number.isNaN(date.getTime())) {
+        date = new Date(`1970-01-01 ${time}`);
+      }
       if (!isNaN(date.getTime())) {
         return formatTimeOnly(date.toISOString());
       }

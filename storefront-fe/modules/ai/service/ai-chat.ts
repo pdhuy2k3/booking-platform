@@ -4,7 +4,7 @@ import {
   ChatContext, 
   ChatHistoryResponse,
   ChatMessageRequest,
-  ExploreResponse
+  StructuredChatPayload
 } from '../types';
 
 class AiChatService {
@@ -15,6 +15,25 @@ class AiChatService {
       return crypto.randomUUID();
     }
     return `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+  }
+
+  private mapPayloadToChatResponse(
+    payload: StructuredChatPayload,
+    overrides?: { userMessage?: string; conversationId?: string }
+  ): ChatResponse {
+    const suggestionsRaw = payload.nextRequestSuggestions ?? payload.next_request_suggestions;
+    const suggestions = Array.isArray(suggestionsRaw) ? suggestionsRaw : [];
+    const conversationId = overrides?.conversationId || this.generateConversationId();
+    return {
+      userMessage: overrides?.userMessage ?? '',
+      aiResponse: payload.message ?? '',
+      conversationId,
+      timestamp: new Date().toISOString(),
+      results: payload.results ?? [],
+      nextRequestSuggestions: suggestions,
+      requiresConfirmation: payload.requiresConfirmation,
+      confirmationContext: payload.confirmationContext
+    };
   }
 
   /**
@@ -33,20 +52,15 @@ class AiChatService {
         // userId is extracted from JWT token on backend - no need to send
       };
 
-      // Call the REST endpoint that returns StructuredChatPayload
-      const response = await apiClient.post<{message: string; results: any[]}>(
+      const payload = await apiClient.post<StructuredChatPayload>(
         `${this.baseUrl}/chat/message`,
         request
       );
 
-      // Convert StructuredChatPayload to ChatResponse format
-      return {
+      return this.mapPayloadToChatResponse(payload, {
         userMessage: message,
-        aiResponse: response.message,
-        conversationId: request.conversationId || this.generateConversationId(),
-        timestamp: new Date().toISOString(),
-        results: response.results
-      };
+        conversationId: request.conversationId
+      });
     } catch (error: any) {
       console.error('AI Chat Service Error:', error);
       
@@ -126,62 +140,79 @@ class AiChatService {
     }
   }
 
-  async getDefaultDestinations(): Promise<ExploreResponse> {
+  async getDefaultDestinations(): Promise<ChatResponse> {
     try {
-      const response = await apiClient.get<ExploreResponse>(
+      const payload = await apiClient.get<StructuredChatPayload>(
         `${this.baseUrl}/explore/default`
       );
-      return response;
+      return this.mapPayloadToChatResponse(payload, {
+        conversationId: `explore-${this.generateConversationId()}`
+      });
     } catch (error: any) {
       console.error('Get Default Destinations Error:', error);
-      return {
+      return this.mapPayloadToChatResponse({
         message: 'Xin lỗi, tôi không thể tải gợi ý du lịch lúc này.',
-        results: []
-      };
+        results: [],
+        next_request_suggestions: []
+      }, { conversationId: `explore-${this.generateConversationId()}` });
     }
   }
 
-  async exploreDestinations(query: string, userCountry?: string): Promise<ExploreResponse> {
+  async exploreDestinations(query: string, userCountry?: string): Promise<ChatResponse> {
     try {
       const params: any = { query };
       if (userCountry) {
         params.userCountry = userCountry;
       }
-      const response = await apiClient.get<ExploreResponse>(
+      const payload = await apiClient.get<StructuredChatPayload>(
         `${this.baseUrl}/explore`,
         { params }
       );
-      return response;
+      return this.mapPayloadToChatResponse(payload, {
+        userMessage: query,
+        conversationId: `explore-${this.generateConversationId()}`
+      });
     } catch (error: any) {
       console.error('Explore Destinations Error:', error);
-      return {
+      return this.mapPayloadToChatResponse({
         message: 'Xin lỗi, tôi không thể tìm kiếm địa điểm lúc này. Vui lòng thử lại sau.',
-        results: []
-      };
+        results: [],
+        next_request_suggestions: []
+      }, {
+        userMessage: query,
+        conversationId: `explore-${this.generateConversationId()}`
+      });
     }
   }
 
-  async getTrendingDestinations(userCountry?: string): Promise<ExploreResponse> {
+  async getTrendingDestinations(userCountry?: string): Promise<ChatResponse> {
     try {
       const params: any = {};
       if (userCountry) {
         params.userCountry = userCountry;
       }
-      const response = await apiClient.get<ExploreResponse>(
+      const payload = await apiClient.get<StructuredChatPayload>(
         `${this.baseUrl}/explore/trending`,
         { params }
       );
-      return response;
+      return this.mapPayloadToChatResponse(payload, {
+        userMessage: 'Gợi ý điểm đến thịnh hành',
+        conversationId: `explore-${this.generateConversationId()}`
+      });
     } catch (error: any) {
       console.error('Get Trending Destinations Error:', error);
-      return {
+      return this.mapPayloadToChatResponse({
         message: 'Xin lỗi, tôi không thể tải điểm đến phổ biến lúc này.',
-        results: []
-      };
+        results: [],
+        next_request_suggestions: []
+      }, {
+        userMessage: 'Gợi ý điểm đến thịnh hành',
+        conversationId: `explore-${this.generateConversationId()}`
+      });
     }
   }
 
-  async getSeasonalDestinations(season?: string, userCountry?: string): Promise<ExploreResponse> {
+  async getSeasonalDestinations(season?: string, userCountry?: string): Promise<ChatResponse> {
     try {
       const params: any = {};
       if (season) {
@@ -190,17 +221,30 @@ class AiChatService {
       if (userCountry) {
         params.userCountry = userCountry;
       }
-      const response = await apiClient.get<ExploreResponse>(
+      const payload = await apiClient.get<StructuredChatPayload>(
         `${this.baseUrl}/explore/seasonal`,
         { params }
       );
-      return response;
+      const userMessage = season
+        ? `Gợi ý điểm đến phù hợp mùa ${season}`
+        : 'Gợi ý điểm đến theo mùa';
+      return this.mapPayloadToChatResponse(payload, {
+        userMessage,
+        conversationId: `explore-${this.generateConversationId()}`
+      });
     } catch (error: any) {
       console.error('Get Seasonal Destinations Error:', error);
-      return {
+      const userMessage = season
+        ? `Gợi ý điểm đến phù hợp mùa ${season}`
+        : 'Gợi ý điểm đến theo mùa';
+      return this.mapPayloadToChatResponse({
         message: 'Xin lỗi, tôi không thể tải gợi ý theo mùa lúc này.',
-        results: []
-      };
+        results: [],
+        next_request_suggestions: []
+      }, {
+        userMessage,
+        conversationId: `explore-${this.generateConversationId()}`
+      });
     }
   }
 }

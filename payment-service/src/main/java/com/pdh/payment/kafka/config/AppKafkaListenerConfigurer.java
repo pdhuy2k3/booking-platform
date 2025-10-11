@@ -1,4 +1,4 @@
-package com.pdh.booking.kafka.config;
+package com.pdh.payment.kafka.config;
 
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.ObjectProvider;
@@ -9,8 +9,7 @@ import org.springframework.kafka.config.KafkaListenerEndpointRegistrar;
 import org.springframework.validation.beanvalidation.LocalValidatorFactoryBean;
 
 /**
- * App Kafka Listener Configurer
- * Configures Kafka listeners with optional message validation
+ * Flight service Kafka listener configurer
  */
 @EnableKafka
 @Configuration

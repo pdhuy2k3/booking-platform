@@ -52,7 +52,7 @@ public class ProcessPaymentCommandHandler {
             // Publish payment command event to saga orchestrator
             outboxEventService.publishEvent(
                 "PaymentCommand",
-                "BookingSaga",
+                "Booking",
                 command.getSagaId(),
                 createPaymentEventPayload(command)
             );

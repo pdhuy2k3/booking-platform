@@ -235,6 +235,7 @@ spring:
       chat:
         options:
           model: mistral-small-2506
+          temperature: 0.0
     chat:
       memory:
         repository:
@@ -297,9 +298,12 @@ spring:
                 - --rm
                 - -e
                 - BRAVE_API_KEY
+                - -e
+                - BRAVE_MCP_DISABLED_TOOLS
                 - mcp/brave-search
               env:
                 BRAVE_API_KEY: ${BRAVE_API_KEY}
+                BRAVE_MCP_DISABLED_TOOLS: brave_news_search brave_web_search brave_summarizer	
         initialized: true
 
 # Logging Configuration for Tool Tracking

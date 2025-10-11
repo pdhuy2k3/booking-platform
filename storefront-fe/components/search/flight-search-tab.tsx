@@ -91,9 +91,29 @@ export function FlightSearchTab({ onBookingStart }: FlightSearchTabProps = {}) {
 
     if (date && time) {
       const trimmed = time.trim()
-      const normalized = trimmed.length === 5 ? `${trimmed}:00` : trimmed
-      const composed = `${date}T${normalized}`
+      const hasMeridiem = /\b(AM|PM)\b/i.test(trimmed)
+
+      const normalized = (() => {
+        if (hasMeridiem) {
+          return trimmed
+        }
+
+        if (/^\d{1,2}:\d{2}(?::\d{2})?$/.test(trimmed)) {
+          return trimmed.length === 5 ? `${trimmed}:00` : trimmed
+        }
+
+        return trimmed
+      })()
+
+      const composed = `${date} ${normalized}`
       const parsed = new Date(composed)
+      if (!Number.isNaN(parsed.getTime())) {
+        return parsed.toISOString()
+      }
+    }
+
+    if (time) {
+      const parsed = new Date(`1970-01-01 ${time.trim()}`)
       if (!Number.isNaN(parsed.getTime())) {
         return parsed.toISOString()
       }
@@ -715,15 +735,19 @@ export function FlightSearchTab({ onBookingStart }: FlightSearchTabProps = {}) {
                     destination: flight.destination || flight.arrival.city,
                     departureTime: flight.departureTime,
                     arrivalTime: flight.arrivalTime,
+                    departureDateTime: flight.departureDateTime,
+                    arrivalDateTime: flight.arrivalDateTime,
                     duration: flight.duration,
                     stops: flight.stops,
                     price: flight.price,
                     currency: flight.currency,
                     seatClass: flight.seatClass,
+                    class: flight.class,
                     logo: flight.logo,
                     scheduleId: flight.raw?.scheduleId,
                     fareId: flight.raw?.fareId,
                     rating: flight.rating,
+                    raw: flight.raw,
                   }
 
                   return (

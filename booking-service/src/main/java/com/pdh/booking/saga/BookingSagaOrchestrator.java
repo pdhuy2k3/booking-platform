@@ -83,7 +83,7 @@ public class BookingSagaOrchestrator {
     // ==== Kafka Listeners ====
 
     @KafkaListener(
-        topics = "booking.Booking.events",
+        topics = { "booking.Booking.events", "booking.Payment.events" },
         groupId = "booking-saga-outbox-listener",
         containerFactory = "bookingOutboxListenerContainerFactory"
     )
@@ -95,12 +95,49 @@ public class BookingSagaOrchestrator {
         }
 
         String eventType = resolveEventType(message, eventTypeHeader);
+
         if (StringUtils.isBlank(eventType)) {
-            log.warn("Saga outbox event ignored due to missing event type. message={}", message.toString());
-            return;
+            eventType = extractEventType(message);
         }
 
         String payloadJson = extractPayloadJson(message.get("payload"));
+        if (StringUtils.isBlank(payloadJson)) {
+            payloadJson = message.toString();
+        }
+
+        JsonNode payloadNode = null;
+        try {
+            payloadNode = objectMapper.readTree(payloadJson);
+        }
+        catch (Exception ex) {
+            // leave payloadNode null, will operate on raw JSON string
+        }
+
+        if (StringUtils.isBlank(eventType) && payloadNode != null) {
+            eventType = extractEventType(payloadNode);
+        }
+
+        if (StringUtils.isBlank(eventType) && payloadNode != null) {
+            JsonNode flightDetails = payloadNode.get("flightDetails");
+            JsonNode hotelDetails = payloadNode.get("hotelDetails");
+            JsonNode paymentDetails = payloadNode.get("payment");
+
+            if (flightDetails != null && !flightDetails.isNull()) {
+                eventType = "FlightReserved";
+            }
+            else if (hotelDetails != null && !hotelDetails.isNull()) {
+                eventType = "HotelReserved";
+            }
+            else if (paymentDetails != null && !paymentDetails.isNull()) {
+                eventType = "PaymentProcessed";
+            }
+        }
+
+        if (StringUtils.isBlank(eventType)) {
+            log.warn("Saga outbox event ignored due to missing event type. message={}", payloadJson);
+            return;
+        }
+
         if (StringUtils.isBlank(payloadJson)) {
             log.warn("Saga outbox event ignored due to missing payload. eventType={} message={}", eventType, message.toString());
             return;
@@ -171,12 +208,16 @@ public class BookingSagaOrchestrator {
             JsonNode valueNode = node.get(fieldName);
             if (valueNode != null && !valueNode.isNull()) {
                 String value = valueNode.asText();
-                if (StringUtils.isNotBlank(value)) {
+                if (StringUtils.isNotBlank(value) && !"null".equalsIgnoreCase(value)) {
                     return value;
                 }
             }
         }
         return null;
+    }
+
+    private String extractEventType(JsonNode node) {
+        return readFirstTextValue(node, "eventType", "event_type", "type");
     }
 
     private String extractPayloadJson(JsonNode payloadNode) {

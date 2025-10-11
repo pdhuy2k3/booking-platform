@@ -25,7 +25,8 @@ export function SearchMap({
   defaultExpanded = false
 }: SearchMapProps) {
   const [isExpanded, setIsExpanded] = useState(defaultExpanded);
-  const [center, setCenter] = useState<[number, number]>([106.6297, 10.8231]); // Default to Ho Chi Minh City
+    // 10.870060732280548, 106.80337596151362
+  const [center, setCenter] = useState<[number, number]>([106.80337596151362, 10.870060732280548]); // Default to Ho Chi Minh City
 
   // Update map center when locations change
   useEffect(() => {

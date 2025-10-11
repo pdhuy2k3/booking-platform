@@ -30,7 +30,8 @@ public class HotelService {
         log.info("Reserving hotel for booking: {} (legacy method)", bookingId);
 
         // Publish basic success event
-        eventPublisher.publishEvent("HotelReserved", "Booking", bookingId.toString(), Map.of("bookingId", bookingId));
+        eventPublisher.publishEvent("HotelReserved", "Booking", bookingId.toString(),
+                Map.of("eventType", "HotelReserved", "bookingId", bookingId));
     }
 
     @Transactional
@@ -77,6 +78,7 @@ public class HotelService {
 
             // Create comprehensive event payload
             Map<String, Object> eventPayload = new HashMap<>();
+            eventPayload.put("eventType", "HotelReserved");
             eventPayload.put("bookingId", bookingId);
             eventPayload.put("sagaId", sagaId);
             eventPayload.put("hotelData", hotelData);
@@ -92,6 +94,7 @@ public class HotelService {
 
             // Create failure event payload
             Map<String, Object> failurePayload = new HashMap<>();
+            failurePayload.put("eventType", "HotelReservationFailed");
             failurePayload.put("bookingId", bookingId);
             failurePayload.put("sagaId", sagaId);
             failurePayload.put("errorMessage", e.getMessage());
@@ -110,7 +113,8 @@ public class HotelService {
         log.info("Canceling hotel reservation for booking: {} (legacy method)", bookingId);
 
         // Publish basic cancellation event
-        eventPublisher.publishEvent("HotelReservationCancelled", "Booking", bookingId.toString(), Map.of("bookingId", bookingId));
+        eventPublisher.publishEvent("HotelReservationCancelled", "Booking", bookingId.toString(),
+                Map.of("eventType", "HotelReservationCancelled", "bookingId", bookingId));
     }
 
     @Transactional
@@ -136,6 +140,7 @@ public class HotelService {
 
             // Create detailed cancellation event payload
             Map<String, Object> eventPayload = new HashMap<>();
+            eventPayload.put("eventType", "HotelReservationCancelled");
             eventPayload.put("bookingId", bookingId);
             eventPayload.put("sagaId", sagaId);
             eventPayload.put("hotelId", hotelDetails.getHotelId());

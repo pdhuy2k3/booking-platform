@@ -86,13 +86,13 @@ spring:
     consumer:
       group-id: hotel-service-local
       auto-offset-reset: earliest
-      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
-      value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      key-deserializer: org.springframework.kafka.support.serializer.JsonSerializer
+      value-deserializer: org.springframework.kafka.support.serializer.JsonSerializer
       session-timeout-ms: 30000
       heartbeat-interval-ms: 10000
     producer:
-      key-serializer: org.apache.kafka.common.serialization.StringSerializer
-      value-serializer: org.apache.kafka.common.serialization.StringSerializer
+      key-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+      value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
       acks: 1
       retries: 3
       batch-size: 16384

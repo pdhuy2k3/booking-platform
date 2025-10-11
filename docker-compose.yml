@@ -321,6 +321,8 @@ services:
       - BRAVE_API_KEY
       - MISTRAL_API_KEY
       - STRIPE_SECRET_KEY
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     volumes:
       # Docker socket for running MCP server on containers
       - /var/run/docker.sock:/var/run/docker.sock
@@ -454,6 +456,28 @@ services:
     networks:
       - booking-network
 
+  #Ollama
+  # ollama:
+  #   image: ollama/ollama:latest
+  #   restart: unless-stopped
+  #   environment:
+  #     - OLLAMA_KEEP_ALIVE=24h
+  #     - OLLAMA_HOST=0.0.0.0
+  #   ports:
+  #     - "11434:11434"
+  #   volumes:
+  #     - pulled_models:/root/.ollama
+  #   deploy:
+  #     resources:
+  #       reservations:
+  #         devices:
+  #           - driver: nvidia
+  #             count: all
+  #             capabilities: [gpu]
+  #   networks:
+  #     - booking-network
+
+
 networks:
   booking-network:
     driver: bridge
@@ -461,4 +485,4 @@ networks:
 volumes:
   postgres_data:
   redis_data:
-
+  # pulled_models:

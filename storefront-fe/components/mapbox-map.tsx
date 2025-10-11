@@ -35,7 +35,7 @@ export interface MapboxMapProps {
 export function MapboxMap({
   className,
   locations = [],
-  center = [106.6297, 10.8231], // Ho Chi Minh City default
+  center = [106.80337596151362, 10.870060732280548], // Ho Chi Minh City default
   zoom = 10,
   style = 'mapbox://styles/mapbox/streets-v12',
   showControls = true,

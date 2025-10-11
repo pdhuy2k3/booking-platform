@@ -3,7 +3,6 @@
 import { useState } from "react"
 import { FlightCard } from "@/components/cards/flight-card"
 import { HotelCard } from "@/components/cards/hotel-card"
-import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
 import { Info, Sparkles, MapPin, CheckCircle, XCircle, AlertTriangle } from "lucide-react"
 import FlightDetailsModal from "@/modules/flight/component/FlightDetailsModal"
@@ -274,6 +273,8 @@ export const AiResponseRenderer = ({
                 destination: optionalString(destinationRaw) || "",
                 departureTime: optionalString(departureTimeRaw) || "",
                 arrivalTime: optionalString(arrivalTimeRaw) || "",
+                departureDateTime: optionalString(metadata?.departureDateTime) || optionalString(metadata?.departure_date_time) || optionalString(metadata?.departureDate) || optionalString(metadata?.departure_date) || optionalString(metadata?.departureTime),
+                arrivalDateTime: optionalString(metadata?.arrivalDateTime) || optionalString(metadata?.arrival_date_time) || optionalString(metadata?.arrivalDate) || optionalString(metadata?.arrival_date) || optionalString(metadata?.arrivalTime),
                 duration: optionalString(metadata?.duration) || optionalString(metadata?.flightDuration) || optionalString(metadata?.travelTime) || "",
                 stops: stopsValue,
                 price,
@@ -287,6 +288,22 @@ export const AiResponseRenderer = ({
                 originLongitude: optionalNumber(metadata?.originLongitude),
                 destinationLatitude: optionalNumber(metadata?.destinationLatitude),
                 destinationLongitude: optionalNumber(metadata?.destinationLongitude),
+                raw: {
+                  flightId,
+                  flightNumber: optionalString(metadata?.flightNumber) || optionalString(metadata?.flight_number) || optionalString(metadata?.code) || titleFlightNumber,
+                  airline: optionalString(metadata?.airline) || airlineName || optionalString(result.title),
+                  origin: optionalString(originRaw),
+                  destination: optionalString(destinationRaw),
+                  departureDateTime: optionalString(metadata?.departureDateTime) || optionalString(metadata?.departure_date_time) || optionalString(metadata?.departureDate) || optionalString(metadata?.departure_date) || optionalString(metadata?.departureTime),
+                  arrivalDateTime: optionalString(metadata?.arrivalDateTime) || optionalString(metadata?.arrival_date_time) || optionalString(metadata?.arrivalDate) || optionalString(metadata?.arrival_date) || optionalString(metadata?.arrivalTime),
+                  departureTime: optionalString(departureTimeRaw),
+                  arrivalTime: optionalString(arrivalTimeRaw),
+                  scheduleId,
+                  fareId,
+                  seatClass: optionalString(seatClassRaw) || "ECONOMY",
+                  price,
+                  currency,
+                },
               }
 
               return (
@@ -398,14 +415,15 @@ export const AiResponseRenderer = ({
           <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
             {infoResults.map((result, index) => {
               const metadata = (result.metadata || {}) as Record<string, unknown>
-              const hasCoordinates = Boolean(metadata.coordinates || (metadata.latitude && metadata.longitude))
+              const metadataAny = metadata as Record<string, any>
+              const hasCoordinates = Boolean(metadataAny.coordinates || (metadataAny.latitude && metadataAny.longitude))
               
               // Extract image URL from multiple possible sources
-              const imageUrl = result.imageUrl || 
-                               optionalString(metadata.image_url) || 
-                               optionalString(metadata.imageUrl) || 
-                               optionalString(metadata.image) || 
-                               optionalString(metadata.thumbnail)
+              const imageUrl = result.imageUrl ||
+                               optionalString(metadataAny.imageUrl) ||
+                               optionalString(metadataAny.image_url) ||
+                               optionalString(metadataAny.image) ||
+                               optionalString(metadataAny.thumbnail)
               
               const handleLocationClick = () => {
                 if (!hasCoordinates || !onLocationClick) return
@@ -414,21 +432,21 @@ export const AiResponseRenderer = ({
                 let lng: number | undefined
                 
                 // Try to extract from coordinates string
-                if (metadata.coordinates) {
-                  const coordStr = String(metadata.coordinates)
+                if (metadataAny.coordinates) {
+                  const coordStr = String(metadataAny.coordinates)
                   const [latStr, lngStr] = coordStr.split(',').map(s => s.trim())
                   lat = parseFloat(latStr)
                   lng = parseFloat(lngStr)
                 }
-                
+
                 // Try direct lat/lng fields
                 if (!lat || !lng) {
-                  lat = metadata.latitude ? parseFloat(String(metadata.latitude)) : undefined
-                  lng = metadata.longitude ? parseFloat(String(metadata.longitude)) : undefined
+                  lat = metadataAny.latitude ? parseFloat(String(metadataAny.latitude)) : undefined
+                  lng = metadataAny.longitude ? parseFloat(String(metadataAny.longitude)) : undefined
                 }
-                
+
                 if (lat && lng && !isNaN(lat) && !isNaN(lng)) {
-                  const locationDesc = result.subtitle || (typeof metadata.location === 'string' ? metadata.location : undefined) || result.description
+                  const locationDesc = result.subtitle || (typeof metadataAny.location === 'string' ? metadataAny.location : undefined) || result.description
                   onLocationClick({
                     lat,
                     lng,
@@ -452,7 +470,7 @@ export const AiResponseRenderer = ({
                   {/* Image */}
                   {imageUrl && (
                     <div className="relative h-48 w-full">
-                      <img
+                      <Image
                         src={imageUrl}
                         alt={result.title || 'Location image'}
                         className="w-full h-full object-cover"

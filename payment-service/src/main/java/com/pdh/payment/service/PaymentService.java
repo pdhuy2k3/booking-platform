@@ -453,16 +453,17 @@ public class PaymentService {
     // Helper methods
 
     private void publishPaymentEvent(Payment payment, PaymentTransaction transaction, String eventType) {
-        Map<String, Object> eventData = Map.of(
-            "paymentId", payment.getPaymentId(),
-            "bookingId", payment.getBookingId(),
-            "userId", payment.getUserId(),
-            "transactionId", transaction.getTransactionId(),
-            "amount", transaction.getAmount(),
-            "currency", transaction.getCurrency(),
-            "status", transaction.getStatus(),
-            "provider", transaction.getProvider(),
-            "sagaId", payment.getSagaId() != null ? payment.getSagaId() : ""
+        Map<String, Object> eventData = Map.ofEntries(
+            Map.entry("eventType", eventType),
+            Map.entry("paymentId", payment.getPaymentId()),
+            Map.entry("bookingId", payment.getBookingId()),
+            Map.entry("userId", payment.getUserId()),
+            Map.entry("transactionId", transaction.getTransactionId()),
+            Map.entry("amount", transaction.getAmount()),
+            Map.entry("currency", transaction.getCurrency()),
+            Map.entry("status", transaction.getStatus()),
+            Map.entry("provider", transaction.getProvider()),
+            Map.entry("sagaId", payment.getSagaId() != null ? payment.getSagaId() : "")
         );
 
         eventPublisher.publishEvent(

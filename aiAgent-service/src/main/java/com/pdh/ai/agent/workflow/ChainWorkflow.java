@@ -105,7 +105,6 @@ public class ChainWorkflow {
 	 * The method prints the intermediate results after each step to show the
 	 * progression of transformations through the chain.
 	 *
-	 * @param chatClient the Spring AI chat client used to make LLM calls
 	 * @param userInput     the input text containing numerical data to be processed
 	 * @return the final output after all steps have been executed
 	 */

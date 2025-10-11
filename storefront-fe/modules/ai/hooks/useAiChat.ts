@@ -279,6 +279,8 @@ export function useAiChat(options: UseAiChatOptions = {}): UseAiChatReturn {
 
       // Parse structured response
       const parsedResponse = parseStructuredPayload(response.aiResponse);
+      const finalResults = parsedResponse?.results ?? response.results ?? [];
+      const finalSuggestions = response.nextRequestSuggestions ?? parsedResponse?.suggestions ?? [];
 
       setMessages(prev => {
         // Create a new array to ensure React detects the change
@@ -289,9 +291,9 @@ export function useAiChat(options: UseAiChatOptions = {}): UseAiChatReturn {
           newMessages[messageIndex] = {
             ...newMessages[messageIndex],
             content: parsedResponse?.message ?? response.aiResponse,
-            results: [...(parsedResponse?.results ?? [])], // Create new array to ensure change detection
+            results: [...finalResults], // ensure change detection
             timestamp: new Date(response.timestamp || Date.now()),
-            suggestions: [...(response.nextRequestSuggestions ?? parsedResponse?.suggestions ?? [])], // Create new array
+            suggestions: [...finalSuggestions],
           };
         }
         

@@ -7,6 +7,7 @@ import { Card } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { aiChatService } from "@/modules/ai/service/ai-chat"
+import type { ChatStructuredResult } from "@/modules/ai/types"
 import { usePreferences } from "@/contexts/preferences-context"
 import { MapboxMap, type MapLocation } from "@/components/mapbox-map"
 import Image from "next/image"
@@ -51,9 +52,46 @@ export const RecommendPanel = React.forwardRef<RecommendPanelRef, RecommendPanel
     
     // Explore tab state
     const [exploreQuery, setExploreQuery] = useState("")
-    const [exploreResults, setExploreResults] = useState<any[]>([])
+    const [exploreResults, setExploreResults] = useState<ChatStructuredResult[]>([])
     const [exploreLoading, setExploreLoading] = useState(false)
     const [exploreMessage, setExploreMessage] = useState("")
+
+    const parseCoordinate = (value: unknown): number | null => {
+      if (typeof value === 'number' && !Number.isNaN(value)) return value
+      if (typeof value === 'string') {
+        const parsed = parseFloat(value)
+        return Number.isNaN(parsed) ? null : parsed
+      }
+      return null
+    }
+
+    const toDisplayString = (value: unknown): string | null => {
+      if (value === null || value === undefined) return null
+      if (typeof value === 'string') {
+        return value.trim().length > 0 ? value : null
+      }
+      if (typeof value === 'number' && Number.isFinite(value)) {
+        return value.toString()
+      }
+      return null
+    }
+
+    const getCoordinatesFromMetadata = (metadata?: Record<string, unknown>) => {
+      if (!metadata) return null
+      const latitude = parseCoordinate(metadata['latitude'] ?? metadata['lat'])
+      const longitude = parseCoordinate(metadata['longitude'] ?? metadata['lng'])
+      if (latitude == null || longitude == null) return null
+      return { latitude, longitude }
+    }
+
+    const getHighlights = (metadata?: Record<string, unknown>) => {
+      if (!metadata) return []
+      const highlightsValue = metadata['highlights']
+      if (Array.isArray(highlightsValue)) {
+        return highlightsValue.map((item) => String(item))
+      }
+      return []
+    }
 
     // Convert results to MapLocation format
     const mapLocations = React.useMemo((): MapLocation[] => {
@@ -146,40 +184,47 @@ export const RecommendPanel = React.forwardRef<RecommendPanelRef, RecommendPanel
       return locations
     }
 
-    function extractCoordinatesFromExplore(exploreData: any[]): MapLocation[] {
+    function extractCoordinatesFromExplore(exploreData: ChatStructuredResult[]): MapLocation[] {
       const locations: MapLocation[] = []
       let idCounter = 0
-      
+
       // The exploreData is actually the results array from the API response
       exploreData.forEach((item) => {
-        // Check if item has metadata with coordinates directly (new structure)
-        if (item.metadata?.latitude && item.metadata?.longitude) {
+        const metadata = (item.metadata || {}) as Record<string, unknown>
+        const coords = getCoordinatesFromMetadata(metadata)
+        const highlightText = getHighlights(metadata)[0] || ''
+        const locationText = typeof metadata['location'] === 'string' ? String(metadata['location']) : ''
+
+        if (coords) {
           locations.push({
-            id: `explore-${item.id || idCounter++}`,
-            name: item.title || item.name,
-            latitude: parseFloat(item.metadata.latitude),
-            longitude: parseFloat(item.metadata.longitude),
-            description: item.subtitle || item.metadata?.highlights?.[0] || item.description,
+            id: `explore-${item.ids?.destination_id || idCounter++}`,
+            name: item.title || 'Điểm đến',
+            latitude: coords.latitude,
+            longitude: coords.longitude,
+            description: item.subtitle || locationText || highlightText || item.description || '',
             type: 'destination'
           })
-        }
-        // Legacy structure - check for destinations array
-        else if (item.destinations?.length > 0) {
-          item.destinations.forEach((dest: any) => {
-            if (dest.coordinates?.latitude && dest.coordinates?.longitude) {
-              locations.push({
-                id: `explore-${dest.id || idCounter++}`,
-                name: dest.name,
-                latitude: dest.coordinates.latitude,
-                longitude: dest.coordinates.longitude,
-                description: dest.metadata?.highlights?.[0] || dest.description,
-                type: 'destination'
-              })
-            }
-          })
+        } else {
+          const legacyDestinations = (item as unknown as { destinations?: any[] })?.destinations
+          if (Array.isArray(legacyDestinations) && legacyDestinations.length > 0) {
+            legacyDestinations.forEach((dest) => {
+              const dLat = dest?.coordinates?.latitude
+              const dLng = dest?.coordinates?.longitude
+              if (typeof dLat === 'number' && typeof dLng === 'number') {
+                locations.push({
+                  id: `explore-${dest.id || idCounter++}`,
+                  name: dest.name,
+                  latitude: dLat,
+                  longitude: dLng,
+                  description: dest.metadata?.highlights?.[0] || dest.description,
+                  type: 'destination'
+                })
+              }
+            })
+          }
         }
       })
-      
+
       return locations
     }
 
@@ -211,7 +256,7 @@ export const RecommendPanel = React.forwardRef<RecommendPanelRef, RecommendPanel
       const userCountry = locationInfo?.country
       const response = await aiChatService.exploreDestinations(exploreQuery, userCountry)
       
-      setExploreMessage(response.message || "")
+      setExploreMessage(response.aiResponse || "")
       setExploreResults(response.results || [])
     } catch (error) {
       console.error("Explore search error:", error)
@@ -232,7 +277,7 @@ export const RecommendPanel = React.forwardRef<RecommendPanelRef, RecommendPanel
       const userCountry = locationInfo?.country
       const response = await aiChatService.getTrendingDestinations(userCountry)
       
-      setExploreMessage(response.message || "")
+      setExploreMessage(response.aiResponse || "")
       setExploreResults(response.results || [])
     } catch (error) {
       console.error("Trending error:", error)
@@ -261,7 +306,7 @@ export const RecommendPanel = React.forwardRef<RecommendPanelRef, RecommendPanel
       const userCountry = locationInfo?.country
       const response = await aiChatService.getSeasonalDestinations(season, userCountry)
       
-      setExploreMessage(response.message || "")
+      setExploreMessage(response.aiResponse || "")
       setExploreResults(response.results || [])
     } catch (error) {
       console.error("Seasonal error:", error)
@@ -274,10 +319,12 @@ export const RecommendPanel = React.forwardRef<RecommendPanelRef, RecommendPanel
 
   const handleExploreCardClick = (index: number) => {
     const location = exploreResults[index]
-    if (location?.metadata?.latitude && location?.metadata?.longitude) {
+    const metadata = (location?.metadata || {}) as Record<string, unknown>
+    const coords = getCoordinatesFromMetadata(metadata)
+    if (coords) {
       setActiveTab('map')
       setSelectedLocationIndex(index)
-      setMapCenter([location.metadata.longitude, location.metadata.latitude])
+      setMapCenter([coords.longitude, coords.latitude])
       setMapZoom(15)
     }
   }
@@ -340,7 +387,7 @@ export const RecommendPanel = React.forwardRef<RecommendPanelRef, RecommendPanel
         const response = await aiChatService.getDefaultDestinations()
         
         console.log("🎯 Default destinations response:", response)
-        setExploreMessage(response.message || "Gợi ý điểm đến cho bạn")
+        setExploreMessage(response.aiResponse || "Gợi ý điểm đến cho bạn")
         setExploreResults(response.results || [])
         console.log("📍 Set exploreResults:", response.results || [])
       } catch (error) {
@@ -586,19 +633,23 @@ export const RecommendPanel = React.forwardRef<RecommendPanelRef, RecommendPanel
                   
                   {exploreResults.map((result, index) => {
                     console.log("🏷️ Rendering explore result:", index, result)
-                    const hasLocation = !!(result.metadata?.latitude && result.metadata?.longitude)
-                    // Extract image URL from multiple possible sources
-                    const imageUrl = result.imageUrl || 
-                                   result.metadata?.image_url || 
-                                   result.metadata?.imageUrl || 
-                                   result.metadata?.image || 
-                                   result.metadata?.thumbnail
-                    
+                    const metadata = (result.metadata || {}) as Record<string, unknown>
+                    const coordinates = getCoordinatesFromMetadata(metadata)
+                    const hasLocation = !!coordinates
+                    const highlights = getHighlights(metadata)
+                    const imageUrl = result.imageUrl ||
+                      (typeof metadata['imageUrl'] === 'string' ? metadata['imageUrl'] : undefined) ||
+                      (typeof metadata['image_url'] === 'string' ? metadata['image_url'] : undefined) ||
+                      (typeof metadata['image'] === 'string' ? metadata['image'] : undefined) ||
+                      (typeof metadata['thumbnail'] === 'string' ? metadata['thumbnail'] : undefined)
+                    const bestTime = toDisplayString(metadata['best_time'] ?? metadata['bestTime'])
+                    const estimatedCost = toDisplayString(metadata['estimated_cost'] ?? metadata['estimatedCost'])
+
                     console.log("🖼️ Image URL found:", imageUrl)
-                    
+
                     return (
-                      <Card 
-                        key={index} 
+                      <Card
+                        key={index}
                         className={cn(
                           "overflow-hidden transition-all duration-200",
                           hasLocation && "cursor-pointer hover:shadow-md hover:border-blue-300"
@@ -632,26 +683,27 @@ export const RecommendPanel = React.forwardRef<RecommendPanelRef, RecommendPanel
                               {result.subtitle && (
                                 <p className="text-sm text-gray-600 mb-2">{result.subtitle}</p>
                               )}
-                            {result.metadata?.highlights && Array.isArray(result.metadata.highlights) && (
-                              <div className="flex flex-wrap gap-1 mt-2">
-                                {result.metadata.highlights.map((highlight: string, i: number) => (
-                                  <span key={i} className="inline-block px-2 py-1 bg-gray-100 text-gray-700 text-xs rounded">
-                                    {highlight}
-                                  </span>
-                                ))}
-                              </div>
-                            )}
-                            {result.metadata?.best_time && (
-                              <p className="text-xs text-gray-500 mt-2">
-                                <Calendar className="h-3 w-3 inline mr-1" />
-                                Thời gian tốt nhất: {result.metadata.best_time}
-                              </p>
-                            )}
-                            {result.metadata?.estimated_cost && (
-                              <p className="text-xs text-gray-500 mt-1">
-                                💰 Chi phí ước tính: {result.metadata.estimated_cost}
-                              </p>
-                            )}
+                              {highlights.length > 0 && (
+                                <div className="flex flex-wrap gap-1 mt-2">
+                                  {highlights.map((highlight, i) => (
+                                    <span key={i} className="inline-block px-2 py-1 bg-gray-100 text-gray-700 text-xs rounded">
+                                      {highlight}
+                                    </span>
+                                  ))}
+                                </div>
+                              )}
+                                {bestTime && (
+                                    <p className="text-xs text-gray-500 mt-2">
+                                        <Calendar className="h-3 w-3 inline mr-1" />
+                                        Thời gian tốt nhất: {String(bestTime)}
+                                    </p>
+                                )}
+                                {estimatedCost && (
+                                    <p className="text-xs text-gray-500 mt-1">
+                                        💰 Chi phí ước tính: {String(estimatedCost)}
+                                    </p>
+                                )}
+
                             </div>
                           </div>
                         </div>
@@ -699,7 +751,7 @@ export const RecommendPanel = React.forwardRef<RecommendPanelRef, RecommendPanel
                     >
                       <div className="flex items-start gap-3">
                         {result.imageUrl && (
-                          <img
+                          <Image
                             src={result.imageUrl}
                             alt={result.title}
                             className="w-20 h-20 rounded-lg object-cover shrink-0"

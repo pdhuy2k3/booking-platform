@@ -376,37 +376,71 @@ public class FlightController {
 
             if (resolvedScheduleId != null) {
                 schedule = flightScheduleRepository.findById(resolvedScheduleId).orElse(null);
-                if (schedule == null || schedule.isDeleted() ) {
-                    System.out.println("Schedule not found or does not belong to flight");
+                if (schedule == null || schedule.isDeleted() || !schedule.getFlight().getFlightId().equals(flightId)) {
+                    log.warn("Schedule {} not found or does not belong to flight {}", resolvedScheduleId, flightId);
                     return ResponseEntity.notFound().build();
                 }
             }
 
-            if (schedule == null ) {
-               
+            if (schedule == null) {
+                List<FlightSchedule> schedules = flightScheduleRepository.findByFlightId(flightId).stream()
+                        .filter(fs -> !fs.isDeleted())
+                        .sorted(Comparator.comparing(FlightSchedule::getDepartureTime))
+                        .collect(Collectors.toList());
 
-                List<FlightSchedule> schedules = flightScheduleRepository.findByFlightId(flightId);
                 if (schedules.isEmpty()) {
-                    System.out.println(" No schedules found for flight");
+                    log.info("No schedules found for flight {}", flightId);
                     return ResponseEntity.notFound().build();
                 }
 
+                if (requestedFareClass != null) {
+                    for (FlightSchedule candidate : schedules) {
+                        FlightFare candidateFare = flightFareRepository.findByScheduleIdAndFareClass(candidate.getScheduleId(),
+                                requestedFareClass);
+                        if (candidateFare != null && !candidateFare.isDeleted()) {
+                            schedule = candidate;
+                            fare = candidateFare;
+                            break;
+                        }
+                    }
 
+                    if (schedule == null) {
+                        log.info("No fares found for seatClass {} on flight {}", requestedFareClass, flightId);
+                        return ResponseEntity.notFound().build();
+                    }
+                }
+                else {
+                    for (FlightSchedule candidate : schedules) {
+                        List<FlightFare> scheduleFares = flightFareRepository.findByScheduleId(candidate.getScheduleId());
+                        fare = scheduleFares.stream()
+                                .filter(ff -> !ff.isDeleted())
+                                .min(Comparator.comparing(FlightFare::getPrice))
+                                .orElse(null);
+                        if (fare != null) {
+                            schedule = candidate;
+                            break;
+                        }
+                    }
 
-
+                    if (schedule == null) {
+                        log.info("No fares available for flight {}", flightId);
+                        return ResponseEntity.notFound().build();
+                    }
+                }
             }
 
-        
-
-            if (fare == null) {
+            if (schedule != null && fare == null) {
                 if (requestedFareClass != null) {
                     fare = flightFareRepository.findByScheduleIdAndFareClass(schedule.getScheduleId(), requestedFareClass);
                     if (fare == null) {
+                        log.info("No fare found for seatClass {} on schedule {}", requestedFareClass, schedule.getScheduleId());
                         return ResponseEntity.notFound().build();
                     }
-                } else {
+                }
+                else {
                     List<FlightFare> scheduleFares = flightFareRepository.findByScheduleId(schedule.getScheduleId());
                     fare = scheduleFares.stream()
+                            .filter(ff -> !ff.isDeleted())
                             .min(Comparator.comparing(FlightFare::getPrice))
                             .orElse(null);
                 }

@@ -1,7 +1,7 @@
 package com.pdh.ai.controller;
 
 import com.pdh.ai.agent.ExploreAgent;
-import com.pdh.ai.model.dto.ExploreResponse;
+import com.pdh.ai.model.dto.StructuredChatPayload;
 import com.pdh.ai.service.ExploreCacheService;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -23,20 +23,15 @@ public class ExploreController {
      * This endpoint is called when user first loads the page
      * Always returns recommendations for Vietnam
      * 
-     * @return ResponseEntity with cached ExploreResponse containing default recommendations for Vietnam
+     * @return ResponseEntity with cached StructuredChatPayload containing default recommendations for Vietnam
      */
     @GetMapping("/default")
-    public ResponseEntity<ExploreResponse> getDefaultRecommendations() {
+    public ResponseEntity<StructuredChatPayload> getDefaultRecommendations() {
         try {
-            ExploreResponse result = exploreCacheService.getDefaultExploreRecommendations();
+            StructuredChatPayload result = exploreCacheService.getDefaultExploreRecommendations();
             return ResponseEntity.ok(result);
         } catch (Exception e) {
-            return ResponseEntity.status(500).body(
-                ExploreResponse.builder()
-                    .message("Xin lỗi, có lỗi xảy ra khi tải gợi ý du lịch.")
-                    .results(java.util.List.of())
-                    .build()
-            );
+            return ResponseEntity.status(500).body(buildErrorPayload("Xin lỗi, có lỗi xảy ra khi tải gợi ý du lịch."));
         }
     }
 
@@ -51,22 +46,18 @@ public class ExploreController {
      * 
      * @param query The exploration query describing desired destinations/experiences
      * @param userCountry Optional user's current country (for region-based suggestions)
-     * @return ResponseEntity with ExploreResponse containing destination recommendations
+     * @return ResponseEntity with StructuredChatPayload containing destination recommendations
      */
     @GetMapping()
-    public ResponseEntity<ExploreResponse> explore(
+    public ResponseEntity<StructuredChatPayload> explore(
             @RequestParam String query,
             @RequestParam(required = false) String userCountry) {
         try {
-            ExploreResponse result = exploreAgent.explore(query, userCountry);
+            StructuredChatPayload result = exploreAgent.explore(query, userCountry);
             return ResponseEntity.ok(result);
         } catch (Exception e) {
-            return ResponseEntity.status(500).body(
-                ExploreResponse.builder()
-                    .message("Xin lỗi, có lỗi xảy ra khi tìm kiếm địa điểm.")
-                    .results(java.util.List.of())
-                    .build()
-            );
+            return ResponseEntity.status(500)
+                    .body(buildErrorPayload("Xin lỗi, có lỗi xảy ra khi tìm kiếm địa điểm."));
         }
     }
 
@@ -77,20 +68,16 @@ public class ExploreController {
      * @return ResponseEntity with trending destination recommendations
      */
     @GetMapping("/trending")
-    public ResponseEntity<ExploreResponse> getTrending(
+    public ResponseEntity<StructuredChatPayload> getTrending(
             @RequestParam(required = false, defaultValue = "Việt Nam") String userCountry) {
         try {
             String trendingQuery = "Giúp tôi liệt kê 3 điểm đến du lịch đang thịnh hành hiện nay tại " + userCountry + 
                                  ". Bao gồm các điểm đến biển, thành phố, và thiên nhiên với hình ảnh đẹp";
-            ExploreResponse result = exploreAgent.explore(trendingQuery, userCountry);
+            StructuredChatPayload result = exploreAgent.explore(trendingQuery, userCountry);
             return ResponseEntity.ok(result);
         } catch (Exception e) {
-            return ResponseEntity.status(500).body(
-                ExploreResponse.builder()
-                    .message("Xin lỗi, không thể tải điểm đến phổ biến.")
-                    .results(java.util.List.of())
-                    .build()
-            );
+            return ResponseEntity.status(500)
+                    .body(buildErrorPayload("Xin lỗi, không thể tải điểm đến phổ biến."));
         }
     }
 
@@ -102,21 +89,28 @@ public class ExploreController {
      * @return ResponseEntity with seasonal destination recommendations
      */
     @GetMapping(value = "/seasonal")
-    public ResponseEntity<ExploreResponse> getSeasonalRecommendations(
+    public ResponseEntity<StructuredChatPayload> getSeasonalRecommendations(
             @RequestParam(required = true) String season,
             @RequestParam(required = false, defaultValue = "Việt Nam") String userCountry) {
         try {
             String query = String.format("Gợi ý 3 điểm đến du lịch phù hợp với mùa %s tại %s. " +
                                         "Bao gồm lý do tại sao phù hợp với mùa này và hình ảnh đẹp", season, userCountry);
-            ExploreResponse result = exploreAgent.explore(query, userCountry);
+            StructuredChatPayload result = exploreAgent.explore(query, userCountry);
             return ResponseEntity.ok(result);
         } catch (Exception e) {
-            return ResponseEntity.status(500).body(
-                ExploreResponse.builder()
-                    .message("Xin lỗi, không thể tải gợi ý theo mùa.")
-                    .results(java.util.List.of())
-                    .build()
-            );
+            return ResponseEntity.status(500)
+                    .body(buildErrorPayload("Xin lỗi, không thể tải gợi ý theo mùa."));
         }
+    }
+
+    private StructuredChatPayload buildErrorPayload(String message) {
+        return StructuredChatPayload.builder()
+                .message(message)
+                .results(java.util.List.of())
+                .nextRequestSuggesstions(new String[] {
+                        "Hãy thử một từ khóa khác",
+                        "Bạn có muốn tìm theo ngân sách cụ thể không?"
+                })
+                .build();
     }
 }

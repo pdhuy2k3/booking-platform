@@ -43,7 +43,8 @@ public class FlightService {
         log.info("Reserving flight for booking: {} (legacy method)", bookingId);
 
         // Publish basic success event
-        eventPublisher.publishEvent("FlightReserved", "Booking", bookingId.toString(), Map.of("bookingId", bookingId));
+        eventPublisher.publishEvent("FlightReserved", "Booking", bookingId.toString(),
+                Map.of("eventType", "FlightReserved", "bookingId", bookingId));
     }
 
     @Transactional
@@ -93,6 +94,7 @@ public class FlightService {
                 .build();
 
             Map<String, Object> eventPayload = new HashMap<>();
+            eventPayload.put("eventType", "FlightReserved");
             eventPayload.put("bookingId", bookingId);
             eventPayload.put("sagaId", sagaId);
             eventPayload.put("flightData", flightData);
@@ -131,6 +133,7 @@ public class FlightService {
             }
 
             Map<String, Object> failurePayload = new HashMap<>();
+            failurePayload.put("eventType", "FlightReservationFailed");
             failurePayload.put("bookingId", bookingId);
             failurePayload.put("sagaId", sagaId);
             failurePayload.put("errorMessage", e.getMessage());
@@ -149,7 +152,8 @@ public class FlightService {
         // Legacy method for backward compatibility
         log.info("Canceling flight reservation for booking: {} (legacy method)", bookingId);
 
-        eventPublisher.publishEvent("FlightReservationCancelled", "Booking", bookingId.toString(), Map.of("bookingId", bookingId));
+        eventPublisher.publishEvent("FlightReservationCancelled", "Booking", bookingId.toString(),
+                Map.of("eventType", "FlightReservationCancelled", "bookingId", bookingId));
     }
 
     @Transactional
@@ -177,6 +181,7 @@ public class FlightService {
         }
 
         Map<String, Object> eventPayload = new HashMap<>();
+        eventPayload.put("eventType", "FlightReservationCancelled");
         eventPayload.put("bookingId", bookingId);
         eventPayload.put("sagaId", sagaId);
         eventPayload.put("flightId", flightDetails.getFlightId());

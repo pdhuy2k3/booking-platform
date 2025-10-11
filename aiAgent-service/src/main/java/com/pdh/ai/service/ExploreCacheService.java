@@ -2,7 +2,7 @@ package com.pdh.ai.service;
 
 import com.pdh.ai.agent.ExploreAgent;
 import com.pdh.ai.config.CacheConfig;
-import com.pdh.ai.model.dto.ExploreResponse;
+import com.pdh.ai.model.dto.StructuredChatPayload;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.cache.annotation.Cacheable;
@@ -26,7 +26,7 @@ public class ExploreCacheService {
      * Always returns recommendations for Vietnam
      */
     @Cacheable(value = CacheConfig.EXPLORE_CACHE, key = "'vietnam_default'")
-    public ExploreResponse getDefaultExploreRecommendations() {
+    public StructuredChatPayload getDefaultExploreRecommendations() {
         String country = "Việt Nam";
         logger.info("🗄️ [CACHE] Generating default explore recommendations for Vietnam");
         String query = "Gợi ý 4 điểm đến du lịch nổi tiếng và hấp dẫn nhất tại " + country + 

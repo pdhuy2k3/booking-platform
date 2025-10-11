@@ -78,7 +78,17 @@ export function utcToLocal(
 ): Date {
   const tz = timezone || detectUserTimezone()
   const date = typeof utcDate === 'string' ? parseISO(utcDate) : utcDate
-  return toZonedTime(date, tz)
+
+  if (!(date instanceof Date) || Number.isNaN(date.getTime())) {
+    return new Date(NaN)
+  }
+
+  try {
+    return toZonedTime(date, tz)
+  } catch (error) {
+    console.error('utcToLocal failed:', error)
+    return new Date(NaN)
+  }
 }
 
 /**
@@ -90,7 +100,17 @@ export function localToUtc(
 ): Date {
   const tz = timezone || detectUserTimezone()
   const date = typeof localDate === 'string' ? parseISO(localDate) : localDate
-  return fromZonedTime(date, tz)
+
+  if (!(date instanceof Date) || Number.isNaN(date.getTime())) {
+    return new Date(NaN)
+  }
+
+  try {
+    return fromZonedTime(date, tz)
+  } catch (error) {
+    console.error('localToUtc failed:', error)
+    return new Date(NaN)
+  }
 }
 
 /**
@@ -103,7 +123,17 @@ export function formatUtcToLocal(
 ): string {
   const tz = timezone || detectUserTimezone()
   const date = typeof utcDate === 'string' ? parseISO(utcDate) : utcDate
-  return formatInTimeZone(date, tz, formatStr)
+
+  if (!(date instanceof Date) || Number.isNaN(date.getTime())) {
+    return typeof utcDate === 'string' ? utcDate : ''
+  }
+
+  try {
+    return formatInTimeZone(date, tz, formatStr)
+  } catch (error) {
+    console.error('formatUtcToLocal failed:', error)
+    return typeof utcDate === 'string' ? utcDate : ''
+  }
 }
 
 /**
@@ -116,9 +146,19 @@ export function formatWithTimezone(
 ): string {
   const tz = timezone || detectUserTimezone()
   const dateObj = typeof date === 'string' ? parseISO(date) : date
-  const formatted = formatInTimeZone(dateObj, tz, formatStr)
-  const tzAbbr = formatInTimeZone(dateObj, tz, 'zzz')
-  return `${formatted} (${tzAbbr})`
+
+  if (!(dateObj instanceof Date) || Number.isNaN(dateObj.getTime())) {
+    return typeof date === 'string' ? date : ''
+  }
+
+  try {
+    const formatted = formatInTimeZone(dateObj, tz, formatStr)
+    const tzAbbr = formatInTimeZone(dateObj, tz, 'zzz')
+    return `${formatted} (${tzAbbr})`
+  } catch (error) {
+    console.error('formatWithTimezone failed:', error)
+    return typeof date === 'string' ? date : ''
+  }
 }
 
 /**

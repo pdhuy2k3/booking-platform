@@ -106,21 +106,92 @@ export function BookingFlowManager({ onBookingComplete, showSelection = true }: 
   }
 
   const handleFlightBookingSubmit = (details: FlightBookingDetails) => {
-    updateBookingData({ 
-      productDetails: bookingType === 'both' 
-        ? { ...(bookingData.productDetails as ComboBookingDetails), flightDetails: details }
-        : details,
-      totalAmount: (bookingData.totalAmount || 0) + details.totalFlightPrice
+    let totalAmount = details.totalFlightPrice
+    let productDetails: FlightBookingDetails | ComboBookingDetails
+
+    if (bookingType === 'both') {
+      const existingCombo = (bookingData.productDetails as ComboBookingDetails) || { flightDetails: undefined, hotelDetails: undefined }
+      const hotelDetails = existingCombo.hotelDetails
+      const hotelTotal = hotelDetails?.totalRoomPrice ?? 0
+      totalAmount = details.totalFlightPrice + hotelTotal
+      productDetails = {
+        ...existingCombo,
+        flightDetails: details,
+      }
+    }
+    else {
+      productDetails = details
+    }
+
+    updateBookingData({
+      productDetails: productDetails as any,
+      totalAmount,
+      currency: flight?.currency || bookingData.currency || 'VND',
+    })
+
+    setSelectedFlight({
+      id: details.flightId,
+      flightNumber: details.flightNumber,
+      airline: details.airline,
+      origin: details.originAirport,
+      destination: details.destinationAirport,
+      departureTime: details.departureDateTime,
+      arrivalTime: details.arrivalDateTime,
+      duration: selectedFlight?.duration || flight?.duration,
+      price: details.totalFlightPrice,
+      currency: selectedFlight?.currency || flight?.currency || bookingData.currency || 'VND',
+      seatClass: details.seatClass || selectedFlight?.seatClass,
+      logo: selectedFlight?.logo || flight?.logo,
+      scheduleId: details.scheduleId || selectedFlight?.scheduleId,
+      fareId: details.fareId || selectedFlight?.fareId,
     })
     nextStep()
   }
 
   const handleHotelBookingSubmit = (details: HotelBookingDetails) => {
-    updateBookingData({ 
-      productDetails: bookingType === 'both' 
-        ? { ...(bookingData.productDetails as ComboBookingDetails), hotelDetails: details }
-        : details,
-      totalAmount: (bookingData.totalAmount || 0) + details.totalRoomPrice
+    let totalAmount = details.totalRoomPrice
+    let productDetails: HotelBookingDetails | ComboBookingDetails
+
+    if (bookingType === 'both') {
+      const existingCombo = (bookingData.productDetails as ComboBookingDetails) || { flightDetails: undefined, hotelDetails: undefined }
+      const flightDetails = existingCombo.flightDetails
+      const flightTotal = flightDetails?.totalFlightPrice ?? 0
+      totalAmount = flightTotal + details.totalRoomPrice
+      productDetails = {
+        ...existingCombo,
+        hotelDetails: details,
+      }
+    }
+    else {
+      productDetails = details
+    }
+
+    updateBookingData({
+      productDetails: productDetails as any,
+      totalAmount,
+      currency: hotel?.currency || bookingData.currency || 'VND',
+    })
+
+    setSelectedHotel({
+      id: details.hotelId,
+      name: hotel?.name || details.hotelName,
+      address: details.hotelAddress,
+      city: details.city,
+      country: details.country,
+      rating: hotel?.rating,
+      roomTypeId: String(details.roomTypeId ?? hotel?.roomTypeId ?? ''),
+      roomId: details.roomId ?? hotel?.roomId ?? '',
+      roomType: details.roomType,
+      roomName: details.roomName,
+      price: details.pricePerNight,
+      currency: selectedHotel?.currency || hotel?.currency || bookingData.currency || 'VND',
+      amenities: hotel?.amenities || selectedHotel?.amenities || [],
+      image: hotel?.image,
+      checkInDate: details.checkInDate,
+      checkOutDate: details.checkOutDate,
+      guests: details.numberOfGuests,
+      rooms: details.numberOfRooms,
+      nights: details.numberOfNights,
     })
     nextStep()
   }

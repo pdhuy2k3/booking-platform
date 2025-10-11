@@ -9,6 +9,8 @@ import { Badge } from "@/components/ui/badge"
 import { flightService } from "../service"
 import type { FlightDetails } from "../type"
 import { formatPrice } from "@/lib/currency"
+import { formatBookingDateTime } from "@/lib/date-format"
+import { useDateFormatter } from "@/hooks/use-date-formatter"
 
 const seatClassLabels: Record<string, string> = {
   ECONOMY: "Phổ thông",
@@ -28,18 +30,6 @@ const formatTimeLabel = (value?: string) => {
   const date = new Date(value)
   if (!Number.isNaN(date.getTime())) {
     return date.toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" })
-  }
-  return value
-}
-
-const formatDateTimeLabel = (value?: string) => {
-  if (!value) return "Chưa có"
-  const date = new Date(value)
-  if (!Number.isNaN(date.getTime())) {
-    return new Intl.DateTimeFormat("vi-VN", {
-      dateStyle: "medium",
-      timeStyle: "short"
-    }).format(date)
   }
   return value
 }
@@ -72,6 +62,7 @@ export default function FlightDetailsModal({
   const [flight, setFlight] = useState<FlightDetails | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const { timezone, language } = useDateFormatter()
 
   // Fetch flight details when modal opens and flightId is provided
   useEffect(() => {
@@ -192,7 +183,7 @@ export default function FlightDetailsModal({
                     <div className="text-center">
                       <div className="text-3xl font-bold text-foreground">{formatTimeLabel(departureDateValue)}</div>
                       <div className="text-lg font-medium text-muted-foreground">{flight.origin}</div>
-                      <div className="text-sm text-muted-foreground">{formatDateTimeLabel(departureDateValue)}</div>
+                      <div className="text-sm text-muted-foreground">{formatBookingDateTime(departureDateValue, { locale: language, timeZone: timezone })}</div>
                     </div>
 
                     <div className="flex flex-col items-center px-8">
@@ -209,7 +200,7 @@ export default function FlightDetailsModal({
                     <div className="text-center">
                       <div className="text-3xl font-bold text-foreground">{formatTimeLabel(arrivalDateValue)}</div>
                       <div className="text-lg font-medium text-muted-foreground">{flight.destination}</div>
-                      <div className="text-sm text-muted-foreground">{formatDateTimeLabel(arrivalDateValue)}</div>
+                      <div className="text-sm text-muted-foreground">{formatBookingDateTime(arrivalDateValue, { locale: language, timeZone: timezone })}</div>
                     </div>
                   </div>
 

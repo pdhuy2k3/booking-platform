@@ -26,7 +26,7 @@
     "transforms.outbox.table.fields.additional.placement": "aggregate_type:header:aggregateType,saga_id:header:sagaId,booking_id:header:bookingId,user_id:header:userId,priority:header:priority,processed:header:processed",
     "event.processing.failure.handling.mode": "warn",
     "transforms.outbox.table.field.payload": "payload",
-    "key.converter": "org.apache.kafka.connect.storage.StringConverter",
+    "key.converter": "org.apache.kafka.connect.json.JsonConverter",
     "value.converter": "org.apache.kafka.connect.json.JsonConverter",
     "value.converter.schemas.enable": "false"
 }
