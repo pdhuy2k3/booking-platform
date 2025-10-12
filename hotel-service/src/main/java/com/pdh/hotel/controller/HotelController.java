@@ -414,8 +414,12 @@ public class HotelController {
     @GetMapping("/storefront/{hotelId}")
     public ResponseEntity<Map<String, Object>> getStorefrontHotelDetails(
             @Parameter(description = "Hotel ID", required = true, example = "1")
-            @PathVariable Long hotelId) {
-        log.info("Hotel details request for ID: {}", hotelId);
+            @PathVariable Long hotelId,
+            @Parameter(description = "Check-in date (YYYY-MM-DD)", required = false)
+            @RequestParam(required = false) String checkInDate,
+            @Parameter(description = "Check-out date (YYYY-MM-DD)", required = false)
+            @RequestParam(required = false) String checkOutDate) {
+        log.info("Hotel details request for ID: {}, checkIn: {}, checkOut: {}", hotelId, checkInDate, checkOutDate);
 
         try {
             Optional<Hotel> hotelOpt = hotelRepository.findById(hotelId);
@@ -423,8 +427,11 @@ public class HotelController {
                 return ResponseEntity.notFound().build();
             }
 
+            LocalDate effectiveCheckIn = StringUtils.hasText(checkInDate) ? LocalDate.parse(checkInDate) : LocalDate.now();
+            LocalDate effectiveCheckOut = StringUtils.hasText(checkOutDate) ? LocalDate.parse(checkOutDate) : effectiveCheckIn.plusDays(1);
+
             Hotel hotel = hotelOpt.get();
-            Map<String, Object> response = hotelMapper.toStorefrontDetailedResponse(hotel);
+            Map<String, Object> response = hotelMapper.toStorefrontDetailedResponse(hotel, effectiveCheckIn, effectiveCheckOut);
 
             return ResponseEntity.ok(response);
         } catch (Exception e) {

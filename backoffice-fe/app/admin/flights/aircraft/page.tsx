@@ -57,7 +57,8 @@ export default function AdminAircraft() {
         capacityFirst: data.capacityFirst ? parseInt(data.capacityFirst) : undefined,
         totalCapacity: data.totalCapacity ? parseInt(data.totalCapacity) : undefined,
         registrationNumber: data.registrationNumber.trim() || undefined,
-        mediaPublicIds: data.mediaPublicIds
+        mediaPublicIds: data.mediaPublicIds,
+        featuredMediaUrl: data.featuredMediaUrl
       }
 
       await AircraftService.createAircraft(newAircraft)
@@ -96,7 +97,8 @@ export default function AdminAircraft() {
         capacityFirst: data.capacityFirst ? parseInt(data.capacityFirst) : undefined,
         totalCapacity: data.totalCapacity ? parseInt(data.totalCapacity) : undefined,
         registrationNumber: data.registrationNumber.trim() || undefined,
-        mediaPublicIds: data.mediaPublicIds
+        mediaPublicIds: data.mediaPublicIds,
+        featuredMediaUrl: data.featuredMediaUrl
       }
 
       await AircraftService.updateAircraft(selectedAircraft.aircraftId, updatedAircraft)

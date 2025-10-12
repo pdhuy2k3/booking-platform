@@ -69,7 +69,8 @@ export default function AdminAirports() {
         timezone: data.timezone?.trim() || undefined,
         latitude: data.latitude ?? undefined,
         longitude: data.longitude ?? undefined,
-        mediaPublicIds: data.mediaPublicIds
+        mediaPublicIds: data.mediaPublicIds,
+        featuredMediaUrl: data.featuredMediaUrl
       }
       
       await AirportService.createAirport(airportData)
@@ -107,7 +108,8 @@ export default function AdminAirports() {
         timezone: data.timezone?.trim() || undefined,
         latitude: data.latitude ?? undefined,
         longitude: data.longitude ?? undefined,
-        mediaPublicIds: data.mediaPublicIds
+        mediaPublicIds: data.mediaPublicIds,
+        featuredMediaUrl: data.featuredMediaUrl
       }
       
       await AirportService.updateAirport(editingAirport.airportId, airportData)

@@ -212,12 +212,12 @@ export function ProfileInfo({ user, onUpdate }: ProfileInfoProps) {
 
   return (
     <Card className="border-gray-200 bg-white">
-      <CardHeader className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+      <CardHeader className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <CardTitle className="text-gray-900">Personal Information</CardTitle>
           <CardDescription>Update your personal details and contact information</CardDescription>
         </div>
-        <div className="flex flex-wrap gap-2 sm:flex-nowrap">
+        <div className="flex flex-wrap gap-1 sm:flex-nowrap">
           <Button
             variant={isEditing ? "default" : "outline"}
             onClick={isEditing ? handleSaveProfile : () => setIsEditing(true)}
@@ -242,9 +242,9 @@ export function ProfileInfo({ user, onUpdate }: ProfileInfoProps) {
           </Button>
         </div>
       </CardHeader>
-      <CardContent className="space-y-6">
+      <CardContent className="space-y-4">
         {/* Avatar Section */}
-        <div className="flex flex-col items-start gap-4 sm:flex-row sm:items-center sm:gap-6">
+        <div className="flex flex-col items-start gap-3 sm:flex-row sm:items-center sm:gap-4">
           <div className="relative group">
             <Avatar className="h-20 w-20">
               <AvatarImage
@@ -280,8 +280,8 @@ export function ProfileInfo({ user, onUpdate }: ProfileInfoProps) {
         </div>
 
         {/* Form Fields */}
-        <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
-          <div className="space-y-2">
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+          <div className="space-y-1">
             <Label htmlFor="name">Full Name</Label>
             <Input
               id="name"
@@ -291,7 +291,7 @@ export function ProfileInfo({ user, onUpdate }: ProfileInfoProps) {
               className="bg-white border-gray-300 disabled:opacity-60"
             />
           </div>
-          <div className="space-y-2">
+          <div className="space-y-1">
             <Label htmlFor="username">Username</Label>
             <Input
               id="username"
@@ -300,7 +300,7 @@ export function ProfileInfo({ user, onUpdate }: ProfileInfoProps) {
               className="bg-white border-gray-300 disabled:opacity-60"
             />
           </div>
-          <div className="space-y-2">
+          <div className="space-y-1">
             <Label htmlFor="email">Email Address</Label>
             <Input
               id="email"
@@ -311,9 +311,9 @@ export function ProfileInfo({ user, onUpdate }: ProfileInfoProps) {
               className="bg-white border-gray-300 disabled:opacity-60"
             />
           </div>
-          <div className="space-y-2">
+          <div className="space-y-1">
             <Label htmlFor="phone">Phone Number</Label>
-            <div className="flex flex-col gap-2 sm:flex-row">
+            <div className="flex flex-col gap-1 sm:flex-row">
               <Select
                 value={phoneCountry.code}
                 onValueChange={(code) => {
@@ -348,7 +348,7 @@ export function ProfileInfo({ user, onUpdate }: ProfileInfoProps) {
               {formatInternationalPhone(phoneCountry.dialCode, phoneNumber) || `${phoneCountry.dialCode} • Example: 772 726 533`}
             </p>
           </div>
-          <div className="space-y-2">
+          <div className="space-y-1">
             <Label htmlFor="dateOfBirth">Date of Birth</Label>
             <Input
               id="dateOfBirth"

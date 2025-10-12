@@ -186,7 +186,7 @@ public class HotelMapper {
     /**
      * Convert Hotel entity to detailed storefront response format
      */
-    public Map<String, Object> toStorefrontDetailedResponse(Hotel hotel) {
+    public Map<String, Object> toStorefrontDetailedResponse(Hotel hotel, LocalDate checkIn, LocalDate checkOut) {
         Map<String, Object> response = new HashMap<>();
         response.put("hotelId", hotel.getHotelId().toString());
         response.put("name", hotel.getName() != null ? hotel.getName() : "Unknown Hotel");
@@ -198,9 +198,6 @@ public class HotelMapper {
         response.put("latitude", hotel.getLatitude());
         response.put("longitude", hotel.getLongitude());
 
-        LocalDate today = LocalDate.now();
-        LocalDate tomorrow = today.plusDays(1);
-
         List<RoomTypeResponseDto> roomTypes = fetchRoomTypes(hotel.getHotelId());
         double minPrice = resolveMinPrice(roomTypes);
         if (minPrice <= 0) {
@@ -209,7 +206,7 @@ public class HotelMapper {
 
         response.put("pricePerNight", minPrice);
         response.put("currency", "VND");
-        response.put("availableRooms", buildRoomTypeAvailability(hotel, roomTypes, today, tomorrow, 1, minPrice));
+        response.put("availableRooms", buildRoomTypeAvailability(hotel, roomTypes, checkIn, checkOut, 1, minPrice));
         response.put("roomTypes", getRealRoomTypes(hotel, roomTypes, minPrice));
         response.put("amenities", getRealHotelAmenities());
 

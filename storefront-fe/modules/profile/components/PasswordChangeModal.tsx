@@ -87,8 +87,8 @@ export function PasswordChangeModal({ isOpen, onClose, onSuccess }: PasswordChan
           <DialogDescription>Update your account password</DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-4 py-2">
-          <div className="space-y-2">
+        <div className="space-y-3 py-1">
+          <div className="space-y-1">
             <Label htmlFor="currentPassword">Current Password</Label>
             <Input
               id="currentPassword"
@@ -98,7 +98,7 @@ export function PasswordChangeModal({ isOpen, onClose, onSuccess }: PasswordChan
               disabled={isSaving}
             />
           </div>
-          <div className="space-y-2">
+          <div className="space-y-1">
             <Label htmlFor="newPassword">New Password</Label>
             <Input
               id="newPassword"
@@ -108,7 +108,7 @@ export function PasswordChangeModal({ isOpen, onClose, onSuccess }: PasswordChan
               disabled={isSaving}
             />
           </div>
-          <div className="space-y-2">
+          <div className="space-y-1">
             <Label htmlFor="confirmPassword">Confirm New Password</Label>
             <Input
               id="confirmPassword"
@@ -120,7 +120,7 @@ export function PasswordChangeModal({ isOpen, onClose, onSuccess }: PasswordChan
           </div>
         </div>
 
-        <DialogFooter className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+        <DialogFooter className="flex flex-col-reverse gap-1 sm:flex-row sm:justify-end">
           <Button
             variant="outline"
             onClick={handleClose}

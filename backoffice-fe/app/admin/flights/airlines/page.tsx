@@ -54,7 +54,8 @@ export default function AdminAirlines() {
       const airlineData = {
         name: data.name.trim(),
         iataCode: data.iataCode.trim().toUpperCase(),
-        mediaPublicIds: data.mediaPublicIds
+        mediaPublicIds: data.mediaPublicIds,
+        featuredMediaUrl: data.featuredMediaUrl
       }
       
       await AirlineService.createAirline(airlineData)
@@ -79,7 +80,8 @@ export default function AdminAirlines() {
       const airlineData = {
         name: data.name.trim(),
         iataCode: data.iataCode.trim().toUpperCase(),
-        mediaPublicIds: data.mediaPublicIds
+        mediaPublicIds: data.mediaPublicIds,
+        featuredMediaUrl: data.featuredMediaUrl
       }
       
       await AirlineService.updateAirline(editingAirline.airlineId, airlineData)

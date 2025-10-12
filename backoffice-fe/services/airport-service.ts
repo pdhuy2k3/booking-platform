@@ -11,6 +11,7 @@ interface AirportCreateRequest {
   longitude?: number
   images?: string[] // Array of publicIds from MediaSelector
   mediaPublicIds?: string[]
+  featuredMediaUrl?: string | null
 }
 
 interface AirportUpdateRequest {
@@ -23,6 +24,7 @@ interface AirportUpdateRequest {
   longitude?: number
   images?: string[] // Array of publicIds from MediaSelector
   mediaPublicIds?: string[]
+  featuredMediaUrl?: string | null
 }
 
 export class AirportService {

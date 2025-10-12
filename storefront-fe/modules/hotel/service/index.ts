@@ -11,8 +11,16 @@ export const hotelService = {
   getRoomDetails(id: string | number) {
     return apiClient.get<RoomDetails>(`/hotels/storefront/rooms/${encodeURIComponent(String(id))}`)
   },
-  get(id: string | number) {
-    return apiClient.get<HotelDetails>(`/hotels/storefront/${encodeURIComponent(String(id))}`)
+  get(id: string | number, checkInDate?: string, checkOutDate?: string) {
+    const params = new URLSearchParams()
+    if (checkInDate) {
+      params.append('checkInDate', checkInDate)
+    }
+    if (checkOutDate) {
+      params.append('checkOutDate', checkOutDate)
+    }
+    const queryString = params.toString()
+    return apiClient.get<HotelDetails>(`/hotels/storefront/${encodeURIComponent(String(id))}${queryString ? `?${queryString}` : ''}`)
   },
   
   async searchDestinations(search: string): Promise<SearchResponse<DestinationSearchResult>> {

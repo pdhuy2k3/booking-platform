@@ -114,7 +114,7 @@ export function HotelSearchTab({ onBookingStart }: HotelSearchTabProps = {}) {
     setDestination(destination.name)
   }
 
-  const handleRoomBooking = ({ hotel, room }: { hotel: HotelDetails; room: any }) => {
+  const handleRoomBooking = ({ hotel, room, checkInDate, checkOutDate }: { hotel: HotelDetails; room: any; checkInDate?: string; checkOutDate?: string }) => {
     if (!hasSearched) {
       scrollToSearch()
       return

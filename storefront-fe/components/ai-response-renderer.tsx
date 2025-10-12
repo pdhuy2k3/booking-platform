@@ -134,7 +134,7 @@ interface AiResponseRendererProps {
   message: string
   results?: ChatStructuredResult[]
   onFlightBook?: (flight: any) => void
-  onHotelBook?: (hotel: any, room: any) => void
+  onHotelBook?: (hotel: any, room: any, checkInDate?: string, checkOutDate?: string) => void
   onLocationClick?: (location: { lat: number; lng: number; title: string; description?: string }) => void
   canBook?: boolean
   requiresConfirmation?: boolean // Whether this response needs user confirmation
@@ -192,9 +192,9 @@ export const AiResponseRenderer = ({
     setIsHotelModalOpen(true)
   }
 
-  const handleHotelModalBook = ({ hotel, room }: { hotel: any; room: any }) => {
+  const handleHotelModalBook = ({ hotel, room, checkInDate, checkOutDate }: { hotel: any; room: any; checkInDate?: string; checkOutDate?: string }) => {
     setIsHotelModalOpen(false)
-    onHotelBook?.(hotel, room)
+    onHotelBook?.(hotel, room, checkInDate, checkOutDate)
   }
 
   return (
@@ -549,7 +549,7 @@ export const AiResponseRenderer = ({
 
       {/* Confirmation UI - Shows interactive Yes/No buttons for booking/payment operations */}
       {requiresConfirmation && confirmationContext && (
-        <div className="mt-6 p-6 bg-gradient-to-r from-yellow-50 to-orange-50 border-2 border-yellow-400 rounded-xl shadow-lg">
+        <div className="mt-6 p-6 bg-linear-to-r from-yellow-50 to-orange-50 border-2 border-yellow-400 rounded-xl shadow-lg">
           {/* Warning Header */}
           <div className="flex items-center gap-3 mb-4">
             <div className="p-2 bg-yellow-400 rounded-lg">

@@ -15,7 +15,7 @@ interface HotelDetailsModalProps {
   hotelId: string | null
   isOpen: boolean
   onClose: () => void
-  onBookRoom?: (payload: { hotel: HotelDetails; room: any }) => void
+  onBookRoom?: (payload: { hotel: HotelDetails; room: any; checkInDate?: string; checkOutDate?: string }) => void
   canBook?: boolean
   onPromptSearch?: () => void
   checkInDate?: string
@@ -46,7 +46,7 @@ export default function HotelDetailsModal({
     if (isOpen && hotelId) {
       setLoading(true)
       setError(null)
-      hotelService.get(hotelId)
+      hotelService.get(hotelId, checkInDate, checkOutDate)
         .then((hotelData) => {
           setHotel(hotelData)
         })
@@ -59,7 +59,7 @@ export default function HotelDetailsModal({
     } else {
       setHotel(null)
     }
-  }, [isOpen, hotelId])
+  }, [isOpen, hotelId, checkInDate, checkOutDate])
 
   useEffect(() => {
     if (hotel?.roomTypes && hotel.roomTypes.length > 0) {
@@ -368,7 +368,7 @@ export default function HotelDetailsModal({
                           return
                         }
                         if (selectedRoomData) {
-                          onBookRoom?.({ hotel, room: selectedRoomData })
+                          onBookRoom?.({ hotel, room: selectedRoomData, checkInDate, checkOutDate })
                         }
                       }}
                     >

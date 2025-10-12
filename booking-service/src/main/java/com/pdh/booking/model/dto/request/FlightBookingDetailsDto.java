@@ -56,6 +56,26 @@ public class FlightBookingDetailsDto {
     private String destinationAirport;
     
     /**
+     * Origin airport latitude
+     */
+    private Double originLatitude;
+    
+    /**
+     * Origin airport longitude
+     */
+    private Double originLongitude;
+    
+    /**
+     * Destination airport latitude
+     */
+    private Double destinationLatitude;
+    
+    /**
+     * Destination airport longitude
+     */
+    private Double destinationLongitude;
+    
+    /**
      * Departure date and time
      */
     @NotNull(message = "Departure date is required")

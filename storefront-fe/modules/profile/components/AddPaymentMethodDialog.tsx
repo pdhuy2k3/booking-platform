@@ -159,8 +159,8 @@ export function AddPaymentMethodDialog({ open, onOpenChange, onSuccess }: AddPay
           </AlertDescription>
         </Alert>
 
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div className="space-y-2">
+        <form onSubmit={handleSubmit} className="space-y-3">
+          <div className="space-y-1">
             <Label htmlFor="displayName">Display Name *</Label>
             <Input
               id="displayName"
@@ -171,7 +171,7 @@ export function AddPaymentMethodDialog({ open, onOpenChange, onSuccess }: AddPay
             />
           </div>
 
-          <div className="space-y-2">
+          <div className="space-y-1">
             <Label htmlFor="cardHolderName">Cardholder Name</Label>
             <Input
               id="cardHolderName"
@@ -181,7 +181,7 @@ export function AddPaymentMethodDialog({ open, onOpenChange, onSuccess }: AddPay
             />
           </div>
 
-          <div className="space-y-2">
+          <div className="space-y-1">
             <Label htmlFor="cardHolderEmail">Cardholder Email</Label>
             <Input
               id="cardHolderEmail"
@@ -192,9 +192,9 @@ export function AddPaymentMethodDialog({ open, onOpenChange, onSuccess }: AddPay
             />
           </div>
 
-          <div className="space-y-2">
+          <div className="space-y-1">
             <Label>Card Details *</Label>
-            <div className="border rounded-md p-3 bg-white">
+            <div className="border rounded-md p-2 bg-white">
               <CardElement
                 options={{
                   style: {
@@ -231,7 +231,7 @@ export function AddPaymentMethodDialog({ open, onOpenChange, onSuccess }: AddPay
             </Label>
           </div>
 
-          <div className="flex justify-end gap-2 pt-4">
+          <div className="flex justify-end gap-2 pt-2">
             <Button
               type="button"
               variant="outline"

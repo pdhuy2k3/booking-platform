@@ -90,7 +90,7 @@ export function AddressForm({ user, onUpdate }: AddressFormProps) {
           <CardTitle className="text-gray-900">Billing Address</CardTitle>
           <CardDescription>Your billing and contact address for bookings</CardDescription>
         </div>
-        <div className="flex gap-2">
+        <div className="flex gap-1">
           <Button
             variant={isEditing ? "default" : "outline"}
             onClick={isEditing ? handleSaveAddress : () => setIsEditing(true)}
@@ -115,9 +115,9 @@ export function AddressForm({ user, onUpdate }: AddressFormProps) {
           </Button>
         </div>
       </CardHeader>
-      <CardContent className="space-y-6">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <div className="space-y-2 md:col-span-2">
+      <CardContent className="space-y-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="space-y-1 md:col-span-2">
             <Label htmlFor="address.street">Street Address</Label>
             <Input
               id="address.street"
@@ -128,7 +128,7 @@ export function AddressForm({ user, onUpdate }: AddressFormProps) {
               className="bg-white border-gray-300 disabled:opacity-60"
             />
           </div>
-          <div className="space-y-2">
+          <div className="space-y-1">
             <Label htmlFor="address.city">City</Label>
             <Input
               id="address.city"
@@ -139,7 +139,7 @@ export function AddressForm({ user, onUpdate }: AddressFormProps) {
               className="bg-white border-gray-300 disabled:opacity-60"
             />
           </div>
-          <div className="space-y-2">
+          <div className="space-y-1">
             <Label htmlFor="address.state">State/Province</Label>
             <Input
               id="address.state"
@@ -150,7 +150,7 @@ export function AddressForm({ user, onUpdate }: AddressFormProps) {
               className="bg-white border-gray-300 disabled:opacity-60"
             />
           </div>
-          <div className="space-y-2">
+          <div className="space-y-1">
             <Label htmlFor="address.country">Country</Label>
             <Input
               id="address.country"
@@ -161,7 +161,7 @@ export function AddressForm({ user, onUpdate }: AddressFormProps) {
               className="bg-white border-gray-300 disabled:opacity-60"
             />
           </div>
-          <div className="space-y-2">
+          <div className="space-y-1">
             <Label htmlFor="address.postalCode">Postal Code</Label>
             <Input
               id="address.postalCode"

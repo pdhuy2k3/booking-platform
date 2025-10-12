@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { MediaSelector } from "@/components/ui/media-selector"
-import type { Aircraft } from "@/types/api"
+import type { Aircraft, MediaResponse } from "@/types/api"
 
 interface AircraftFormData {
   model: string
@@ -21,7 +21,7 @@ interface AircraftFormData {
 interface AircraftFormDialogProps {
   isOpen: boolean
   onClose: () => void
-  onSubmit: (data: AircraftFormData & { mediaPublicIds: string[] }) => void
+  onSubmit: (data: AircraftFormData & { mediaPublicIds: string[]; featuredMediaUrl?: string | null }) => void
   isSubmitting: boolean
   editingAircraft?: Aircraft | null
   title: string
@@ -46,7 +46,7 @@ export function AircraftFormDialog({
     totalCapacity: '',
     registrationNumber: ''
   })
-  const [images, setImages] = useState<string[]>([])
+  const [media, setMedia] = useState<MediaResponse[]>([])
   const [errors, setErrors] = useState<Partial<AircraftFormData>>({})
 
   useEffect(() => {
@@ -60,7 +60,7 @@ export function AircraftFormDialog({
         totalCapacity: editingAircraft.totalCapacity?.toString() || '',
         registrationNumber: editingAircraft.registrationNumber || ''
       })
-      setImages(editingAircraft.media?.map(m => m.publicId) || [])
+      setMedia(editingAircraft.media || [])
     } else {
       resetForm()
     }
@@ -76,7 +76,7 @@ export function AircraftFormDialog({
       totalCapacity: '',
       registrationNumber: ''
     })
-    setImages([])
+    setMedia([])
     setErrors({})
   }
 
@@ -96,7 +96,8 @@ export function AircraftFormDialog({
     
     onSubmit({
       ...formData,
-      mediaPublicIds: images
+      mediaPublicIds: media.map(m => m.publicId),
+      featuredMediaUrl: media[0]?.secureUrl || null
     })
   }
 
@@ -187,10 +188,11 @@ export function AircraftFormDialog({
             <div className="space-y-2 col-span-2">
               <Label htmlFor="aircraft-images">Hình ảnh máy bay</Label>
               <MediaSelector
-                value={images}
-                onChange={setImages}
+                value={media}
+                onMediaChange={setMedia}
                 maxSelection={10}
                 folder="flights"
+                mode="publicIds"
               />
             </div>
           </div>

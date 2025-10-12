@@ -312,7 +312,7 @@ export const ChatInterface = forwardRef<any, ChatInterfaceProps>(function ChatIn
               </button>
             </div>
 
-            <div className="-my-2 flex min-h-[3.5rem] items-center px-2 py-2 [grid-area:primary]">
+            <div className="-my-2 flex min-h-14 items-center px-2 py-2 [grid-area:primary]">
               <div className="flex-1">
                 <textarea
                   ref={(el) => {

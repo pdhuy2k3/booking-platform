@@ -157,7 +157,7 @@ export function AddPaymentMethodDialogV2({ open, onOpenChange, onSuccess }: AddP
         </DialogHeader>
 
         <Alert>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1">
             <CreditCard className="h-4 w-4" />
             <Smartphone className="h-4 w-4" />
           </div>
@@ -168,8 +168,8 @@ export function AddPaymentMethodDialogV2({ open, onOpenChange, onSuccess }: AddP
           </AlertDescription>
         </Alert>
 
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div className="space-y-2">
+        <form onSubmit={handleSubmit} className="space-y-3">
+          <div className="space-y-1">
             <Label htmlFor="displayName">Display Name *</Label>
             <Input
               id="displayName"
@@ -180,7 +180,7 @@ export function AddPaymentMethodDialogV2({ open, onOpenChange, onSuccess }: AddP
             />
           </div>
 
-          <div className="space-y-2">
+          <div className="space-y-1">
             <Label htmlFor="cardHolderName">Cardholder Name</Label>
             <Input
               id="cardHolderName"
@@ -190,7 +190,7 @@ export function AddPaymentMethodDialogV2({ open, onOpenChange, onSuccess }: AddP
             />
           </div>
 
-          <div className="space-y-2">
+          <div className="space-y-1">
             <Label htmlFor="cardHolderEmail">Cardholder Email</Label>
             <Input
               id="cardHolderEmail"
@@ -201,9 +201,9 @@ export function AddPaymentMethodDialogV2({ open, onOpenChange, onSuccess }: AddP
             />
           </div>
 
-          <div className="space-y-2">
+          <div className="space-y-1">
             <Label>Payment Details *</Label>
-            <div className="border rounded-md p-3 bg-white">
+            <div className="border rounded-md p-2 bg-white">
               <PaymentElement
                 options={{
                   layout: {
@@ -244,7 +244,7 @@ export function AddPaymentMethodDialogV2({ open, onOpenChange, onSuccess }: AddP
             </Label>
           </div>
 
-          <div className="flex justify-end gap-2 pt-4">
+          <div className="flex justify-end gap-2 pt-2">
             <Button
               type="button"
               variant="outline"

@@ -476,8 +476,9 @@ export function BookingProvider({ children }: { children: React.ReactNode }) {
     dispatch({ type: 'SET_BOOKING_RESPONSE', payload: response })
     dispatch({ type: 'SET_BOOKING_STATUS', payload: null })
 
-    const next = booking.status === 'PAYMENT_PENDING' ? 'payment' : 'review'
-    setStep(next as BookingStep)
+    // Set the correct step based on booking status
+    const nextStep = booking.status === 'PAYMENT_PENDING' ? 'payment' : 'review'
+    setStep(nextStep as BookingStep)
 
     if (booking.bookingId) {
       await pollBookingStatus(booking.bookingId)

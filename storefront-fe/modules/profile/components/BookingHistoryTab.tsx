@@ -329,7 +329,12 @@ export function BookingHistoryTab() {
   const handleContinueBooking = useCallback((booking: BookingHistoryItemDto) => {
     try {
       const productDetails = booking.productDetailsJson ? JSON.parse(booking.productDetailsJson) : null
-      sessionStorage.setItem(RESUME_STORAGE_KEY, JSON.stringify({ booking, productDetails }))
+      const payload = { booking, productDetails }
+      
+      // Store in sessionStorage with a consistent key
+      sessionStorage.setItem('bookingResumePayload', JSON.stringify(payload))
+      
+      // Redirect to homepage with resume parameter
       router.push(`/?resume=${booking.bookingId}`)
     } catch (error) {
       console.error('Failed to prepare booking for resuming', error)
@@ -463,16 +468,16 @@ export function BookingHistoryTab() {
   }, [items])
 
   return (
-    <div className="space-y-6">
-      <Card className="bg-white/70 border-gray-200">
+    <div className="space-y-4 h-full flex flex-col">
+      <Card className="bg-white/70 border-gray-200 flex-1 flex flex-col min-h-0">
         <CardHeader>
           <CardTitle className="text-gray-900">Booking History</CardTitle>
           <CardDescription>Review your completed and in-progress bookings</CardDescription>
         </CardHeader>
-        <CardContent className="space-y-5">
+        <CardContent className="space-y-4 overflow-y-auto">
           {error && (
-            <div className="rounded-lg border border-red-500/30 bg-red-50 p-4">
-              <div className="flex items-center gap-3">
+            <div className="rounded-lg border border-red-500/30 bg-red-50 p-3">
+              <div className="flex items-center gap-2">
                 <AlertTriangle className="h-5 w-5 text-red-500" />
                 <div>
                   <p className="text-sm text-red-600">{error}</p>
@@ -485,19 +490,19 @@ export function BookingHistoryTab() {
           )}
 
           {items.length === 0 && !isLoading && !error && (
-            <div className="text-center py-12 bg-gray-50 rounded-lg">
-              <Calendar className="h-12 w-12 text-gray-500 mx-auto mb-4" />
-              <h3 className="text-lg font-medium text-gray-900 mb-2">No bookings yet</h3>
+            <div className="text-center py-10 bg-gray-50 rounded-lg">
+              <Calendar className="h-12 w-12 text-gray-500 mx-auto mb-3" />
+              <h3 className="text-lg font-medium text-gray-900 mb-1">No bookings yet</h3>
               <p className="text-gray-600">Plan your next trip to see bookings listed here.</p>
             </div>
           )}
 
           {historyByDate.map((group) => (
-            <div key={group.date} className="space-y-3">
+            <div key={group.date} className="space-y-2">
               <div className="text-xs uppercase tracking-wide text-gray-400">
                 {formatDateOnly(group.date)}
               </div>
-              <div className="space-y-3">
+              <div className="space-y-2">
                 {group.entries.map((booking) => {
                   const bookingId = booking.bookingId
                   const detail = detailMap[bookingId]
@@ -511,13 +516,13 @@ export function BookingHistoryTab() {
                   return (
                     <div
                       key={bookingId}
-                      className="rounded-lg border border-gray-200 bg-gray-50 p-4"
+                      className="rounded-lg border border-gray-200 bg-gray-50 p-3"
                     >
-                      <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-                        <div className="flex items-start gap-4">
+                      <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                        <div className="flex items-start gap-3">
                           <div className="text-cyan-500">{getBookingIcon(booking.bookingType)}</div>
                           <div>
-                            <div className="flex flex-wrap items-center gap-2">
+                            <div className="flex flex-wrap items-center gap-1">
                               <h3 className="text-gray-900 font-medium">
                                 {booking.productSummary ?? booking.bookingType ?? "Booking"}
                               </h3>
@@ -529,7 +534,7 @@ export function BookingHistoryTab() {
                               <p>{`Created: ${formatDateTime(booking.createdAt)}`}</p>
                               <p>{`Updated: ${formatDateTime(booking.updatedAt)}`}</p>
                               {isProcessing && hasCountdown && (
-                                <p className={`flex items-center gap-2 ${isExpired ? 'text-red-500' : 'text-amber-600'}`}>
+                                <p className={`flex items-center gap-1 ${isExpired ? 'text-red-500' : 'text-amber-600'}`}>
                                   <Clock3 className="h-4 w-4" />
                                   {isExpired ? 'Reservation hold expired' : `Reservation expires in ${countdown}`}
                                 </p>
@@ -537,11 +542,11 @@ export function BookingHistoryTab() {
                             </div>
                           </div>
                         </div>
-                        <div className="flex flex-col items-start gap-2 text-sm md:items-end">
+                        <div className="flex flex-col items-start gap-1 text-sm md:items-end">
                           <span className="text-gray-900 font-semibold text-base">
                             {formatCurrency(booking.totalAmount, booking.currency)}
                           </span>
-                          <div className="flex gap-2">
+                          <div className="flex gap-1">
                             <Button
                               variant="outline"
                               size="sm"
@@ -556,21 +561,21 @@ export function BookingHistoryTab() {
                       </div>
 
                       {isExpanded && (
-                        <div className="mt-4 space-y-4">
+                        <div className="mt-3 space-y-3">
                           {detailLoadingId === bookingId && (
-                            <div className="flex items-center gap-2 text-sm text-gray-300">
+                            <div className="flex items-center gap-1 text-sm text-gray-300">
                               <Loader2 className="h-4 w-4 animate-spin" />
                               Loading booking details…
                             </div>
                           )}
                           {detailError && (
-                            <div className="flex items-center gap-2 text-sm text-red-400">
+                            <div className="flex items-center gap-1 text-sm text-red-400">
                               <AlertTriangle className="h-4 w-4" />
                               {detailError}
                             </div>
                           )}
                           {detail && detailLoadingId !== bookingId && (
-                            <div className="space-y-4">
+                            <div className="space-y-3">
                               {renderFlightDetails(detail.flight, detail.fallbackFlight)}
                               {renderHotelDetails(detail.hotel, detail.fallbackHotel)}
                               {!detail.flight && !detail.hotel && !detail.fallbackFlight && !detail.fallbackHotel && (
@@ -581,7 +586,7 @@ export function BookingHistoryTab() {
                         </div>
                       )}
 
-                      <div className="mt-4 flex flex-wrap gap-2">
+                      <div className="mt-3 flex flex-wrap gap-1">
                         {(booking.bookingType === 'FLIGHT' || booking.bookingType === 'COMBO') && (
                           <>
                             <Button variant="outline" size="sm" onClick={() => handleShowFlightLocation(booking, 'origin')}>
@@ -611,7 +616,7 @@ export function BookingHistoryTab() {
           ))}
 
           {isLoading && (
-            <div className="flex items-center justify-center gap-2 text-sm text-gray-300">
+            <div className="flex items-center justify-center gap-1 text-sm text-gray-300">
               <Loader2 className="h-4 w-4 animate-spin" />
               Loading booking history…
             </div>

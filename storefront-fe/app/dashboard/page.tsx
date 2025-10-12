@@ -61,8 +61,8 @@ export default function DashboardPage() {
 
   return (
     <ProtectedRoute>
-      <div className="h-screen w-full bg-gray-50 text-gray-900 px-3 py-4 sm:px-4 md:px-6">
-        <div className="w-full space-y-6 md:space-y-8">
+      <div className="h-screen w-full bg-gray-50 text-gray-900 px-3 py-4 sm:px-4 md:px-6 flex flex-col">
+        <div className="w-full space-y-6 md:space-y-8 flex flex-col flex-1 min-h-0">
           {/* Header */}
           <div className="flex items-center justify-between">
             <div>
@@ -71,7 +71,7 @@ export default function DashboardPage() {
             </div>
           </div>
 
-          <Tabs value={activeTab} onValueChange={handleTabChange} className="space-y-6">
+          <Tabs value={activeTab} onValueChange={handleTabChange} className="space-y-6 flex flex-col flex-1 min-h-0">
             <TabsList className="flex w-full flex-wrap gap-2 rounded-lg border border-gray-200 bg-white p-1 shadow-sm md:grid md:grid-cols-5 md:gap-1">
               <TabsTrigger
                 value="profile"
@@ -111,7 +111,7 @@ export default function DashboardPage() {
             </TabsList>
 
             {/* Profile Tab */}
-            <TabsContent value="profile" className="space-y-6">
+            <TabsContent value="profile" className="space-y-6 overflow-y-auto">
               <div className="w-full space-y-4">
                 <ProfileInfo user={user} onUpdate={refreshUser} />
                 <Card className="border-gray-200">
@@ -134,29 +134,29 @@ export default function DashboardPage() {
             </TabsContent>
 
             {/* Address Tab */}
-            <TabsContent value="address" className="space-y-6">
+            <TabsContent value="address" className="space-y-6 overflow-y-auto">
               <div className="w-full">
                 <AddressForm user={user} onUpdate={refreshUser} />
               </div>
             </TabsContent>
 
             {/* Preferences Tab */}
-            <TabsContent value="preferences" className="space-y-6">
+            <TabsContent value="preferences" className="space-y-6 overflow-y-auto">
               <div className="w-full">
                 <AttributeManager user={user} onUpdate={refreshUser} />
               </div>
             </TabsContent>
 
             {/* Payment Methods Tab */}
-            <TabsContent value="payments" className="space-y-6">
+            <TabsContent value="payments" className="space-y-6 overflow-y-auto">
               <div className="w-full">
                 <PaymentMethodsTab />
               </div>
             </TabsContent>
 
             {/* Booking History Tab */}
-            <TabsContent value="bookings" className="space-y-6">
-              <div className="w-full">
+            <TabsContent value="bookings" className="space-y-6 flex-1 min-h-0">
+              <div className="w-full h-full">
                 <BookingHistoryTab />
               </div>
             </TabsContent>
