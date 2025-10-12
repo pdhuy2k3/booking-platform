@@ -51,6 +51,9 @@ public class FlightCreateDto {
     // Media public IDs for flight images
     private List<String> mediaPublicIds;
     
+    // Featured media URL for primary display
+    private String featuredMediaUrl;
+    
     @AssertTrue(message = "Departure and arrival airports cannot be the same")
     private boolean isDifferentAirports() {
         if (departureAirportId == null || arrivalAirportId == null) {

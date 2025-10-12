@@ -77,4 +77,13 @@ public class Booking extends AbstractAuditEntity {
 
     @Column(name = "booking_source", length = 50)
     private String bookingSource;
+
+    @Column(name = "reservation_locked_at")
+    private ZonedDateTime reservationLockedAt;
+
+    @Column(name = "reservation_expires_at")
+    private ZonedDateTime reservationExpiresAt;
+
+    @Column(name = "reservation_lock_id", length = 120)
+    private String reservationLockId;
 }

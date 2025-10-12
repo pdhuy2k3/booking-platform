@@ -30,4 +30,13 @@ public class BookingHistoryItemDto {
     private String productSummary;
     private String confirmationNumber;
     private String productDetailsJson;
+    private String sagaId;
+    private Double originLatitude;
+    private Double originLongitude;
+    private Double destinationLatitude;
+    private Double destinationLongitude;
+    private Double hotelLatitude;
+    private Double hotelLongitude;
+    private String reservationLockedAt;
+    private String reservationExpiresAt;
 }

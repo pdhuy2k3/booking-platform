@@ -10,6 +10,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
@@ -85,7 +86,9 @@ public class RoomMapper {
         // Add hotel information if available
         if (room.getHotel() != null) {
             builder.hotelId(room.getHotel().getHotelId())
-                   .hotelName(room.getHotel().getName());
+                   .hotelName(room.getHotel().getName())
+                   .hotelLatitude(toDouble(room.getHotel().getLatitude()))
+                   .hotelLongitude(toDouble(room.getHotel().getLongitude()));
         }
 
         // Add room type information if available
@@ -131,7 +134,9 @@ public class RoomMapper {
                     // Add hotel information if available
                     if (room.getHotel() != null) {
                         builder.hotelId(room.getHotel().getHotelId())
-                               .hotelName(room.getHotel().getName());
+                               .hotelName(room.getHotel().getName())
+                               .hotelLatitude(toDouble(room.getHotel().getLatitude()))
+                               .hotelLongitude(toDouble(room.getHotel().getLongitude()));
                     }
 
                     // Add room type information if available
@@ -220,5 +225,7 @@ public class RoomMapper {
         dto.setMediaCount(0);
     }
     
-    
+    private Double toDouble(BigDecimal value) {
+        return value != null ? value.doubleValue() : null;
+    }
 }

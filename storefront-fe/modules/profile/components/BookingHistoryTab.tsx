@@ -1,7 +1,7 @@
 "use client"
 
 import type { JSX } from "react"
-import { useEffect, useMemo, useState } from "react"
+import { useCallback, useEffect, useMemo, useState } from "react"
 import { bookingService, type BookingHistoryItemDto, type BookingHistoryResponseDto } from "@/modules/booking/service"
 import { flightService } from "@/modules/flight/service"
 import { hotelService } from "@/modules/hotel/service"
@@ -23,6 +23,12 @@ import {
   AlertTriangle,
 } from "lucide-react"
 import { useDateFormatter } from "@/hooks/use-date-formatter"
+import { useRouter } from "next/navigation"
+import { useToast } from "@/hooks/use-toast"
+import { useRecommendPanel } from "@/contexts/recommend-panel-context"
+
+const RESUME_STORAGE_KEY = "bookingResumePayload"
+const PROCESSING_STATUSES = new Set(["PENDING", "VALIDATION_PENDING", "PAYMENT_PENDING"])
 
 const PAGE_SIZE = 10
 
@@ -251,6 +257,89 @@ export function BookingHistoryTab() {
   const [detailLoadingId, setDetailLoadingId] = useState<string | null>(null)
   const [detailErrors, setDetailErrors] = useState<Record<string, string | null>>({})
   const [detailMap, setDetailMap] = useState<Record<string, BookingDetailState>>({})
+  const router = useRouter()
+  const { toast } = useToast()
+  const { showLocation } = useRecommendPanel()
+  const [now, setNow] = useState(() => Date.now())
+
+  useEffect(() => {
+    const timer = window.setInterval(() => setNow(Date.now()), 1000)
+    return () => window.clearInterval(timer)
+  }, [])
+
+  const formatCountdown = useCallback((expires?: string | null) => {
+    if (!expires) return null
+    const target = new Date(expires).getTime()
+    if (Number.isNaN(target)) return null
+    const remaining = target - now
+    if (remaining <= 0) return '00:00'
+    const totalSeconds = Math.floor(remaining / 1000)
+    const minutes = Math.floor(totalSeconds / 60)
+    const seconds = totalSeconds % 60
+    return `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`
+  }, [now])
+
+  const handleShowFlightLocation = useCallback((booking: BookingHistoryItemDto, target: 'origin' | 'destination') => {
+    const latValue = target === 'origin' ? booking.originLatitude : booking.destinationLatitude
+    const lngValue = target === 'origin' ? booking.originLongitude : booking.destinationLongitude
+
+    const lat = typeof latValue === 'string' ? Number(latValue) : latValue
+    const lng = typeof lngValue === 'string' ? Number(lngValue) : lngValue
+
+    if (!Number.isFinite(lat ?? NaN) || !Number.isFinite(lng ?? NaN)) {
+      toast({
+        title: "Location unavailable",
+        description: `The ${target === 'origin' ? 'departure' : 'arrival'} airport does not have coordinates configured in the system yet.`,
+        variant: "destructive",
+      })
+      return
+    }
+
+    showLocation({
+      lat: lat as number,
+      lng: lng as number,
+      title: `${target === 'origin' ? 'Departure' : 'Arrival'} • ${booking.bookingReference}`,
+      description: booking.productSummary ?? undefined,
+    })
+  }, [showLocation, toast])
+
+  const handleShowHotelLocation = useCallback((booking: BookingHistoryItemDto) => {
+    const latValue = booking.hotelLatitude
+    const lngValue = booking.hotelLongitude
+    const lat = typeof latValue === 'string' ? Number(latValue) : latValue
+    const lng = typeof lngValue === 'string' ? Number(lngValue) : lngValue
+
+    if (!Number.isFinite(lat ?? NaN) || !Number.isFinite(lng ?? NaN)) {
+      toast({
+        title: "Location unavailable",
+        description: "The hotel location is not yet configured in the system.",
+        variant: "destructive",
+      })
+      return
+    }
+
+    showLocation({
+      lat: lat as number,
+      lng: lng as number,
+      title: `Hotel • ${booking.bookingReference}`,
+      description: booking.productSummary ?? undefined,
+    })
+  }, [showLocation, toast])
+
+  const handleContinueBooking = useCallback((booking: BookingHistoryItemDto) => {
+    try {
+      const productDetails = booking.productDetailsJson ? JSON.parse(booking.productDetailsJson) : null
+      sessionStorage.setItem(RESUME_STORAGE_KEY, JSON.stringify({ booking, productDetails }))
+      router.push(`/?resume=${booking.bookingId}`)
+    } catch (error) {
+      console.error('Failed to prepare booking for resuming', error)
+      toast({
+        title: "Unable to resume booking",
+        description: "Please try again later.",
+        variant: "destructive",
+      })
+    }
+  }, [router, toast])
 
   useEffect(() => {
     let cancelled = false
@@ -414,6 +503,10 @@ export function BookingHistoryTab() {
                   const detail = detailMap[bookingId]
                   const detailError = detailErrors[bookingId]
                   const isExpanded = expandedId === bookingId
+                  const countdown = formatCountdown(booking.reservationExpiresAt)
+                  const isProcessing = PROCESSING_STATUSES.has((booking.status || '').toUpperCase())
+                  const hasCountdown = countdown !== null
+                  const isExpired = hasCountdown && countdown === '00:00'
 
                   return (
                     <div
@@ -435,6 +528,12 @@ export function BookingHistoryTab() {
                               {booking.confirmationNumber && <p>{`Confirmation: ${booking.confirmationNumber}`}</p>}
                               <p>{`Created: ${formatDateTime(booking.createdAt)}`}</p>
                               <p>{`Updated: ${formatDateTime(booking.updatedAt)}`}</p>
+                              {isProcessing && hasCountdown && (
+                                <p className={`flex items-center gap-2 ${isExpired ? 'text-red-500' : 'text-amber-600'}`}>
+                                  <Clock3 className="h-4 w-4" />
+                                  {isExpired ? 'Reservation hold expired' : `Reservation expires in ${countdown}`}
+                                </p>
+                              )}
                             </div>
                           </div>
                         </div>
@@ -452,15 +551,6 @@ export function BookingHistoryTab() {
                             >
                               {isExpanded ? 'Hide Details' : 'View Details'}
                             </Button>
-                            {booking.status === "CONFIRMED" && (
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                className="border-red-600 text-red-400"
-                              >
-                                Cancel
-                              </Button>
-                            )}
                           </div>
                         </div>
                       </div>
@@ -490,6 +580,29 @@ export function BookingHistoryTab() {
                           )}
                         </div>
                       )}
+
+                      <div className="mt-4 flex flex-wrap gap-2">
+                        {(booking.bookingType === 'FLIGHT' || booking.bookingType === 'COMBO') && (
+                          <>
+                            <Button variant="outline" size="sm" onClick={() => handleShowFlightLocation(booking, 'origin')}>
+                              View departure on map
+                            </Button>
+                            <Button variant="outline" size="sm" onClick={() => handleShowFlightLocation(booking, 'destination')}>
+                              View arrival on map
+                            </Button>
+                          </>
+                        )}
+                        {(booking.bookingType === 'HOTEL' || booking.bookingType === 'COMBO') && (
+                          <Button variant="outline" size="sm" onClick={() => handleShowHotelLocation(booking)}>
+                            View hotel on map
+                          </Button>
+                        )}
+                        {isProcessing && (!hasCountdown || !isExpired) && (
+                          <Button size="sm" onClick={() => handleContinueBooking(booking)}>
+                            Continue booking
+                          </Button>
+                        )}
+                      </div>
                     </div>
                   )
                 })}

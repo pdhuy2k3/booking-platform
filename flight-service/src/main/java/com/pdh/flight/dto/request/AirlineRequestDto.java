@@ -28,4 +28,7 @@ public class AirlineRequestDto {
     // Media public IDs for airline images (logos, etc.)
     // Contains list of publicIds that will be processed by the service layer
     private List<String> mediaPublicIds;
+    
+    // Featured media URL - the primary media URL to display
+    private String featuredMediaUrl;
 }

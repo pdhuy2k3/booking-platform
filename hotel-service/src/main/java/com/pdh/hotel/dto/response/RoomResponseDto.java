@@ -37,6 +37,9 @@ public class RoomResponseDto {
     private MediaResponse primaryImage;
     private Boolean hasMedia;
     private Integer mediaCount;
+
+    private Double hotelLatitude;
+    private Double hotelLongitude;
     
     // Audit fields
     private ZonedDateTime createdAt;

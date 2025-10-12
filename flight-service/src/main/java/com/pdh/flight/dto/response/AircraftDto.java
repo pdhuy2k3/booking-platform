@@ -31,6 +31,9 @@ public class AircraftDto {
     
     private Boolean isActive;
     
+    // Primary media URL
+    private String featuredMediaUrl;
+    
     // Images as publicIds - frontend can use these to generate URLs
     private List<String> images;
     

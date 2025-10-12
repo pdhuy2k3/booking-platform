@@ -158,6 +158,8 @@ export function HotelSearchTab({ onBookingStart }: HotelSearchTabProps = {}) {
       address: hotel.address || '',
       city: hotel.city || '',
       country: hotel.country || '',
+      hotelLatitude: hotel.latitude,
+      hotelLongitude: hotel.longitude,
       rating: hotel.starRating ?? hotel.rating,
       roomTypeId: roomTypeId ? String(roomTypeId) : '',
       roomId: roomId,

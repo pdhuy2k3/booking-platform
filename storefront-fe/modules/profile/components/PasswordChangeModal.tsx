@@ -1,10 +1,10 @@
 "use client"
 
 import { useState } from "react"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { CheckCircle, Clock, X } from "lucide-react"
 import { toast } from "@/hooks/use-toast"
 import { ProfileService } from "@/lib/profile-service"
@@ -50,8 +50,7 @@ export function PasswordChangeModal({ isOpen, onClose, onSuccess }: PasswordChan
       }
 
       await ProfileService.updatePassword(passwordUpdateData)
-      onClose()
-      setPasswordData({ currentPassword: "", newPassword: "", confirmPassword: "" })
+      handleClose()
       onSuccess()
       toast({
         title: "Password Updated",
@@ -77,13 +76,18 @@ export function PasswordChangeModal({ isOpen, onClose, onSuccess }: PasswordChan
   if (!isOpen) return null
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-      <Card className="bg-gray-900/95 border-gray-800 w-full max-w-md mx-4">
-        <CardHeader>
-          <CardTitle className="text-white">Change Password</CardTitle>
-          <CardDescription>Update your account password</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
+    <Dialog open={isOpen} onOpenChange={(open) => {
+      if (!open) {
+        handleClose()
+      }
+    }}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>Change Password</DialogTitle>
+          <DialogDescription>Update your account password</DialogDescription>
+        </DialogHeader>
+
+        <div className="space-y-4 py-2">
           <div className="space-y-2">
             <Label htmlFor="currentPassword">Current Password</Label>
             <Input
@@ -91,7 +95,7 @@ export function PasswordChangeModal({ isOpen, onClose, onSuccess }: PasswordChan
               type="password"
               value={passwordData.currentPassword}
               onChange={(e) => setPasswordData(prev => ({ ...prev, currentPassword: e.target.value }))}
-              className="bg-gray-800/50 border-gray-700"
+              disabled={isSaving}
             />
           </div>
           <div className="space-y-2">
@@ -101,7 +105,7 @@ export function PasswordChangeModal({ isOpen, onClose, onSuccess }: PasswordChan
               type="password"
               value={passwordData.newPassword}
               onChange={(e) => setPasswordData(prev => ({ ...prev, newPassword: e.target.value }))}
-              className="bg-gray-800/50 border-gray-700"
+              disabled={isSaving}
             />
           </div>
           <div className="space-y-2">
@@ -111,38 +115,40 @@ export function PasswordChangeModal({ isOpen, onClose, onSuccess }: PasswordChan
               type="password"
               value={passwordData.confirmPassword}
               onChange={(e) => setPasswordData(prev => ({ ...prev, confirmPassword: e.target.value }))}
-              className="bg-gray-800/50 border-gray-700"
+              disabled={isSaving}
             />
           </div>
-          <div className="flex gap-2 pt-4">
-            <Button
-              onClick={handleChangePassword}
-              disabled={isSaving}
-              className="bg-cyan-500 hover:bg-cyan-600"
-            >
-              {isSaving ? (
-                <>
-                  <Clock className="h-4 w-4 mr-2 animate-spin" />
-                  Updating...
-                </>
-              ) : (
-                <>
-                  <CheckCircle className="h-4 w-4 mr-2" />
-                  Update Password
-                </>
-              )}
-            </Button>
-            <Button
-              variant="outline"
-              onClick={handleClose}
-              className="border-gray-700 hover:bg-gray-800"
-            >
-              <X className="h-4 w-4 mr-2" />
-              Cancel
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
-    </div>
+        </div>
+
+        <DialogFooter className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+          <Button
+            variant="outline"
+            onClick={handleClose}
+            disabled={isSaving}
+            className="sm:min-w-[120px]"
+          >
+            <X className="mr-2 h-4 w-4" />
+            Cancel
+          </Button>
+          <Button
+            onClick={handleChangePassword}
+            disabled={isSaving}
+            className="sm:min-w-[160px]"
+          >
+            {isSaving ? (
+              <>
+                <Clock className="mr-2 h-4 w-4 animate-spin" />
+                Updating...
+              </>
+            ) : (
+              <>
+                <CheckCircle className="mr-2 h-4 w-4" />
+                Update Password
+              </>
+            )}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   )
 }

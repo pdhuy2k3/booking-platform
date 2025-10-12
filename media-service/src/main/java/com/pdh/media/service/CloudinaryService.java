@@ -75,6 +75,63 @@ public class CloudinaryService {
     }
 
     /**
+     * Upload image to Cloudinary from a public URL
+     */
+    public Map<String, Object> uploadImageFromUrl(String url, String folder) throws IOException {
+        try {
+            log.info("Uploading image from URL: {} to folder: {}", url, folder);
+            
+            // Input validation
+            if (url == null || url.isEmpty()) {
+                throw new IllegalArgumentException("URL cannot be null or empty");
+            }
+            
+            // Validate URL format
+            if (!url.startsWith("http://") && !url.startsWith("https://")) {
+                throw new IllegalArgumentException("URL must be a valid HTTP or HTTPS URL");
+            }
+
+            // Build Cloudinary upload parameters
+            Map<String, Object> params = ObjectUtils.asMap(
+                    "resource_type", "image",
+                    "folder", folder != null ? folder : "uploads",
+                    "use_filename", true,
+                    "unique_filename", true,
+                    "overwrite", false
+            );
+
+            // Add transformation for optimization
+            params.put("eager", java.util.List.of(
+                    new Transformation()
+                            .width(800)
+                            .height(600)
+                            .crop("limit")
+                            .quality("auto")
+            ));
+
+            // Upload from URL to Cloudinary
+            Map<String, Object> uploadResult = cloudinary.uploader().upload(url, params);
+            
+            log.info("Image uploaded successfully from URL with public_id: {}", uploadResult.get("public_id"));
+
+            // Return simplified response with only essential data
+            return Map.of(
+                    "public_id", uploadResult.getOrDefault("public_id", ""),
+                    "url", uploadResult.getOrDefault("url", ""),
+                    "secure_url", uploadResult.getOrDefault("secure_url", ""),
+                    "format", uploadResult.getOrDefault("format", ""),
+                    "width", uploadResult.getOrDefault("width", 0),
+                    "height", uploadResult.getOrDefault("height", 0),
+                    "bytes", uploadResult.getOrDefault("bytes", 0),
+                    "resource_type", uploadResult.getOrDefault("resource_type", "image")
+            );
+        } catch (Exception e) {
+            log.error("Error uploading image from URL", e);
+            throw new IOException("Failed to upload image from URL: " + e.getMessage(), e);
+        }
+    }
+
+    /**
      * Delete image from Cloudinary by public_id
      */
     public void deleteImage(String publicId) throws IOException {

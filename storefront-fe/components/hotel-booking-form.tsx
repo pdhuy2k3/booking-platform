@@ -226,6 +226,8 @@ export function HotelBookingForm({ hotel, onSubmit, onCancel }: HotelBookingForm
       hotelAddress: hotel.address,
       city: hotel.city,
       country: hotel.country,
+      hotelLatitude: hotel.hotelLatitude ?? hotel.latitude,
+      hotelLongitude: hotel.hotelLongitude ?? hotel.longitude,
       starRating: hotel.rating,
       roomTypeId: selectedRoomTypeId || hotel.roomTypeId || hotel.id || 1,
       roomId: hotel.roomId,

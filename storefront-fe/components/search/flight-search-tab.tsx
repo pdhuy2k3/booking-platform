@@ -149,7 +149,7 @@ export function FlightSearchTab({ onBookingStart }: FlightSearchTabProps = {}) {
       arrivalDateTime,
       currency: flight.currency || 'VND',
       seatClass: flight.seatClass || 'ECONOMY',
-      logo: flight.airlineLogo || '/airplane-generic.png',
+      logo: flight.airlineLogo || '/airplane-generic.png', // Use airlineLogo from backend
       scheduleId: flight.scheduleId,
       fareId: flight.fareId,
       departure: {
@@ -233,6 +233,10 @@ export function FlightSearchTab({ onBookingStart }: FlightSearchTabProps = {}) {
       airline: flightData.airline,
       origin: flightData.origin,
       destination: flightData.destination,
+      originLatitude: flightData.originLatitude,
+      originLongitude: flightData.originLongitude,
+      destinationLatitude: flightData.destinationLatitude,
+      destinationLongitude: flightData.destinationLongitude,
       departureTime: departureDateTime || flightData.departureTime,
       arrivalTime: arrivalDateTime || flightData.arrivalTime,
       duration: flightData.duration,

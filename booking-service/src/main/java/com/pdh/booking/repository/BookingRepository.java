@@ -12,6 +12,7 @@ import org.springframework.security.access.method.P;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.ZonedDateTime;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -36,6 +37,8 @@ public interface BookingRepository extends JpaRepository<Booking, UUID> {
     Page<Booking> findByBookingType(BookingType bookingType, Pageable pageable);
     
     List<Booking> findByUserIdAndBookingType(UUID userId, BookingType bookingType);
+
+    List<Booking> findByStatusInAndReservationExpiresAtBefore(List<BookingStatus> statuses, ZonedDateTime threshold);
     
     @Query("SELECT b FROM Booking b WHERE b.userId = :userId AND b.status IN :statuses")
     List<Booking> findByUserIdAndStatusIn(@Param("userId") UUID userId, 

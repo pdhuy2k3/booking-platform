@@ -47,7 +47,7 @@ export default function DashboardPage() {
   if (!user) {
     return (
       <ProtectedRoute>
-        <div className="min-h-screen bg-gray-50 text-gray-900 p-6">
+        <div className="h-screen bg-gray-50 text-gray-900 p-6">
           <div className="max-w-6xl mx-auto">
             <div className="text-center py-12">
               <h1 className="text-2xl font-bold mb-4">Loading...</h1>
@@ -61,8 +61,8 @@ export default function DashboardPage() {
 
   return (
     <ProtectedRoute>
-      <div className="min-h-screen bg-gray-50 text-gray-900 p-6">
-        <div className="w-full space-y-8">
+      <div className="h-screen w-full bg-gray-50 text-gray-900 px-3 py-4 sm:px-4 md:px-6">
+        <div className="w-full space-y-6 md:space-y-8">
           {/* Header */}
           <div className="flex items-center justify-between">
             <div>
@@ -72,47 +72,47 @@ export default function DashboardPage() {
           </div>
 
           <Tabs value={activeTab} onValueChange={handleTabChange} className="space-y-6">
-            <TabsList className="grid w-full grid-cols-5 bg-white border border-gray-200 rounded-lg p-1 shadow-sm">
+            <TabsList className="flex w-full flex-wrap gap-2 rounded-lg border border-gray-200 bg-white p-1 shadow-sm md:grid md:grid-cols-5 md:gap-1">
               <TabsTrigger
                 value="profile"
-                className="data-[state=active]:bg-blue-500 data-[state=active]:text-white data-[state=active]:shadow-sm text-gray-600 hover:text-gray-900 hover:bg-gray-100 transition-all duration-200 rounded-md"
+                className="flex flex-1 min-w-[140px] items-center justify-center gap-2 rounded-md transition-all duration-200 text-gray-600 hover:bg-gray-100 hover:text-gray-900 data-[state=active]:bg-blue-500 data-[state=active]:text-white data-[state=active]:shadow-sm md:flex-none md:min-w-0"
               >
-                <User className="h-4 w-4 mr-2" />
+                <User className="h-4 w-4" />
                 Profile
               </TabsTrigger>
               <TabsTrigger
                 value="address"
-                className="data-[state=active]:bg-blue-500 data-[state=active]:text-white data-[state=active]:shadow-sm text-gray-600 hover:text-gray-900 hover:bg-gray-100 transition-all duration-200 rounded-md"
+                className="flex flex-1 min-w-[140px] items-center justify-center gap-2 rounded-md transition-all duration-200 text-gray-600 hover:bg-gray-100 hover:text-gray-900 data-[state=active]:bg-blue-500 data-[state=active]:text-white data-[state=active]:shadow-sm md:flex-none md:min-w-0"
               >
-                <MapPin className="h-4 w-4 mr-2" />
+                <MapPin className="h-4 w-4" />
                 Address
               </TabsTrigger>
               <TabsTrigger
                 value="preferences"
-                className="data-[state=active]:bg-blue-500 data-[state=active]:text-white data-[state=active]:shadow-sm text-gray-600 hover:text-gray-900 hover:bg-gray-100 transition-all duration-200 rounded-md"
+                className="flex flex-1 min-w-[140px] items-center justify-center gap-2 rounded-md transition-all duration-200 text-gray-600 hover:bg-gray-100 hover:text-gray-900 data-[state=active]:bg-blue-500 data-[state=active]:text-white data-[state=active]:shadow-sm md:flex-none md:min-w-0"
               >
-                <Settings className="h-4 w-4 mr-2" />
+                <Settings className="h-4 w-4" />
                 Preferences
               </TabsTrigger>
               <TabsTrigger
                 value="payments"
-                className="data-[state=active]:bg-blue-500 data-[state=active]:text-white data-[state=active]:shadow-sm text-gray-600 hover:text-gray-900 hover:bg-gray-100 transition-all duration-200 rounded-md"
+                className="flex flex-1 min-w-[140px] items-center justify-center gap-2 rounded-md transition-all duration-200 text-gray-600 hover:bg-gray-100 hover:text-gray-900 data-[state=active]:bg-blue-500 data-[state=active]:text-white data-[state=active]:shadow-sm md:flex-none md:min-w-0"
               >
-                <CreditCard className="h-4 w-4 mr-2" />
+                <CreditCard className="h-4 w-4" />
                 Payment Methods
               </TabsTrigger>
               <TabsTrigger
                 value="bookings"
-                className="data-[state=active]:bg-blue-500 data-[state=active]:text-white data-[state=active]:shadow-sm text-gray-600 hover:text-gray-900 hover:bg-gray-100 transition-all duration-200 rounded-md"
+                className="flex flex-1 min-w-[140px] items-center justify-center gap-2 rounded-md transition-all duration-200 text-gray-600 hover:bg-gray-100 hover:text-gray-900 data-[state=active]:bg-blue-500 data-[state=active]:text-white data-[state=active]:shadow-sm md:flex-none md:min-w-0"
               >
-                <Calendar className="h-4 w-4 mr-2" />
+                <Calendar className="h-4 w-4" />
                 Booking History
               </TabsTrigger>
             </TabsList>
 
             {/* Profile Tab */}
             <TabsContent value="profile" className="space-y-6">
-              <div className="max-w-3xl space-y-4">
+              <div className="w-full space-y-4">
                 <ProfileInfo user={user} onUpdate={refreshUser} />
                 <Card className="border-gray-200">
                   <CardHeader className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
@@ -135,28 +135,28 @@ export default function DashboardPage() {
 
             {/* Address Tab */}
             <TabsContent value="address" className="space-y-6">
-              <div className="max-w-3xl">
+              <div className="w-full">
                 <AddressForm user={user} onUpdate={refreshUser} />
               </div>
             </TabsContent>
 
             {/* Preferences Tab */}
             <TabsContent value="preferences" className="space-y-6">
-              <div className="max-w-3xl">
+              <div className="w-full">
                 <AttributeManager user={user} onUpdate={refreshUser} />
               </div>
             </TabsContent>
 
             {/* Payment Methods Tab */}
             <TabsContent value="payments" className="space-y-6">
-              <div className="max-w-3xl">
+              <div className="w-full">
                 <PaymentMethodsTab />
               </div>
             </TabsContent>
 
             {/* Booking History Tab */}
             <TabsContent value="bookings" className="space-y-6">
-              <div className="max-w-3xl">
+              <div className="w-full">
                 <BookingHistoryTab />
               </div>
             </TabsContent>

@@ -1,6 +1,6 @@
 package com.pdh.flight.mapper;
 
-import com.pdh.flight.client.MediaServiceClient;
+
 import com.pdh.flight.constant.ImageTypes;
 import com.pdh.flight.dto.request.AircraftRequestDto;
 import com.pdh.flight.dto.response.AircraftDto;
@@ -24,7 +24,7 @@ import java.util.stream.Collectors;
 @Slf4j
 public class AircraftMapper {
 
-    private final MediaServiceClient mediaServiceClient;
+
 
     /**
      * Convert Aircraft entity to AircraftDto (basic response)
@@ -44,6 +44,7 @@ public class AircraftMapper {
                 .totalCapacity(aircraft.getTotalCapacity())
                 .registrationNumber(aircraft.getRegistrationNumber())
                 .isActive(aircraft.getIsActive())
+                .featuredMediaUrl(aircraft.getFeaturedMediaUrl()) // Map the media URL directly
                 .createdAt(convertToLocalDateTime(aircraft.getCreatedAt()))
                 .createdBy(aircraft.getCreatedBy())
                 .updatedAt(convertToLocalDateTime(aircraft.getUpdatedAt()))
@@ -62,23 +63,10 @@ public class AircraftMapper {
 
         AircraftDto dto = toDto(aircraft);
         
-        // Fetch and set media
-        try {
-            List<Map<String, Object>> mediaList = mediaServiceClient.getMediaByEntity(
-                    ImageTypes.ENTITY_TYPE_AIRCRAFT, 
-                    aircraft.getAircraftId()
-            );
-            
-            List<String> imagePublicIds = mediaList.stream()
-                    .map(media -> (String) media.get("publicId"))
-                    .filter(Objects::nonNull)
-                    .collect(Collectors.toList());
-                    
-            dto.setImages(imagePublicIds);
-        } catch (Exception e) {
-            log.warn("Failed to fetch media for aircraft {}: {}", aircraft.getAircraftId(), e.getMessage());
-            dto.setImages(Collections.emptyList());
-        }
+        // Media is now handled in the entity - we'll set it from the featured media URL
+        // In the future, if full media lists are needed, they should be loaded separately
+        // For now, we'll just return an empty list as the media handling has changed
+        dto.setImages(Collections.emptyList());
 
         return dto;
     }
@@ -104,39 +92,13 @@ public class AircraftMapper {
             return Collections.emptyList();
         }
 
-        // Batch fetch media for all aircrafts
-        List<Long> aircraftIds = aircrafts.stream()
-                .map(Aircraft::getAircraftId)
-                .collect(Collectors.toList());
-
-        Map<Long, List<Map<String, Object>>> mediaMap = Collections.emptyMap();
-        try {
-            mediaMap = mediaServiceClient.getMediaForEntities(
-                    ImageTypes.ENTITY_TYPE_AIRCRAFT, 
-                    aircraftIds
-            );
-        } catch (Exception e) {
-            log.warn("Failed to batch fetch media for aircrafts: {}", e.getMessage());
-        }
-
-        // Convert to DTOs with media
-        final Map<Long, List<Map<String, Object>>> finalMediaMap = mediaMap;
+        // Convert to DTOs - media is no longer fetched through the media service client
+        // In the future, if full media lists are needed, they should be loaded separately
         return aircrafts.stream()
                 .map(aircraft -> {
                     AircraftDto dto = toDto(aircraft);
-                    
-                    // Set media if available
-                    List<Map<String, Object>> aircraftMedia = finalMediaMap.get(aircraft.getAircraftId());
-                    if (aircraftMedia != null) {
-                        List<String> imagePublicIds = aircraftMedia.stream()
-                                .map(media -> (String) media.get("publicId"))
-                                .filter(Objects::nonNull)
-                                .collect(Collectors.toList());
-                        dto.setImages(imagePublicIds);
-                    } else {
-                        dto.setImages(Collections.emptyList());
-                    }
-                    
+                    // Set empty list for now since media handling has changed
+                    dto.setImages(Collections.emptyList());
                     return dto;
                 })
                 .collect(Collectors.toList());
@@ -177,6 +139,10 @@ public class AircraftMapper {
         if (StringUtils.hasText(requestDto.getRegistrationNumber())) {
             aircraft.setRegistrationNumber(requestDto.getRegistrationNumber());
         }
+        
+        if (requestDto.getFeaturedMediaUrl() != null) {
+            aircraft.setFeaturedMediaUrl(requestDto.getFeaturedMediaUrl());
+        }
     }
 
     /**
@@ -196,6 +162,7 @@ public class AircraftMapper {
         aircraft.setTotalCapacity(requestDto.getTotalCapacity());
         aircraft.setRegistrationNumber(requestDto.getRegistrationNumber());
         aircraft.setIsActive(true);
+        aircraft.setFeaturedMediaUrl(requestDto.getFeaturedMediaUrl());
         
         return aircraft;
     }

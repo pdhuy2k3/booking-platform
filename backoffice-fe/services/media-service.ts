@@ -52,6 +52,68 @@ class MediaService {
       message: data.message || 'Media uploaded successfully'
     };
   }
+  
+  /**
+   * Upload media from URL to media service
+   * Returns mediaUrl that can be stored in any entity's media field
+   */
+  async uploadMediaFromUrl(url: string, folder?: string): Promise<MediaUploadResponse> {
+    const params = new URLSearchParams();
+    params.append('url', url);
+    
+    if (folder) {
+      params.append('folder', folder);
+    }
+
+    const response = await apiClient.post('/api/media/management/upload-url', params, {
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded'
+      }
+    }) as { data: any };
+
+    // Extract data from media service response
+    const data = response.data.data || response.data;
+    
+    return {
+      mediaUrl: `/api/media/${data.publicId}`,
+      publicId: data.publicId,
+      secureUrl: data.secureUrl || data.url,
+      mediaType: data.mediaType || 'image',
+      message: data.message || 'Media uploaded successfully'
+    };
+  }
+  
+  /**
+   * Upload multiple media files at once
+   */
+  async bulkUploadMedia(files: File[], folder?: string): Promise<MediaUploadResponse[]> {
+    const formData = new FormData();
+    
+    files.forEach(file => {
+      formData.append('files', file);
+    });
+    
+    if (folder) {
+      formData.append('folder', folder);
+    }
+
+    const response = await apiClient.post('/api/media/management/upload-multiple', formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data'
+      }
+    }) as { data: any };
+
+    // Extract data from media service response
+    const data = response.data.data || response.data;
+    
+    return data.map((item: any) => ({
+      mediaUrl: `/api/media/${item.publicId}`,
+      publicId: item.publicId,
+      secureUrl: item.secureUrl || item.url,
+      mediaType: item.mediaType || 'image',
+      message: item.message || 'Media uploaded successfully'
+    }));
+  }
 
   /**
    * Convert SimpleMediaItem to MediaResponse

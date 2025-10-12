@@ -188,6 +188,7 @@ public class FlightSearchService {
                 .flightId(flight.getFlightId().toString())
                 .airline(flight.getAirline() != null ? flight.getAirline().getName() : "Unknown")
                 .airlineCode(flight.getAirline() != null ? flight.getAirline().getIataCode() : "")
+                .airlineLogo(flight.getAirline() != null ? flight.getAirline().getFeaturedMediaUrl() : null) // Add airline logo URL
                 .flightNumber(flight.getFlightNumber())
                 .origin(flight.getDepartureAirport() != null ? flight.getDepartureAirport().getIataCode() : "")
                 .destination(flight.getArrivalAirport() != null ? flight.getArrivalAirport().getIataCode() : "")

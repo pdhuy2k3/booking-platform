@@ -21,13 +21,14 @@ function HomePageContent() {
   const [isBookingModalOpen, setIsBookingModalOpen] = useState(false)
   const { setResults: setRecommendResults, clearResults: clearRecommendResults, showLocation } = useRecommendPanel()
   
-  const { 
+  const {
     resetBooking, 
     setBookingType, 
     setSelectedFlight, 
     setSelectedHotel, 
     updateBookingData, 
-    setStep 
+    setStep,
+    resumeBooking 
   } = useBooking()
 
   // Handle URL parameters
@@ -51,9 +52,31 @@ function HomePageContent() {
       return
     }
 
+    const resumeBookingId = searchParams.get("resume")
+    if (resumeBookingId) {
+      const stored = sessionStorage.getItem('bookingResumePayload')
+      const paramsClone = new URLSearchParams(searchParams.toString())
+      paramsClone.delete("resume")
+      router.replace(paramsClone.toString() ? `/?${paramsClone.toString()}` : '/', { scroll: false })
+
+      if (stored) {
+        try {
+          const payload = JSON.parse(stored)
+          void resumeBooking(payload).then(() => {
+            setIsBookingModalOpen(true)
+          })
+        } catch (error) {
+          console.error('Failed to resume booking from history', error)
+        } finally {
+          sessionStorage.removeItem('bookingResumePayload')
+        }
+      }
+      return
+    }
+
     const conversation = searchParams.get("conversationId")
     setConversationId(conversation)
-  }, [router, searchParams, clearRecommendResults])
+  }, [router, searchParams, clearRecommendResults, resumeBooking])
 
   const handleTabChange = (tab: MainTab) => {
     setActiveTab(tab)
@@ -92,6 +115,10 @@ function HomePageContent() {
       airline: flight.airline,
       origin: flight.origin,
       destination: flight.destination,
+      originLatitude: flight.originLatitude ?? flight.raw?.originLatitude,
+      originLongitude: flight.originLongitude ?? flight.raw?.originLongitude,
+      destinationLatitude: flight.destinationLatitude ?? flight.raw?.destinationLatitude,
+      destinationLongitude: flight.destinationLongitude ?? flight.raw?.destinationLongitude,
       departureTime: flight.departureTime,
       arrivalTime: flight.arrivalTime,
       duration: flight.duration,
@@ -121,13 +148,15 @@ function HomePageContent() {
     setBookingType('hotel')
     
     // Set selected hotel with room details
-  setSelectedHotel({
-    id: hotel.id,
-    name: hotel.name,
-    address: hotel.address,
-    city: hotel.city,
-    country: hotel.country,
-    rating: hotel.rating,
+    setSelectedHotel({
+      id: hotel.id,
+      name: hotel.name,
+      address: hotel.address,
+      city: hotel.city,
+      country: hotel.country,
+      hotelLatitude: hotel.hotelLatitude ?? hotel.latitude ?? hotel.location?.latitude,
+      hotelLongitude: hotel.hotelLongitude ?? hotel.longitude ?? hotel.location?.longitude,
+      rating: hotel.rating,
     roomTypeId: room.roomTypeId,
     roomId: room.id,
     roomType: room.type,

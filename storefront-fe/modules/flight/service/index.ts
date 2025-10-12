@@ -36,6 +36,10 @@ function mapFareToFlightDetails(fareDetails: FlightFareDetails, flightId: string
     availableSeats: fareDetails.availableSeats || 0,
     scheduleId: fareDetails.scheduleId,
     fareId: fareDetails.fareId,
+    originLatitude: fareDetails.originLatitude,
+    originLongitude: fareDetails.originLongitude,
+    destinationLatitude: fareDetails.destinationLatitude,
+    destinationLongitude: fareDetails.destinationLongitude,
   };
 }
 

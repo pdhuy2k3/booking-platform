@@ -1,6 +1,6 @@
 "use client"
 
-import React, { useState, useEffect } from 'react'
+import React, { useMemo } from 'react'
 import { Button } from "@/components/ui/button"
 import { useBooking } from '@/contexts/booking-context'
 import { BookingFlow } from '@/components/booking-flow'
@@ -40,56 +40,8 @@ export function BookingFlowManager({ onBookingComplete, showSelection = true }: 
     cancelInFlightBooking,
   } = useBooking()
   
-  const [flight, setFlight] = useState<any>(null) // Replace with proper flight type
-  const [hotel, setHotel] = useState<any>(null) // Replace with proper hotel type
-
-  // Mock data for demonstration
-  useEffect(() => {
-    if (bookingType === 'flight' || bookingType === 'both') {
-      if (selectedFlight) {
-        setFlight(selectedFlight)
-      } else {
-        setFlight({
-          id: 'FL123',
-          flightNumber: 'VN123',
-          airline: 'Vietnam Airlines',
-          origin: 'HAN',
-          destination: 'SGN',
-          departureTime: new Date(Date.now() + 86400000).toISOString(), // Tomorrow
-          arrivalTime: new Date(Date.now() + 86400000 + 7200000).toISOString(), // +2 hours
-          duration: '2h',
-          price: 1500000,
-          currency: 'VND',
-        })
-      }
-    } else {
-      setFlight(null)
-    }
-
-    if (bookingType === 'hotel' || bookingType === 'both') {
-      if (selectedHotel) {
-        setHotel(selectedHotel)
-      } else {
-        setHotel({
-          id: 'HT456',
-          name: 'Hanoi Lotus Hotel',
-          address: '123 Hang Gai Street',
-          city: 'Hanoi',
-          country: 'Vietnam',
-          rating: 4,
-          roomTypeId: 'RM789',
-          roomId: 'RM789',
-          roomType: 'Deluxe',
-          roomName: 'Deluxe Room with City View',
-          price: 2000000,
-          currency: 'VND',
-          amenities: ['Free WiFi', 'Breakfast included'],
-        })
-      }
-    } else {
-      setHotel(null)
-    }
-  }, [bookingType, selectedFlight, selectedHotel])
+  const activeFlight = useMemo(() => (bookingType === 'hotel' ? null : selectedFlight), [bookingType, selectedFlight])
+  const activeHotel = useMemo(() => (bookingType === 'flight' ? null : selectedHotel), [bookingType, selectedHotel])
 
   const handleStartBooking = (type: 'flight' | 'hotel' | 'both') => {
     resetBooking()
@@ -126,7 +78,7 @@ export function BookingFlowManager({ onBookingComplete, showSelection = true }: 
     updateBookingData({
       productDetails: productDetails as any,
       totalAmount,
-      currency: flight?.currency || bookingData.currency || 'VND',
+      currency: selectedFlight?.currency || bookingData.currency || 'VND',
     })
 
     setSelectedFlight({
@@ -135,13 +87,17 @@ export function BookingFlowManager({ onBookingComplete, showSelection = true }: 
       airline: details.airline,
       origin: details.originAirport,
       destination: details.destinationAirport,
+      originLatitude: details.originLatitude ?? selectedFlight?.originLatitude,
+      originLongitude: details.originLongitude ?? selectedFlight?.originLongitude,
+      destinationLatitude: details.destinationLatitude ?? selectedFlight?.destinationLatitude,
+      destinationLongitude: details.destinationLongitude ?? selectedFlight?.destinationLongitude,
       departureTime: details.departureDateTime,
       arrivalTime: details.arrivalDateTime,
-      duration: selectedFlight?.duration || flight?.duration,
+      duration: selectedFlight?.duration,
       price: details.totalFlightPrice,
-      currency: selectedFlight?.currency || flight?.currency || bookingData.currency || 'VND',
+      currency: selectedFlight?.currency || bookingData.currency || 'VND',
       seatClass: details.seatClass || selectedFlight?.seatClass,
-      logo: selectedFlight?.logo || flight?.logo,
+      logo: selectedFlight?.logo,
       scheduleId: details.scheduleId || selectedFlight?.scheduleId,
       fareId: details.fareId || selectedFlight?.fareId,
     })
@@ -169,26 +125,28 @@ export function BookingFlowManager({ onBookingComplete, showSelection = true }: 
     updateBookingData({
       productDetails: productDetails as any,
       totalAmount,
-      currency: hotel?.currency || bookingData.currency || 'VND',
+      currency: selectedHotel?.currency || bookingData.currency || 'VND',
     })
 
     setSelectedHotel({
       id: details.hotelId,
-      name: hotel?.name || details.hotelName,
+      name: selectedHotel?.name || details.hotelName,
       address: details.hotelAddress,
       city: details.city,
       country: details.country,
-      rating: hotel?.rating,
-      roomTypeId: String(details.roomTypeId ?? hotel?.roomTypeId ?? ''),
-      roomId: details.roomId ?? hotel?.roomId ?? '',
+      hotelLatitude: details.hotelLatitude ?? selectedHotel?.hotelLatitude,
+      hotelLongitude: details.hotelLongitude ?? selectedHotel?.hotelLongitude,
+      rating: selectedHotel?.rating,
+      roomTypeId: String(details.roomTypeId ?? selectedHotel?.roomTypeId ?? ''),
+      roomId: details.roomId ?? selectedHotel?.roomId ?? '',
       roomType: details.roomType,
       roomName: details.roomName,
       price: details.pricePerNight,
       pricePerNight: details.pricePerNight,
       totalPrice: details.totalRoomPrice,
-      currency: selectedHotel?.currency || hotel?.currency || bookingData.currency || 'VND',
-      amenities: hotel?.amenities || selectedHotel?.amenities || [],
-      image: hotel?.image,
+      currency: selectedHotel?.currency || bookingData.currency || 'VND',
+      amenities: selectedHotel?.amenities || [],
+      image: selectedHotel?.image,
       checkInDate: details.checkInDate,
       checkOutDate: details.checkOutDate,
       guests: details.numberOfGuests,
@@ -234,44 +192,78 @@ export function BookingFlowManager({ onBookingComplete, showSelection = true }: 
   return (
     <div className="container mx-auto py-8">
       {step === 'selection' && showSelection && (
-        <BookingFlow 
-          onStartBooking={handleStartBooking} 
-          isVisible={true} 
-        />
-      )}
+      <BookingFlow 
+        onStartBooking={handleStartBooking} 
+        isVisible={true} 
+      />
+    )}
 
-      {step === 'passengers' && bookingType === 'flight' && flight && (
+      {step === 'passengers' && bookingType === 'flight' && activeFlight && (
         <FlightBookingForm 
-          flight={flight} 
+          flight={activeFlight} 
           onSubmit={handleFlightBookingSubmit}
           onCancel={prevStep}
         />
       )}
 
-      {step === 'passengers' && bookingType === 'hotel' && hotel && (
+      {step === 'passengers' && bookingType === 'flight' && !activeFlight && (
+        <div className="rounded-lg border border-dashed border-muted-foreground/40 bg-muted/20 p-8 text-center space-y-4">
+          <h3 className="text-lg font-semibold">Không tìm thấy thông tin chuyến bay</h3>
+          <p className="text-muted-foreground">
+            Vui lòng quay lại bước trước để chọn chuyến bay hoặc mở lại gợi ý và chọn lại.
+          </p>
+          <div className="flex justify-center gap-3">
+            <Button variant="outline" onClick={prevStep}>Quay lại</Button>
+            <Button onClick={resetBooking}>Bắt đầu lại</Button>
+          </div>
+        </div>
+      )}
+
+      {step === 'passengers' && bookingType === 'hotel' && activeHotel && (
         <HotelBookingForm 
-          hotel={hotel} 
+          hotel={activeHotel} 
           onSubmit={handleHotelBookingSubmit}
           onCancel={prevStep}
         />
       )}
 
+      {step === 'passengers' && bookingType === 'hotel' && !activeHotel && (
+        <div className="rounded-lg border border-dashed border-muted-foreground/40 bg-muted/20 p-8 text-center space-y-4">
+          <h3 className="text-lg font-semibold">Không tìm thấy thông tin khách sạn</h3>
+          <p className="text-muted-foreground">
+            Vui lòng quay lại bước trước để chọn khách sạn phù hợp hoặc mở lại đề xuất để tiếp tục.
+          </p>
+          <div className="flex justify-center gap-3">
+            <Button variant="outline" onClick={prevStep}>Quay lại</Button>
+            <Button onClick={resetBooking}>Bắt đầu lại</Button>
+          </div>
+        </div>
+      )}
+
       {step === 'passengers' && bookingType === 'both' && (
         <div className="space-y-8">
           <h2 className="text-2xl font-bold text-center">Đặt gói chuyến đi</h2>
-          {flight && (
+          {activeFlight ? (
             <FlightBookingForm 
-              flight={flight} 
+              flight={activeFlight} 
               onSubmit={handleFlightBookingSubmit}
               onCancel={prevStep}
             />
+          ) : (
+            <div className="rounded-lg border border-dashed border-muted-foreground/40 bg-muted/10 p-6 text-center text-sm text-muted-foreground">
+              Không có dữ liệu chuyến bay. Quay lại bước trước để chọn chuyến bay.
+            </div>
           )}
-          {hotel && (
+          {activeHotel ? (
             <HotelBookingForm 
-              hotel={hotel} 
+              hotel={activeHotel} 
               onSubmit={handleHotelBookingSubmit}
               onCancel={prevStep}
             />
+          ) : (
+            <div className="rounded-lg border border-dashed border-muted-foreground/40 bg-muted/10 p-6 text-center text-sm text-muted-foreground">
+              Không có dữ liệu khách sạn. Quay lại bước trước để chọn khách sạn.
+            </div>
           )}
         </div>
       )}

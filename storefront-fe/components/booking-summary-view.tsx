@@ -128,16 +128,19 @@ export function BookingSummaryView() {
 
   useEffect(() => {
     if (!initialized) {
-      // Always land on summary view first, even if coming from another page
-      if (step !== 'selection') {
-        setStep('selection')
-      }
       setInitialized(true)
-      setShowFlow(false)
-      return
     }
     setShowFlow(step !== 'selection')
-  }, [initialized, setStep, step])
+  }, [initialized, step])
+
+  useEffect(() => {
+    if (showFlow && bookingFlowRef.current) {
+      bookingFlowRef.current.scrollIntoView({
+        behavior: 'smooth',
+        block: 'start',
+      })
+    }
+  }, [showFlow])
 
   const ensureBookingType = () => {
     if (!derivedType) return

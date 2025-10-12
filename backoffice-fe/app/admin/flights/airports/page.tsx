@@ -67,6 +67,8 @@ export default function AdminAirports() {
         city: data.city.trim(),
         country: data.country.trim(),
         timezone: data.timezone?.trim() || undefined,
+        latitude: data.latitude ?? undefined,
+        longitude: data.longitude ?? undefined,
         mediaPublicIds: data.mediaPublicIds
       }
       
@@ -103,6 +105,8 @@ export default function AdminAirports() {
         city: data.city.trim(),
         country: data.country.trim(),
         timezone: data.timezone?.trim() || undefined,
+        latitude: data.latitude ?? undefined,
+        longitude: data.longitude ?? undefined,
         mediaPublicIds: data.mediaPublicIds
       }
       

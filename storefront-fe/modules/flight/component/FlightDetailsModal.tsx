@@ -154,7 +154,16 @@ export default function FlightDetailsModal({
         <div className="flex items-center justify-between p-6 border-b border-border">
             <div className="flex items-center space-x-4">
               <div className="relative w-10 h-10">
-                <Image src="/airplane-generic.png" alt={flight.airline} fill className="object-contain" />
+                <Image 
+                  src={flight.airlineLogo || "/airplane-generic.png"} 
+                  alt={flight.airline} 
+                  fill 
+                  className="object-contain" 
+                  onError={(e) => {
+                    const target = e.target as HTMLImageElement;
+                    target.src = "/airplane-generic.png";
+                  }}
+                />
               </div>
               <div>
                 <h2 className="text-2xl font-bold text-foreground">{flight.airline}</h2>

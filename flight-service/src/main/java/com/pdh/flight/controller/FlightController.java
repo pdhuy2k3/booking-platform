@@ -468,6 +468,10 @@ public class FlightController {
                     .originAirport(flight != null && flight.getDepartureAirport() != null ? flight.getDepartureAirport().getIataCode() : null)
                     .destinationAirport(flight != null && flight.getArrivalAirport() != null ? flight.getArrivalAirport().getIataCode() : null)
                     .aircraftType(schedule.getAircraftType())
+                    .originLatitude(flight != null && flight.getDepartureAirport() != null ? flight.getDepartureAirport().getLatitude() : null)
+                    .originLongitude(flight != null && flight.getDepartureAirport() != null ? flight.getDepartureAirport().getLongitude() : null)
+                    .destinationLatitude(flight != null && flight.getArrivalAirport() != null ? flight.getArrivalAirport().getLatitude() : null)
+                    .destinationLongitude(flight != null && flight.getArrivalAirport() != null ? flight.getArrivalAirport().getLongitude() : null)
                     .build();
 
             return ResponseEntity.ok(response);

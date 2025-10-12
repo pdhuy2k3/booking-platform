@@ -44,4 +44,7 @@ public class AircraftRequestDto {
     
     // Media public IDs for aircraft images
     private List<String> mediaPublicIds;
+    
+    // Featured media URL - the primary media URL to display
+    private String featuredMediaUrl;
 }

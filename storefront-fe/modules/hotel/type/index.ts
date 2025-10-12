@@ -168,4 +168,6 @@ export interface RoomDetails {
   mediaCount?: number
   createdAt?: string
   updatedAt?: string
+  hotelLatitude?: number
+  hotelLongitude?: number
 }

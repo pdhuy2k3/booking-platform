@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { MediaSelector } from "@/components/ui/media-selector"
-import type { Airport } from "@/types/api"
+import type { Airport, MediaResponse } from "@/types/api"
 
 interface AirportFormData {
   name: string
@@ -21,7 +21,7 @@ interface AirportFormData {
 interface AirportFormDialogProps {
   isOpen: boolean
   onClose: () => void
-  onSubmit: (data: AirportFormData & { mediaPublicIds: string[] }) => void
+  onSubmit: (data: AirportFormData & { mediaPublicIds: string[]; featuredMediaUrl?: string | null }) => void
   isSubmitting: boolean
   editingAirport?: Airport | null
   title: string
@@ -46,7 +46,7 @@ export function AirportFormDialog({
     latitude: undefined,
     longitude: undefined
   })
-  const [images, setImages] = useState<string[]>([])
+  const [media, setMedia] = useState<MediaResponse[]>([])
   const [errors, setErrors] = useState<Partial<AirportFormData>>({})
 
   useEffect(() => {
@@ -60,7 +60,7 @@ export function AirportFormDialog({
         latitude: editingAirport.latitude,
         longitude: editingAirport.longitude
       })
-      setImages(editingAirport.media?.map(m => m.publicId) || [])
+      setMedia(editingAirport.media || [])
     } else {
       resetForm()
     }
@@ -76,7 +76,7 @@ export function AirportFormDialog({
       latitude: undefined,
       longitude: undefined
     })
-    setImages([])
+    setMedia([])
     setErrors({})
   }
 
@@ -110,7 +110,8 @@ export function AirportFormDialog({
     
     onSubmit({
       ...formData,
-      mediaPublicIds: images
+      mediaPublicIds: media.map(m => m.publicId),
+      featuredMediaUrl: media[0]?.secureUrl || null
     })
   }
 
@@ -192,7 +193,7 @@ export function AirportFormDialog({
                 type="number"
                 step="0.000001"
                 placeholder="21.221200"
-                value={formData.latitude || ""}
+                value={formData.latitude ?? ""}
                 onChange={(e) => setFormData({ ...formData, latitude: e.target.value ? parseFloat(e.target.value) : undefined })}
               />
               <p className="text-xs text-gray-500">Phạm vi: -90 đến 90</p>
@@ -204,7 +205,7 @@ export function AirportFormDialog({
                 type="number"
                 step="0.000001"
                 placeholder="105.807200"
-                value={formData.longitude || ""}
+                value={formData.longitude ?? ""}
                 onChange={(e) => setFormData({ ...formData, longitude: e.target.value ? parseFloat(e.target.value) : undefined })}
               />
               <p className="text-xs text-gray-500">Phạm vi: -180 đến 180</p>
@@ -213,11 +214,12 @@ export function AirportFormDialog({
           <div className="space-y-2">
             <Label>Hình ảnh sân bay</Label>
             <MediaSelector
-              value={images}
-              onChange={setImages}
+              value={media}
+              onMediaChange={setMedia}
               folder="airports"
               maxSelection={5}
               allowUpload={true}
+              mode="publicIds"
             />
           </div>
         </div>

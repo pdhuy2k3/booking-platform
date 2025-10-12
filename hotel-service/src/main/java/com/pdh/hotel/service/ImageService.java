@@ -1,7 +1,7 @@
 package com.pdh.hotel.service;
 
 import com.pdh.common.dto.response.MediaResponse;
-import com.pdh.hotel.client.MediaServiceClient;
+
 import com.pdh.hotel.model.*;
 import com.pdh.hotel.repository.*;
 import lombok.RequiredArgsConstructor;
@@ -22,7 +22,7 @@ import java.util.stream.Collectors;
 @Transactional
 public class ImageService {
 
-    private final MediaServiceClient mediaServiceClient;
+
     private final HotelImageRepository hotelImageRepository;
     private final RoomImageRepository roomImageRepository;
     private final RoomTypeImageRepository roomTypeImageRepository;

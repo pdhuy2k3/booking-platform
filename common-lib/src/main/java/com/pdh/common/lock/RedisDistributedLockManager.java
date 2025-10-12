@@ -384,6 +384,8 @@ public class RedisDistributedLockManager implements DistributedLockManager {
             case HOTEL -> 100;   // Max rooms per hotel
             case ROOM -> 50;     // Max rooms of same type
             case SEAT -> 300;    // Max seats per class
+            case BOOKING -> 1;   // Only one active reservation per booking
+            case PAYMENT -> 1;   // Single payment process per booking
             default -> 100;      // Default capacity
         };
     }

@@ -3,6 +3,7 @@
 import React, { createContext, useContext, useReducer, useEffect, useCallback, useRef } from 'react'
 import { bookingService, type StorefrontBookingRequest, type StorefrontBookingResponse, type BookingStatusResponse } from '@/modules/booking/service'
 import { useToast } from '@/hooks/use-toast'
+import type { BookingHistoryItemDto, FlightBookingDetails, HotelBookingDetails, ComboBookingDetails } from '@/modules/booking/types'
 
 // Types
 type BookingStep = 'selection' | 'passengers' | 'review' | 'payment' | 'confirmation' | 'error'
@@ -14,6 +15,10 @@ interface SelectedFlight {
   airline: string
   origin: string
   destination: string
+  originLatitude?: number
+  originLongitude?: number
+  destinationLatitude?: number
+  destinationLongitude?: number
   departureTime: string
   arrivalTime: string
   duration?: string
@@ -31,6 +36,8 @@ interface SelectedHotel {
   address: string
   city: string
   country: string
+  hotelLatitude?: number
+  hotelLongitude?: number
   rating?: number
   roomTypeId: string
   roomId: string
@@ -47,6 +54,11 @@ interface SelectedHotel {
   guests?: number
   rooms?: number
   nights?: number
+}
+
+interface ResumeBookingPayload {
+  booking: BookingHistoryItemDto
+  productDetails?: FlightBookingDetails | HotelBookingDetails | ComboBookingDetails | null
 }
 
 interface BookingState {
@@ -75,6 +87,7 @@ interface BookingContextType extends BookingState {
   setSelectedHotel: (hotel: SelectedHotel | null) => void
   refreshBookingStatus: () => Promise<void>
   cancelInFlightBooking: () => Promise<void>
+  resumeBooking: (payload: ResumeBookingPayload) => Promise<void>
 }
 
 // Initial state
@@ -324,6 +337,7 @@ export function BookingProvider({ children }: { children: React.ReactNode }) {
 
   const resetBooking = useCallback(() => {
     stopStatusPolling()
+    stopStatusPolling()
     dispatch({ type: 'RESET_BOOKING' })
   }, [stopStatusPolling])
 
@@ -344,6 +358,132 @@ export function BookingProvider({ children }: { children: React.ReactNode }) {
     }
   }, [pollBookingStatus, resetBooking, state.bookingResponse?.bookingId])
 
+  const resumeBooking = useCallback(async (payload: ResumeBookingPayload) => {
+    const booking = payload.booking
+    if (!booking) {
+      return
+    }
+
+    const parseProductDetails = (json?: string | null) => {
+      if (!json) return null
+      try {
+        return JSON.parse(json)
+      } catch (error) {
+        console.warn('Failed to parse stored booking product details', error)
+        return null
+      }
+    }
+
+    const parsedDetails = payload.productDetails ?? parseProductDetails(booking.productDetailsJson)
+    const totalAmount = typeof booking.totalAmount === 'string'
+      ? Number(booking.totalAmount)
+      : Number(booking.totalAmount ?? 0)
+    const currency = booking.currency ?? 'VND'
+
+    dispatch({ type: 'RESET_BOOKING' })
+
+    const contextType: BookingType = booking.bookingType === 'COMBO'
+      ? 'both'
+      : booking.bookingType === 'FLIGHT'
+        ? 'flight'
+        : 'hotel'
+
+    setBookingType(contextType)
+    updateBookingData({
+      bookingType: booking.bookingType,
+      totalAmount,
+      currency,
+      productDetails: parsedDetails ?? undefined,
+    })
+
+    if (booking.bookingType === 'FLIGHT' || booking.bookingType === 'COMBO') {
+      const flightDetails = booking.bookingType === 'COMBO'
+        ? (parsedDetails as ComboBookingDetails | null)?.flightDetails
+        : (parsedDetails as FlightBookingDetails | null)
+
+      if (flightDetails) {
+        setSelectedFlight({
+          id: flightDetails.flightId,
+          flightNumber: flightDetails.flightNumber,
+          airline: flightDetails.airline,
+          origin: flightDetails.originAirport,
+          destination: flightDetails.destinationAirport,
+          originLatitude: flightDetails.originLatitude,
+          originLongitude: flightDetails.originLongitude,
+          destinationLatitude: flightDetails.destinationLatitude,
+          destinationLongitude: flightDetails.destinationLongitude,
+          departureTime: flightDetails.departureDateTime,
+          arrivalTime: flightDetails.arrivalDateTime,
+          duration: undefined,
+          price: flightDetails.totalFlightPrice,
+          currency,
+          seatClass: flightDetails.seatClass,
+          scheduleId: flightDetails.scheduleId,
+          fareId: flightDetails.fareId,
+        })
+      } else {
+        setSelectedFlight(null)
+      }
+    } else {
+      setSelectedFlight(null)
+    }
+
+    if (booking.bookingType === 'HOTEL' || booking.bookingType === 'COMBO') {
+      const hotelDetails = booking.bookingType === 'COMBO'
+        ? (parsedDetails as ComboBookingDetails | null)?.hotelDetails
+        : (parsedDetails as HotelBookingDetails | null)
+
+      if (hotelDetails) {
+        setSelectedHotel({
+          id: hotelDetails.hotelId,
+          name: hotelDetails.hotelName,
+          address: hotelDetails.hotelAddress,
+          city: hotelDetails.city,
+          country: hotelDetails.country,
+          hotelLatitude: hotelDetails.hotelLatitude,
+          hotelLongitude: hotelDetails.hotelLongitude,
+          rating: hotelDetails.starRating,
+          roomTypeId: String(hotelDetails.roomTypeId ?? ''),
+          roomId: hotelDetails.roomId ?? '',
+          roomType: hotelDetails.roomType,
+          roomName: hotelDetails.roomName,
+          price: hotelDetails.pricePerNight,
+          pricePerNight: hotelDetails.pricePerNight,
+          totalPrice: hotelDetails.totalRoomPrice,
+          currency,
+          amenities: hotelDetails.amenities ?? [],
+          image: undefined,
+          checkInDate: hotelDetails.checkInDate,
+          checkOutDate: hotelDetails.checkOutDate,
+          guests: hotelDetails.numberOfGuests,
+          rooms: hotelDetails.numberOfRooms,
+          nights: hotelDetails.numberOfNights,
+        })
+      } else {
+        setSelectedHotel(null)
+      }
+    } else {
+      setSelectedHotel(null)
+    }
+
+    const response: StorefrontBookingResponse = {
+      bookingId: booking.bookingId,
+      bookingReference: booking.bookingReference,
+      sagaId: booking.sagaId ?? booking.bookingId,
+      status: booking.status,
+    }
+
+    dispatch({ type: 'SET_BOOKING_RESPONSE', payload: response })
+    dispatch({ type: 'SET_BOOKING_STATUS', payload: null })
+
+    const next = booking.status === 'PAYMENT_PENDING' ? 'payment' : 'review'
+    setStep(next as BookingStep)
+
+    if (booking.bookingId) {
+      await pollBookingStatus(booking.bookingId)
+    }
+  }, [pollBookingStatus, setBookingType, setSelectedFlight, setSelectedHotel, setStep, updateBookingData, stopStatusPolling])
+
   const value = {
     ...state,
     setBookingType,
@@ -358,6 +498,7 @@ export function BookingProvider({ children }: { children: React.ReactNode }) {
     setSelectedHotel,
     refreshBookingStatus,
     cancelInFlightBooking,
+    resumeBooking,
   }
 
   useEffect(() => {

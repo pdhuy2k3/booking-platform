@@ -25,6 +25,11 @@ public interface MediaService {
     List<MediaDto> uploadMultipleMedia(List<MultipartFile> files, String folder);
 
     /**
+     * Upload media from public URL
+     */
+    MediaDto uploadMediaFromUrl(String url, String folder);
+
+    /**
      * Get media by ID
      */
     Optional<MediaDto> getMediaById(Long id);

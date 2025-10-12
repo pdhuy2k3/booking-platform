@@ -27,6 +27,7 @@ interface FlightCardProps {
     seatClass?: string;
     class?: string;
     logo?: string;
+    airlineLogo?: string; // Add this field
     rating?: number;
     scheduleId?: string;
     fareId?: string;
@@ -109,10 +110,10 @@ export const FlightCard = ({
         <div className="space-y-4">
           {/* Airline */}
           <div className="flex items-center gap-3 min-w-0">
-            {flight.logo && (
+            {(flight.logo || flight.airlineLogo) && (
               <div className="relative h-8 w-8 shrink-0">
                 <Image
-                  src={imageError ? "/airplane-generic.png" : flight.logo}
+                  src={imageError ? "/airplane-generic.png" : (flight.logo || flight.airlineLogo || "/airplane-generic.png")}
                   alt={flight.airline}
                   width={32}
                   height={32}

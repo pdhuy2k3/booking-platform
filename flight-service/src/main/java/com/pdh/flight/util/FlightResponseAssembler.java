@@ -56,6 +56,7 @@ public class FlightResponseAssembler {
         response.put("aircraft", result.getAircraft());
         response.put("scheduleId", result.getScheduleId());
         response.put("fareId", result.getFareId());
+        response.put("airlineLogo", result.getAirlineLogo()); // Add airline logo URL
         return response;
     }
 
@@ -69,6 +70,7 @@ public class FlightResponseAssembler {
         Map<String, Object> response = new HashMap<>();
         response.put("flightId", String.valueOf(flight.getFlightId()));
         response.put("airline", flight.getAirline() != null ? flight.getAirline().getName() : "Unknown Airline");
+        response.put("airlineLogo", flight.getAirline() != null ? flight.getAirline().getFeaturedMediaUrl() : null); // Add airline logo URL
         response.put("flightNumber", flight.getFlightNumber());
         response.put("origin", flight.getDepartureAirport() != null ? flight.getDepartureAirport().getIataCode() : "");
         response.put("destination", flight.getArrivalAirport() != null ? flight.getArrivalAirport().getIataCode() : "");

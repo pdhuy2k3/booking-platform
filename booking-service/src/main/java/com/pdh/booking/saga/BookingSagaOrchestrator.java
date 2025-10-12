@@ -18,6 +18,7 @@ import com.pdh.booking.repository.BookingRepository;
 import com.pdh.booking.repository.BookingSagaRepository;
 import com.pdh.booking.repository.SagaStateLogRepository;
 import com.pdh.booking.service.BookingOutboxEventService;
+import com.pdh.booking.service.BookingService;
 import com.pdh.booking.service.ProductDetailsService;
 import com.pdh.common.saga.SagaCommand;
 import com.pdh.common.saga.SagaState;
@@ -53,6 +54,7 @@ public class BookingSagaOrchestrator {
     private final SagaStateLogRepository sagaStateLogRepository;
     private final ProductDetailsService productDetailsService;
     private final BookingOutboxEventService bookingOutboxEventService;
+    private final BookingService bookingService;
     private final ObjectMapper objectMapper;
     @Qualifier("sagaCommandKafkaTemplate")
     private final KafkaTemplate<String, String> sagaCommandKafkaTemplate;
@@ -820,6 +822,7 @@ public class BookingSagaOrchestrator {
         latestBooking.setCancellationReason(reason);
         latestBooking.setCompensationReason(reason);
         latestBooking.setCancelledAt(ZonedDateTime.now());
+        bookingService.releaseReservationLock(latestBooking);
         bookingRepository.save(latestBooking);
     }
 
@@ -833,6 +836,7 @@ public class BookingSagaOrchestrator {
             booking.setConfirmationNumber(generateConfirmationNumber());
         }
         booking.setSagaState(SagaState.BOOKING_COMPLETED);
+        bookingService.releaseReservationLock(booking);
         bookingRepository.save(booking);
         Map<String, Object> extras = new HashMap<>();
         extras.put("emailTemplate", "booking-confirmation.ftl");

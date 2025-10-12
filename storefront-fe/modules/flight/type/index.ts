@@ -27,6 +27,7 @@ export type Flight = {
   currency: string
   stops?: number
   cabinClass?: "economy" | "premium_economy" | "business" | "first"
+  airlineLogo?: string // Add airline logo URL
 }
 
 export type FareClass = "ECONOMY" | "PREMIUM_ECONOMY" | "BUSINESS" | "FIRST"
@@ -64,7 +65,7 @@ export type FlightSearchResult = {
   seatClass: string
   availableSeats: number
   aircraft: string
-  airlineLogo?: string
+  airlineLogo?: string // Add airline logo URL
   scheduleId?: string
   fareId?: string
   originLatitude?: number
@@ -123,6 +124,7 @@ export type FlightDetails = {
   originLongitude?: number
   destinationLatitude?: number
   destinationLongitude?: number
+  airlineLogo?: string // Add airline logo URL
 }
 
 export interface FlightFareDetails {
@@ -139,6 +141,10 @@ export interface FlightFareDetails {
   originAirport?: string
   destinationAirport?: string
   aircraftType?: string
+  originLatitude?: number
+  originLongitude?: number
+  destinationLatitude?: number
+  destinationLongitude?: number
 }
 
 // Initial flight data response from /flights/storefront/flights
