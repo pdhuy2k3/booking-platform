@@ -29,6 +29,9 @@ public class FlightFareDetailsResponse {
     private String destinationAirport;
     private String aircraftType;
 
+    private String duration;
+    private String airlineLogo;
+
     private Double originLatitude;
     private Double originLongitude;
     private Double destinationLatitude;

@@ -1,18 +1,18 @@
-"use client"
+'use client';
 
-import { useEffect, useCallback, useState } from "react"
-import Link from "next/link"
-import { useRouter, useSearchParams } from "next/navigation"
-import { cn } from "@/lib/utils"
-import { MessageCircle, Search, Info, LogOut, UserRound, User, BarChart3, History, PanelRightOpen, PanelRightClose } from "lucide-react"
-import Image from "next/image"
-import { useAuth } from "@/contexts/auth-context"
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
-import { ThemeToggle, SimpleThemeToggle } from "@/components/theme-toggle"
+import { useEffect, useCallback, useState } from "react";
+import Link from "next/link";
+import { useRouter, useSearchParams } from "next/navigation";
+import { cn } from "@/lib/utils";
+import { MessageCircle, Search, Info, LogOut, UserRound, User, BarChart3, History } from "lucide-react";
+import Image from "next/image";
+import { useAuth } from "@/contexts/auth-context";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { SimpleThemeToggle } from "@/components/theme-toggle";
 
 export function Sidebar() {
-  const router = useRouter()
-  const searchParams = useSearchParams()
+  const router = useRouter();
+  const searchParams = useSearchParams();
   const {
     user,
     isAuthenticated,
@@ -21,66 +21,62 @@ export function Sidebar() {
     logout,
     chatConversations,
     refreshChatConversations,
-  } = useAuth()
+  } = useAuth();
 
-  const [isExpanded, setIsExpanded] = useState(false)
-
-  const activeTab = (searchParams.get("tab") as "chat" | "search" | null) ?? "chat"
-  const activeConversationId = searchParams.get("conversationId")
+  const activeTab = (searchParams.get("tab") as "chat" | "search" | null) ?? "chat";
+  const activeConversationId = searchParams.get("conversationId");
 
   useEffect(() => {
     if (!isLoading && isAuthenticated && chatConversations.length === 0) {
       refreshChatConversations().catch((error) => {
-        console.error("Unable to refresh conversations:", error)
-      })
+        console.error("Unable to refresh conversations:", error);
+      });
     }
-  }, [isLoading, isAuthenticated, chatConversations.length, refreshChatConversations])
+  }, [isLoading, isAuthenticated, chatConversations.length, refreshChatConversations]);
 
   const handleNavigateTab = useCallback(
     (tab: "chat" | "search", options?: { conversationId?: string; newChat?: boolean }) => {
-      const params = new URLSearchParams()
-      params.set("tab", tab)
+      const params = new URLSearchParams();
+      params.set("tab", tab);
 
       if (tab === "search") {
-        const currentSearchTab = searchParams.get("searchTab")
-        const searchTab = currentSearchTab === "flights" || currentSearchTab === "hotels" ? currentSearchTab : "flights"
-        params.set("searchTab", searchTab)
+        const currentSearchTab = searchParams.get("searchTab");
+        const searchTab = currentSearchTab === "flights" || currentSearchTab === "hotels" ? currentSearchTab : "flights";
+        params.set("searchTab", searchTab);
       }
 
       if (options?.conversationId) {
-        params.set("conversationId", options.conversationId)
+        params.set("conversationId", options.conversationId);
       }
 
       if (options?.newChat) {
-        params.set("new", "1")
-        params.delete("conversationId")
+        params.set("new", "1");
+        params.delete("conversationId");
       }
 
-      router.push(`/?${params.toString()}`, { scroll: false })
+      router.push(`/?${params.toString()}`, { scroll: false });
     },
     [router, searchParams],
-  )
+  );
 
   const navItems = [
     { label: "Chat", icon: MessageCircle, tab: "chat" as const },
     { label: "Search", icon: Search, tab: "search" as const },
-  ]
+  ];
 
   const handleStartNewChat = useCallback(() => {
-    handleNavigateTab("chat", { newChat: true })
-  }, [handleNavigateTab])
+    handleNavigateTab("chat", { newChat: true });
+  }, [handleNavigateTab]);
 
   return (
     <nav
       className={cn(
-        "shrink-0 border-r border-border bg-background flex h-full flex-col gap-3 py-4 transition-[width] duration-200 ease-in-out",
-        isExpanded ? "w-[260px] min-w-[260px] px-4" : "w-[72px] min-w-[72px] items-center px-2"
+        "shrink-0 border-r border-border bg-background flex h-full flex-col gap-3 py-4 w-[260px] min-w-[260px] px-4"
       )}
     >
       <div
         className={cn(
-          "w-full flex",
-          isExpanded ? "items-center justify-between" : "flex-col items-center gap-2"
+          "w-full flex items-center justify-between"
         )}
       >
         <Link
@@ -96,28 +92,12 @@ export function Sidebar() {
             className="object-contain"
           />
         </Link>
-        <button
-          type="button"
-          onClick={() => setIsExpanded(!isExpanded)}
-          className={cn(
-            "flex h-8 w-8 items-center justify-center rounded-full text-muted-foreground hover:bg-secondary hover:text-foreground transition-colors",
-            isExpanded ? "ml-2" : "mt-1"
-          )}
-          aria-label={isExpanded ? "Thu gọn" : "Mở rộng"}
-        >
-          {isExpanded ? (
-            <PanelRightClose className="h-4 w-4" />
-          ) : (
-            <PanelRightOpen className="h-4 w-4" />
-          )}
-        </button>
       </div>
 
-      <nav className={cn("flex flex-col gap-2", isExpanded ? "items-stretch" : "items-center w-full")}
-      >
+      <nav className={cn("flex flex-col gap-2 items-stretch")}>
         {navItems.map((item) => {
-          const Icon = item.icon
-          const isActive = activeTab === item.tab
+          const Icon = item.icon;
+          const isActive = activeTab === item.tab;
 
           return (
             <button
@@ -126,40 +106,34 @@ export function Sidebar() {
               aria-label={item.label}
               onClick={() => handleNavigateTab(item.tab)}
               className={cn(
-                "flex h-10 items-center rounded-full transition-all duration-200",
-                isExpanded ? "px-3 justify-start gap-3" : "w-10 justify-center",
+                "flex h-10 items-center rounded-full transition-all duration-200 px-3 justify-start gap-3",
                 isActive ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-secondary hover:text-foreground",
               )}
             >
               <Icon className="h-5 w-5" />
-              {isExpanded && <span className="text-sm font-medium">{item.label}</span>}
+              <span className="text-sm font-medium">{item.label}</span>
             </button>
-          )
+          );
         })}
       </nav>
 
-      <div className={cn("flex-1 w-full overflow-y-auto", isExpanded ? "mt-2 space-y-2 px-1" : "mt-2 space-y-2 px-1")}>
+      <div className={cn("flex-1 w-full overflow-y-auto mt-2 space-y-2 px-1")}>
         {isAuthenticated && (
           <button
             type="button"
             onClick={handleStartNewChat}
             className={cn(
-              "flex w-full items-center justify-center rounded-full border border-dashed border-primary/60 bg-primary/5 text-primary transition-colors hover:bg-primary/10",
-              isExpanded ? "px-3 py-2 text-sm font-medium" : "h-12 w-12 flex-col px-1 py-2 text-[10px] font-medium leading-tight"
+              "flex w-full items-center justify-center rounded-full border border-dashed border-primary/60 bg-primary/5 text-primary transition-colors hover:bg-primary/10 px-3 py-2 text-sm font-medium"
             )}
           >
-            {isExpanded ? (
-              <span className="text-center">Cuộc trò chuyện mới</span>
-            ) : (
-              <span className="whitespace-pre-line text-center">Chat{"\n"}mới</span>
-            )}
+            <span className="text-center">Cuộc trò chuyện mới</span>
           </button>
         )}
 
         {isAuthenticated && chatConversations.length > 0 ? (
           <div className="space-y-1">
             {chatConversations.map((conversation) => {
-              const isConversationActive = activeTab === "chat" && activeConversationId === conversation.id
+              const isConversationActive = activeTab === "chat" && activeConversationId === conversation.id;
               return (
                 <button
                   key={conversation.id}
@@ -172,19 +146,17 @@ export function Sidebar() {
                 >
                   <span className="block truncate">{conversation.title || "Cuộc trò chuyện"}</span>
                 </button>
-              )
+              );
             })}
           </div>
         ) : (
-          <div className={cn("text-xs text-muted-foreground", isExpanded ? "px-2" : "px-0 text-center")}
-          >
+          <div className={cn("text-xs text-muted-foreground px-2")}>
             {isAuthenticated ? "Không có cuộc trò chuyện" : "Đăng nhập để xem lịch sử"}
           </div>
         )}
       </div>
 
-      <div className={cn("flex flex-col gap-2", isExpanded ? "items-stretch" : "items-center")}
-      >
+      <div className={cn("flex flex-col gap-2 items-stretch")}>
         {isLoading ? (
           <div className="h-10 w-10 animate-pulse rounded-full bg-secondary" />
         ) : isAuthenticated && user ? (
@@ -273,13 +245,11 @@ export function Sidebar() {
           </button>
         )}
 
-        <div className={cn("flex", isExpanded ? "justify-start" : "justify-center")}
-        >
+        <div className="flex justify-start">
           <SimpleThemeToggle />
         </div>
 
-        <div className={cn("flex", isExpanded ? "justify-start" : "justify-center")}
-        >
+        <div className="flex justify-start">
           <Link href="/help" aria-label="Help" className="relative">
             <div className="flex h-10 w-10 items-center justify-center rounded-full text-muted-foreground hover:bg-secondary hover:text-foreground transition-all duration-200">
               <Info className="h-5 w-5" />
@@ -290,5 +260,5 @@ export function Sidebar() {
 
       </div>
     </nav>
-  )
+  );
 }

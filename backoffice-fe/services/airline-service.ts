@@ -3,7 +3,7 @@ import { apiClient } from "@/lib/api-client"
 
 interface AirlineCreateRequest {
   name: string
-  iataCode: string
+  code: string
   country?: string
   mediaPublicIds?: string[] // Array of publicIds from MediaSelector
   featuredMediaUrl?: string | null
@@ -11,7 +11,7 @@ interface AirlineCreateRequest {
 
 interface AirlineUpdateRequest {
   name?: string
-  iataCode?: string
+  code?: string
   country?: string
   mediaPublicIds?: string[] // Array of publicIds from MediaSelector
   featuredMediaUrl?: string | null

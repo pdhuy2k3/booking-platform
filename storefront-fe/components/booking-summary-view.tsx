@@ -149,7 +149,7 @@ export function BookingSummaryView() {
     }
     const upper = derivedType === 'both' ? 'COMBO' : derivedType.toUpperCase()
     if (bookingData.bookingType !== upper) {
-      updateBookingData({ bookingType: upper as any })
+      updateBookingData({ bookingType: upper as 'FLIGHT' | 'HOTEL' | 'COMBO' })
     }
   }
 

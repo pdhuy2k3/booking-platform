@@ -40,7 +40,7 @@ public class NotificationEventConsumer {
         if (message == null || message.isNull()) {
             return;
         }
-
+        System.out.println("Received notification message from topic " + topic + ": " + message.toString());
         JsonNode root = normalize(message);
         JsonNode payload = root.path("payload");
         if (payload.isMissingNode() || payload.isNull()) {

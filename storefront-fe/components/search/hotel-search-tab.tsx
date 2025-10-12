@@ -17,6 +17,20 @@ import HotelDetailsModal from "@/modules/hotel/component/HotelDetailsModal"
 import { HotelDestinationModal } from "@/modules/hotel/component/HotelDestinationModal"
 import { formatPrice } from "@/lib/currency"
 import { useBooking } from "@/contexts/booking-context"
+import type { DestinationSearchResult } from "@/types"
+
+interface HotelSearchResult {
+  id: string;
+  name: string;
+  image: string;
+  location: string;
+  rating: number;
+  reviews: number;
+  price: number;
+  originalPrice: number;
+  amenities: string[];
+  description: string;
+}
 
 interface HotelSearchTabProps {
   onBookingStart?: () => void
@@ -44,7 +58,7 @@ export function HotelSearchTab({ onBookingStart }: HotelSearchTabProps = {}) {
   const [page, setPage] = useState(1)
   const [limit] = useState(20)
   const [hasMore, setHasMore] = useState(false)
-  const [results, setResults] = useState<any[]>([])
+  const [results, setResults] = useState<HotelSearchResult[]>([])
   const [initialData, setInitialData] = useState<InitialHotelData | null>(null)
   const [hasSearched, setHasSearched] = useState(false)
 
@@ -91,12 +105,12 @@ export function HotelSearchTab({ onBookingStart }: HotelSearchTabProps = {}) {
     searchSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
   }
 
-  const handleViewDetails = (hotel: any) => {
+  const handleViewDetails = (hotel: HotelSearchResult) => {
     setSelectedHotelId(hotel.id)
     setIsModalOpen(true)
   }
 
-  const handleBookNow = (hotel: any) => {
+  const handleBookNow = (hotel: HotelSearchResult) => {
     if (!hasSearched) {
       scrollToSearch()
       return
@@ -110,11 +124,11 @@ export function HotelSearchTab({ onBookingStart }: HotelSearchTabProps = {}) {
     setSelectedHotelId(null)
   }
 
-  const handleDestinationSelect = (destination: any) => {
+  const handleDestinationSelect = (destination: DestinationSearchResult) => {
     setDestination(destination.name)
   }
 
-  const handleRoomBooking = ({ hotel, room, checkInDate, checkOutDate }: { hotel: HotelDetails; room: any; checkInDate?: string; checkOutDate?: string }) => {
+  const handleRoomBooking = ({ hotel, room, checkInDate, checkOutDate }: { hotel: HotelDetails; room: { id: string, name: string, features: string[], image: string, roomTypeId: string, roomId: string, roomType: string, price: number }; checkInDate?: string; checkOutDate?: string }) => {
     if (!hasSearched) {
       scrollToSearch()
       return
@@ -214,7 +228,7 @@ export function HotelSearchTab({ onBookingStart }: HotelSearchTabProps = {}) {
       })
       setInitialData(res as InitialHotelData)
       
-      const ui = (res.hotels || []).map((h) => ({
+      const ui = (res.hotels || []).map((h: HotelDetails) => ({
         id: h.hotelId,
         name: h.name,
         image: h.primaryImage || h.images?.[0] || "/placeholder.svg",
@@ -280,7 +294,7 @@ export function HotelSearchTab({ onBookingStart }: HotelSearchTabProps = {}) {
         page: usePage,
         limit,
       })
-      const ui = (res.hotels || []).map((h) => ({
+      const ui = (res.hotels || []).map((h: HotelDetails) => ({
         id: h.hotelId,
         name: h.name,
         image: h.primaryImage || h.images?.[0] || "/placeholder.svg",

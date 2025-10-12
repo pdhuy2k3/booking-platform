@@ -8,7 +8,8 @@ import type {
   PaymentStats,
   PaymentProcessRequest,
   PaymentRefundRequest,
-  PaginatedResponse 
+  PaginatedResponse,
+  ApiResponse
 } from "@/types/api"
 
 export class PaymentService {
@@ -38,35 +39,40 @@ export class PaymentService {
     const queryString = params.toString()
     const url = queryString ? `${this.BASE_URL}/payments?${queryString}` : `${this.BASE_URL}/payments`
     
-    return apiClient.get<PaginatedResponse<Payment>>(url)
+    const response = await apiClient.get<ApiResponse<PaginatedResponse<Payment>>>(url);
+    return response.data;
   }
 
   /**
    * Get payment by ID with full details
    */
   static async getPaymentById(paymentId: string): Promise<Payment> {
-    return apiClient.get<Payment>(`${this.BASE_URL}/payments/${paymentId}`)
+    const response = await apiClient.get<ApiResponse<Payment>>(`${this.BASE_URL}/payments/${paymentId}`);
+    return response.data;
   }
 
   /**
    * Get payment transactions by payment ID
    */
   static async getPaymentTransactions(paymentId: string): Promise<PaymentTransaction[]> {
-    return apiClient.get<PaymentTransaction[]>(`${this.BASE_URL}/payments/${paymentId}/transactions`)
+    const response = await apiClient.get<ApiResponse<PaymentTransaction[]>>(`${this.BASE_URL}/payments/${paymentId}/transactions`);
+    return response.data || [];
   }
 
   /**
    * Get payment saga logs
    */
   static async getPaymentSagaLogs(paymentId: string): Promise<PaymentSagaLog[]> {
-    return apiClient.get<PaymentSagaLog[]>(`${this.BASE_URL}/payments/${paymentId}/saga-logs`)
+    const response = await apiClient.get<ApiResponse<PaymentSagaLog[]>>(`${this.BASE_URL}/payments/${paymentId}/saga-logs`);
+    return response.data || [];
   }
 
   /**
    * Process manual payment (admin initiated)
    */
   static async processManualPayment(request: PaymentProcessRequest): Promise<Payment> {
-    return apiClient.post<Payment>(`${this.BASE_URL}/payments/manual`, request)
+    const response = await apiClient.post<ApiResponse<Payment>>(`${this.BASE_URL}/payments/manual`, request);
+    return response.data;
   }
 
   /**
@@ -77,36 +83,40 @@ export class PaymentService {
     status: PaymentFilters["status"], 
     reason?: string
   ): Promise<Payment> {
-    return apiClient.put<Payment>(`${this.BASE_URL}/payments/${paymentId}/status`, {
+    const response = await apiClient.put<ApiResponse<Payment>>(`${this.BASE_URL}/payments/${paymentId}/status`, {
       status,
       reason
-    })
+    });
+    return response.data;
   }
 
   /**
    * Process refund
    */
   static async processRefund(request: PaymentRefundRequest): Promise<PaymentTransaction> {
-    return apiClient.post<PaymentTransaction>(`${this.BASE_URL}/payments/${request.paymentId}/refund`, {
+    const response = await apiClient.post<ApiResponse<PaymentTransaction>>(`${this.BASE_URL}/payments/${request.paymentId}/refund`, {
       amount: request.amount,
       reason: request.reason
-    })
+    });
+    return response.data;
   }
 
   /**
    * Cancel payment
    */
   static async cancelPayment(paymentId: string, reason?: string): Promise<Payment> {
-    return apiClient.put<Payment>(`${this.BASE_URL}/payments/${paymentId}/cancel`, {
+    const response = await apiClient.put<ApiResponse<Payment>>(`${this.BASE_URL}/payments/${paymentId}/cancel`, {
       reason
-    })
+    });
+    return response.data;
   }
 
   /**
    * Retry failed payment
    */
   static async retryPayment(paymentId: string): Promise<Payment> {
-    return apiClient.post<Payment>(`${this.BASE_URL}/payments/${paymentId}/retry`)
+    const response = await apiClient.post<ApiResponse<Payment>>(`${this.BASE_URL}/payments/${paymentId}/retry`);
+    return response.data;
   }
 
   /**
@@ -125,21 +135,23 @@ export class PaymentService {
     const queryString = params.toString()
     const url = queryString ? `${this.BASE_URL}/payments/stats?${queryString}` : `${this.BASE_URL}/payments/stats`
     
-    return apiClient.get<PaymentStats>(url)
+    const response = await apiClient.get<ApiResponse<PaymentStats>>(url);
+    return response.data;
   }
 
   /**
    * Get user payment methods
    */
   static async getUserPaymentMethods(userId: string): Promise<PaymentMethod[]> {
-    return apiClient.get<PaymentMethod[]>(`${this.BASE_URL}/users/${userId}/payment-methods`)
+    const response = await apiClient.get<ApiResponse<PaymentMethod[]>>(`${this.BASE_URL}/users/${userId}/payment-methods`);
+    return response.data;
   }
 
   /**
    * Delete payment method
    */
   static async deletePaymentMethod(paymentMethodId: string): Promise<void> {
-    return apiClient.delete(`${this.BASE_URL}/payment-methods/${paymentMethodId}`)
+    await apiClient.delete(`${this.BASE_URL}/payment-methods/${paymentMethodId}`);
   }
 
   /**
@@ -165,14 +177,16 @@ export class PaymentService {
    * Get payment by booking ID
    */
   static async getPaymentByBookingId(bookingId: string): Promise<Payment[]> {
-    return apiClient.get<Payment[]>(`${this.BASE_URL}/bookings/${bookingId}/payments`)
+    const response = await apiClient.get<ApiResponse<Payment[]>>(`${this.BASE_URL}/bookings/${bookingId}/payments`);
+    return response.data;
   }
 
   /**
    * Reconcile payment with gateway
    */
   static async reconcilePayment(paymentId: string): Promise<Payment> {
-    return apiClient.post<Payment>(`${this.BASE_URL}/payments/${paymentId}/reconcile`)
+    const response = await apiClient.post<ApiResponse<Payment>>(`${this.BASE_URL}/payments/${paymentId}/reconcile`);
+    return response.data;
   }
 
   /**
@@ -193,6 +207,7 @@ export class PaymentService {
     const queryString = params.toString()
     const url = queryString ? `${this.BASE_URL}/webhooks?${queryString}` : `${this.BASE_URL}/webhooks`
     
-    return apiClient.get<any[]>(url)
+    const response = await apiClient.get<ApiResponse<any[]>>(url);
+    return response.data;
   }
 }

@@ -152,9 +152,22 @@ export default function AdminAircraft() {
   }
 
   // Handle opening edit dialog
-  const handleOpenEditDialog = (aircraft: Aircraft) => {
-    setSelectedAircraft(aircraft)
-    setIsEditDialogOpen(true)
+  const handleOpenEditDialog = async (aircraft: Aircraft) => {
+    try {
+      setSubmitting(true)
+      const fullAircraftDetails = await AircraftService.getAircraftById(aircraft.aircraftId)
+      setSelectedAircraft(fullAircraftDetails)
+      setIsEditDialogOpen(true)
+    } catch (error) {
+      console.error("Failed to fetch full aircraft details:", error)
+      toast({
+        title: "Lỗi",
+        description: "Không thể tải chi tiết máy bay để chỉnh sửa.",
+        variant: "destructive",
+      })
+    } finally {
+      setSubmitting(false)
+    }
   }
 
   return (

@@ -25,6 +25,59 @@ interface City {
   type: string
 }
 
+interface FlightSearchResult {
+  id: string;
+  airline: string;
+  flightNumber: string;
+  origin: string;
+  destination: string;
+  departureTime: string;
+  arrivalTime: string;
+  departureDateTime?: string;
+  arrivalDateTime?: string;
+  currency: string;
+  seatClass: string;
+  logo: string;
+  scheduleId?: string;
+  fareId?: string;
+  departure: {
+    time: string;
+    airport: string;
+    city: string;
+  };
+  arrival: {
+    time: string;
+    airport: string;
+    city: string;
+  };
+  duration: string;
+  stops: string;
+  price: number;
+  class: string;
+  rating: number;
+  raw: any; // Keep raw as any for now
+}
+
+interface ApiFlight {
+  flightId: string;
+  airline: string;
+  flightNumber: string;
+  origin: string;
+  destination: string;
+  departureTime: string;
+  arrivalTime: string;
+  departureDateTime?: string;
+  arrivalDateTime?: string;
+  currency?: string;
+  seatClass?: string;
+  airlineLogo?: string;
+  scheduleId?: string;
+  fareId?: string;
+  duration?: string;
+  stops?: number;
+  price: number;
+}
+
 interface FlightSearchTabProps {
   onBookingStart?: () => void
 }
@@ -64,11 +117,11 @@ export function FlightSearchTab({ onBookingStart }: FlightSearchTabProps = {}) {
   const [hasSearched, setHasSearched] = useState(false)
 
   // Results
-  const [flightResults, setFlightResults] = useState<any[]>([])
+  const [flightResults, setFlightResults] = useState<FlightSearchResult[]>([])
   const [initialData, setInitialData] = useState<InitialFlightData | null>(null)
 
   // Modals
-  const [selectedFlightForModal, setSelectedFlightForModal] = useState<any | null>(null)
+  const [selectedFlightForModal, setSelectedFlightForModal] = useState<FlightSearchResult | null>(null)
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [isOriginModalOpen, setIsOriginModalOpen] = useState(false)
   const [isDestinationModalOpen, setIsDestinationModalOpen] = useState(false)
@@ -133,7 +186,7 @@ export function FlightSearchTab({ onBookingStart }: FlightSearchTabProps = {}) {
     return fallback || '--:--'
   }
 
-  const mapFlightToUi = (flight: any, searchDate?: string) => {
+  const mapFlightToUi = (flight: ApiFlight, searchDate?: string): FlightSearchResult => {
     const departureDateTime = resolveDateTime(flight.departureDateTime, searchDate, flight.departureTime)
     const arrivalDateTime = resolveDateTime(flight.arrivalDateTime, searchDate, flight.arrivalTime)
 
@@ -179,7 +232,7 @@ export function FlightSearchTab({ onBookingStart }: FlightSearchTabProps = {}) {
     searchSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
   }
 
-  const handleViewDetails = (flight: any) => {
+  const handleViewDetails = (flight: FlightSearchResult) => {
     setSelectedFlightForModal(flight)
     setIsModalOpen(true)
   }
@@ -197,7 +250,7 @@ export function FlightSearchTab({ onBookingStart }: FlightSearchTabProps = {}) {
     setDestination(city)
   }
 
-  const startFlightBooking = (flight: any, options: { allowWithoutSearch?: boolean } = {}) => {
+  const startFlightBooking = (flight: FlightSearchResult, options: { allowWithoutSearch?: boolean } = {}) => {
     if (!hasSearched && !options.allowWithoutSearch) {
       scrollToSearch()
       return
@@ -334,7 +387,7 @@ export function FlightSearchTab({ onBookingStart }: FlightSearchTabProps = {}) {
       })
       setInitialData(res as InitialFlightData)
       
-      const ui = (res.flights || []).map((f: any) => mapFlightToUi(f))
+      const ui = (res.flights || []).map((f: ApiFlight) => mapFlightToUi(f))
       setFlightResults(ui)
       setHasMore(Boolean(res.hasMore))
     } catch (e: any) {
@@ -380,7 +433,7 @@ export function FlightSearchTab({ onBookingStart }: FlightSearchTabProps = {}) {
         page: usePage,
         limit,
       })
-      const ui = (res.flights || []).map((f: any) => mapFlightToUi(f, departDate))
+      const ui = (res.flights || []).map((f: ApiFlight) => mapFlightToUi(f, departDate))
       setFlightResults(ui)
       setHasMore(Boolean(res.hasMore))
       setPage(usePage)

@@ -35,8 +35,10 @@ const pickDateTimeValue = (...values: (string | null | undefined)[]): string | u
   return undefined
 }
 
+import type { SelectedFlight } from '@/types'
+
 interface FlightBookingFormProps {
-  flight: any // Replace with proper flight type
+  flight: SelectedFlight
   onSubmit: (details: FlightBookingDetails) => void
   onCancel: () => void
 }
@@ -341,7 +343,7 @@ export function FlightBookingForm({ flight, onSubmit, onCancel }: FlightBookingF
                     <Label htmlFor={`passengerType-${index}`}>Loại hành khách *</Label>
                     <Select 
                       value={passenger.passengerType} 
-                      onValueChange={(value) => handlePassengerChange(index, 'passengerType', value as any)}
+                      onValueChange={(value) => handlePassengerChange(index, 'passengerType', value)}
                     >
                       <SelectTrigger>
                         <SelectValue placeholder="Chọn loại" />
@@ -388,7 +390,7 @@ export function FlightBookingForm({ flight, onSubmit, onCancel }: FlightBookingF
                     <Label htmlFor={`gender-${index}`}>Giới tính *</Label>
                     <Select 
                       value={passenger.gender} 
-                      onValueChange={(value) => handlePassengerChange(index, 'gender', value as any)}
+                      onValueChange={(value) => handlePassengerChange(index, 'gender', value)}
                     >
                       <SelectTrigger>
                         <SelectValue placeholder="Chọn giới tính" />

@@ -1,5 +1,5 @@
 import { apiClient } from '@/lib/api-client';
-import type { MediaResponse } from '@/types/api';
+import type { ApiResponse, MediaResponse } from '@/types/api';
 
 export interface MediaUploadResponse {
   mediaUrl: string;    // URL in format "/api/media/{publicId}"
@@ -382,23 +382,8 @@ class MediaService {
     
     try {
       // Use single browse endpoint for all searches
-      const response = await apiClient.get('/api/media/browse', { params }) as { data: any };
-      const data = response.data.data || response.data;
-      
-      return {
-        items: data.resources?.map((item: any) => ({
-          publicId: item.public_id,
-          url: item.url,
-          secureUrl: item.secure_url,
-          format: item.format,
-          width: item.width,
-          height: item.height,
-          bytes: item.bytes,
-          folder: item.folder
-        })) || [],
-        total: data.total_count || 0,
-        totalPages: data.total_pages || Math.ceil((data.total_count || 0) / limit)
-      };
+      const response = await apiClient.get<ApiResponse<{ items: SimpleMediaItem[], total: number, totalPages: number }>>('/api/media/browse', { params });
+      return response.data;
     } catch (error) {
       console.error('Error searching media:', error);
       

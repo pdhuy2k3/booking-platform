@@ -33,7 +33,7 @@ import java.util.stream.Collectors;
 @Slf4j
 public class HotelMapper {
 
-    private static final double DEFAULT_PRICE = 500000.0;
+    private static final double DEFAULT_PRICE = 50000000.0;
 
     private final HotelImageRepository hotelImageRepository;
     private final RoomTypeService roomTypeService;
@@ -266,11 +266,16 @@ public class HotelMapper {
                                                            int roomsRequested,
                                                            double fallbackPrice) {
         boolean available = true;
+        List<HotelInventoryService.AvailabilityDetail> dailyDetails = List.of();
+        String availabilityMessage = "Availability not checked";
+        
         if (roomType.getName() != null) {
             try {
                 HotelInventoryService.AvailabilitySummary summary = hotelInventoryService.getAvailabilitySummary(
                     hotel.getHotelId(), roomType.getName(), roomsRequested, checkIn, checkOut);
                 available = summary.isAvailable();
+                dailyDetails = summary.getDailyDetails();
+                availabilityMessage = summary.getMessage();
             } catch (Exception e) {
                 log.warn("Unable to compute availability for hotel {} room type {}: {}",
                     hotel.getHotelId(), roomType.getName(), e.getMessage());
@@ -284,6 +289,21 @@ public class HotelMapper {
         roomData.put("pricePerNight", roomType.getBasePrice() != null ? roomType.getBasePrice().doubleValue() : fallbackPrice);
         roomData.put("amenities", List.of());
         roomData.put("available", available);
+        roomData.put("availabilityMessage", availabilityMessage);
+        
+        // Add detailed daily availability information
+        List<Map<String, Object>> dailyAvailability = dailyDetails.stream()
+            .map(detail -> {
+                Map<String, Object> detailMap = new HashMap<>();
+                detailMap.put("date", detail.getDate().toString());
+                detailMap.put("totalInventory", detail.getTotalInventory());
+                detailMap.put("totalReserved", detail.getTotalReserved());
+                detailMap.put("remaining", detail.getRemaining());
+                return detailMap;
+            })
+            .collect(Collectors.toList());
+        roomData.put("dailyAvailability", dailyAvailability);
+        
         return roomData;
     }
 
@@ -305,6 +325,31 @@ public class HotelMapper {
                     roomTypeMap.put("image", roomType.getPrimaryImage() != null
                         ? roomType.getPrimaryImage().getUrl()
                         : "/placeholder.svg?height=200&width=300");
+                    
+                    // Add detailed availability information for the given date range
+                    try {
+                        HotelInventoryService.AvailabilitySummary summary = hotelInventoryService.getAvailabilitySummary(
+                            hotel.getHotelId(), roomType.getName(), 1, LocalDate.now(), LocalDate.now().plusDays(1));
+                        List<Map<String, Object>> dailyAvailability = summary.getDailyDetails().stream()
+                            .map(detail -> {
+                                Map<String, Object> detailMap = new HashMap<>();
+                                detailMap.put("date", detail.getDate().toString());
+                                detailMap.put("totalInventory", detail.getTotalInventory());
+                                detailMap.put("totalReserved", detail.getTotalReserved());
+                                detailMap.put("remaining", detail.getRemaining());
+                                return detailMap;
+                            })
+                            .collect(Collectors.toList());
+                        roomTypeMap.put("dailyAvailability", dailyAvailability);
+                        roomTypeMap.put("available", summary.isAvailable());
+                        roomTypeMap.put("availabilityMessage", summary.getMessage());
+                    } catch (Exception e) {
+                        log.warn("Failed to get availability for room type {}: {}", roomType.getName(), e.getMessage());
+                        roomTypeMap.put("dailyAvailability", List.of());
+                        roomTypeMap.put("available", false);
+                        roomTypeMap.put("availabilityMessage", "Unable to check availability");
+                    }
+                    
                     return roomTypeMap;
                 })
                 .collect(Collectors.toList());

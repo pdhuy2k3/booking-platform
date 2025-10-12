@@ -15,10 +15,6 @@ springdoc:
     authorization-url: ${KEYCLOAK_ISSUER_URI:http://localhost:9090}/protocol/openid-connect/auth
     token-url: ${KEYCLOAK_ISSUER_URI:http://localhost:9090}/protocol/openid-connect/token
   show-actuator: true
-
-
-
-
 spring:
   application:
     name: notification-service
@@ -34,6 +30,14 @@ spring:
           starttls:
             enable: true
         debug: false
+
+---
+spring:
+  config:
+    activate:
+      on-profile: local
+  
+
   datasource:
     url: ${DB_URL:jdbc:postgresql://localhost:5432/notification_db}
     username: ${DB_USERNAME:postgres}

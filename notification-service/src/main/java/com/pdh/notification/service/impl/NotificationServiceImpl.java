@@ -85,15 +85,18 @@ public class NotificationServiceImpl implements NotificationService {
             return;
         }
 
-        Map<String, Object> contact = toMap(payload.get("contact"));
-        String recipient = contact != null ? (String) contact.get("email") : null;
+        String recipient = findRecipientEmail(payload, eventType);
         if (StringUtils.isBlank(recipient)) {
             log.warn("No recipient email found in booking payload for event {}", eventType);
             return;
         }
 
         Map<String, Object> model = new HashMap<>(payload);
-        model.put("contact", contact);
+        model.put("recipientEmail", recipient); // Maintain for backward compatibility
+        
+        // Extract contact information if available in nested structures
+        Map<String, Object> contactInfo = extractContactInfo(payload, eventType);
+        model.put("contact", contactInfo);
         model.put("eventType", eventType);
         model.put("formattedTotalAmount", formatCurrency(payload.get("totalAmount"), (String) payload.get("currency")));
 
@@ -229,5 +232,465 @@ public class NotificationServiceImpl implements NotificationService {
             }
         }
         return null;
+    }
+
+    /**
+     * Extract recipient email from the event payload considering different event types and data structures
+     */
+    private String findRecipientEmail(Map<String, Object> payload, String eventType) {
+        // First, try the original location (for backward compatibility)
+        Map<String, Object> contact = toMap(payload.get("contact"));
+        if (contact != null) {
+            String email = (String) contact.get("email");
+            if (StringUtils.isNotBlank(email)) {
+                return email;
+            }
+        }
+
+        // Try to find email in the root level of payload
+        if (payload.containsKey("email")) {
+            String email = (String) payload.get("email");
+            if (StringUtils.isNotBlank(email)) {
+                return email;
+            }
+        }
+
+        // Handle FlightReserved, FlightReservationFailed, etc. events
+        if (eventType.contains("Flight")) {
+            Object flightDetails = payload.get("flightDetails");
+            if (flightDetails instanceof Map) {
+                Map<String, Object> flightDetailsMap = (Map<String, Object>) flightDetails;
+                Object passengersObj = flightDetailsMap.get("passengers");
+                if (passengersObj instanceof java.util.List) {
+                    java.util.List<?> passengers = (java.util.List<?>) passengersObj;
+                    if (!passengers.isEmpty() && passengers.get(0) instanceof Map) {
+                        Map<String, Object> firstPassenger = (Map<String, Object>) passengers.get(0);
+                        String email = (String) firstPassenger.get("email");
+                        if (StringUtils.isNotBlank(email)) {
+                            return email;
+                        }
+                    }
+                }
+            }
+        }
+
+        // Handle HotelReserved, HotelReservationFailed, etc. events
+        if (eventType.contains("Hotel")) {
+            Object hotelDetails = payload.get("hotelDetails");
+            if (hotelDetails instanceof Map) {
+                Map<String, Object> hotelDetailsMap = (Map<String, Object>) hotelDetails;
+                Object guestsObj = hotelDetailsMap.get("guests");
+                if (guestsObj instanceof java.util.List) {
+                    java.util.List<?> guests = (java.util.List<?>) guestsObj;
+                    if (!guests.isEmpty() && guests.get(0) instanceof Map) {
+                        Map<String, Object> firstGuest = (Map<String, Object>) guests.get(0);
+                        String email = (String) firstGuest.get("email");
+                        if (StringUtils.isNotBlank(email)) {
+                            return email;
+                        }
+                    }
+                }
+            }
+
+            // Also check for guestEmail in hotel details
+            if (hotelDetails instanceof Map) {
+                Map<String, Object> hotelDetailsMap = (Map<String, Object>) hotelDetails;
+                String guestEmail = (String) hotelDetailsMap.get("guestEmail");
+                if (StringUtils.isNotBlank(guestEmail)) {
+                    return guestEmail;
+                }
+            }
+        }
+
+        // Handle combo bookings
+        if (eventType.contains("Combo")) {
+            // Check for passengers in combo details
+            Object comboDetails = payload.get("comboDetails");
+            if (comboDetails instanceof Map) {
+                Map<String, Object> comboDetailsMap = (Map<String, Object>) comboDetails;
+                Object passengersObj = comboDetailsMap.get("passengers");
+                if (passengersObj instanceof java.util.List) {
+                    java.util.List<?> passengers = (java.util.List<?>) passengersObj;
+                    if (!passengers.isEmpty() && passengers.get(0) instanceof Map) {
+                        Map<String, Object> firstPassenger = (Map<String, Object>) passengers.get(0);
+                        String email = (String) firstPassenger.get("email");
+                        if (StringUtils.isNotBlank(email)) {
+                            return email;
+                        }
+                    }
+                }
+
+                // Also check for guests in hotel part of combo
+                Object hotelPart = comboDetailsMap.get("hotelDetails");
+                if (hotelPart instanceof Map) {
+                    Map<String, Object> hotelPartMap = (Map<String, Object>) hotelPart;
+                    Object guestsObj = hotelPartMap.get("guests");
+                    if (guestsObj instanceof java.util.List) {
+                        java.util.List<?> guests = (java.util.List<?>) guestsObj;
+                        if (!guests.isEmpty() && guests.get(0) instanceof Map) {
+                            Map<String, Object> firstGuest = (Map<String, Object>) guests.get(0);
+                            String email = (String) firstGuest.get("email");
+                            if (StringUtils.isNotBlank(email)) {
+                                return email;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // Handle PaymentProcessed, PaymentFailed, etc. events
+        if (eventType.contains("Payment")) {
+            Object customerInfo = payload.get("customerInfo");
+            if (customerInfo instanceof Map) {
+                Map<String, Object> customerMap = (Map<String, Object>) customerInfo;
+                String email = (String) customerMap.get("email");
+                if (StringUtils.isNotBlank(email)) {
+                    return email;
+                }
+            }
+        }
+
+        // Check for guest details in root payload
+        Object guestDetails = payload.get("guestDetails");
+        if (guestDetails instanceof Map) {
+            Map<String, Object> guestMap = (Map<String, Object>) guestDetails;
+            String email = (String) guestMap.get("email");
+            if (StringUtils.isNotBlank(email)) {
+                return email;
+            }
+        }
+
+        return null;
+    }
+    
+    /**
+     * Extract contact information from the event payload considering different event types and data structures
+     */
+    private Map<String, Object> extractContactInfo(Map<String, Object> payload, String eventType) {
+        // First, try the original location (for backward compatibility)
+        Map<String, Object> contact = toMap(payload.get("contact"));
+        if (contact != null) {
+            String email = (String) contact.get("email");
+            if (StringUtils.isNotBlank(email)) {
+                return contact;
+            }
+        }
+
+        // Handle FlightReserved, FlightReservationFailed, etc. events
+        if (eventType.contains("Flight")) {
+            Object flightDetails = payload.get("flightDetails");
+            if (flightDetails instanceof Map) {
+                Map<String, Object> flightDetailsMap = (Map<String, Object>) flightDetails;
+                Object passengersObj = flightDetailsMap.get("passengers");
+                if (passengersObj instanceof java.util.List) {
+                    java.util.List<?> passengers = (java.util.List<?>) passengersObj;
+                    if (!passengers.isEmpty() && passengers.get(0) instanceof Map) {
+                        Map<String, Object> firstPassenger = (Map<String, Object>) passengers.get(0);
+                        String email = (String) firstPassenger.get("email");
+                        if (StringUtils.isNotBlank(email)) {
+                            Map<String, Object> contactInfo = new HashMap<>();
+                            contactInfo.put("email", email);
+                            contactInfo.put("firstName", firstPassenger.get("firstName"));
+                            contactInfo.put("lastName", firstPassenger.get("lastName"));
+                            String fullName = String.join(" ", 
+                                (String) firstPassenger.getOrDefault("firstName", ""),
+                                (String) firstPassenger.getOrDefault("lastName", "")).trim();
+                            contactInfo.put("fullName", fullName);
+                            return contactInfo;
+                        }
+                    }
+                }
+            }
+        }
+
+        // Handle HotelReserved, HotelReservationFailed, etc. events
+        if (eventType.contains("Hotel")) {
+            Object hotelDetails = payload.get("hotelDetails");
+            if (hotelDetails instanceof Map) {
+                Map<String, Object> hotelDetailsMap = (Map<String, Object>) hotelDetails;
+                Object guestsObj = hotelDetailsMap.get("guests");
+                if (guestsObj instanceof java.util.List) {
+                    java.util.List<?> guests = (java.util.List<?>) guestsObj;
+                    if (!guests.isEmpty() && guests.get(0) instanceof Map) {
+                        Map<String, Object> firstGuest = (Map<String, Object>) guests.get(0);
+                        String email = (String) firstGuest.get("email");
+                        if (StringUtils.isNotBlank(email)) {
+                            Map<String, Object> contactInfo = new HashMap<>();
+                            contactInfo.put("email", email);
+                            contactInfo.put("firstName", firstGuest.get("firstName"));
+                            contactInfo.put("lastName", firstGuest.get("lastName"));
+                            String fullName = String.join(" ", 
+                                (String) firstGuest.getOrDefault("firstName", ""),
+                                (String) firstGuest.getOrDefault("lastName", "")).trim();
+                            contactInfo.put("fullName", fullName);
+                            return contactInfo;
+                        }
+                    }
+                }
+            }
+        }
+
+        // Handle combo bookings
+        if (eventType.contains("Combo")) {
+            // Check for passengers in combo details
+            Object comboDetails = payload.get("comboDetails");
+            if (comboDetails instanceof Map) {
+                Map<String, Object> comboDetailsMap = (Map<String, Object>) comboDetails;
+                Object passengersObj = comboDetailsMap.get("passengers");
+                if (passengersObj instanceof java.util.List) {
+                    java.util.List<?> passengers = (java.util.List<?>) passengersObj;
+                    if (!passengers.isEmpty() && passengers.get(0) instanceof Map) {
+                        Map<String, Object> firstPassenger = (Map<String, Object>) passengers.get(0);
+                        String email = (String) firstPassenger.get("email");
+                        if (StringUtils.isNotBlank(email)) {
+                            Map<String, Object> contactInfo = new HashMap<>();
+                            contactInfo.put("email", email);
+                            contactInfo.put("firstName", firstPassenger.get("firstName"));
+                            contactInfo.put("lastName", firstPassenger.get("lastName"));
+                            String fullName = String.join(" ", 
+                                (String) firstPassenger.getOrDefault("firstName", ""),
+                                (String) firstPassenger.getOrDefault("lastName", "")).trim();
+                            contactInfo.put("fullName", fullName);
+                            return contactInfo;
+                        }
+                    }
+                }
+
+                // Also check for guests in hotel part of combo
+                Object hotelPart = comboDetailsMap.get("hotelDetails");
+                if (hotelPart instanceof Map) {
+                    Map<String, Object> hotelPartMap = (Map<String, Object>) hotelPart;
+                    Object guestsObj = hotelPartMap.get("guests");
+                    if (guestsObj instanceof java.util.List) {
+                        java.util.List<?> guests = (java.util.List<?>) guestsObj;
+                        if (!guests.isEmpty() && guests.get(0) instanceof Map) {
+                            Map<String, Object> firstGuest = (Map<String, Object>) guests.get(0);
+                            String email = (String) firstGuest.get("email");
+                            if (StringUtils.isNotBlank(email)) {
+                                Map<String, Object> contactInfo = new HashMap<>();
+                                contactInfo.put("email", email);
+                                contactInfo.put("firstName", firstGuest.get("firstName"));
+                                contactInfo.put("lastName", firstGuest.get("lastName"));
+                                String fullName = String.join(" ", 
+                                    (String) firstGuest.getOrDefault("firstName", ""),
+                                    (String) firstGuest.getOrDefault("lastName", "")).trim();
+                                contactInfo.put("fullName", fullName);
+                                return contactInfo;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // Handle PaymentProcessed, PaymentFailed, etc. events
+        if (eventType.contains("Payment")) {
+            Object customerInfo = payload.get("customerInfo");
+            if (customerInfo instanceof Map) {
+                Map<String, Object> customerMap = (Map<String, Object>) customerInfo;
+                String email = (String) customerMap.get("email");
+                if (StringUtils.isNotBlank(email)) {
+                    Map<String, Object> contactInfo = new HashMap<>();
+                    contactInfo.put("email", email);
+                    contactInfo.put("firstName", customerMap.get("firstName"));
+                    contactInfo.put("lastName", customerMap.get("lastName"));
+                    String fullName = String.join(" ", 
+                        (String) customerMap.getOrDefault("firstName", ""),
+                        (String) customerMap.getOrDefault("lastName", "")).trim();
+                    contactInfo.put("fullName", fullName);
+                    return contactInfo;
+                }
+            }
+        }
+
+        // Check for guest details in root payload
+        Object guestDetails = payload.get("guestDetails");
+        if (guestDetails instanceof Map) {
+            Map<String, Object> guestMap = (Map<String, Object>) guestDetails;
+            String email = (String) guestMap.get("email");
+            if (StringUtils.isNotBlank(email)) {
+                Map<String, Object> contactInfo = new HashMap<>();
+                contactInfo.put("email", email);
+                contactInfo.put("firstName", guestMap.get("firstName"));
+                contactInfo.put("lastName", guestMap.get("lastName"));
+                String fullName = String.join(" ", 
+                    (String) guestMap.getOrDefault("firstName", ""),
+                    (String) guestMap.getOrDefault("lastName", "")).trim();
+                contactInfo.put("fullName", fullName);
+                return contactInfo;
+            }
+        }
+
+        // Return empty contact info map if no contact details found
+        return new HashMap<>();
+    }
+
+    /**
+     * Extract contact information from the event payload considering different event types and data structures
+     */
+    private Map<String, Object> extractContactInfo(Map<String, Object> payload, String eventType) {
+        // First, try the original location (for backward compatibility)
+        Map<String, Object> contact = toMap(payload.get("contact"));
+        if (contact != null) {
+            String email = (String) contact.get("email");
+            if (StringUtils.isNotBlank(email)) {
+                return contact;
+            }
+        }
+
+        // Handle FlightReserved, FlightReservationFailed, etc. events
+        if (eventType.contains("Flight")) {
+            Object flightDetails = payload.get("flightDetails");
+            if (flightDetails instanceof Map) {
+                Map<String, Object> flightDetailsMap = (Map<String, Object>) flightDetails;
+                Object passengersObj = flightDetailsMap.get("passengers");
+                if (passengersObj instanceof java.util.List) {
+                    java.util.List<?> passengers = (java.util.List<?>) passengersObj;
+                    if (!passengers.isEmpty() && passengers.get(0) instanceof Map) {
+                        Map<String, Object> firstPassenger = (Map<String, Object>) passengers.get(0);
+                        String email = (String) firstPassenger.get("email");
+                        if (StringUtils.isNotBlank(email)) {
+                            Map<String, Object> contactInfo = new HashMap<>();
+                            contactInfo.put("email", email);
+                            contactInfo.put("firstName", firstPassenger.get("firstName"));
+                            contactInfo.put("lastName", firstPassenger.get("lastName"));
+                            String fullName = String.join(" ", 
+                                (String) firstPassenger.getOrDefault("firstName", ""),
+                                (String) firstPassenger.getOrDefault("lastName", "")).trim();
+                            contactInfo.put("fullName", fullName.isEmpty() ? 
+                                firstPassenger.getOrDefault("firstName", "traveler").toString() : fullName);
+                            return contactInfo;
+                        }
+                    }
+                }
+            }
+        }
+
+        // Handle HotelReserved, HotelReservationFailed, etc. events
+        if (eventType.contains("Hotel")) {
+            Object hotelDetails = payload.get("hotelDetails");
+            if (hotelDetails instanceof Map) {
+                Map<String, Object> hotelDetailsMap = (Map<String, Object>) hotelDetails;
+                Object guestsObj = hotelDetailsMap.get("guests");
+                if (guestsObj instanceof java.util.List) {
+                    java.util.List<?> guests = (java.util.List<?>) guestsObj;
+                    if (!guests.isEmpty() && guests.get(0) instanceof Map) {
+                        Map<String, Object> firstGuest = (Map<String, Object>) guests.get(0);
+                        String email = (String) firstGuest.get("email");
+                        if (StringUtils.isNotBlank(email)) {
+                            Map<String, Object> contactInfo = new HashMap<>();
+                            contactInfo.put("email", email);
+                            contactInfo.put("firstName", firstGuest.get("firstName"));
+                            contactInfo.put("lastName", firstGuest.get("lastName"));
+                            String fullName = String.join(" ", 
+                                (String) firstGuest.getOrDefault("firstName", ""),
+                                (String) firstGuest.getOrDefault("lastName", "")).trim();
+                            contactInfo.put("fullName", fullName.isEmpty() ? 
+                                firstGuest.getOrDefault("firstName", "traveler").toString() : fullName);
+                            return contactInfo;
+                        }
+                    }
+                }
+            }
+        }
+
+        // Handle combo bookings
+        if (eventType.contains("Combo")) {
+            // Check for passengers in combo details
+            Object comboDetails = payload.get("comboDetails");
+            if (comboDetails instanceof Map) {
+                Map<String, Object> comboDetailsMap = (Map<String, Object>) comboDetails;
+                Object passengersObj = comboDetailsMap.get("passengers");
+                if (passengersObj instanceof java.util.List) {
+                    java.util.List<?> passengers = (java.util.List<?>) passengersObj;
+                    if (!passengers.isEmpty() && passengers.get(0) instanceof Map) {
+                        Map<String, Object> firstPassenger = (Map<String, Object>) passengers.get(0);
+                        String email = (String) firstPassenger.get("email");
+                        if (StringUtils.isNotBlank(email)) {
+                            Map<String, Object> contactInfo = new HashMap<>();
+                            contactInfo.put("email", email);
+                            contactInfo.put("firstName", firstPassenger.get("firstName"));
+                            contactInfo.put("lastName", firstPassenger.get("lastName"));
+                            String fullName = String.join(" ", 
+                                (String) firstPassenger.getOrDefault("firstName", ""),
+                                (String) firstPassenger.getOrDefault("lastName", "")).trim();
+                            contactInfo.put("fullName", fullName.isEmpty() ? 
+                                firstPassenger.getOrDefault("firstName", "traveler").toString() : fullName);
+                            return contactInfo;
+                        }
+                    }
+                }
+
+                // Also check for guests in hotel part of combo
+                Object hotelPart = comboDetailsMap.get("hotelDetails");
+                if (hotelPart instanceof Map) {
+                    Map<String, Object> hotelPartMap = (Map<String, Object>) hotelPart;
+                    Object guestsObj = hotelPartMap.get("guests");
+                    if (guestsObj instanceof java.util.List) {
+                        java.util.List<?> guests = (java.util.List<?>) guestsObj;
+                        if (!guests.isEmpty() && guests.get(0) instanceof Map) {
+                            Map<String, Object> firstGuest = (Map<String, Object>) guests.get(0);
+                            String email = (String) firstGuest.get("email");
+                            if (StringUtils.isNotBlank(email)) {
+                                Map<String, Object> contactInfo = new HashMap<>();
+                                contactInfo.put("email", email);
+                                contactInfo.put("firstName", firstGuest.get("firstName"));
+                                contactInfo.put("lastName", firstGuest.get("lastName"));
+                                String fullName = String.join(" ", 
+                                    (String) firstGuest.getOrDefault("firstName", ""),
+                                    (String) firstGuest.getOrDefault("lastName", "")).trim();
+                                contactInfo.put("fullName", fullName.isEmpty() ? 
+                                    firstGuest.getOrDefault("firstName", "traveler").toString() : fullName);
+                                return contactInfo;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // Handle PaymentProcessed, PaymentFailed, etc. events
+        if (eventType.contains("Payment")) {
+            Object customerInfo = payload.get("customerInfo");
+            if (customerInfo instanceof Map) {
+                Map<String, Object> customerMap = (Map<String, Object>) customerInfo;
+                String email = (String) customerMap.get("email");
+                if (StringUtils.isNotBlank(email)) {
+                    Map<String, Object> contactInfo = new HashMap<>();
+                    contactInfo.put("email", email);
+                    contactInfo.put("firstName", customerMap.get("firstName"));
+                    contactInfo.put("lastName", customerMap.get("lastName"));
+                    String fullName = String.join(" ", 
+                        (String) customerMap.getOrDefault("firstName", ""),
+                        (String) customerMap.getOrDefault("lastName", "")).trim();
+                    contactInfo.put("fullName", fullName.isEmpty() ? 
+                        customerMap.getOrDefault("firstName", "traveler").toString() : fullName);
+                    return contactInfo;
+                }
+            }
+        }
+
+        // Check for guest details in root payload
+        Object guestDetails = payload.get("guestDetails");
+        if (guestDetails instanceof Map) {
+            Map<String, Object> guestMap = (Map<String, Object>) guestDetails;
+            String email = (String) guestMap.get("email");
+            if (StringUtils.isNotBlank(email)) {
+                Map<String, Object> contactInfo = new HashMap<>();
+                contactInfo.put("email", email);
+                contactInfo.put("firstName", guestMap.get("firstName"));
+                contactInfo.put("lastName", guestMap.get("lastName"));
+                String fullName = String.join(" ", 
+                    (String) guestMap.getOrDefault("firstName", ""),
+                    (String) guestMap.getOrDefault("lastName", "")).trim();
+                contactInfo.put("fullName", fullName.isEmpty() ? 
+                    guestMap.getOrDefault("firstName", "traveler").toString() : fullName);
+                return contactInfo;
+            }
+        }
+
+        // Return empty contact info map if no contact details found
+        return new HashMap<>();
     }
 }

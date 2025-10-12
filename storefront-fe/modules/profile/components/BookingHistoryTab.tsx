@@ -259,7 +259,7 @@ export function BookingHistoryTab() {
   const [detailMap, setDetailMap] = useState<Record<string, BookingDetailState>>({})
   const router = useRouter()
   const { toast } = useToast()
-  const { showLocation } = useRecommendPanel()
+  const { showLocation, showJourney, setMapStyle } = useRecommendPanel()
   const [now, setNow] = useState(() => Date.now())
 
   useEffect(() => {
@@ -300,7 +300,8 @@ export function BookingHistoryTab() {
       lng: lng as number,
       title: `${target === 'origin' ? 'Departure' : 'Arrival'} • ${booking.bookingReference}`,
       description: booking.productSummary ?? undefined,
-    })
+      type: 'airport'
+    });
   }, [showLocation, toast])
 
   const handleShowHotelLocation = useCallback((booking: BookingHistoryItemDto) => {
@@ -315,27 +316,81 @@ export function BookingHistoryTab() {
         description: "The hotel location is not yet configured in the system.",
         variant: "destructive",
       })
-      return
+      return;
     }
 
+    setMapStyle('mapbox://styles/phamduyhuy/cmgnvqn9e00tl01s69xu41j43');
     showLocation({
       lat: lat as number,
       lng: lng as number,
       title: `Hotel • ${booking.bookingReference}`,
       description: booking.productSummary ?? undefined,
-    })
-  }, [showLocation, toast])
+      type: 'hotel'
+    });
+  }, [showLocation, toast, setMapStyle]);
+
+  const handleShowFlightJourney = useCallback((booking: BookingHistoryItemDto) => {
+    const originLat = typeof booking.originLatitude === 'string' ? Number(booking.originLatitude) : booking.originLatitude;
+    const originLng = typeof booking.originLongitude === 'string' ? Number(booking.originLongitude) : booking.originLongitude;
+    const destLat = typeof booking.destinationLatitude === 'string' ? Number(booking.destinationLatitude) : booking.destinationLatitude;
+    const destLng = typeof booking.destinationLongitude === 'string' ? Number(booking.destinationLongitude) : booking.destinationLongitude;
+
+    if (!originLat || !originLng || !destLat || !destLng) {
+      toast({
+        title: "Journey unavailable",
+        description: "This flight booking does not have complete coordinate data to display the journey.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setMapStyle('mapbox://styles/phamduyhuy/cmgnvl0ec00ud01se98ju3a80');
+    showJourney({
+      id: booking.bookingId,
+      origin: { latitude: originLat, longitude: originLng },
+      destination: { latitude: destLat, longitude: destLng },
+      color: '#ef4444' // Red color for flights
+    });
+
+    // Explicitly show markers for origin and destination
+    showLocation({
+      lat: originLat,
+      lng: originLng,
+      title: `Departure: ${booking.originAirportCode}`,
+      description: booking.productSummary ?? undefined,
+      type: 'airport'
+    });
+    showLocation({
+      lat: destLat,
+      lng: destLng,
+      title: `Arrival: ${booking.destinationAirportCode}`,
+      description: booking.productSummary ?? undefined,
+      type: 'airport'
+    });
+
+  }, [showJourney, showLocation, toast, setMapStyle]);
 
   const handleContinueBooking = useCallback((booking: BookingHistoryItemDto) => {
     try {
-      const productDetails = booking.productDetailsJson ? JSON.parse(booking.productDetailsJson) : null
-      const payload = { booking, productDetails }
+      // Check if the booking requires payment based on status
+      // PAYMENT_PENDING and PENDING (as per clarification) should go to payment
+      const requiresPayment = ['PAYMENT_PENDING', 'PENDING'].includes(booking.status?.toUpperCase());
       
-      // Store in sessionStorage with a consistent key
-      sessionStorage.setItem('bookingResumePayload', JSON.stringify(payload))
-      
-      // Redirect to homepage with resume parameter
-      router.push(`/?resume=${booking.bookingId}`)
+      if (requiresPayment) {
+        // For bookings requiring payment, redirect directly to the payment page
+        // Pass the booking ID and total amount to the payment page
+        router.push(`/payment?bookingId=${encodeURIComponent(booking.bookingId)}&amount=${booking.totalAmount || 0}&currency=${booking.currency || 'VND'}`)
+      } else {
+        // For other statuses, use the original flow
+        const productDetails = booking.productDetailsJson ? JSON.parse(booking.productDetailsJson) : null
+        const payload = { booking, productDetails }
+        
+        // Store in sessionStorage with a consistent key
+        sessionStorage.setItem('bookingResumePayload', JSON.stringify(payload))
+        
+        // Redirect to homepage with resume parameter
+        router.push(`/?resume=${booking.bookingId}`)
+      }
     } catch (error) {
       console.error('Failed to prepare booking for resuming', error)
       toast({
@@ -509,6 +564,7 @@ export function BookingHistoryTab() {
                   const detailError = detailErrors[bookingId]
                   const isExpanded = expandedId === bookingId
                   const countdown = formatCountdown(booking.reservationExpiresAt)
+                  const isAwaitingPayment = (booking.status || '').toUpperCase() === 'PAYMENT_PENDING';
                   const isProcessing = PROCESSING_STATUSES.has((booking.status || '').toUpperCase())
                   const hasCountdown = countdown !== null
                   const isExpired = hasCountdown && countdown === '00:00'
@@ -595,6 +651,9 @@ export function BookingHistoryTab() {
                             <Button variant="outline" size="sm" onClick={() => handleShowFlightLocation(booking, 'destination')}>
                               View arrival on map
                             </Button>
+                            <Button variant="outline" size="sm" onClick={() => handleShowFlightJourney(booking)}>
+                              View Journey
+                            </Button>
                           </>
                         )}
                         {(booking.bookingType === 'HOTEL' || booking.bookingType === 'COMBO') && (
@@ -604,7 +663,7 @@ export function BookingHistoryTab() {
                         )}
                         {isProcessing && (!hasCountdown || !isExpired) && (
                           <Button size="sm" onClick={() => handleContinueBooking(booking)}>
-                            Continue booking
+                            {isAwaitingPayment || booking.status?.toUpperCase() === 'PENDING' ? 'Complete Payment' : 'Continue booking'}
                           </Button>
                         )}
                       </div>

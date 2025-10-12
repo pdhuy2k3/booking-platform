@@ -49,7 +49,7 @@ export function BookingFlowManager({ onBookingComplete, showSelection = true }: 
     setSelectedFlight(null)
     setSelectedHotel(null)
     updateBookingData({
-      bookingType: (type === 'both' ? 'COMBO' : type.toUpperCase()) as any,
+      bookingType: (type === 'both' ? 'COMBO' : type.toUpperCase()) as 'FLIGHT' | 'HOTEL' | 'COMBO',
       totalAmount: 0,
       currency: 'VND',
       productDetails: undefined,
@@ -76,7 +76,7 @@ export function BookingFlowManager({ onBookingComplete, showSelection = true }: 
     }
 
     updateBookingData({
-      productDetails: productDetails as any,
+      productDetails: productDetails,
       totalAmount,
       currency: selectedFlight?.currency || bookingData.currency || 'VND',
     })
@@ -123,7 +123,7 @@ export function BookingFlowManager({ onBookingComplete, showSelection = true }: 
     }
 
     updateBookingData({
-      productDetails: productDetails as any,
+      productDetails: productDetails,
       totalAmount,
       currency: selectedHotel?.currency || bookingData.currency || 'VND',
     })
@@ -270,7 +270,7 @@ export function BookingFlowManager({ onBookingComplete, showSelection = true }: 
 
       {step === 'review' && (
         <BookingReview
-          bookingType={bookingData.bookingType as any}
+          bookingType={bookingData.bookingType}
           flightDetails={
             bookingData.bookingType === 'FLIGHT' 
               ? bookingData.productDetails as FlightBookingDetails

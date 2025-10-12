@@ -10,6 +10,55 @@ import HotelDetailsModal from "@/modules/hotel/component/HotelDetailsModal"
 import type { ChatStructuredResult, ConfirmationContext } from "@/modules/ai/types"
 import { cn } from "@/lib/utils"
 import Image from "next/image"
+import type { FlightDetails, FlightFareDetails } from "@/modules/flight/type"
+import type { HotelDetails } from "@/modules/hotel/type"
+
+// Define interfaces for the data structures created within this component
+interface FlightDataForCard {
+  id: string;
+  airline: string;
+  flightNumber: string;
+  origin: string;
+  destination: string;
+  departureTime: string;
+  arrivalTime: string;
+  departureDateTime?: string;
+  arrivalDateTime?: string;
+  duration: string;
+  stops?: string | number;
+  price: number;
+  currency: string;
+  seatClass: string;
+  logo?: string;
+  scheduleId?: string;
+  fareId?: string;
+  rating?: number;
+  originLatitude?: number;
+  originLongitude?: number;
+  destinationLatitude?: number;
+  destinationLongitude?: number;
+  raw: any; // Keep raw as any for simplicity
+}
+
+interface HotelDataForCard {
+  id: string;
+  name: string;
+  image?: string;
+  location?: string;
+  city?: string;
+  country?: string;
+  rating?: number;
+  reviews?: number;
+  price: number;
+  originalPrice?: number;
+  currency: string;
+  amenities?: string[];
+  description?: string;
+  starRating?: number;
+  latitude?: number;
+  longitude?: number;
+}
+
 
 const optionalString = (value: unknown): string | undefined => {
   if (value === null || value === undefined) return undefined
@@ -133,8 +182,8 @@ const parseHotelSubtitle = (subtitle?: string) => {
 interface AiResponseRendererProps {
   message: string
   results?: ChatStructuredResult[]
-  onFlightBook?: (flight: any) => void
-  onHotelBook?: (hotel: any, room: any, checkInDate?: string, checkOutDate?: string) => void
+  onFlightBook?: (flight: FlightFareDetails) => void
+  onHotelBook?: (hotel: HotelDetails, room: any, checkInDate?: string, checkOutDate?: string) => void
   onLocationClick?: (location: { lat: number; lng: number; title: string; description?: string }) => void
   canBook?: boolean
   requiresConfirmation?: boolean // Whether this response needs user confirmation
@@ -155,7 +204,7 @@ export const AiResponseRenderer = ({
   onConfirm,
   onCancel,
 }: AiResponseRendererProps) => {
-  const [selectedFlightForModal, setSelectedFlightForModal] = useState<any | null>(null)
+  const [selectedFlightForModal, setSelectedFlightForModal] = useState<FlightDataForCard | null>(null)
   const [isFlightModalOpen, setIsFlightModalOpen] = useState(false)
   const [selectedHotelId, setSelectedHotelId] = useState<string | null>(null)
   const [isHotelModalOpen, setIsHotelModalOpen] = useState(false)
@@ -177,22 +226,22 @@ export const AiResponseRenderer = ({
   )
 
   // Handlers
-  const handleFlightViewDetails = (flight: any) => {
+  const handleFlightViewDetails = (flight: FlightDataForCard) => {
     setSelectedFlightForModal(flight)
     setIsFlightModalOpen(true)
   }
 
-  const handleFlightModalBook = (details: any) => {
+  const handleFlightModalBook = (details: FlightFareDetails) => {
     setIsFlightModalOpen(false)
     onFlightBook?.(details)
   }
 
-  const handleHotelViewDetails = (hotel: any) => {
+  const handleHotelViewDetails = (hotel: HotelDataForCard) => {
     setSelectedHotelId(hotel.id)
     setIsHotelModalOpen(true)
   }
 
-  const handleHotelModalBook = ({ hotel, room, checkInDate, checkOutDate }: { hotel: any; room: any; checkInDate?: string; checkOutDate?: string }) => {
+  const handleHotelModalBook = ({ hotel, room, checkInDate, checkOutDate }: { hotel: HotelDetails; room: any; checkInDate?: string; checkOutDate?: string }) => {
     setIsHotelModalOpen(false)
     onHotelBook?.(hotel, room, checkInDate, checkOutDate)
   }
@@ -276,7 +325,7 @@ export const AiResponseRenderer = ({
                   ? stopsRaw
                   : undefined
 
-              const flightData = {
+              const flightData: FlightDataForCard = {
                 id: flightId,
                 airline: optionalString(metadata?.airline) || airlineName || optionalString(result.title) || "",
                 flightNumber: optionalString(metadata?.flightNumber) || optionalString(metadata?.flight_number) || optionalString(metadata?.code) || titleFlightNumber || "",
@@ -322,7 +371,7 @@ export const AiResponseRenderer = ({
                   key={flightData.id}
                   flight={flightData}
                   onViewDetails={handleFlightViewDetails}
-                  onBook={() => onFlightBook?.(flightData)}
+                  onBook={() => handleFlightViewDetails(flightData)}
                   onLocationClick={onLocationClick}
                   showBookButton={canBook}
                   compact={false}
@@ -373,7 +422,7 @@ export const AiResponseRenderer = ({
                 (city && country ? `${city}, ${country}` : city || country) ||
                 undefined
 
-              const hotelData = {
+              const hotelData: HotelDataForCard = {
                 id: hotelId,
                 name: optionalString(result.title) || optionalString(metadata?.name) || "",
                 image:

@@ -69,7 +69,7 @@ public class PaymentMethodService {
         PaymentMethod paymentMethod = new PaymentMethod();
         paymentMethod.setUserId(userId);
         paymentMethod.setMethodType(request.getMethodType());
-        paymentMethod.setProvider(request.getProvider());
+        paymentMethod.setProvider(PaymentProvider.STRIPE);
         paymentMethod.setDisplayName(request.getDisplayName());
         paymentMethod.setIsActive(true);
         paymentMethod.setIsVerified(false);

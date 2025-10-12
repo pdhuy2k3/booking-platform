@@ -25,8 +25,18 @@ import { CalendarIcon } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { HotelBookingDetails, GuestDetails } from '@/modules/booking/types'
 
+const parseDate = (dateString?: string): Date | undefined => {
+  if (!dateString) return undefined;
+  const date = new Date(dateString);
+  // Check if the date is valid. Invalid dates can result from parsing "undefined" or "null"
+  if (isNaN(date.getTime())) {
+    return undefined;
+  }
+  return date;
+};
+
 interface HotelBookingFormProps {
-  hotel: any
+  hotel: SelectedHotel
   onSubmit: (details: HotelBookingDetails) => void
   onCancel: () => void
 }
@@ -35,8 +45,13 @@ export function HotelBookingForm({ hotel, onSubmit, onCancel }: HotelBookingForm
   const { formatDateOnly } = useDateFormatter()
   const { toast } = useToast()
 
-  const [checkInDate, setCheckInDate] = useState<Date | undefined>(new Date())
-  const [checkOutDate, setCheckOutDate] = useState<Date | undefined>(new Date(Date.now() + 86400000)) // Next day
+  const [checkInDate, setCheckInDate] = useState<Date | undefined>(() => parseDate(hotel.checkInDate))
+  const [checkOutDate, setCheckOutDate] = useState<Date | undefined>(() => parseDate(hotel.checkOutDate))
+
+  useEffect(() => {
+    setCheckInDate(parseDate(hotel.checkInDate))
+    setCheckOutDate(parseDate(hotel.checkOutDate))
+  }, [hotel.checkInDate, hotel.checkOutDate])
   const [numberOfRooms, setNumberOfRooms] = useState<number>(1)
   const [numberOfGuests, setNumberOfGuests] = useState<number>(2)
   const [bedType, setBedType] = useState<string>('DOUBLE')
@@ -404,7 +419,7 @@ export function HotelBookingForm({ hotel, onSubmit, onCancel }: HotelBookingForm
                     {hotel.roomType || 'Phòng hiện tại'}
                   </SelectItem>
                   {/* Add more room types if available */}
-                  {hotel.roomTypes && Array.isArray(hotel.roomTypes) && hotel.roomTypes.map((roomType: any) => (
+                  {hotel.roomTypes && Array.isArray(hotel.roomTypes) && hotel.roomTypes.map((roomType: { id: number; name: string; price: number }) => (
                     <SelectItem key={roomType.id} value={roomType.id?.toString()}>
                       {roomType.name} - {roomType.price?.toLocaleString()} VND/đêm
                     </SelectItem>

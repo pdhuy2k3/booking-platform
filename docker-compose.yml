@@ -128,7 +128,9 @@ services:
 
         echo "Waiting for Kafka Connect..."
         /usr/bin/env bash /tmp/wait-for-it.sh connect:8083 --timeout=120
-
+        echo "Kafka Connect is available, waiting 10 seconds to ensure readiness..."
+        sleep 10
+        
         echo "Deploy flight connector"
         curl -i -X PUT -H "Accept: application/json" -H "Content-Type: application/json" \
           --data-binary @/tmp/connectors/flight-db-connector.json \

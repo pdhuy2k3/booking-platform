@@ -4,57 +4,11 @@ import React, { createContext, useContext, useReducer, useEffect, useCallback, u
 import { bookingService, type StorefrontBookingRequest, type StorefrontBookingResponse, type BookingStatusResponse } from '@/modules/booking/service'
 import { useToast } from '@/hooks/use-toast'
 import type { BookingHistoryItemDto, FlightBookingDetails, HotelBookingDetails, ComboBookingDetails } from '@/modules/booking/types'
+import type { SelectedFlight, SelectedHotel } from '@/types'
 
 // Types
 type BookingStep = 'selection' | 'passengers' | 'review' | 'payment' | 'confirmation' | 'error'
 type BookingType = 'flight' | 'hotel' | 'both'
-
-interface SelectedFlight {
-  id: string
-  flightNumber?: string
-  airline: string
-  origin: string
-  destination: string
-  originLatitude?: number
-  originLongitude?: number
-  destinationLatitude?: number
-  destinationLongitude?: number
-  departureTime: string
-  arrivalTime: string
-  duration?: string
-  price: number
-  currency: string
-  seatClass?: string
-  logo?: string
-  scheduleId?: string
-  fareId?: string
-}
-
-interface SelectedHotel {
-  id: string
-  name: string
-  address: string
-  city: string
-  country: string
-  hotelLatitude?: number
-  hotelLongitude?: number
-  rating?: number
-  roomTypeId: string
-  roomId: string
-  roomType: string
-  roomName: string
-  price: number // deprecated: kept for compatibility (represents price per night)
-  pricePerNight: number
-  totalPrice?: number
-  currency: string
-  amenities: string[]
-  image?: string
-  checkInDate?: string
-  checkOutDate?: string
-  guests?: number
-  rooms?: number
-  nights?: number
-}
 
 interface ResumeBookingPayload {
   booking: BookingHistoryItemDto
