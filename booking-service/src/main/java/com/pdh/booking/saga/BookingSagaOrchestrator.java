@@ -836,11 +836,18 @@ public class BookingSagaOrchestrator {
             booking.setConfirmationNumber(generateConfirmationNumber());
         }
         booking.setSagaState(SagaState.BOOKING_COMPLETED);
-        bookingService.releaseReservationLock(booking);
         bookingRepository.save(booking);
         Map<String, Object> extras = new HashMap<>();
         extras.put("emailTemplate", "booking-confirmation.ftl");
         publishNotificationEvent(booking, "BookingConfirmed", extras);
+        
+        // Release reservation lock after saving booking state to ensure consistency
+        try {
+            bookingService.releaseReservationLock(booking);
+        } catch (Exception e) {
+            log.error("Failed to release reservation lock for booking {}: {}", booking.getBookingId(), e.getMessage(), e);
+            // Don't fail the entire operation if lock release fails - just log the error
+        }
     }
 
     private void updateBookingState(Booking booking, SagaState sagaState, BookingStatus status) {

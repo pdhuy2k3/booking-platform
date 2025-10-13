@@ -281,7 +281,7 @@ export function FlightSearchTab({ onBookingStart }: FlightSearchTabProps = {}) {
     resetBooking()
     setBookingType('flight')
     setSelectedFlight({
-      id: flightId,
+      flightId: flightId,
       flightNumber: flightData.flightNumber,
       airline: flightData.airline,
       origin: flightData.origin,

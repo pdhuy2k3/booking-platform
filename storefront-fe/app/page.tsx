@@ -107,10 +107,10 @@ function HomePageContent() {
     
     // Set booking type to flight
     setBookingType('flight')
-    
+    console.log('✈️ Booking flight:', flight)
     // Set selected flight with all required fields
     setSelectedFlight({
-      id: flight.id,
+      flightId: flight.flightId || flight.id,
       flightNumber: flight.flightNumber,
       airline: flight.airline,
       origin: flight.origin,
@@ -119,13 +119,13 @@ function HomePageContent() {
       originLongitude: flight.originLongitude ?? flight.raw?.originLongitude,
       destinationLatitude: flight.destinationLatitude ?? flight.raw?.destinationLatitude,
       destinationLongitude: flight.destinationLongitude ?? flight.raw?.destinationLongitude,
-      departureTime: flight.departureTime,
+      departureTime: flight.departureTime ?? flight.raw?.departureTime ?? flight.raw?.departure ?? null,
       arrivalTime: flight.arrivalTime,
       duration: flight.duration,
       price: flight.price,
       currency: flight.currency,
       seatClass: flight.seatClass,
-      logo: flight.logo,
+      logo: flight.logo?? flight.raw?.airlineLogo ?? flight.imageUrl ?? null,
       scheduleId: flight.scheduleId,
       fareId: flight.fareId,
     })

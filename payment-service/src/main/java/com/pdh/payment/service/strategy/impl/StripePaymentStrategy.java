@@ -265,7 +265,7 @@ public class StripePaymentStrategy implements PaymentStrategy {
                                             Map<String, Object> additionalData) throws StripeException {
 
         String currency = payment.getCurrency() != null
-                ? payment.getCurrency().toLowerCase()
+                ? payment.getCurrency().toLowerCase
                 : stripeConfig.getSettings().getCurrency();
 
         long amountInMinorUnits = toStripeAmount(payment.getAmount(), currency);
@@ -305,7 +305,7 @@ public class StripePaymentStrategy implements PaymentStrategy {
     public PaymentIntent createAndConfirmPaymentIntent(Payment payment, PaymentMethod paymentMethod,
                                                        Map<String, Object> additionalData) throws StripeException {
         String currency = payment.getCurrency() != null
-                ? payment.getCurrency().toLowerCase()
+                ? payment.getCurrency().toLowerCase
                 : stripeConfig.getSettings().getCurrency();
 
         long amountInMinorUnits = toStripeAmount(payment.getAmount(), currency);
@@ -492,7 +492,7 @@ public class StripePaymentStrategy implements PaymentStrategy {
     public PaymentIntent createManualPaymentIntent(Payment payment, Map<String, Object> additionalData,
                                                    com.pdh.payment.dto.StripePaymentIntentRequest request) throws StripeException {
         String currency = payment.getCurrency() != null
-                ? payment.getCurrency().toLowerCase()
+                ? payment.getCurrency().toLowerCase
                 : stripeConfig.getSettings().getCurrency();
 
         long amountInMinorUnits = toStripeAmount(payment.getAmount(), currency);
@@ -529,8 +529,30 @@ public class StripePaymentStrategy implements PaymentStrategy {
         }
         paramsBuilder.putAllMetadata(metadata);
 
-        if (request.getCustomerId() != null && !request.getCustomerId().isBlank()) {
-            paramsBuilder.setCustomer(request.getCustomerId());
+        // Handle customer information - ensure we have a customer ID if possible to prevent payment method reuse issues
+        String customerId = request.getCustomerId();
+        if (customerId == null || customerId.isBlank()) {
+            // If no customer ID is provided, try to get from additional data or create one
+            String customerEmail = request.getCustomerEmail();
+            if (customerEmail == null && additionalData != null) {
+                customerEmail = (String) additionalData.get("customer_email");
+            }
+            
+            if (customerEmail != null) {
+                customerId = getOrCreateCustomer(customerEmail, 
+                    request.getCustomerName() != null ? request.getCustomerName() : 
+                    (String) additionalData != null ? (String) additionalData.get("customer_name") : null);
+                
+                if (customerId != null) {
+                    paramsBuilder.setCustomer(customerId);
+                    // Set setup_future_usage to save payment method to customer for future use
+                    paramsBuilder.setSetupFutureUsage(PaymentIntentCreateParams.SetupFutureUsage.ON_SESSION);
+                }
+            }
+        } else {
+            paramsBuilder.setCustomer(customerId);
+            // Set setup_future_usage to save payment method to customer for future use
+            paramsBuilder.setSetupFutureUsage(PaymentIntentCreateParams.SetupFutureUsage.ON_SESSION);
         }
 
         if (additionalData != null) {
@@ -740,8 +762,8 @@ public class StripePaymentStrategy implements PaymentStrategy {
         }
 
         String effectiveCurrency = currency != null
-            ? currency.toLowerCase()
-            : stripeConfig.getSettings().getCurrency().toLowerCase();
+            ? currency.toLowerCase
+            : stripeConfig.getSettings().getCurrency().toLowerCase;
 
         BigDecimal normalizedAmount = ZERO_DECIMAL_CURRENCIES.contains(effectiveCurrency)
             ? amount.setScale(0, RoundingMode.HALF_UP)
@@ -767,6 +789,43 @@ public class StripePaymentStrategy implements PaymentStrategy {
             case AFTERPAY -> "afterpay_clearpay";
             case CASH_ON_DELIVERY, GIFT_CARD, OTHER -> "card";
         };
+    }
+
+    /**
+     * Helper method to get or create a Stripe customer based on email
+     */
+    private String getOrCreateCustomer(String email, String name) {
+        try {
+            // Try to find customer by email first
+            com.stripe.model.Customer retrievedCustomer = com.stripe.model.Customer.list(
+                com.stripe.param.CustomerListParams.builder()
+                    .setEmail(email)
+                    .setLimit(1L)
+                    .build()
+            ).getData().stream().findFirst().orElse(null);
+            
+            if (retrievedCustomer != null) {
+                return retrievedCustomer.getId();
+            }
+            
+            // Create a new customer if not found
+            com.stripe.param.CustomerCreateParams.Builder customerParamsBuilder = com.stripe.param.CustomerCreateParams.builder()
+                .setEmail(email);
+
+            if (name != null && !name.isBlank()) {
+                customerParamsBuilder.setName(name);
+            }
+            
+            com.stripe.model.Customer newCustomer = com.stripe.model.Customer.create(
+                customerParamsBuilder.build()
+            );
+            
+            return newCustomer.getId();
+            
+        } catch (StripeException e) {
+            log.warn("Failed to get or create customer for email: {}", email, e);
+            return null; // Return null if customer creation fails
+        }
     }
 
     /**

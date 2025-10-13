@@ -14,11 +14,12 @@ import com.pdh.ai.agent.guard.InputValidationGuard;
 import com.pdh.ai.agent.guard.ScopeGuard;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.client.advisor.MessageChatMemoryAdvisor;
+import org.springframework.ai.chat.client.advisor.PromptChatMemoryAdvisor;
 import org.springframework.ai.chat.memory.ChatMemory;
 import org.springframework.ai.converter.BeanOutputConverter;
 import org.springframework.ai.mcp.SyncMcpToolCallbackProvider;
 import org.springframework.ai.mistralai.MistralAiChatModel;
-
+import org.springframework.ai.tool.ToolCallbackProvider;
 import org.springframework.core.Ordered;
 import org.springframework.stereotype.Component;
 
@@ -206,7 +207,7 @@ public class CoreAgent {
 
 
     public CoreAgent(
-            List<McpSyncClient> toolCallbackProvider,
+            ToolCallbackProvider toolCallbackProvider,
             JpaChatMemory chatMemory,
             InputValidationGuard inputValidationGuard,
             ScopeGuard scopeGuard,
@@ -218,18 +219,16 @@ public class CoreAgent {
 
         // Advisors
 
-        MessageChatMemoryAdvisor memoryAdvisor = MessageChatMemoryAdvisor.builder(chatMemory)
-                .order(Ordered.HIGHEST_PRECEDENCE + 10) // Ensure memory advisor runs early
-                
-                .build();
+        MessageChatMemoryAdvisor memoryAdvisor = MessageChatMemoryAdvisor.builder(chatMemory).build();
 //        SecurityGuardAdvisor chatSecurityAdvisor = SecurityGuardAdvisor
 //                .forChat(inputValidationGuard, scopeGuard);
 
         // ToolIsolationAdvisor toolCallbackAdvisor = ToolIsolationAdvisor.forSearch();
+        // PromptChatMemoryAdvisor promptAdvisor = PromptChatMemoryAdvisor.builder(chatMemory).build();
         LoggingAdvisor chatLoggingAdvisor = new LoggingAdvisor();
         this.chatClient = ChatClient.builder(mistraModel)
                 .defaultSystem(SYSTEM_PROMPT)
-                .defaultToolCallbacks(new SyncMcpToolCallbackProvider(toolCallbackProvider))
+                .defaultToolCallbacks(toolCallbackProvider)
                 .defaultAdvisors(memoryAdvisor, chatLoggingAdvisor)
                 .defaultTools(new CurrentDateTimeZoneTool())
                 .build();
@@ -315,7 +314,11 @@ public class CoreAgent {
             // Use .entity() for direct structured output instead of streaming
             StructuredChatPayload result = chatClient.prompt()
                     .user(message)
-                    .advisors(advisorSpec -> advisorSpec.param(ChatMemory.CONVERSATION_ID, conversationId))
+                    .advisors(advisorSpec ->
+                            advisorSpec.param(ChatMemory.CONVERSATION_ID, conversationId)
+                                    .advisors()
+
+                    )
                     .call()
 
                     .entity(StructuredChatPayload.class);

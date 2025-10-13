@@ -50,4 +50,43 @@ export const formatBookingDateTime = (
 
   return `${timeFormatter.format(date)} ${dateFormatter.format(date)}`
 }
+ export const resolveDateTime = (rawDateTime?: string | null, date?: string, time?: string) => {
+    if (rawDateTime) {
+      const parsed = new Date(rawDateTime)
+      if (!Number.isNaN(parsed.getTime())) {
+        return parsed.toISOString()
+      }
+    }
 
+    if (date && time) {
+      const trimmed = time.trim()
+      const hasMeridiem = /\b(AM|PM)\b/i.test(trimmed)
+
+      const normalized = (() => {
+        if (hasMeridiem) {
+          return trimmed
+        }
+
+        if (/^\d{1,2}:\d{2}(?::\d{2})?$/.test(trimmed)) {
+          return trimmed.length === 5 ? `${trimmed}:00` : trimmed
+        }
+
+        return trimmed
+      })()
+
+      const composed = `${date} ${normalized}`
+      const parsed = new Date(composed)
+      if (!Number.isNaN(parsed.getTime())) {
+        return parsed.toISOString()
+      }
+    }
+
+    if (time) {
+      const parsed = new Date(`1970-01-01 ${time.trim()}`)
+      if (!Number.isNaN(parsed.getTime())) {
+        return parsed.toISOString()
+      }
+    }
+
+    return undefined
+  }

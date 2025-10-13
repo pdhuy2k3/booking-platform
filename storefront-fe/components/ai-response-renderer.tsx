@@ -12,10 +12,11 @@ import { cn } from "@/lib/utils"
 import Image from "next/image"
 import type { FlightDetails, FlightFareDetails } from "@/modules/flight/type"
 import type { HotelDetails } from "@/modules/hotel/type"
+import { useBooking } from "@/contexts/booking-context"
 
 // Define interfaces for the data structures created within this component
 interface FlightDataForCard {
-  id: string;
+  flightId: number;
   airline: string;
   flightNumber: string;
   origin: string;
@@ -204,6 +205,15 @@ export const AiResponseRenderer = ({
   onConfirm,
   onCancel,
 }: AiResponseRendererProps) => {
+  const {
+    resetBooking,
+    setBookingType,
+    updateBookingData,
+    setSelectedFlight,
+    setSelectedHotel,
+    setStep,
+  } = useBooking()
+  
   const [selectedFlightForModal, setSelectedFlightForModal] = useState<FlightDataForCard | null>(null)
   const [isFlightModalOpen, setIsFlightModalOpen] = useState(false)
   const [selectedHotelId, setSelectedHotelId] = useState<string | null>(null)
@@ -268,7 +278,7 @@ export const AiResponseRenderer = ({
             {flightResults.map((result, index) => {
               // Prioritize ids field, fallback to metadata
               const metadata = result.metadata ?? {}
-              const flightId = result.ids?.flightId || String(metadata?.flightId || metadata?.id || `flight-${index}`)
+              const flightId = Number(result.ids?.flightId) || Number(metadata?.flightId || metadata?.id || `flight-${index}`)
               const scheduleId = result.ids?.scheduleId || (metadata?.scheduleId ? String(metadata?.scheduleId) : undefined)
               const fareId = result.ids?.fareId || (metadata?.fareId ? String(metadata?.fareId) : undefined)
 
@@ -326,7 +336,7 @@ export const AiResponseRenderer = ({
                   : undefined
 
               const flightData: FlightDataForCard = {
-                id: flightId,
+                flightId: flightId,
                 airline: optionalString(metadata?.airline) || airlineName || optionalString(result.title) || "",
                 flightNumber: optionalString(metadata?.flightNumber) || optionalString(metadata?.flight_number) || optionalString(metadata?.code) || titleFlightNumber || "",
                 origin: optionalString(originRaw) || "",
@@ -368,7 +378,7 @@ export const AiResponseRenderer = ({
 
               return (
                 <FlightCard
-                  key={flightData.id}
+                  key={flightData.flightId}
                   flight={flightData}
                   onViewDetails={handleFlightViewDetails}
                   onBook={() => handleFlightViewDetails(flightData)}
@@ -654,7 +664,7 @@ export const AiResponseRenderer = ({
 
       {/* Flight Details Modal */}
       <FlightDetailsModal
-        flightId={selectedFlightForModal?.id || null}
+        flightId={selectedFlightForModal?.flightId || null}
         seatClass={selectedFlightForModal?.seatClass || null}
         departureDateTime={selectedFlightForModal?.departureTime || null}
         scheduleId={selectedFlightForModal?.scheduleId || null}

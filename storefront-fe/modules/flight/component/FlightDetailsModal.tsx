@@ -35,7 +35,7 @@ const formatTimeLabel = (value?: string) => {
 }
 
 interface FlightDetailsModalProps {
-  flightId: string | null
+  flightId: number | null
   seatClass: string | null
   departureDateTime: string | null
   scheduleId?: string | null
@@ -155,13 +155,14 @@ export default function FlightDetailsModal({
             <div className="flex items-center space-x-4">
               <div className="relative w-10 h-10">
                 <Image 
-                  src={flight.airlineLogo || "/airplane-generic.png"} 
+                  src={flight.airlineLogo || "/placeholder.svg"} 
                   alt={flight.airline} 
                   fill 
                   className="object-contain" 
                   onError={(e) => {
                     const target = e.target as HTMLImageElement;
-                    target.src = "/airplane-generic.png";
+                    // Set to a valid placeholder instead of the same broken image
+                    target.src = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='100' height='100' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' fill='%23e5e7eb'/%3E%3Ctext x='50' y='50' text-anchor='middle' dominant-baseline='middle' font-family='Arial' font-size='14' fill='%239ca3af'%3EAirline%3C/text%3E%3C/svg%3E";
                   }}
                 />
               </div>
@@ -314,7 +315,12 @@ export default function FlightDetailsModal({
                         onPromptSearch?.()
                         return
                       }
-                      onBookFlight?.(flight)
+                      onBookFlight?.({
+                        ...flight,
+                        arrivalTime: flight.arrivalDateTime|| '',
+                        departureTime: flight.departureDateTime||''
+                      })
+                    
                     }}
                   >
                     Đặt ngay
@@ -324,7 +330,7 @@ export default function FlightDetailsModal({
                     Giá có thể thay đổi dựa trên tình trạng còn chỗ
                   </div>
                   {!canBook && (
-                    <div className="text-xs text-destructive text-center">
+   <div className="text-xs text-destructive text-center">
                       Vui lòng hoàn tất tìm kiếm để tiếp tục đặt chỗ
                     </div>
                   )}

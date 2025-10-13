@@ -234,7 +234,7 @@ spring:
       api-key: ${MISTRAL_API_KEY}
       chat:
         options:
-          model: mistral-small-2506	
+          model: mistral-medium-2508
           temperature: 0.0
           
     chat:

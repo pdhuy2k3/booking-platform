@@ -19,10 +19,7 @@ export function SearchInterface() {
   const [activeTab, setActiveTab] = useState<SearchTab>("flights")
   const [isBookingModalOpen, setIsBookingModalOpen] = useState(false)
   
-  // Search results state
-  const [flightResults, setFlightResults] = useState<FlightSearchResult[]>([])
-  const [hotelResults, setHotelResults] = useState<HotelSearchResult[]>([])
-  const [destinationResults, setDestinationResults] = useState<DestinationSearchResult[]>([])
+
 
   // Handle URL parameters for searchTab
   useEffect(() => {
@@ -56,111 +53,8 @@ export function SearchInterface() {
     router.replace(`/?${params.toString()}`, { scroll: false })
   }
 
-  // Mock data for demonstration - in real app, this would come from search results
-  useEffect(() => {
-    // Mock flight data
-    if (activeTab === "flights") {
-      setFlightResults([
-        {
-          flightId: "1",
-          airline: "Vietnam Airlines",
-          flightNumber: "VN234",
-          origin: "SGN",
-          destination: "HAN",
-          departureTime: "08:00",
-          arrivalTime: "10:15",
-          duration: "2h 15m",
-          price: 1500000,
-          currency: "VND",
-          formattedPrice: "1,500,000 VND",
-          seatClass: "Economy",
-          availableSeats: 12,
-          aircraft: "Airbus A321"
-        },
-        {
-          flightId: "2",
-          airline: "Jetstar",
-          flightNumber: "BL345",
-          origin: "SGN",
-          destination: "DAD",
-          departureTime: "14:30",
-          arrivalTime: "16:00",
-          duration: "1h 30m",
-          price: 890000,
-          currency: "VND",
-          formattedPrice: "890,000 VND",
-          seatClass: "Economy",
-          availableSeats: 8,
-          aircraft: "Airbus A320"
-        }
-      ])
-    }
-    
-    // Mock hotel data
-    if (activeTab === "hotels") {
-      setHotelResults([
-        {
-          hotelId: "h1",
-          name: "Sheraton Saigon Hotel",
-          address: "88 Dong Khoi Street, District 1",
-          city: "ho chi minh city",
-          rating: 5,
-          pricePerNight: 2500000,
-          currency: "VND",
-          availableRooms: [
-            {
-              roomTypeId: "rt1",
-              roomId: "r1",
-              roomType: "Deluxe Room",
-              capacity: 2,
-              pricePerNight: 2500000,
-              amenities: ["WiFi", "Air conditioning", "Mini bar"],
-              available: true
-            }
-          ],
-          amenities: ["Pool", "Spa", "Gym", "Restaurant"],
-          images: ["/hotel1.jpg"],
-          primaryImage: "/hotel1.jpg"
-        },
-        {
-          hotelId: "h2",
-          name: "InterContinental Hanoi Westlake",
-          address: "5 Tu Hoa Street, Tay Ho District",
-          city: "hanoi",
-          rating: 5,
-          pricePerNight: 3200000,
-          currency: "VND",
-          availableRooms: [
-            {
-              roomTypeId: "rt2",
-              roomId: "r2",
-              roomType: "Lake View Room",
-              capacity: 2,
-              pricePerNight: 3200000,
-              amenities: ["WiFi", "Lake view", "Balcony"],
-              available: true
-            }
-          ],
-          amenities: ["Pool", "Spa", "Multiple restaurants"],
-          images: ["/hotel2.jpg"],
-          primaryImage: "/hotel2.jpg"
-        }
-      ])
-    }
-  }, [activeTab])
 
-  // Handlers for receiving search results from child components
-  const handleFlightResults = (results: FlightSearchResult[]) => {
-    setFlightResults(results)
-  }
 
-  const handleHotelResults = (results: HotelSearchResult[]) => {
-    setHotelResults(results)
-  }
-
-  const handleDestinationResults = (results: DestinationSearchResult[]) => {
-    setDestinationResults(results)
-  }
 
   // Handler to open booking modal instead of navigating to /bookings page
   const handleOpenBookingModal = () => {

@@ -1,7 +1,7 @@
 // Booking types for the frontend
 
 export interface FlightBookingDetails {
-  flightId: string;
+  flightId: number;
   flightNumber: string;
   airline: string;
   originAirport: string;

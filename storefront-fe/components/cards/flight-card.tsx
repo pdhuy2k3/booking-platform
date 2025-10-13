@@ -11,7 +11,7 @@ import { useDateFormatter } from "@/hooks/use-date-formatter";
 
 interface FlightCardProps {
   flight: {
-    id: string;
+    flightId: number | string;
     airline: string;
     flightNumber: string;
     origin: string;

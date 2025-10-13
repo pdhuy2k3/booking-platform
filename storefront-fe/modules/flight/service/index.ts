@@ -3,7 +3,7 @@ import { apiClient } from '@/lib/api-client';
 import { mapboxService } from '../../mapbox';
 
 // Helper to map fare details to flight details
-function mapFareToFlightDetails(fareDetails: FlightFareDetails, flightId: string): FlightDetails {
+function mapFareToFlightDetails(fareDetails: FlightFareDetails, flightId: number): FlightDetails {
   let duration = '';
   try {
     const departure = new Date(fareDetails.departureTime);
@@ -20,7 +20,7 @@ function mapFareToFlightDetails(fareDetails: FlightFareDetails, flightId: string
   const arrival = new Date(fareDetails.arrivalTime);
 
   return {
-    flightId: flightId,
+    flightId: flightId?? fareDetails.flightId?? 'unknown',
     airline: fareDetails.airline || 'Unknown Airline',
     flightNumber: fareDetails.flightNumber || 'N/A',
     origin: fareDetails.originAirport || 'N/A',
@@ -50,11 +50,11 @@ export const flightService = {
       params
     })
   },
-  get(id: string) {
+  get(id: number) {
     return apiClient.get<FlightDetails>(`/flights/storefront/${encodeURIComponent(id)}`)
   },
   async getFareDetails(
-    flightId: string,
+    flightId: number,
     params: { seatClass?: string; departureDateTime?: string; scheduleId?: string; fareId?: string }
   ): Promise<FlightDetails> {
     const fareDetails = await apiClient.get<FlightFareDetails>(

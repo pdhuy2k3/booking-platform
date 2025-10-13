@@ -259,15 +259,9 @@ public class BookingController {
     @SecurityRequirement(name = "oauth2", scopes = {"customer"})
     @OpenApiResponses.CreationApiResponses
     @PostMapping("/storefront")
-    @org.springframework.ai.tool.annotation.Tool(
-        name = "create_booking",
-        description = "Create a new booking for flights or hotels. Required fields: bookingType (FLIGHT/HOTEL), " +
-                "serviceItemId (flight/hotel ID), totalAmount, currency. Optional: specialRequests, passengerInfo. " +
-                "Returns sagaId for tracking booking status."
-    )
+
     public ResponseEntity<StorefrontBookingResponseDto> createStorefrontBooking(
             @Parameter(description = "Storefront booking creation request", required = true)
-            @org.springframework.ai.tool.annotation.ToolParam(description = "Booking request with bookingType, serviceItemId, totalAmount, currency, and optional details")
             @Valid @RequestBody StorefrontCreateBookingRequestDto request) {
         try {
             log.info("Creating storefront booking with type: {} ", request.getBookingType());

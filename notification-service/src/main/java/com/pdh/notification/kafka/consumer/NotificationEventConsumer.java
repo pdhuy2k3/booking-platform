@@ -8,10 +8,11 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.kafka.annotation.KafkaListener;
+import org.springframework.kafka.listener.ContainerProperties.AckMode;
 import org.springframework.messaging.handler.annotation.Header;
 import org.springframework.messaging.handler.annotation.Payload;
 import org.springframework.stereotype.Component;
-
+import org.springframework.kafka.support.Acknowledgment;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -35,11 +36,13 @@ public class NotificationEventConsumer {
     public void consumeBookingSagaEvents(
         @Payload JsonNode message,
         @Header(value = "eventType", required = false) String eventTypeHeader,
-        @Header(RECEIVED_TOPIC) String topic
+        @Header(RECEIVED_TOPIC) String topic,
+        Acknowledgment acknowledgment
     ) {
         if (message == null || message.isNull()) {
             return;
         }
+
         System.out.println("Received notification message from topic " + topic + ": " + message.toString());
         JsonNode root = normalize(message);
         JsonNode payload = root.path("payload");
@@ -52,14 +55,17 @@ public class NotificationEventConsumer {
         String eventType = resolveEventType(eventTypeHeader, root, payload);
         if (StringUtils.isBlank(eventType)) {
             log.debug("Skipping notification message without eventType from topic {}", topic);
+            acknowledgment.acknowledge();
             return;
         }
 
         Map<String, Object> payloadMap = convertPayload(payload);
         if (payloadMap.isEmpty()) {
             log.debug("Skipping notification for event {} due to empty payload", eventType);
+            acknowledgment.acknowledge();
             return;
         }
+
 
         log.info("Dispatching notification event {} from topic {}", eventType, topic);
         notificationService.handleBookingEvent(eventType, payloadMap);

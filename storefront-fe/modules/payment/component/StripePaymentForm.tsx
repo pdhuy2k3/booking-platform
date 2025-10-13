@@ -218,6 +218,7 @@ export const StripePaymentForm: React.FC<StripePaymentFormProps> = ({
       if (isUsingSavedMethod && savedPaymentMethod?.stripePaymentMethodId) {
         const confirmation = await stripe.confirmCardPayment(activeClientSecret, {
           payment_method: savedPaymentMethod.stripePaymentMethodId,
+          setup_future_usage: 'off_session', // This ensures the payment method can be reused for future payments
           return_url: `${window.location.origin}/payment/result`,
         })
         error = confirmation.error

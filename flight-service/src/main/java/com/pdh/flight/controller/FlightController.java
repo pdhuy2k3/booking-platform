@@ -455,6 +455,7 @@ public class FlightController {
                     .orElse(null);
 
             FlightFareDetailsResponse response = FlightFareDetailsResponse.builder()
+                    .flightId(flightId)
                     .fareId(fare.getFareId())
                     .scheduleId(schedule.getScheduleId())
                     .seatClass(fare.getFareClass() != null ? fare.getFareClass().name() : null)

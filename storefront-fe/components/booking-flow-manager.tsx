@@ -82,7 +82,7 @@ export function BookingFlowManager({ onBookingComplete, showSelection = true }: 
     })
 
     setSelectedFlight({
-      id: details.flightId,
+      flightId: details.flightId,
       flightNumber: details.flightNumber,
       airline: details.airline,
       origin: details.originAirport,

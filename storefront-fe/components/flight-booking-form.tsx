@@ -215,7 +215,7 @@ export function FlightBookingForm({ flight, onSubmit, onCancel }: FlightBookingF
     )
 
     const bookingDetails: FlightBookingDetails = {
-      flightId: flight.id,
+      flightId: flight.flightId,
       flightNumber: flight.flightNumber,
       airline: flight.airline,
       originAirport: flight.origin,

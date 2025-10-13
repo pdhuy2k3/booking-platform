@@ -197,6 +197,16 @@ public class PaymentMethodService {
                 paymentMethodRepository.save(newDefault);
             }
         }
+        
+        // Detach from Stripe if it's a Stripe payment method
+        if (method.getProvider() == PaymentProvider.STRIPE && method.getToken() != null) {
+            try {
+                detachStripePaymentMethod(method.getToken());
+            } catch (Exception e) {
+                log.warn("Failed to detach Stripe payment method: {}", method.getToken(), e);
+                // Continue with deletion even if Stripe detachment fails
+            }
+        }
 
         log.info("Payment method deleted successfully: {}", methodId);
     }
@@ -263,6 +273,19 @@ public class PaymentMethodService {
             request.getCardExpiryYear()
         );
         return Integer.toHexString(data.hashCode());
+    }
+
+    /**
+     * Detach a payment method from Stripe
+     */
+    private void detachStripePaymentMethod(String paymentMethodId) {
+        try {
+            com.stripe.model.PaymentMethod stripePaymentMethod = com.stripe.model.PaymentMethod.retrieve(paymentMethodId);
+            stripePaymentMethod.detach();
+            log.info("Successfully detached payment method: {} from Stripe", paymentMethodId);
+        } catch (Exception e) {
+            log.error("Failed to detach payment method: {} from Stripe", paymentMethodId, e);
+        }
     }
 
 }

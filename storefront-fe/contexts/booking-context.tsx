@@ -357,7 +357,7 @@ export function BookingProvider({ children }: { children: React.ReactNode }) {
 
       if (flightDetails) {
         setSelectedFlight({
-          id: flightDetails.flightId,
+          flightId: flightDetails.flightId,
           flightNumber: flightDetails.flightNumber,
           airline: flightDetails.airline,
           origin: flightDetails.originAirport,

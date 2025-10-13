@@ -8,6 +8,8 @@ import lombok.NoArgsConstructor;
 import java.math.BigDecimal;
 import java.util.UUID;
 
+import org.stringtemplate.v4.compiler.CodeGenerator.primary_return;
+
 @Data
 @Builder
 @NoArgsConstructor
@@ -16,6 +18,7 @@ public class FlightFareDetailsResponse {
 
     private UUID fareId;
     private UUID scheduleId;
+    private Long flightId;
     private String seatClass;
     private BigDecimal price;
     private String currency;

@@ -105,7 +105,7 @@ export type ValidationResult = {
 }
 
 export interface SelectedFlight {
-  id: string
+  flightId: number
   flightNumber?: string
   airline: string
   origin: string

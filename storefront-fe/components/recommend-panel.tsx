@@ -333,7 +333,7 @@ export const RecommendPanel = React.forwardRef<RecommendPanelRef, RecommendPanel
                         className="p-4 cursor-pointer hover:shadow-md transition-shadow"
                         onClick={() => handleExploreCardClick(index)}
                       >
-                        <div className="flex items-start space-x-3">
+                        <div className="flex flex-col items-start space-x-3">
                           {imageUrl && (
                             <div className="w-16 h-16 rounded-md overflow-hidden flex-shrink-0">
                               <Image

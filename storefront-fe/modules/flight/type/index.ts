@@ -104,7 +104,7 @@ export type FlightSearchResponse = {
 }
 
 export type FlightDetails = {
-  flightId: string
+  flightId: number
   airline: string
   flightNumber: string
   origin: string
@@ -128,6 +128,7 @@ export type FlightDetails = {
 }
 
 export interface FlightFareDetails {
+  flightId: string
   fareId: string
   scheduleId: string
   seatClass: string
