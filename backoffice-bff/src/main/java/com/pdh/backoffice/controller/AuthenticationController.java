@@ -12,6 +12,7 @@ public class AuthenticationController {
     @GetMapping("/authentication/user")
     public ResponseEntity<AuthenticatedUser> user(@AuthenticationPrincipal OAuth2User principal) {
         AuthenticatedUser authenticatedUser = new AuthenticatedUser(principal.getAttribute("preferred_username"));
+
         return ResponseEntity.ok(authenticatedUser);
     }
 }

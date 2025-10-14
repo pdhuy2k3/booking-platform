@@ -21,7 +21,6 @@ import java.time.Instant;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import java.util.UUID;
 import java.util.stream.Collectors;
 
 @Service
@@ -38,10 +37,9 @@ public class JpaChatMemory implements ChatMemory {
     @Override
     @Transactional
     public void add(String conversationId, List<Message> messages) {
-        UUID id = UUID.fromString(conversationId);
         List<ChatMessage> entities = messages.stream()
-                .map(message -> new ChatMessage(id, mapRole(message), extractContent(message), Instant.now()))
-                .filter(message-> message.getRole() != MessageType.TOOL || message.getRole()!= MessageType.SYSTEM  )
+                .map(message -> new ChatMessage(conversationId, mapRole(message), extractContent(message), Instant.now()))
+                .filter(message-> message.getRole() != MessageType.TOOL && message.getRole() != MessageType.SYSTEM)
                 .collect(Collectors.toList());
         chatMessageRepository.saveAll(entities);
     }
@@ -54,14 +52,13 @@ public class JpaChatMemory implements ChatMemory {
 
     @Transactional(readOnly = true)
     public List<Message> get(String conversationId, int lastN) {
-        UUID id = UUID.fromString(conversationId);
         if (lastN > 0) {
-            List<ChatMessage> latest = chatMessageRepository.findByConversationIdOrderByTimestampDesc(id,
+            List<ChatMessage> latest = chatMessageRepository.findByConversationIdOrderByTimestampDesc(conversationId,
                     PageRequest.of(0, lastN));
             Collections.reverse(latest);
             return latest.stream().map(this::toMessage).toList();
         }
-        return chatMessageRepository.findByConversationIdOrderByTimestampAsc(id)
+        return chatMessageRepository.findByConversationIdOrderByTimestampAsc(conversationId)
                 .stream()
                 .map(this::toMessage)
                 .toList();
@@ -70,7 +67,7 @@ public class JpaChatMemory implements ChatMemory {
     @Override
     @Transactional
     public void clear(String conversationId) {
-        chatMessageRepository.deleteByConversationId(UUID.fromString(conversationId));
+        chatMessageRepository.deleteByConversationId(conversationId);
     }
 
     private MessageType mapRole(Message message) {

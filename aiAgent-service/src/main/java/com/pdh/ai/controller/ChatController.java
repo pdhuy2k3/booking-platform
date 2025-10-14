@@ -7,20 +7,21 @@ import com.pdh.ai.model.dto.StructuredChatPayload;
 import com.pdh.ai.rag.service.RagInitializationService;
 import com.pdh.ai.service.AiService;
 import com.pdh.ai.service.LLMAiService;
-import com.pdh.common.utils.AuthenticationUtils;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.security.oauth2.core.user.OAuth2User;
 import org.springframework.web.bind.annotation.*;
+import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
 import java.time.LocalDateTime;
 import java.util.UUID;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestParam;
-import org.stringtemplate.v4.compiler.CodeGenerator.primary_return;
 
 
 /**
@@ -50,74 +51,100 @@ public class ChatController {
         this.ragInitializationService = ragInitializationService;
     }
 
-    /**
-     * Synchronous chat endpoint - Returns complete response immediately.
-     * Uses all agentic patterns automatically (Routing, Parallelization, Evaluation).
-     * 
-     * <p>Example Request:</p>
-     * <pre>
-     * POST /chat/message
-     * {
-     *   "userId": "user123",
-     *   "conversationId": "conv-456",
-     *   "message": "Compare flights from Hanoi to Da Nang, Phu Quoc, and Nha Trang"
-     * }
-     * </pre>
-     * 
-     * <p>Example Response:</p>
-     * <pre>
-     * {
-     *   "message": "Here are the flight comparisons...",
-     *   "results": []
-     * }
-     * </pre>
-     * 
-     * @param request Chat message request
-     * @return StructuredChatPayload with AI response
-     */
-    @PostMapping(value = "/message", produces = MediaType.APPLICATION_JSON_VALUE)
-    public Mono<StructuredChatPayload> sendMessage(@RequestBody ChatMessageRequest request) {
-        try {
-            // Extract userId from JWT token (authentication required)
-            String userId = AuthenticationUtils.extractUserId();
-            logger.info("💬 [CHAT-SYNC] Received message from user: {}, conversation: {}", 
-                       userId, request.getConversationId());
-
-            // Validate request
-            if (request.getMessage() == null || request.getMessage().trim().isEmpty()) {
-                return Mono.just(StructuredChatPayload.builder()
-                    .message("Message cannot be empty")
-                    .results(java.util.List.of())
-                    .build());
-            }
-
-            // Generate conversation ID if not provided
-            String conversationId = request.getConversationId();
-            if (conversationId == null || conversationId.trim().isEmpty()) {
-                conversationId = UUID.randomUUID().toString();
-                logger.debug("📝 Generated new conversation ID: {}", conversationId);
-            }
-
-            // Process with all agentic patterns automatically
-            return llmAiService.processSyncStructured(
-                request.getMessage(),
-                conversationId,
-                userId
-            );
-
-        } catch (Exception e) {
-            logger.error("❌ [CHAT-SYNC] Error processing message: {}", e.getMessage(), e);
-            return Mono.just(StructuredChatPayload.builder()
-                .message("Xin lỗi, đã xảy ra lỗi khi xử lý yêu cầu của bạn.")
-                .results(java.util.List.of())
-                .build());
-        }
-    }
+//    @PostMapping(value = "/message", produces = MediaType.APPLICATION_JSON_VALUE)
+//    public Mono<StructuredChatPayload> sendMessage(@RequestBody ChatMessageRequest request, @AuthenticationPrincipal OAuth2User principal) {
+//        try {
+//            // Extract username from OAuth2 principal
+//            String username = principal.getAttribute("preferred_username");
+//            logger.info("💬 [CHAT-SYNC] Received message from user: {}, conversation: {}",
+//                       username, request.getConversationId());
+//
+//            // Validate request
+//            if (request.getMessage() == null || request.getMessage().trim().isEmpty()) {
+//                return Mono.just(StructuredChatPayload.builder()
+//                    .message("Message cannot be empty")
+//                    .results(java.util.List.of())
+//                    .build());
+//            }
+//
+//            // Generate conversation ID if not provided
+//            String conversationId = request.getConversationId();
+//            if (conversationId == null || conversationId.trim().isEmpty()) {
+//                conversationId = UUID.randomUUID().toString();
+//                logger.debug("📝 Generated new conversation ID: {}", conversationId);
+//            }
+//
+//            // Process with all agentic patterns automatically
+//            return llmAiService.processSyncStructured(
+//                request.getMessage(),
+//                conversationId,
+//                username
+//            );
+//
+//        } catch (Exception e) {
+//            logger.error("❌ [CHAT-SYNC] Error processing message: {}", e.getMessage(), e);
+//            return Mono.just(StructuredChatPayload.builder()
+//                .message("Xin lỗi, đã xảy ra lỗi khi xử lý yêu cầu của bạn.")
+//                .results(java.util.List.of())
+//                .build());
+//        }
+//    }
     @GetMapping("init-rag")
     public String getMethodName(@RequestParam String param) {
         ragInitializationService.initializeRagData();
         return new String(param);
 
+    }
+
+    /**
+     * Streaming chat endpoint - Returns response chunks as they are generated.
+     * Uses Server-Sent Events to stream the AI response in real-time.
+     * 
+     * <p>Example Request:</p>
+     * <pre>
+     * POST /chat/stream?conversationId={conversationId}
+     * {
+     *   "message": "Compare flights from Hanoi to Da Nang, Phu Quoc, and Nha Trang"
+     * }
+     * </pre>
+     * 
+     * @param request Chat message request
+     * @param conversationId The conversation ID for this chat
+     * @param principal The authenticated OAuth2 user
+     * @return Flux of StructuredChatPayload chunks
+     */
+    @PostMapping(path = "/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
+    public Flux<StructuredChatPayload> streamChat(@RequestBody ChatMessageRequest request,
+                                                  @RequestParam String conversationId,
+                                                  @AuthenticationPrincipal OAuth2User principal) {
+        try {
+            // Extract username from OAuth2 principal
+            String username = principal.getAttribute("preferred_username");
+            logger.info("💬 [CHAT-STREAM] Received streaming message from user: {}, conversation: {}", 
+                       username, conversationId);
+
+            // Validate request
+            if (request.getMessage() == null || request.getMessage().trim().isEmpty()) {
+                return Flux.just(StructuredChatPayload.builder()
+                    .message("Message cannot be empty")
+                    .results(java.util.List.of())
+                    .build());
+            }
+
+            // Process with streaming - each chunk of the response will be emitted as it's available
+            return llmAiService.processStreamStructured(
+                request.getMessage(),
+                conversationId,
+                username
+            );
+
+        } catch (Exception e) {
+            logger.error("❌ [CHAT-STREAM] Error processing message: {}", e.getMessage(), e);
+            return Flux.just(StructuredChatPayload.builder()
+                .message("Xin lỗi, đã xảy ra lỗi khi xử lý yêu cầu của bạn.")
+                .results(java.util.List.of())
+                .build());
+        }
     }
     
     /**
@@ -133,11 +160,11 @@ public class ChatController {
 
 
     @GetMapping("/history/{conversationId}")
-    public ResponseEntity<ChatHistoryResponse> getChatHistory(@PathVariable String conversationId) {
+    public ResponseEntity<ChatHistoryResponse> getChatHistory(@PathVariable String conversationId, @AuthenticationPrincipal OAuth2User principal) {
         try {
-            // Extract userId from JWT token
-            String userId = AuthenticationUtils.extractUserId();
-            ChatHistoryResponse history = aiService.getChatHistory(conversationId, userId);
+            // Extract username from OAuth2 principal
+            String username = principal.getAttribute("preferred_username");
+            ChatHistoryResponse history = aiService.getChatHistory(conversationId, username);
             return ResponseEntity.ok(history);
         } catch (IllegalArgumentException e) {
             return ResponseEntity.status(404).body(
@@ -161,11 +188,11 @@ public class ChatController {
     }
 
     @DeleteMapping("/history/{conversationId}")
-    public ResponseEntity<Void> clearChatHistory(@PathVariable String conversationId) {
+    public ResponseEntity<Void> clearChatHistory(@PathVariable String conversationId, @AuthenticationPrincipal OAuth2User principal) {
         try {
-            // Extract userId from JWT token
-            String userId = AuthenticationUtils.extractUserId();
-            aiService.clearChatHistory(conversationId, userId);
+            // Extract username from OAuth2 principal
+            String username = principal.getAttribute("preferred_username");
+            aiService.clearChatHistory(conversationId, username);
             return ResponseEntity.ok().build();
         } catch (IllegalArgumentException e) {
             return ResponseEntity.status(404).build();
@@ -175,11 +202,11 @@ public class ChatController {
     }
 
     @GetMapping("/conversations")
-    public ResponseEntity<java.util.List<ChatConversationSummaryDto>> getUserConversations() {
+    public ResponseEntity<java.util.List<ChatConversationSummaryDto>> getUserConversations(@AuthenticationPrincipal OAuth2User principal) {
         try {
-            // Extract userId from JWT token
-            String userId = AuthenticationUtils.extractUserId();
-            java.util.List<ChatConversationSummaryDto> conversations = aiService.getUserConversations(userId);
+            // Extract username from OAuth2 principal
+            String username = principal.getAttribute("preferred_username");
+            java.util.List<ChatConversationSummaryDto> conversations = aiService.getUserConversations(username);
             return ResponseEntity.ok(conversations);
         } catch (Exception e) {
             return ResponseEntity.status(500).body(java.util.List.<ChatConversationSummaryDto>of());

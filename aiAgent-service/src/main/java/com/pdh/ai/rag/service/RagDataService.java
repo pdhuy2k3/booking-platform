@@ -61,7 +61,6 @@ public class RagDataService {
             // Add documents to vector store
             if (!documents.isEmpty()) {
                 vectorStore.add(documents);
-                vectorStore.
                 log.info("Added {} hotel documents to vector store", documents.size());
             }
         } catch (Exception e) {
@@ -88,97 +87,80 @@ public class RagDataService {
             StringBuilder content = new StringBuilder();
             content.append("Flight Information: ");
             
-            // Extract flight information
-            Long flightId = Long.valueOf(getStringValue(flightDetails, "flightId"));
+            // Extract flight information from FlightDto structure
+            Object flightIdObj = flightDetails.get("flightId");
+            String flightId = flightIdObj != null ? flightIdObj.toString() : null;
             String flightNumber = getStringValue(flightDetails, "flightNumber");
-            String airline = getStringValue(flightDetails, "airline");
-            String origin = getStringValue(flightDetails, "origin");
-            String destination = getStringValue(flightDetails, "destination");
-            String departureTime = getStringValue(flightDetails, "departureTime");
-            String arrivalTime = getStringValue(flightDetails, "arrivalTime");
-            String duration = getStringValue(flightDetails, "duration");
-            String seatClass = getStringValue(flightDetails, "seatClass");
-            String originLatitude = getStringValue(flightDetails, "originLatitude");
-            String originLongitude = getStringValue(flightDetails, "originLongitude");
-            String destinationLatitude = getStringValue(flightDetails, "destinationLatitude");
-            String destinationLongitude = getStringValue(flightDetails, "destinationLongitude");
+            String airlineName = getStringValue(flightDetails, "airlineName");
+            String departureAirportIataCode = getStringValue(flightDetails, "departureAirportIataCode");
+            String arrivalAirportIataCode = getStringValue(flightDetails, "arrivalAirportIataCode");
+            String departureAirportName = getStringValue(flightDetails, "departureAirportName");
+            String arrivalAirportName = getStringValue(flightDetails, "arrivalAirportName");
+            String departureAirportCity = getStringValue(flightDetails, "departureAirportCity");
+            String arrivalAirportCity = getStringValue(flightDetails, "arrivalAirportCity");
+            String aircraftType = getStringValue(flightDetails, "aircraftType");
+            String status = getStringValue(flightDetails, "status");
+            String basePrice = getStringValue(flightDetails, "basePrice");
             
             // Add flight details to content
+            appendIfNotNull(content, "Flight ID", flightId);
             appendIfNotNull(content, "Flight Number", flightNumber);
-            appendIfNotNull(content, "Airline", airline);
-            appendIfNotNull(content, "From", origin);
-            appendIfNotNull(content, "To", destination);
-            appendIfNotNull(content, "Departure", departureTime);
-            appendIfNotNull(content, "Arrival", arrivalTime);
-            appendIfNotNull(content, "Duration", duration);
-            appendIfNotNull(content, "Class", seatClass);
+            appendIfNotNull(content, "Airline", airlineName);
+            appendIfNotNull(content, "Departure Airport", departureAirportName);
+            appendIfNotNull(content, "Arrival Airport", arrivalAirportName);
+            appendIfNotNull(content, "Departure Airport Code", departureAirportIataCode);
+            appendIfNotNull(content, "Arrival Airport Code", arrivalAirportIataCode);
+            appendIfNotNull(content, "Departure City", departureAirportCity);
+            appendIfNotNull(content, "Arrival City", arrivalAirportCity);
+            appendIfNotNull(content, "Aircraft Type", aircraftType);
+            appendIfNotNull(content, "Status", status);
             
-            // Add geographic information
-            if (originLatitude != null && originLongitude != null) {
-                content.append("Origin Coordinates: (").append(originLatitude).append(", ").append(originLongitude).append("). ");
-            }
-            if (destinationLatitude != null && destinationLongitude != null) {
-                content.append("Destination Coordinates: (").append(destinationLatitude).append(", ").append(destinationLongitude).append("). ");
-            }
-            
-            // Add price information if available
-            Object priceObj = flightDetails.get("price");
-            if (priceObj != null) {
-                content.append("Price: ").append(priceObj);
-                Object currencyObj = flightDetails.get("currency");
-                if (currencyObj != null) {
-                    content.append(" ").append(currencyObj);
-                }
-                content.append(". ");
+            // Add base price information if available
+            Object basePriceObj = flightDetails.get("basePrice");
+            if (basePriceObj != null) {
+                content.append("Base Price: ").append(basePriceObj).append(" VND. ");
             }
             
-            // Add available seats information if available
-            Object availableSeatsObj = flightDetails.get("availableSeats");
-            if (availableSeatsObj != null) {
-                content.append("Available Seats: ").append(availableSeatsObj).append(". ");
+            // Add schedule information if available
+            Object schedulesObj = flightDetails.get("schedules");
+            if (schedulesObj != null) {
+                content.append("Schedules: ").append(schedulesObj.toString()).append(". ");
             }
             
-            // Add schedule ID if available
-            String scheduleId = getStringValue(flightDetails, "scheduleId");
-            appendIfNotNull(content, "Schedule ID", scheduleId);
+            // Add fare information if available
+            Object faresObj = flightDetails.get("fares");
+            if (faresObj != null) {
+                content.append("Fares: ").append(faresObj.toString()).append(". ");
+            }
             
             // Create metadata
             Map<String, Object> metadata = new HashMap<>();
             metadata.put("source_type", "flight");
             metadata.put("flight_id", flightId);
             metadata.put("flight_number", flightNumber);
-            metadata.put("airline", airline);
-            metadata.put("origin", origin);
-            metadata.put("destination", destination);
-            metadata.put("departure_time", departureTime);
-            metadata.put("arrival_time", arrivalTime);
-            metadata.put("duration", duration);
-            metadata.put("seat_class", seatClass);
+            metadata.put("airline_name", airlineName);
+            metadata.put("departure_airport", departureAirportName);
+            metadata.put("arrival_airport", arrivalAirportName);
+            metadata.put("departure_airport_code", departureAirportIataCode);
+            metadata.put("arrival_airport_code", arrivalAirportIataCode);
+            metadata.put("departure_city", departureAirportCity);
+            metadata.put("arrival_city", arrivalAirportCity);
+            metadata.put("aircraft_type", aircraftType);
+            metadata.put("status", status);
             
-            if (priceObj != null) {
-                metadata.put("price", priceObj);
-            }
-            
-            if (availableSeatsObj != null) {
-                metadata.put("available_seats", availableSeatsObj);
+            if (basePriceObj != null) {
+                metadata.put("base_price", basePriceObj);
             }
             
-            if (scheduleId != null) {
-                metadata.put("schedule_id", scheduleId);
+            // Add schedule and fare counts
+            Object schedules = flightDetails.get("schedules");
+            if (schedules instanceof List) {
+                metadata.put("schedule_count", ((List<?>) schedules).size());
             }
             
-            // Add geographic metadata
-            if (originLatitude != null) {
-                metadata.put("origin_latitude", originLatitude);
-            }
-            if (originLongitude != null) {
-                metadata.put("origin_longitude", originLongitude);
-            }
-            if (destinationLatitude != null) {
-                metadata.put("destination_latitude", destinationLatitude);
-            }
-            if (destinationLongitude != null) {
-                metadata.put("destination_longitude", destinationLongitude);
+            Object fares = flightDetails.get("fares");
+            if (fares instanceof List) {
+                metadata.put("fare_count", ((List<?>) fares).size());
             }
             
             // Create document

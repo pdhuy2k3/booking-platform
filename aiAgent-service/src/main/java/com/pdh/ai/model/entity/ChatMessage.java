@@ -7,31 +7,27 @@ import jakarta.persistence.Enumerated;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
+import jakarta.persistence.Index;
 import jakarta.persistence.PrePersist;
 import jakarta.persistence.Table;
 
 import java.time.Instant;
-import java.util.UUID;
 
 import org.springframework.ai.chat.messages.MessageType;
 
 @Entity
-@Table(name = "chat_message")
+@Table(name = "chat_message", indexes = {
+    @Index(name = "idx_conversation_id", columnList = "conversation_id"),
+    @Index(name = "idx_conversation_id_timestamp", columnList = "conversation_id, ts")
+})
 public class ChatMessage {
-
-    // public enum MessageT {
-    //     USER,
-    //     ASSISTANT,
-    //     SYSTEM,
-    //     TOOL
-    // }
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(name = "conversation_id", nullable = false)
-    private UUID conversationId;
+    @Column(name = "conversation_id", nullable = false, length = 255)
+    private String conversationId;
 
     @Enumerated(EnumType.STRING)
     @Column(name = "role", nullable = false, length = 16)
@@ -46,7 +42,7 @@ public class ChatMessage {
     public ChatMessage() {
     }
 
-    public ChatMessage(UUID conversationId, MessageType role, String content, Instant timestamp) {
+    public ChatMessage(String conversationId, MessageType role, String content, Instant timestamp) {
         this.conversationId = conversationId;
         this.role = role;
         this.content = content;
@@ -68,11 +64,11 @@ public class ChatMessage {
         this.id = id;
     }
 
-    public UUID getConversationId() {
+    public String getConversationId() {
         return conversationId;
     }
 
-    public void setConversationId(UUID conversationId) {
+    public void setConversationId(String conversationId) {
         this.conversationId = conversationId;
     }
 

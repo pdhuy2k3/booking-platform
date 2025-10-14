@@ -12,12 +12,7 @@ keycloak:
   username: $$$$$
   password: $$$$$
   # Vector store configuration for default profile
-  vectorstore:
-    elasticsearch:
-      initialize-schema: true
-      index-name: bookingsmart-rag-index
-      dimensions: 1024
-      similarity: cosine
+
 # OpenAPI Documentation Configuration
 #springdoc:
 #  api-docs:
@@ -270,7 +265,7 @@ spring:
         client:
           uri: ${MILVUS_URI}
           token: ${MILVUS_TOKEN}
-          
+        initialize-schema: 
         embedding-dimension: 1024
         database-name: bookingsmart
         collection-name: vector_store

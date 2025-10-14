@@ -5,51 +5,14 @@ class ApiClient {
 
   constructor() {
 
-    this.client = axios.create({
-      baseURL: `/api`,
-      
-  
-    })
+      this.client = axios.create({
+          baseURL: `/api`,
 
-    // Add request interceptor to include auth token
-    this.client.interceptors.request.use(
-      (config) => {
-        const token = this.getAuthToken()
-        if (token) {
-          config.headers.Authorization = `Bearer ${token}`
-        }
-        return config
-      },
-      (error) => {
-        return Promise.reject(error)
-      }
-    )
-
-    // Add response interceptor for error handling
-    this.client.interceptors.response.use(
-      (response) => response,
-      (error) => {
-        if (error.response?.status === 401) {
-          // Handle unauthorized - redirect to login or clear token
-          this.clearAuthToken()
-        }
-        return Promise.reject(error)
-      }
-    )
+      })
   }
 
-  private getAuthToken(): string {
-    if (typeof window !== 'undefined') {
-      return localStorage.getItem('authToken') || ''
-    }
-    return ''
-  }
 
-  private clearAuthToken(): void {
-    if (typeof window !== 'undefined') {
-      localStorage.removeItem('authToken')
-    }
-  }
+
 
 
 

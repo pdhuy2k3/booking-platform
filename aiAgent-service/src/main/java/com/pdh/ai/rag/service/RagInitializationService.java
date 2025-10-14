@@ -112,17 +112,16 @@ public class RagInitializationService implements ApplicationRunner{
         // First authenticate with Keycloak to get access token
         
       
-        // CompletableFuture
-        // .runAsync(() -> {
-        //         authenticateWithKeycloak();
-        //         initializeRagData();})
-        //     .whenComplete((result, throwable) -> {
-        //         if (throwable != null) {
-        //             logger.error("❌ [RAG-INIT] Error during RAG data initialization: {}", throwable.getMessage(), throwable);
-        //         } else {
-        //             logger.info("✅ [RAG-INIT] RAG data initialization completed successfully");
-        //         }
-        //     });
+        CompletableFuture
+        .runAsync(() -> {
+                initializeRagData();})
+            .whenComplete((result, throwable) -> {
+                if (throwable != null) {
+                    logger.error("❌ [RAG-INIT] Error during RAG data initialization: {}", throwable.getMessage(), throwable);
+                } else {
+                    logger.info("✅ [RAG-INIT] RAG data initialization completed successfully");
+                }
+            });
     }
 
     /**

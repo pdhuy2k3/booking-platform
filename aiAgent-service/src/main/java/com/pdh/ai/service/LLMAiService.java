@@ -11,11 +11,11 @@ import com.pdh.ai.agent.CoreAgent;
 import com.pdh.ai.model.dto.ChatConversationSummaryDto;
 import com.pdh.ai.model.dto.ChatHistoryResponse;
 import com.pdh.ai.model.dto.StructuredChatPayload;
-import com.pdh.ai.model.entity.ChatConversation;
+
 import com.pdh.ai.model.entity.ChatMessage;
-import com.pdh.common.utils.AuthenticationUtils;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
+import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
 
@@ -26,29 +26,29 @@ import com.pdh.ai.repository.ChatMessageRepository;
 public class LLMAiService implements AiService {
 
     private final CoreAgent coreAgent;
-    private final ConversationService conversationService;
     private final ChatMessageRepository chatMessageRepository;
 
     public LLMAiService(CoreAgent coreAgent,
-                        ConversationService conversationService,
                         ChatMessageRepository chatMessageRepository) {
         this.coreAgent = coreAgent;
-        this.conversationService = conversationService;
         this.chatMessageRepository = chatMessageRepository;
     }
+    @Override
+    public Flux<StructuredChatPayload> processStreamStructured(String message, String conversationId, String userId) {
+        String actualUserId = resolveAuthenticatedUserId(userId);
+        String conversationKey = formatConversationKey(actualUserId, conversationId);
 
+
+        return coreAgent.processStreamStructured(message,conversationId);
+    }
 
     @Override
     public ChatHistoryResponse getChatHistory(String conversationId, String userId) {
         String actualUserId = resolveAuthenticatedUserId(userId);
-        UUID conversationUuid = parseConversationId(conversationId);
-
-        var conversation = conversationService.getConversation(conversationUuid)
-                .filter(c -> c.getUserId().equals(actualUserId))
-                .orElseThrow(() -> new IllegalArgumentException("Conversation not found for user"));
+        String conversationKey = formatConversationKey(actualUserId, conversationId);
 
         List<ChatMessage> storedMessages = chatMessageRepository
-                .findByConversationIdOrderByTimestampAsc(conversationUuid);
+                .findByConversationIdOrderByTimestampAsc(conversationKey);
 
         List<ChatHistoryResponse.ChatMessage> chatMessages = storedMessages.stream()
                 .map(entity -> ChatHistoryResponse.ChatMessage.builder()
@@ -58,7 +58,10 @@ public class LLMAiService implements AiService {
                         .build())
                 .toList();
 
-        Instant createdAt = conversation.getCreatedAt();
+        // For this implementation, we'll use the timestamp of the first message as createdAt
+        // and the last message as lastUpdated, or current time if no messages exist
+        Instant createdAt = storedMessages.isEmpty() ? Instant.now() 
+            : storedMessages.get(0).getTimestamp();
         Instant lastUpdatedInstant = storedMessages.isEmpty()
                 ? createdAt
                 : storedMessages.get(storedMessages.size() - 1).getTimestamp();
@@ -74,57 +77,48 @@ public class LLMAiService implements AiService {
     @Override
     public void clearChatHistory(String conversationId, String userId) {
         String actualUserId = resolveAuthenticatedUserId(userId);
-        UUID conversationUuid = parseConversationId(conversationId);
-
-        if (!conversationService.belongsToUser(conversationUuid, actualUserId)) {
-            throw new IllegalArgumentException("Conversation not found for user");
-        }
-
-        conversationService.deleteConversation(conversationUuid);
+        String conversationKey = formatConversationKey(actualUserId, conversationId);
+        
+        // Simply delete all messages with this conversation key
+        chatMessageRepository.deleteByConversationId(conversationKey);
     }
 
     @Override
     public List<ChatConversationSummaryDto> getUserConversations(String userId) {
         String actualUserId = resolveAuthenticatedUserId(userId);
-        return conversationService.listConversations(actualUserId).stream()
-                .map(conversation -> ChatConversationSummaryDto.builder()
-                        .id(conversation.getId().toString())
-                        .title(normalizeTitle(conversation.getTitle()))
-                        .createdAt(conversation.getCreatedAt())
-                        .lastUpdated(resolveLastUpdated(conversation.getId(), conversation.getCreatedAt()))
-                        .build())
-                .toList();
+        
+        // Get all unique conversation IDs for this user
+        // Since we don't have a dedicated conversation table anymore, we'll query the messages table
+        // to get distinct conversation IDs for this user
+        List<String> conversationKeys = chatMessageRepository
+            .findByConversationIdStartingWithOrderByTimestampDesc(actualUserId + ":", PageRequest.of(0, 50))
+            .stream()
+            .map(ChatMessage::getConversationId)
+            .distinct()
+            .toList();
+
+        // For each conversation, find the most recent message to determine the title and last updated
+        return conversationKeys.stream().map(key -> {
+            // Extract the conversationId from the full key (user:convId)
+            String conversationId = extractConversationIdFromKey(key);
+            String title = extractTitleFromMessages(key);
+            Instant createdAt = extractCreatedAtFromMessages(key);
+            Instant lastUpdated = extractLastUpdatedFromMessages(key);
+
+            return ChatConversationSummaryDto.builder()
+                    .id(conversationId) // Just the conversation ID, not the full key
+                    .title(normalizeTitle(title))
+                    .createdAt(createdAt)
+                    .lastUpdated(lastUpdated)
+                    .build();
+        }).toList();
     }
 
-
-    private String getCurrentUserId() {
-        try {
-            return AuthenticationUtils.extractUserId();
-        } catch (Exception e) {
-
-            return null;
-        }
-    }
-
-    private String resolveUserId(String requestUserId) {
-        // If a specific user ID is requested, use it (for backward compatibility)
-        if (requestUserId != null && !requestUserId.isBlank()) {
-            return requestUserId;
-        }
-
-        // Extract user ID from JWT token (the secure way)
-        String authenticatedUserId = getCurrentUserId();
-        if (authenticatedUserId != null && !authenticatedUserId.isBlank()) {
-            return authenticatedUserId;
-        }
-
-        // Fallback to anonymous for backward compatibility
-        return "anonymous";
-    }
 
     /**
-     * Resolves user ID, preferring the provided userId over JWT extraction.
-     * This method is more lenient for WebSocket scenarios where userId comes from auth context.
+     * Validates and resolves the authenticated user ID.
+     * Since the userId parameter comes from the controller which extracts it from OAuth2 principal,
+     * we just validate it's not null or empty.
      */
     private String resolveAuthenticatedUserId(String requestUserId) {
         // If a specific user ID is provided (from auth context), use it
@@ -132,28 +126,8 @@ public class LLMAiService implements AiService {
             return requestUserId;
         }
 
-        // Try to extract user ID from JWT token as fallback
-        String authenticatedUserId = getCurrentUserId();
-        if (authenticatedUserId != null && !authenticatedUserId.isBlank()) {
-            return authenticatedUserId;
-        }
-
         // For WebSocket scenarios, require user ID to be provided
         throw new IllegalStateException("User must be authenticated to perform this operation. Please log in.");
-    }
-
-    private UUID ensureConversation(String conversationId, String userId, String title) {
-        // Use the new ensureConversationExists method which handles both creation and validation
-        ChatConversation conversation = conversationService.ensureConversationExists(conversationId, userId, title);
-        return conversation.getId();
-    }
-
-    private UUID parseConversationId(String conversationId) {
-        try {
-            return UUID.fromString(conversationId);
-        } catch (IllegalArgumentException ex) {
-            throw new IllegalArgumentException("Invalid conversation id", ex);
-        }
     }
 
     private String defaultTitle() {
@@ -179,47 +153,79 @@ public class LLMAiService implements AiService {
         return defaultTitle();
     }
 
-    private Instant resolveLastUpdated(UUID conversationId, Instant createdAt) {
-        var latest = chatMessageRepository.findByConversationIdOrderByTimestampDesc(conversationId, PageRequest.of(0, 1));
-        if (!latest.isEmpty()) {
-            ChatMessage mostRecent = latest.get(0);
-            if (mostRecent != null && mostRecent.getTimestamp() != null) {
-                return mostRecent.getTimestamp();
+    /**
+     * Format conversation key as {userId}:{conversationId}
+     */
+    private String formatConversationKey(String userId, String conversationId) {
+        return String.format("%s:%s", userId, conversationId);
+    }
+
+    /**
+     * Extract conversation ID from the full key
+     */
+    private String extractConversationIdFromKey(String conversationKey) {
+        int separatorIndex = conversationKey.lastIndexOf(':');
+        if (separatorIndex >= 0) {
+            return conversationKey.substring(separatorIndex + 1);
+        }
+        return conversationKey; // If no separator, return the whole string
+    }
+
+    /**
+     * Extract a title from the messages in a conversation
+     */
+    private String extractTitleFromMessages(String conversationKey) {
+        List<ChatMessage> messages = chatMessageRepository
+            .findByConversationIdOrderByTimestampAsc(conversationKey);
+        
+        if (!messages.isEmpty()) {
+            // Use the content of the first user message as the title
+            for (ChatMessage message : messages) {
+                if (message.getRole().equals(org.springframework.ai.chat.messages.MessageType.USER)) {
+                    String content = message.getContent();
+                    if (content != null && !content.trim().isEmpty()) {
+                        int maxLength = 60;
+                        String sanitized = content.replaceAll("\\s+", " ").trim();
+                        return sanitized.length() <= maxLength ? sanitized : sanitized.substring(0, maxLength) + "...";
+                    }
+                }
+            }
+            // If no user message found, use the first message
+            String content = messages.get(0).getContent();
+            if (content != null && !content.trim().isEmpty()) {
+                int maxLength = 60;
+                String sanitized = content.replaceAll("\\s+", " ").trim();
+                return sanitized.length() <= maxLength ? sanitized : sanitized.substring(0, maxLength) + "...";
             }
         }
-        return createdAt != null ? createdAt : Instant.now();
+        return "New Conversation";
     }
 
-
-    @Override
-    public Mono<StructuredChatPayload> processSyncStructured(String message, String conversationId, String userId) {
-        return Mono.fromCallable(() -> {
-                    // Use provided userId for WebSocket scenarios
-                    String actualUserId = resolveAuthenticatedUserId(userId);
-                    return ensureConversation(conversationId, actualUserId, defaultTitle(message));
-                })
-                .flatMap(conversationUuid -> {
-                    String conversationIdStr = conversationUuid.toString();
-
-                    // IMPORTANT: Ensure conversation exists in database BEFORE processing
-                    conversationService.getConversation(conversationUuid)
-                            .orElseThrow(() -> new IllegalStateException("Conversation must exist before processing: " + conversationIdStr));
-
-                    // Use CoreAgent's sync structured processing
-                    return coreAgent.processSyncStructured(message, conversationIdStr)
-                            .doOnSubscribe(s -> System.out.println("🔄 Starting sync structured processing for conversation: " + conversationIdStr))
-                            .doOnSuccess(result -> System.out.println("✅ Sync structured processing completed for conversation: " + conversationIdStr +
-                                    ", results: " + (result != null && result.getResults() != null ? result.getResults().size() : 0)))
-                            .doOnError(e -> System.err.println("❌ Sync structured processing failed: " + e.getMessage()));
-                })
-                .onErrorResume(e -> {
-                    System.err.println("❌ Error in processSyncStructured: " + e.getMessage());
-                    return Mono.just(buildErrorResponse());
-                });
+    /**
+     * Get the creation time of the first message in the conversation
+     */
+    private Instant extractCreatedAtFromMessages(String conversationKey) {
+        List<ChatMessage> messages = chatMessageRepository
+            .findByConversationIdOrderByTimestampAsc(conversationKey);
+        
+        if (!messages.isEmpty()) {
+            return messages.get(0).getTimestamp();
+        }
+        return Instant.now();
     }
 
-
-
+    /**
+     * Get the timestamp of the last message in the conversation
+     */
+    private Instant extractLastUpdatedFromMessages(String conversationKey) {
+        List<ChatMessage> messages = chatMessageRepository
+            .findByConversationIdOrderByTimestampDesc(conversationKey, PageRequest.of(0, 1));
+        
+        if (!messages.isEmpty()) {
+            return messages.get(0).getTimestamp();
+        }
+        return Instant.now();
+    }
 
 
     /**

@@ -38,15 +38,15 @@ public class StorefrontClientService {
     }
 
     /**
-     * Get complete flight details from storefront endpoint
+     * Get complete flight details from backoffice endpoint
      *
      * @param flightId The flight ID
      * @return Flight details map or null if not found
      */
     public Map<String, Object> getFlightDetails(Long flightId,String token) {
         try {
-            String url = String.format("%s/flights/storefront/%d", flightServiceUrl, flightId);
-            log.debug("Calling flight service endpoint: {}", url);
+            String url = String.format("%s/backoffice/flights/%d", flightServiceUrl, flightId);
+            log.debug("Calling flight service backoffice endpoint: {}", url);
             
             ResponseEntity<Map<String, Object>> response = restClient.get()
                 .uri(url)
@@ -56,7 +56,13 @@ public class StorefrontClientService {
 
             if (response.getStatusCode().is2xxSuccessful() && response.getBody() != null) {
                 log.debug("Successfully retrieved flight details for ID: {}", flightId);
-                return response.getBody();
+                // Extract the data from the ApiResponse wrapper
+                Map<String, Object> apiResponse = (Map<String, Object>) response.getBody();
+                Object data = apiResponse.get("data");
+                if (data instanceof Map) {
+                    return (Map<String, Object>) data;
+                }
+                return null;
             } else {
                 log.warn("Failed to retrieve flight details for ID: {}, status: {}", flightId, response.getStatusCode());
                 return null;

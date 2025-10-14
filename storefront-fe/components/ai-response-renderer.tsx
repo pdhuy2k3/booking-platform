@@ -10,9 +10,8 @@ import HotelDetailsModal from "@/modules/hotel/component/HotelDetailsModal"
 import type { ChatStructuredResult, ConfirmationContext } from "@/modules/ai/types"
 import { cn } from "@/lib/utils"
 import Image from "next/image"
-import type { FlightDetails, FlightFareDetails } from "@/modules/flight/type"
+import type {  FlightFareDetails } from "@/modules/flight/type"
 import type { HotelDetails } from "@/modules/hotel/type"
-import { useBooking } from "@/contexts/booking-context"
 
 // Define interfaces for the data structures created within this component
 interface FlightDataForCard {
@@ -38,7 +37,7 @@ interface FlightDataForCard {
   originLongitude?: number;
   destinationLatitude?: number;
   destinationLongitude?: number;
-  raw: any; // Keep raw as any for simplicity
+  raw: any;
 }
 
 interface HotelDataForCard {
@@ -205,15 +204,6 @@ export const AiResponseRenderer = ({
   onConfirm,
   onCancel,
 }: AiResponseRendererProps) => {
-  const {
-    resetBooking,
-    setBookingType,
-    updateBookingData,
-    setSelectedFlight,
-    setSelectedHotel,
-    setStep,
-  } = useBooking()
-  
   const [selectedFlightForModal, setSelectedFlightForModal] = useState<FlightDataForCard | null>(null)
   const [isFlightModalOpen, setIsFlightModalOpen] = useState(false)
   const [selectedHotelId, setSelectedHotelId] = useState<string | null>(null)
