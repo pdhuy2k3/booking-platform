@@ -1,47 +1,86 @@
-#!/bin/sh
-set -e
+#!/usr/bin/env bash
+# Script to deploy all Debezium connectors for the BookingSmart system
 
-echo "==================== DEPLOYING KAFKA CONNECTORS ===================="
-
-connectors="
-flight-connector=/tmp/connectors/flight-db-connector.json
-booking-connector=/tmp/connectors/booking-saga-outbox-connector.json
-hotel-connector=/tmp/connectors/hotel-db-connector.json
-payment-connector=/tmp/connectors/payment-db-connector.json
-"
-
-deploy_connector() {
-  name=$1
-  file=$2
-
-  if [ ! -f "$file" ]; then
-    echo "File not found: $file"
-    return 1
-  fi
-
-  echo "→ Deploying connector: $name"
-  status_code=$(curl -s -o /dev/null -w "%{http_code}" \
-    -X PUT \
-    -H "Accept: application/json" \
-    -H "Content-Type: application/json" \
-    --data-binary @"$file" \
-    "http://connect:8083/connectors/${name}/config")
-
-  if [ "$status_code" -ge 200 ] && [ "$status_code" -lt 300 ]; then
-    echo "✓ Success: $name ($status_code)"
+# Check if we're running inside Docker container or on host
+if [ "$1" = "--docker" ]; then
+  # Running inside Docker container
+  CONNECT_HOST="connect:8083"
+  CONNECTOR_PATH="/tmp/connectors"
+else
+  # Running on host
+  CONNECT_HOST="${CONNECT_HOST:-localhost:8083}"
+  if [ -d "/tmp/connectors" ]; then
+    CONNECTOR_PATH="/tmp/connectors"
   else
-    echo "Failed: $name (HTTP $status_code)"
+    CONNECTOR_PATH="./debezium"
   fi
-  echo "-------------------------------------------------------------------"
-}
+fi
 
-echo "Waiting 5s before deploying connectors..."
-sleep 5
+CONNECT_URL="http://$CONNECT_HOST/connectors"
 
-for entry in $connectors; do
-  name=${entry%%=*} 
-  file=${entry#*=} 
-  deploy_connector "$name" "$file"
+# Wait for Kafka Connect to be ready
+echo "Waiting for Kafka Connect to be ready at $CONNECT_URL..."
+until curl -s $CONNECT_URL > /dev/null; do
+  echo "Kafka Connect not ready yet, waiting..."
+  sleep 5
 done
+echo "Kafka Connect is ready!"
 
-echo "==================== ALL CONNECTORS DEPLOYED ===================="
+# Deploy existing connectors
+echo "Deploy flight connector"
+curl -i -X PUT -H "Accept: application/json" -H "Content-Type: application/json" \
+  --data-binary @$CONNECTOR_PATH/flight-db-connector.json \
+  $CONNECT_URL/flight-connector/config
+
+echo "Deploy booking connector"
+curl -i -X PUT -H "Accept: application/json" -H "Content-Type: application/json" \
+  --data-binary @$CONNECTOR_PATH/booking-saga-outbox-connector.json \
+  $CONNECT_URL/booking-connector/config
+
+echo "Deploy hotel connector"
+curl -i -X PUT -H "Accept: application/json" -H "Content-Type: application/json" \
+  --data-binary @$CONNECTOR_PATH/hotel-db-connector.json \
+  $CONNECT_URL/hotel-connector/config
+
+echo "Deploy payment connector"
+curl -i -X PUT -H "Accept: application/json" -H "Content-Type: application/json" \
+  --data-binary @$CONNECTOR_PATH/payment-db-connector.json \
+  $CONNECT_URL/payment-connector/config
+
+echo "Deploy notification connector"
+curl -i -X PUT -H "Accept: application/json" -H "Content-Type: application/json" \
+  --data-binary @$CONNECTOR_PATH/notification-db-connector.json \
+  $CONNECT_URL/notification-connector/config
+
+# Deploy new CDC connectors for RAG
+echo "Deploy flights CDC connector"
+curl -i -X PUT -H "Accept: application/json" -H "Content-Type: application/json" \
+  --data-binary @$CONNECTOR_PATH/flights-cdc-connector.json \
+  $CONNECT_URL/flights-cdc-connector/config
+
+echo "Deploy flight schedules CDC connector"
+curl -i -X PUT -H "Accept: application/json" -H "Content-Type: application/json" \
+  --data-binary @$CONNECTOR_PATH/flight-schedules-cdc-connector.json \
+  $CONNECT_URL/flight-schedules-cdc-connector/config
+
+echo "Deploy flight fares CDC connector"
+curl -i -X PUT -H "Accept: application/json" -H "Content-Type: application/json" \
+  --data-binary @$CONNECTOR_PATH/flight-fares-cdc-connector.json \
+  $CONNECT_URL/flight-fares-cdc-connector/config
+
+echo "Deploy hotels CDC connector"
+curl -i -X PUT -H "Accept: application/json" -H "Content-Type: application/json" \
+  --data-binary @$CONNECTOR_PATH/hotels-cdc-connector.json \
+  $CONNECT_URL/hotels-cdc-connector/config
+
+echo "Deploy room types CDC connector"
+curl -i -X PUT -H "Accept: application/json" -H "Content-Type: application/json" \
+  --data-binary @$CONNECTOR_PATH/room-types-cdc-connector.json \
+  $CONNECT_URL/room-types-cdc-connector/config
+
+echo "Deploy room availability CDC connector"
+curl -i -X PUT -H "Accept: application/json" -H "Content-Type: application/json" \
+  --data-binary @$CONNECTOR_PATH/room-availability-cdc-connector.json \
+  $CONNECT_URL/room-availability-cdc-connector/config
+
+echo "All connectors deployed successfully!"

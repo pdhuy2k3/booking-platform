@@ -4,24 +4,20 @@ server:
     context-path: /ai
   # Tomcat configuration for large payloads
   tomcat:
-    max-http-form-post-size: 10MB
-    max-swallow-size: 10MB
-ai:
-  workflow:
-    hybrid:
-      # Enable/disable hybrid workflow (Routing + Parallelization)
-      # When enabled, system automatically detects queries that benefit from parallel processing
-      enabled: true
-      # Parallelization settings
-      parallelization:
-        # Default number of worker threads for parallel operations (2-4 recommended)
-        default-workers: 3
-        # Maximum worker threads allowed
-        max-workers: 4
-      # Routing settings
-      routing:
-        # Enable automatic route detection based on query keywords
-        auto-detect: true
+    max-http-form-post-size: 20MB
+    max-swallow-size: 20MB
+keycloak:
+  client-id: $$$$$$$
+  client-secret: $$$$$
+  username: $$$$$
+  password: $$$$$
+  # Vector store configuration for default profile
+  vectorstore:
+    elasticsearch:
+      initialize-schema: true
+      index-name: bookingsmart-rag-index
+      dimensions: 1024
+      similarity: cosine
 # OpenAPI Documentation Configuration
 #springdoc:
 #  api-docs:
@@ -62,12 +58,40 @@ spring:
   liquibase:
     enabled: true
     change-log: classpath:/db/changelog/db.changelog-master.yaml
+  kafka:
+    bootstrap-servers: localhost:9092
+    consumer:
+      group-id: bookingsmart-rag-service
+      auto-offset-reset: latest
+      enable-auto-commit: false
+    producer:
+      acks: all
+      retries: 3
   ai:
     chat:
       memory:
         repository:
           jdbc:
             initialize-schema: never
+    vectorstore:
+      milvus:
+        client:
+          uri: ${MILVUS_URI}
+          token: ${MILVUS_TOKEN}
+        embedding-dimension: 1024
+        database-name: bookingsmart
+        collection-name: vector_store
+        index-type: hnsw
+        metric-type: cosine
+    mistralai:
+      api-key: ${MISTRAL_API_KEY}
+      chat:
+        options:
+          model: voxtral-mini-latest
+      embedding:
+        options:
+          model: mistral-embed
+
 ---
 spring:
   config:
@@ -78,27 +102,38 @@ spring:
     username: postgres
     password: p0stgr3s
     driver-class-name: org.postgresql.Driver
+  elasticsearch:
+    uris: http://localhost:9200
+    username: elastic
+    password: changeme
+  kafka:
+    bootstrap-servers: localhost:9092
+    consumer:
+      group-id: bookingsmart-rag-service
+      auto-offset-reset: latest
+      enable-auto-commit: false
+    producer:
+      acks: all
+      retries: 3
   ai:
-    ollama:
-      init:
-        pull-model-strategy: when_missing
-        embedding:
-          include: false
-      chat:
-        options:
-          model: qwen3:4b
-          temperature: 0.0
     mistralai:
       api-key: ${MISTRAL_API_KEY}
       chat:
         options:
           model: voxtral-mini-latest
+      embedding:
+        options:
+          model: mistral-embed
 
-    chat:
-      memory:
-        repository:
-          jdbc:
-            initialize-schema: never
+    vectorstore:
+      
+      elasticsearch:
+        initialize-schema: true
+        index-name: bookingsmart-rag-index
+        dimensions: 1024
+        similarity: cosine
+        
+
 
     mcp:
       client:
@@ -166,6 +201,12 @@ spring:
               env:
                 STRIPE_SECRET_KEY: ${STRIPE_SECRET_KEY}
         initialized: true
+  # Service URLs for RAG initialization
+  app:
+    flight-service:
+      url: http://localhost:8081
+    hotel-service:
+      url: http://localhost:8082
   security:
     oauth2:
       resourceserver:
@@ -193,6 +234,15 @@ spring:
     username: ${DB_USERNAME}
     password: ${DB_PASSWORD}
     driver-class-name: org.postgresql.Driver
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+    consumer:
+      group-id: bookingsmart-rag-service
+      auto-offset-reset: latest
+      enable-auto-commit: false
+    producer:
+      acks: all
+      retries: 3
   security:
     oauth2:
       resourceserver:
@@ -212,36 +262,32 @@ spring:
             token-uri: ${KEYCLOAK_HOST}/realms/BookingSmart/protocol/openid-connect/token
 
   ai:
-    openai:
-      api-key: ${GEMINI_API_KEY}
-      base-url: https://generativelanguage.googleapis.com/v1beta/openai/
-      chat:
-        options:
-          model: gemini-2.5-flash-lite
-              
-    #    ollama:
-    #      init:
-    #
-    #        pull-model-strategy: when_missing
-    #        embedding:
-    #          include: false
-    #      chat:
-    #        options:
-    #          model: qwen3:4b
-    #          temperature: 0.0
-    #      base-url: http://ollama:11434
+  
+    model:
+      embedding: mistral
+    vectorstore:
+      milvus:
+        client:
+          uri: ${MILVUS_URI}
+          token: ${MILVUS_TOKEN}
+          
+        embedding-dimension: 1024
+        database-name: bookingsmart
+        collection-name: vector_store
+        index-type: hnsw
+        metric-type: cosine
+        
+        
     mistralai:
       api-key: ${MISTRAL_API_KEY}
       chat:
         options:
           model: mistral-medium-2508
           temperature: 0.0
+      embedding:
+        options:
+          model: mistral-embed
           
-    chat:
-      memory:
-        repository:
-          jdbc:
-            initialize-schema: never
 
     mcp:
       client:
@@ -306,6 +352,13 @@ spring:
                 BRAVE_API_KEY: ${BRAVE_API_KEY}
                 BRAVE_MCP_DISABLED_TOOLS: brave_news_search brave_web_search brave_summarizer	
         initialized: true
+  
+  # Service URLs for RAG initialization
+app:
+  flight-service:
+    url: http://flight-service
+  hotel-service:
+    url: http://hotel-service
 
 # Logging Configuration for Tool Tracking
 # logging:

@@ -52,6 +52,27 @@ public class BackofficeFlightController {
     }
 
     /**
+     * Get all flight IDs for RAG initialization
+     */
+    @GetMapping("/ids")
+    public ResponseEntity<ApiResponse<Map<String, Object>>> getAllFlightIds(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "100") int size) {
+
+        log.info("Fetching flight IDs for RAG initialization: page={}, size={}", page, size);
+        
+        try {
+            Map<String, Object> response = backofficeFlightService.getAllFlightIds(page, size);
+            log.info("Found {} flight IDs for RAG initialization", ((List<?>) response.getOrDefault("content", List.of())).size());
+            return ResponseEntity.ok(ApiResponse.success(response));
+        } catch (Exception e) {
+            log.error("Error fetching flight IDs for RAG initialization", e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(ApiResponse.error("Failed to fetch flight IDs", e.getMessage()));
+        }
+    }
+
+    /**
      * Get flight by ID for backoffice
      */
     @GetMapping("/{id}")

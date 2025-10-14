@@ -4,6 +4,7 @@ import com.pdh.ai.model.dto.ChatConversationSummaryDto;
 import com.pdh.ai.model.dto.ChatHistoryResponse;
 import com.pdh.ai.model.dto.ChatMessageRequest;
 import com.pdh.ai.model.dto.StructuredChatPayload;
+import com.pdh.ai.rag.service.RagInitializationService;
 import com.pdh.ai.service.AiService;
 import com.pdh.ai.service.LLMAiService;
 import com.pdh.common.utils.AuthenticationUtils;
@@ -17,6 +18,10 @@ import reactor.core.publisher.Mono;
 
 import java.time.LocalDateTime;
 import java.util.UUID;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.stringtemplate.v4.compiler.CodeGenerator.primary_return;
+
 
 /**
  * REST Controller for AI Chat using Spring MVC.
@@ -38,10 +43,11 @@ public class ChatController {
     
     private final AiService aiService;
     private final LLMAiService llmAiService;
-
-    public ChatController(AiService aiService, LLMAiService llmAiService) {
+    private final RagInitializationService ragInitializationService;
+    public ChatController(AiService aiService, LLMAiService llmAiService, RagInitializationService ragInitializationService) {
         this.aiService = aiService;
         this.llmAiService = llmAiService;
+        this.ragInitializationService = ragInitializationService;
     }
 
     /**
@@ -107,7 +113,13 @@ public class ChatController {
                 .build());
         }
     }
+    @GetMapping("init-rag")
+    public String getMethodName(@RequestParam String param) {
+        ragInitializationService.initializeRagData();
+        return new String(param);
 
+    }
+    
     /**
      * Health check endpoint.
      * 

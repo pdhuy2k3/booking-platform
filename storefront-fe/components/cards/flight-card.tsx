@@ -22,7 +22,7 @@ interface FlightCardProps {
     arrivalDateTime?: string;
     duration?: string;
     stops?: string | number;
-    price: number;
+    price: string;
     currency?: string;
     seatClass?: string;
     class?: string;
@@ -251,7 +251,7 @@ export const FlightCard = ({
                 className="bg-blue-600 hover:bg-blue-700 text-white flex flex-col items-center text-xs sm:text-sm px-4 py-2"
               >
                 <span className="font-semibold">
-                  {formatCurrency(flight.price, flight.currency || "VND")}
+                  {flight.price}
                 </span>
               </Button>
             )}

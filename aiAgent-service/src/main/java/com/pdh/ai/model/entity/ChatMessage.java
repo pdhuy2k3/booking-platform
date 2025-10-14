@@ -13,16 +13,18 @@ import jakarta.persistence.Table;
 import java.time.Instant;
 import java.util.UUID;
 
+import org.springframework.ai.chat.messages.MessageType;
+
 @Entity
 @Table(name = "chat_message")
 public class ChatMessage {
 
-    public enum Role {
-        USER,
-        ASSISTANT,
-        SYSTEM,
-        TOOL
-    }
+    // public enum MessageT {
+    //     USER,
+    //     ASSISTANT,
+    //     SYSTEM,
+    //     TOOL
+    // }
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -33,7 +35,7 @@ public class ChatMessage {
 
     @Enumerated(EnumType.STRING)
     @Column(name = "role", nullable = false, length = 16)
-    private Role role;
+    private MessageType role;
 
     @Column(name = "content", nullable = false, columnDefinition = "TEXT")
     private String content;
@@ -44,7 +46,7 @@ public class ChatMessage {
     public ChatMessage() {
     }
 
-    public ChatMessage(UUID conversationId, Role role, String content, Instant timestamp) {
+    public ChatMessage(UUID conversationId, MessageType role, String content, Instant timestamp) {
         this.conversationId = conversationId;
         this.role = role;
         this.content = content;
@@ -74,11 +76,11 @@ public class ChatMessage {
         this.conversationId = conversationId;
     }
 
-    public Role getRole() {
+    public MessageType getRole() {
         return role;
     }
 
-    public void setRole(Role role) {
+    public void setRole(MessageType role) {
         this.role = role;
     }
 

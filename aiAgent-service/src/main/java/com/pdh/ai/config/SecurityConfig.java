@@ -42,7 +42,7 @@ public class SecurityConfig{
                         auth.requestMatchers("/actuator/**").permitAll()
                                 .requestMatchers("/docs/**", "/swagger-ui/**", "/v3/api-docs/**").permitAll()
                                 .requestMatchers("/health/**").permitAll()
-                                .requestMatchers("/ws/**").authenticated()
+                                .requestMatchers("/admin").hasAnyRole("ADMIN")
                                 .anyRequest().authenticated()
                 )
                 .oauth2Client(Customizer.withDefaults())

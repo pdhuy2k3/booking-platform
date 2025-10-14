@@ -68,7 +68,7 @@ public class FlightResponseAssembler {
         FlightFare fare = resolvePrimaryFare(schedule);
 
         Map<String, Object> response = new HashMap<>();
-        response.put("flightId", String.valueOf(flight.getFlightId()));
+        response.put("flightId", flight.getFlightId());
         response.put("airline", flight.getAirline() != null ? flight.getAirline().getName() : "Unknown Airline");
         response.put("airlineLogo", flight.getAirline() != null ? flight.getAirline().getFeaturedMediaUrl() : null); // Add airline logo URL
         response.put("flightNumber", flight.getFlightNumber());

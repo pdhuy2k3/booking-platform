@@ -303,4 +303,48 @@ public class BackofficeHotelService {
         response.put("displayOrder", amenity.getDisplayOrder());
         return response;
     }
+
+    /**
+     * Get all hotel IDs for RAG initialization
+     */
+    @Transactional(readOnly = true)
+    public Map<String, Object> getAllHotelIds(int page, int size) {
+        log.info("Fetching hotel IDs for RAG initialization: page={}, size={}", page, size);
+
+        Pageable pageable = PageRequest.of(page, size, Sort.by(Sort.Direction.ASC, "hotelId"));
+
+        Page<Long> hotelIdPage = hotelRepository.findAllHotelIds(pageable);
+
+        Map<String, Object> response = new HashMap<>();
+        response.put("content", hotelIdPage.getContent());
+        response.put("totalElements", hotelIdPage.getTotalElements());
+        response.put("totalPages", hotelIdPage.getTotalPages());
+        response.put("size", hotelIdPage.getSize());
+        response.put("number", hotelIdPage.getNumber());
+        response.put("first", hotelIdPage.isFirst());
+        response.put("last", hotelIdPage.isLast());
+        response.put("empty", hotelIdPage.isEmpty());
+
+        log.info("Found {} hotel IDs for RAG initialization", hotelIdPage.getContent().size());
+        return response;
+    }
+
+    /**
+     * Get hotel statistics
+     */
+    @Transactional(readOnly = true)
+    public Map<String, Object> getHotelStatistics() {
+        long totalHotels = hotelRepository.count();
+        long activeHotels = hotelRepository.countByIsActive(true);
+        long inactiveHotels = hotelRepository.countByIsActive(false);
+        
+        Map<String, Object> stats = new HashMap<>();
+        stats.put("totalHotels", totalHotels);
+        stats.put("activeHotels", activeHotels);
+        stats.put("inactiveHotels", inactiveHotels);
+        stats.put("totalRoomTypes", roomTypeRepository.count());
+        stats.put("totalAmenities", amenityRepository.count());
+        
+        return stats;
+    }
 }

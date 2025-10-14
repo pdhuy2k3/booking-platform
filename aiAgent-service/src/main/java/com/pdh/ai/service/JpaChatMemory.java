@@ -8,16 +8,19 @@ import com.pdh.ai.repository.ChatMessageRepository;
 import org.springframework.ai.chat.memory.ChatMemory;
 import org.springframework.ai.chat.messages.AssistantMessage;
 import org.springframework.ai.chat.messages.Message;
+import org.springframework.ai.chat.messages.MessageType;
 import org.springframework.ai.chat.messages.SystemMessage;
 import org.springframework.ai.chat.messages.ToolResponseMessage;
 import org.springframework.ai.chat.messages.UserMessage;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.Assert;
 
 import java.time.Instant;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
@@ -38,6 +41,7 @@ public class JpaChatMemory implements ChatMemory {
         UUID id = UUID.fromString(conversationId);
         List<ChatMessage> entities = messages.stream()
                 .map(message -> new ChatMessage(id, mapRole(message), extractContent(message), Instant.now()))
+                .filter(message-> message.getRole() != MessageType.TOOL || message.getRole()!= MessageType.SYSTEM  )
                 .collect(Collectors.toList());
         chatMessageRepository.saveAll(entities);
     }
@@ -69,20 +73,20 @@ public class JpaChatMemory implements ChatMemory {
         chatMessageRepository.deleteByConversationId(UUID.fromString(conversationId));
     }
 
-    private ChatMessage.Role mapRole(Message message) {
+    private MessageType mapRole(Message message) {
         if (message instanceof UserMessage) {
-            return ChatMessage.Role.USER;
+            return MessageType.USER;
         }
         if (message instanceof AssistantMessage) {
-            return ChatMessage.Role.ASSISTANT;
+            return MessageType.ASSISTANT;
         }
         if (message instanceof SystemMessage) {
-            return ChatMessage.Role.SYSTEM;
+            return MessageType.SYSTEM;
         }
         if (message instanceof ToolResponseMessage) {
-            return ChatMessage.Role.TOOL;
+            return MessageType.TOOL;
         }
-        return ChatMessage.Role.USER;
+        return MessageType.USER;
     }
 
     private Message toMessage(ChatMessage entity) {

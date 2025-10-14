@@ -181,4 +181,19 @@ public interface HotelRepository extends JpaRepository<Hotel, Long>, JpaSpecific
         """)
     List<String> findDistinctCities();
     
+    /**
+     * Get all hotel IDs for RAG initialization
+     * @param pageable pagination information
+     * @return Page of hotel IDs
+     */
+    @Query("SELECT h.hotelId FROM Hotel h WHERE h.isActive = true ORDER BY h.hotelId")
+    Page<Long> findAllHotelIds(Pageable pageable);
+    
+    /**
+     * Count hotels by active status
+     * @param isActive the active status to count
+     * @return number of hotels with the specified active status
+     */
+    long countByIsActive(boolean isActive);
+    
 }

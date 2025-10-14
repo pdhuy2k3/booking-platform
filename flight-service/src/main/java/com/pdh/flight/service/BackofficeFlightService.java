@@ -77,6 +77,32 @@ public class BackofficeFlightService {
     }
 
     /**
+     * Get all flight IDs for RAG initialization
+     */
+    @Transactional(readOnly = true)
+    public Map<String, Object> getAllFlightIds(int page, int size) {
+        log.info("Fetching flight IDs for RAG initialization: page={}, size={}", page, size);
+
+        Sort sort = Sort.by(Sort.Direction.ASC, "flightId");
+        Pageable pageable = PageRequest.of(page, size, sort);
+
+        Page<Long> flightIdPage = flightRepository.findAllFlightIds(pageable);
+
+        Map<String, Object> response = new HashMap<>();
+        response.put("content", flightIdPage.getContent());
+        response.put("totalElements", flightIdPage.getTotalElements());
+        response.put("totalPages", flightIdPage.getTotalPages());
+        response.put("size", flightIdPage.getSize());
+        response.put("number", flightIdPage.getNumber());
+        response.put("first", flightIdPage.isFirst());
+        response.put("last", flightIdPage.isLast());
+        response.put("empty", flightIdPage.isEmpty());
+
+        log.info("Found {} flight IDs for RAG initialization", flightIdPage.getContent().size());
+        return response;
+    }
+
+    /**
      * Get single flight with full details
      */
     @Transactional(readOnly = true)

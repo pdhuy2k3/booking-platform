@@ -1,0 +1,22 @@
+{
+    "connector.class": "io.debezium.connector.postgresql.PostgresConnector",
+    "database.hostname": "postgres",
+    "database.port": "5432",
+    "database.user": "postgres",
+    "database.password": "p0stgr3s",
+    "database.dbname": "flight_db",
+    "database.server.name": "flight-db-server",
+    "topic.prefix": "flight-db-server",
+    "slot.name": "flights_cdc_slot",
+    "plugin.name": "pgoutput",
+    "table.include.list": "public.flights",
+    "tombstones.on.delete": "false",
+    "schema.history.internal.kafka.bootstrap.servers": "kafka:29092",
+    "schema.history.internal.kafka.topic": "flights-schema-changes",
+    "decimal.handling.mode": "string",
+    "include.schema.changes": "false",
+    "provide.transaction.metadata": "false",
+    "key.converter": "org.apache.kafka.connect.json.JsonConverter",
+    "value.converter": "org.apache.kafka.connect.json.JsonConverter",
+    "value.converter.schemas.enable": "false"
+}

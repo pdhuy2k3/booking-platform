@@ -487,6 +487,97 @@ public class FlightController {
     }
 
     /**
+     * Get flight ID by schedule ID for storefront
+     * Used by CDC listeners to trace back from schedule changes to flight
+     */
+    @Operation(
+        summary = "Get flight ID by schedule ID",
+        description = "Retrieve the flight ID associated with a specific schedule ID",
+        tags = {"Public API"}
+    )
+    @OpenApiResponses.StandardApiResponsesWithNotFound
+    @GetMapping("/storefront/schedule/{scheduleId}/flight-id")
+    public ResponseEntity<Map<String, Object>> getFlightIdByScheduleId(
+            @Parameter(description = "Schedule ID", required = true, example = "550e8400-e29b-41d4-a716-446655440000")
+            @PathVariable UUID scheduleId) {
+        log.info("Flight ID request by schedule ID: {}", scheduleId);
+
+        try {
+            FlightSchedule schedule = flightScheduleRepository.findById(scheduleId).orElse(null);
+            if (schedule == null || schedule.isDeleted()) {
+                return ResponseEntity.notFound().build();
+            }
+
+            Long flightId = schedule.getFlightId();
+            if (flightId == null) {
+                return ResponseEntity.notFound().build();
+            }
+
+            Map<String, Object> response = Map.of(
+                "flightId", flightId,
+                "scheduleId", scheduleId
+            );
+
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            log.error("Error getting flight ID by schedule ID", e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+        }
+    }
+
+    /**
+     * Get flight ID by fare ID for storefront
+     * Used by CDC listeners to trace back from fare changes to flight
+     */
+    @Operation(
+        summary = "Get flight ID by fare ID",
+        description = "Retrieve the flight ID associated with a specific fare ID through schedule",
+        tags = {"Public API"}
+    )
+    @OpenApiResponses.StandardApiResponsesWithNotFound
+    @GetMapping("/storefront/fare/{fareId}/flight-id")
+    public ResponseEntity<Map<String, Object>> getFlightIdByFareId(
+            @Parameter(description = "Fare ID", required = true, example = "550e8400-e29b-41d4-a716-446655440000")
+            @PathVariable UUID fareId) {
+        log.info("Flight ID request by fare ID: {}", fareId);
+
+        try {
+            // First get the fare to find the schedule ID
+            FlightFare fare = flightFareRepository.findById(fareId).orElse(null);
+            if (fare == null || fare.isDeleted()) {
+                return ResponseEntity.notFound().build();
+            }
+
+            UUID scheduleId = fare.getScheduleId();
+            if (scheduleId == null) {
+                return ResponseEntity.notFound().build();
+            }
+
+            // Then get the schedule to find the flight ID
+            FlightSchedule schedule = flightScheduleRepository.findById(scheduleId).orElse(null);
+            if (schedule == null || schedule.isDeleted()) {
+                return ResponseEntity.notFound().build();
+            }
+
+            Long flightId = schedule.getFlightId();
+            if (flightId == null) {
+                return ResponseEntity.notFound().build();
+            }
+
+            Map<String, Object> response = Map.of(
+                "flightId", flightId,
+                "fareId", fareId,
+                "scheduleId", scheduleId
+            );
+
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            log.error("Error getting flight ID by fare ID", e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+        }
+    }
+
+    /**
      * Get popular destinations for storefront
      */
     @Operation(

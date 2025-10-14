@@ -40,7 +40,7 @@ services:
       - "5432:5432"
     networks:
       - booking-network
-    command: postgres -c wal_level=logical
+    command: postgres -c wal_level=logical -c max_replication_slots=10 -c max_wal_senders=10
 
   # Redis for Event Deduplication
   redis:
@@ -90,6 +90,8 @@ services:
     volumes:
       - kafka_data:/var/lib/kafka/data
 
+
+
   # Debezium Connect
   connect:
     image: quay.io/debezium/connect:3.2.0.Final
@@ -133,9 +135,7 @@ services:
 
         echo "Waiting for Kafka Connect..."
         /usr/bin/env bash /tmp/wait-for-it.sh connect:8083 --timeout=120
-        echo "Kafka Connect is available, waiting 10 seconds to ensure readiness..."
-        sleep 10
-        
+        sleep 5
         echo "Deploy flight connector"
         curl -i -X PUT -H "Accept: application/json" -H "Content-Type: application/json" \
           --data-binary @/tmp/connectors/flight-db-connector.json \
@@ -159,6 +159,30 @@ services:
         curl -i -X PUT -H "Accept: application/json" -H "Content-Type: application/json" \
           --data-binary @/tmp/connectors/notification-db-connector.json \
           http://connect:8083/connectors/notification-connector/config
+        
+        curl -i -X PUT -H "Accept: application/json" -H "Content-Type: application/json" \
+          --data-binary @/tmp/connectors/flights-cdc-connector.json \
+          http://connect:8083/connectors/flight-cdc-connector/config
+        
+        curl -i -X PUT -H "Accept: application/json" -H "Content-Type: application/json" \
+          --data-binary @/tmp/connectors/hotels-cdc-connector.json \
+          http://connect:8083/connectors/hotel-cdc-connector/config
+        
+        curl -i -X PUT -H "Accept: application/json" -H "Content-Type: application/json" \
+          --data-binary @/tmp/connectors/flight-schedules-cdc-connector.json \
+          http://connect:8083/connectors/flight-schedules-cdc-connector/config
+        
+        curl -i -X PUT -H "Accept: application/json" -H "Content-Type: application/json" \
+          --data-binary @/tmp/connectors/flight-fares-cdc-connector.json \
+          http://connect:8083/connectors/flight-fares-cdc-connector/config
+        
+        curl -i -X PUT -H "Accept: application/json" -H "Content-Type: application/json" \
+          --data-binary @/tmp/connectors/room-availability-cdc-connector.json \
+          http://connect:8083/connectors/room-availability-cdc-connector/config
+
+        curl -i -X PUT -H "Accept: application/json" -H "Content-Type: application/json" \
+          --data-binary @/tmp/connectors/room-types-cdc-connector.json \
+          http://connect:8083/connectors/room-types-cdc-connector/config
       '
     networks:
       - booking-network
@@ -329,6 +353,7 @@ services:
       - EUREKA_URI
       - JWT_ISSUER_URI
       - KEYCLOAK_HOST
+      - KAFKA_BOOTSTRAP_SERVERS
       - BOOKING_SMART_AI_CLIENT_SECRET
       - SERVER_PORT
       - DB_URL=jdbc:postgresql://postgres:5432/ai_db
@@ -340,6 +365,9 @@ services:
       - BRAVE_API_KEY
       - MISTRAL_API_KEY
       - STRIPE_SECRET_KEY
+      - ELASTICSEARCH_URI=http://elasticsearch:9200
+      - app.flight-service.url=http://flight-service
+      - app.hotel-service.url=http://hotel-service
     extra_hosts:
       - "host.docker.internal:host-gateway"
     volumes:
@@ -546,4 +574,5 @@ volumes:
   zookeeper_data:
   zookeeper_log:
   kafka_data:
+  # elasticsearch_data:
   # pulled_models:

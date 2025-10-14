@@ -265,7 +265,7 @@ public class StripePaymentStrategy implements PaymentStrategy {
                                             Map<String, Object> additionalData) throws StripeException {
 
         String currency = payment.getCurrency() != null
-                ? payment.getCurrency().toLowerCase
+                ? payment.getCurrency().toLowerCase()
                 : stripeConfig.getSettings().getCurrency();
 
         long amountInMinorUnits = toStripeAmount(payment.getAmount(), currency);
@@ -305,7 +305,7 @@ public class StripePaymentStrategy implements PaymentStrategy {
     public PaymentIntent createAndConfirmPaymentIntent(Payment payment, PaymentMethod paymentMethod,
                                                        Map<String, Object> additionalData) throws StripeException {
         String currency = payment.getCurrency() != null
-                ? payment.getCurrency().toLowerCase
+                ? payment.getCurrency().toLowerCase()
                 : stripeConfig.getSettings().getCurrency();
 
         long amountInMinorUnits = toStripeAmount(payment.getAmount(), currency);
@@ -492,7 +492,7 @@ public class StripePaymentStrategy implements PaymentStrategy {
     public PaymentIntent createManualPaymentIntent(Payment payment, Map<String, Object> additionalData,
                                                    com.pdh.payment.dto.StripePaymentIntentRequest request) throws StripeException {
         String currency = payment.getCurrency() != null
-                ? payment.getCurrency().toLowerCase
+                ? payment.getCurrency().toLowerCase()
                 : stripeConfig.getSettings().getCurrency();
 
         long amountInMinorUnits = toStripeAmount(payment.getAmount(), currency);
@@ -541,7 +541,7 @@ public class StripePaymentStrategy implements PaymentStrategy {
             if (customerEmail != null) {
                 customerId = getOrCreateCustomer(customerEmail, 
                     request.getCustomerName() != null ? request.getCustomerName() : 
-                    (String) additionalData != null ? (String) additionalData.get("customer_name") : null);
+                    additionalData != null ? (String) additionalData.get("customer_name") : null);
                 
                 if (customerId != null) {
                     paramsBuilder.setCustomer(customerId);
@@ -762,8 +762,8 @@ public class StripePaymentStrategy implements PaymentStrategy {
         }
 
         String effectiveCurrency = currency != null
-            ? currency.toLowerCase
-            : stripeConfig.getSettings().getCurrency().toLowerCase;
+            ? currency.toLowerCase()
+            : stripeConfig.getSettings().getCurrency().toLowerCase();
 
         BigDecimal normalizedAmount = ZERO_DECIMAL_CURRENCIES.contains(effectiveCurrency)
             ? amount.setScale(0, RoundingMode.HALF_UP)

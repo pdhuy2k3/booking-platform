@@ -6,12 +6,8 @@ import com.pdh.ai.model.dto.StructuredChatPayload;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import com.pdh.ai.agent.advisor.LoggingAdvisor;
-import com.pdh.ai.model.dto.ExploreResponse;
-
-
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.mistralai.MistralAiChatModel;
-import org.springframework.ai.openai.OpenAiChatModel;
 import org.springframework.ai.tool.ToolCallbackProvider;
 import org.springframework.stereotype.Component;
 
