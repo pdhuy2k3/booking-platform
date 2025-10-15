@@ -21,19 +21,20 @@ import org.springframework.web.client.RestClient;
 
 import java.util.List;
 import java.util.Map;
-import java.util.ArrayList;
 import java.util.concurrent.CompletableFuture;
+import java.util.ArrayList;
 
-import com.pdh.common.utils.AuthenticationUtils;
 import com.pdh.ai.client.StorefrontClientService;
-import com.pdh.ai.service.ExploreCacheWarmer;
 
 /**
  * Service for initializing the RAG vector store with existing data from microservices
  * This service fetches all current data from flight and hotel services and populates the vector store
+ * For development/testing purposes, this can be triggered on application startup
+ * In production, consider using a scheduled job or manual trigger to avoid long startup times
  */
 @Slf4j
 @Service
+
 public class RagInitializationService implements ApplicationRunner{
     private static final Logger logger = LoggerFactory.getLogger(RagInitializationService.class);
 
@@ -107,21 +108,22 @@ public class RagInitializationService implements ApplicationRunner{
 
     @Override
     public void run(ApplicationArguments args) throws Exception {
-        logger.info("🚀 [RAG-INIT] Starting RAG data initialization...");
+        // logger.info("🚀 [RAG-INIT] Starting RAG data initialization...");
         
-        // First authenticate with Keycloak to get access token
+        // // First authenticate with Keycloak to get access token
         
       
-        CompletableFuture
-        .runAsync(() -> {
-                initializeRagData();})
-            .whenComplete((result, throwable) -> {
-                if (throwable != null) {
-                    logger.error("❌ [RAG-INIT] Error during RAG data initialization: {}", throwable.getMessage(), throwable);
-                } else {
-                    logger.info("✅ [RAG-INIT] RAG data initialization completed successfully");
-                }
-            });
+        // CompletableFuture
+        // .runAsync(() -> {
+        //     authenticateWithKeycloak();
+        //         initializeRagData();})
+        //     .whenComplete((result, throwable) -> {
+        //         if (throwable != null) {
+        //             logger.error("❌ [RAG-INIT] Error during RAG data initialization: {}", throwable.getMessage(), throwable);
+        //         } else {
+        //             logger.info("✅ [RAG-INIT] RAG data initialization completed successfully");
+        //         }
+        //     });
     }
 
     /**

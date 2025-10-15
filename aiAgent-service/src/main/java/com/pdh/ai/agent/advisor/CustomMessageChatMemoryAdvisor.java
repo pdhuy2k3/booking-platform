@@ -78,11 +78,9 @@ public final class CustomMessageChatMemoryAdvisor implements BaseChatMemoryAdvis
 		String conversationId = getConversationId(chatClientRequest.context(), this.defaultConversationId);
         boolean isAddUserMessage = isAddUserMessage(chatClientRequest.context(), this.isAddUserMessage);
 		//save use original request for after processing
-		if(chatClientRequest.prompt().getUserMessage() != null && isAddUserMessage
-                && !conversationId.equals(JpaChatMemory.DEFAULT_CONVERSATION_ID)
-        ){
-			this.chatMemory.add(conversationId, List.of(chatClientRequest.prompt().getUserMessage()));
-		}
+		// if(chatClientRequest.prompt().getUserMessage() != null && isAddUserMessage){
+		// 	this.chatMemory.add(conversationId, List.of(chatClientRequest.prompt().getUserMessage()));
+		// }
 		// this.chatMemory.add(conversationId, chatClientRequest.prompt().getUserMessage() != null
 		// 		? List.of(chatClientRequest.prompt().getUserMessage())
 		// 		: List.of());
@@ -116,7 +114,9 @@ public final class CustomMessageChatMemoryAdvisor implements BaseChatMemoryAdvis
 		}
 		if(assistantMessages!=null && !assistantMessages.isEmpty() ) {
 			String conversationId = getConversationId(chatClientResponse.context(), this.defaultConversationId);
-			this.chatMemory.add(conversationId, assistantMessages);
+			// this.chatMemory.add(conversationId, assistantMessages);
+			log.debug("assistant messages to chat memory for conversationId={}, message: {}", conversationId,
+					chatClientResponse.context());
 		}
 		return chatClientResponse;
 	}

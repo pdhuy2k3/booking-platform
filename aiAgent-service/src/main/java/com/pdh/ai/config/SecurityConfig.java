@@ -43,7 +43,7 @@ public class SecurityConfig{
                                 .requestMatchers("/docs/**", "/swagger-ui/**", "/v3/api-docs/**").permitAll()
                                 .requestMatchers("/health/**").permitAll()
                                 .requestMatchers("/admin").hasAnyRole("ADMIN")
-                                .anyRequest().authenticated()
+                                .anyRequest().permitAll()
                 )
                 .oauth2Client(Customizer.withDefaults())
                 .oauth2ResourceServer(oauth2 -> oauth2.jwt(Customizer.withDefaults()))

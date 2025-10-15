@@ -85,9 +85,6 @@ class AiChatService {
     conversationId: string
   ): Promise<ReadableStream<StructuredChatPayload> | null> {
     try {
-      // Construct the streaming URL as a relative path that will go through the same gateway
-      const url = `${this.baseUrl}/chat/stream?conversationId=${encodeURIComponent(conversationId)}`;
-      
       // Create the request object
       const request: ChatMessageRequest = {
         message: message.trim(),
@@ -95,7 +92,9 @@ class AiChatService {
         // userId is extracted from JWT token on backend - no need to send
       };
 
-      // Use fetch API for SSE
+      // Use fetch API for SSE - the gateway (BFF) should handle authentication
+      // We'll route through the same base as our apiClient
+      const url = `/api${this.baseUrl}/chat/stream?conversationId=${encodeURIComponent(conversationId)}`;
       const response = await fetch(url, {
         method: 'POST',
         headers: {

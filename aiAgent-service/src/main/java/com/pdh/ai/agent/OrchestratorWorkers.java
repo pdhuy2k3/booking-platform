@@ -1,8 +1,17 @@
 package com.pdh.ai.agent;
+import static com.pdh.ai.agent.advisor.CustomMessageChatMemoryAdvisor.ADD_USER_MESSAGE;
+import static org.springframework.ai.chat.memory.ChatMemory.CONVERSATION_ID;
+
 import java.util.List;
 
 import org.springframework.ai.chat.client.ChatClient;
+import org.springframework.ai.chat.prompt.Prompt;
+import org.springframework.ai.converter.BeanOutputConverter;
+import org.springframework.ai.mistralai.MistralAiChatOptions;
+import org.springframework.ai.mistralai.api.MistralAiApi.ChatCompletionRequest.ResponseFormat;
 import org.springframework.util.Assert;
+
+import com.pdh.ai.util.CurlyBracketEscaper;
 public class OrchestratorWorkers {
     private final ChatClient chatClient;
     private final String orchestratorPrompt;
@@ -12,7 +21,7 @@ public class OrchestratorWorkers {
 			Analyze this task and break it down into 2-3 distinct approaches using the BookingSmart tools and following the critical rules:
 
 			## AVAILABLE TOOLS
-			- Use date/time tool for current date/time when user not specify (search for next 30 days if user not specify, make sure get date from date tool)
+			- Use date/time tool for current date/time when user not specify (search for next 30 days if user not specify, make sure get date from current_date_time_zone tool)
 			- Flights: Use `search_flights` tool only
 			- Hotels: Use `search_hotels` tool only
 			- Weather: Use `weather` tool only
@@ -27,25 +36,8 @@ public class OrchestratorWorkers {
 			**Before ANY payment processing:** Display payment summary and wait for explicit confirmation ("Yes", "Confirm", "Proceed")
 
 			Task: {task}
-
-			Return your response in this JSON format:
-			\\{
-			"analysis": "Explain your understanding of the task and which variations would be valuable. Focus on how each approach serves different aspects of the task and which tools are most appropriate.",
-			"tasks": [
-				\\{
-				"type": "search",
-				"description": "Use search tools (search_flights, search_hotels, weather, mapbox) to find relevant information"
-				\\},
-				\\{
-				"type": "booking",
-				"description": "Handle booking operations with proper confirmation flows using create_booking and related tools"
-				\\},
-				\\{
-				"type": "payment",
-				"description": "Process payments with required security measures and confirmation using payment tools"
-				\\}
-			]
-			\\}
+                        Respond in JSON format with:
+                        {format}
 			""";
 
     public static final String DEFAULT_WORKER_PROMPT = """
@@ -128,22 +120,30 @@ public class OrchestratorWorkers {
      * @throws IllegalArgumentException if taskDescription is null or empty
      */
     @SuppressWarnings("null")
-    public FinalResponse process(String taskDescription) {
+    public FinalResponse process(String taskDescription,String conversationId) {
         Assert.hasText(taskDescription, "Task description must not be empty");
-
+        BeanOutputConverter<OrchestratorResponse> outputConverter = new BeanOutputConverter<>(OrchestratorResponse.class);
         // Step 1: Get orchestrator response
-        OrchestratorResponse orchestratorResponse = this.chatClient.prompt()
-                .user(u -> u.text(this.orchestratorPrompt)
-                        .param("task", taskDescription))
+        MistralAiChatOptions mistralAiChatOptions=MistralAiChatOptions.builder()
+        .responseFormat(new ResponseFormat("json_object",outputConverter.getJsonSchemaMap()))
+        .build();
+        Prompt prompt=Prompt.builder().chatOptions(mistralAiChatOptions).build();
+        prompt.augmentSystemMessage(orchestratorPrompt);
+        String orchestratorContent = this.chatClient.prompt(prompt)
+                .system(u -> u.text(this.orchestratorPrompt)
+                        .param("task", taskDescription)
+                        .param("format",CurlyBracketEscaper.escapeCurlyBrackets(outputConverter.getFormat()) ))
+                        
                 .call()
-                .entity(OrchestratorResponse.class);
-
+                .content();
+        OrchestratorResponse orchestratorResponse = outputConverter.convert(orchestratorContent);
         System.out.println(String.format("\n=== ORCHESTRATOR OUTPUT ===\nANALYSIS: %s\n\nTASKS: %s\n",
                 orchestratorResponse.analysis(), orchestratorResponse.tasks()));
 
         // Step 2: Process each task
         List<String> workerResponses = orchestratorResponse.tasks().stream().map(task -> this.chatClient.prompt()
-                .user(u -> u.text(this.workerPrompt)
+                .advisors(spec -> spec.param(CONVERSATION_ID, conversationId).param(ADD_USER_MESSAGE, false))                .
+                system(u -> u.text(this.workerPrompt)
                         .param("original_task", taskDescription)
                         .param("task_type", task.type())
                         .param("task_description", task.description()))

@@ -46,7 +46,7 @@ public class StorefrontClientService {
      */
     public Map<String, Object> getFlightDetails(Long flightId,String token) {
         try {
-            String url = String.format("%s/backoffice/flights/%d", flightServiceUrl, flightId);
+            String url = String.format("%s/flights/backoffice/flights/%d", flightServiceUrl, flightId);
             log.debug("Calling flight service backoffice endpoint: {}", url);
             
             ResponseEntity<Map<String, Object>> response = restClient.get()
@@ -83,7 +83,7 @@ public class StorefrontClientService {
     public Map<String, Object> getFlightDetailsByScheduleId(UUID scheduleId, String token) {
         try {
             // First get the schedule to extract the flight ID
-            String scheduleUrl = String.format("%s/backoffice/schedules/%s", flightServiceUrl, scheduleId.toString());
+            String scheduleUrl = String.format("%s/flights/backoffice/schedules/%s", flightServiceUrl, scheduleId.toString());
             log.debug("Calling flight service backoffice endpoint to get schedule: {}", scheduleUrl);
             
             ResponseEntity<Map<String, Object>> scheduleResponse = restClient.get()

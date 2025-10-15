@@ -1,45 +1,99 @@
 package com.pdh.ai.service;
 
-import java.time.Instant;
-import java.time.LocalDateTime;
-import java.time.ZoneOffset;
-import java.util.Collections;
-import java.util.List;
-import java.util.UUID;
-
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.pdh.ai.agent.CoreAgent;
 import com.pdh.ai.model.dto.ChatConversationSummaryDto;
 import com.pdh.ai.model.dto.ChatHistoryResponse;
 import com.pdh.ai.model.dto.StructuredChatPayload;
-
 import com.pdh.ai.model.entity.ChatMessage;
-import org.springframework.data.domain.PageRequest;
+import com.pdh.ai.repository.ChatMessageRepository;
 import org.springframework.stereotype.Service;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
-
-import com.pdh.ai.repository.ChatMessageRepository;
-
+import java.time.Instant;
+import java.time.LocalDateTime;
+import java.time.ZoneOffset;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
 
 @Service
 public class LLMAiService implements AiService {
 
     private final CoreAgent coreAgent;
     private final ChatMessageRepository chatMessageRepository;
+    private final ObjectMapper objectMapper;
 
     public LLMAiService(CoreAgent coreAgent,
-                        ChatMessageRepository chatMessageRepository) {
+                        ChatMessageRepository chatMessageRepository,
+                        ObjectMapper objectMapper) {
         this.coreAgent = coreAgent;
         this.chatMessageRepository = chatMessageRepository;
+        this.objectMapper = objectMapper;
     }
+
     @Override
     public Flux<StructuredChatPayload> processStreamStructured(String message, String conversationId, String userId) {
         String actualUserId = resolveAuthenticatedUserId(userId);
         String conversationKey = formatConversationKey(actualUserId, conversationId);
+        Instant now = Instant.now();
 
+        ChatMessage parent = chatMessageRepository.findTopByConversationIdOrderByTimestampAsc(conversationKey).orElse(null);
 
-        return coreAgent.processStreamStructured(message,conversationId);
+        ChatMessage userMessage = ChatMessage.builder()
+                .conversationId(conversationKey)
+                .role(org.springframework.ai.chat.messages.MessageType.USER)
+                .content(message)
+                .timestamp(now)
+                .build();
+
+        ChatMessage savedUserMessage;
+        if (parent == null) {
+            userMessage.setTitle(defaultTitle(message));
+            savedUserMessage = chatMessageRepository.save(userMessage);
+        } else {
+            userMessage.setParentMessage(parent);
+            savedUserMessage = chatMessageRepository.save(userMessage);
+        }
+
+        final ChatMessage effectiveParent = (parent == null) ? savedUserMessage : parent;
+
+        try {
+            List<StructuredChatPayload> payloads = new ArrayList<>();
+            return coreAgent.processStreamStructured(message, conversationKey)
+                    .map(this::ensureValidPayload)
+                    .doOnNext(payloads::add)
+                    .doOnComplete(() -> {
+                        if (!payloads.isEmpty()) {
+                            try {
+                                String assistantContent = payloads.size() == 1 ?
+                                        objectMapper.writeValueAsString(payloads.get(0)) :
+                                        objectMapper.writeValueAsString(payloads);
+
+                                ChatMessage assistantMessage = ChatMessage.builder()
+                                        .conversationId(conversationKey)
+                                        .role(org.springframework.ai.chat.messages.MessageType.ASSISTANT)
+                                        .content(assistantContent)
+                                        .timestamp(Instant.now())
+                                        .parentMessage(effectiveParent)
+                                        .build();
+                                chatMessageRepository.save(assistantMessage);
+                            } catch (JsonProcessingException e) {
+                                // Consider logging this error
+                                e.printStackTrace();
+                            }
+                        }
+                    })
+                    .onErrorResume(e -> {
+                        e.printStackTrace();
+                        return Mono.just(buildErrorResponse());
+                    });
+        } catch (Exception e) {
+            e.printStackTrace();
+            return Flux.just(buildErrorResponse());
+        }
     }
 
     @Override
@@ -60,8 +114,8 @@ public class LLMAiService implements AiService {
 
         // For this implementation, we'll use the timestamp of the first message as createdAt
         // and the last message as lastUpdated, or current time if no messages exist
-        Instant createdAt = storedMessages.isEmpty() ? Instant.now() 
-            : storedMessages.get(0).getTimestamp();
+        Instant createdAt = storedMessages.isEmpty() ? Instant.now()
+                : storedMessages.get(0).getTimestamp();
         Instant lastUpdatedInstant = storedMessages.isEmpty()
                 ? createdAt
                 : storedMessages.get(storedMessages.size() - 1).getTimestamp();
@@ -78,7 +132,7 @@ public class LLMAiService implements AiService {
     public void clearChatHistory(String conversationId, String userId) {
         String actualUserId = resolveAuthenticatedUserId(userId);
         String conversationKey = formatConversationKey(actualUserId, conversationId);
-        
+
         // Simply delete all messages with this conversation key
         chatMessageRepository.deleteByConversationId(conversationKey);
     }
@@ -86,30 +140,22 @@ public class LLMAiService implements AiService {
     @Override
     public List<ChatConversationSummaryDto> getUserConversations(String userId) {
         String actualUserId = resolveAuthenticatedUserId(userId);
-        
-        // Get all unique conversation IDs for this user
-        // Since we don't have a dedicated conversation table anymore, we'll query the messages table
-        // to get distinct conversation IDs for this user
-        List<String> conversationKeys = chatMessageRepository
-            .findByConversationIdStartingWithOrderByTimestampDesc(actualUserId + ":", PageRequest.of(0, 50))
-            .stream()
-            .map(ChatMessage::getConversationId)
-            .distinct()
-            .toList();
+        String userIdPrefix = actualUserId + ":";
 
-        // For each conversation, find the most recent message to determine the title and last updated
-        return conversationKeys.stream().map(key -> {
-            // Extract the conversationId from the full key (user:convId)
-            String conversationId = extractConversationIdFromKey(key);
-            String title = extractTitleFromMessages(key);
-            Instant createdAt = extractCreatedAtFromMessages(key);
-            Instant lastUpdated = extractLastUpdatedFromMessages(key);
+        List<ChatMessageRepository.ConversationInfo> conversations = chatMessageRepository.findUserConversations(userIdPrefix);
 
+        return conversations.stream().map(conv -> {
+            String conversationKey = conv.getConversationId();
+            String unprefixedId = conversationKey;
+            if (conversationKey != null && conversationKey.startsWith(userIdPrefix)) {
+                unprefixedId = conversationKey.substring(userIdPrefix.length());
+            }
+            
             return ChatConversationSummaryDto.builder()
-                    .id(conversationId) // Just the conversation ID, not the full key
-                    .title(normalizeTitle(title))
-                    .createdAt(createdAt)
-                    .lastUpdated(lastUpdated)
+                    .id(unprefixedId)
+                    .title(normalizeTitle(conv.getTitle()))
+                    .createdAt(conv.getCreatedAt())
+                    .lastUpdated(conv.getLastUpdated())
                     .build();
         }).toList();
     }
@@ -170,63 +216,6 @@ public class LLMAiService implements AiService {
         }
         return conversationKey; // If no separator, return the whole string
     }
-
-    /**
-     * Extract a title from the messages in a conversation
-     */
-    private String extractTitleFromMessages(String conversationKey) {
-        List<ChatMessage> messages = chatMessageRepository
-            .findByConversationIdOrderByTimestampAsc(conversationKey);
-        
-        if (!messages.isEmpty()) {
-            // Use the content of the first user message as the title
-            for (ChatMessage message : messages) {
-                if (message.getRole().equals(org.springframework.ai.chat.messages.MessageType.USER)) {
-                    String content = message.getContent();
-                    if (content != null && !content.trim().isEmpty()) {
-                        int maxLength = 60;
-                        String sanitized = content.replaceAll("\\s+", " ").trim();
-                        return sanitized.length() <= maxLength ? sanitized : sanitized.substring(0, maxLength) + "...";
-                    }
-                }
-            }
-            // If no user message found, use the first message
-            String content = messages.get(0).getContent();
-            if (content != null && !content.trim().isEmpty()) {
-                int maxLength = 60;
-                String sanitized = content.replaceAll("\\s+", " ").trim();
-                return sanitized.length() <= maxLength ? sanitized : sanitized.substring(0, maxLength) + "...";
-            }
-        }
-        return "New Conversation";
-    }
-
-    /**
-     * Get the creation time of the first message in the conversation
-     */
-    private Instant extractCreatedAtFromMessages(String conversationKey) {
-        List<ChatMessage> messages = chatMessageRepository
-            .findByConversationIdOrderByTimestampAsc(conversationKey);
-        
-        if (!messages.isEmpty()) {
-            return messages.get(0).getTimestamp();
-        }
-        return Instant.now();
-    }
-
-    /**
-     * Get the timestamp of the last message in the conversation
-     */
-    private Instant extractLastUpdatedFromMessages(String conversationKey) {
-        List<ChatMessage> messages = chatMessageRepository
-            .findByConversationIdOrderByTimestampDesc(conversationKey, PageRequest.of(0, 1));
-        
-        if (!messages.isEmpty()) {
-            return messages.get(0).getTimestamp();
-        }
-        return Instant.now();
-    }
-
 
     /**
      * Ensures payload has valid fields.

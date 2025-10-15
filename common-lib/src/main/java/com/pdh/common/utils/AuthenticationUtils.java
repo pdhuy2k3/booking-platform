@@ -31,7 +31,17 @@ public final class AuthenticationUtils {
         }
         throw new AccessDeniedException("Unsupported authentication type: " + authentication.getClass());
     }
+    public static String extractUsername() {
+        Authentication authentication = getAuthentication();
 
+        if (authentication instanceof AnonymousAuthenticationToken) {
+            throw new AccessDeniedException(ApiConstant.ACCESS_DENIED);
+        }
+
+        JwtAuthenticationToken contextHolder = (JwtAuthenticationToken) authentication;
+
+        return contextHolder.getToken().getClaimAsString("preferred_username");
+    }
     public static UUID getCurrentUserIdFromContext() {
         String userId = extractUserId();
         try {

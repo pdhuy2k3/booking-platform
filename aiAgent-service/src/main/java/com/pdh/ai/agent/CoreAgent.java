@@ -7,11 +7,17 @@ import com.pdh.ai.util.CurlyBracketEscaper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import com.pdh.ai.agent.advisor.CustomMessageChatMemoryAdvisor;
+import com.pdh.ai.agent.tools.CurrentDateTimeZoneTool;
+
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.client.advisor.vectorstore.QuestionAnswerAdvisor;
+import org.springframework.ai.chat.prompt.Prompt;
 import org.springframework.ai.chat.prompt.PromptTemplate;
 import org.springframework.ai.converter.BeanOutputConverter;
 import org.springframework.ai.mistralai.MistralAiChatModel;
+import org.springframework.ai.mistralai.MistralAiChatOptions;
+import org.springframework.ai.mistralai.api.MistralAiApi;
+import org.springframework.ai.mistralai.api.MistralAiApi.ChatCompletionRequest.ResponseFormat;
 import org.springframework.ai.rag.advisor.RetrievalAugmentationAdvisor;
 import org.springframework.ai.rag.preretrieval.query.transformation.CompressionQueryTransformer;
 import org.springframework.ai.rag.retrieval.search.VectorStoreDocumentRetriever;
@@ -69,33 +75,34 @@ public class CoreAgent {
         this.toolCallbackProvider = toolCallbackProvider;
         this.vectorStore = vectorStore;
         // Advisors
-        questionAnswerAdvisor = QuestionAnswerAdvisor.builder(vectorStore)
-                .build();
+        // questionAnswerAdvisor = QuestionAnswerAdvisor.builder(vectorStore)
+        //         .build();
         memoryAdvisor = CustomMessageChatMemoryAdvisor.builder(chatMemory)
                 .build();
         outputConverter = new BeanOutputConverter<>(StructuredChatPayload.class);
 
 
-        retrievalAugmentationAdvisor = RetrievalAugmentationAdvisor.builder()
-                .queryTransformers(
-                        CompressionQueryTransformer.builder()
-                                .chatClientBuilder(ChatClient.builder(mistraModel))
-                                .promptTemplate(COMPRESSION_PROMPT_TEMPLATE)
-                                .build()
-                )
-                .documentRetriever(VectorStoreDocumentRetriever.builder()
-                        .vectorStore(vectorStore)
-                        .build())
-                .build();
+        // retrievalAugmentationAdvisor = RetrievalAugmentationAdvisor.builder()
+        //         .queryTransformers(
+        //                 CompressionQueryTransformer.builder()
+        //                         .chatClientBuilder(ChatClient.builder(mistraModel))
+        //                         .promptTemplate(COMPRESSION_PROMPT_TEMPLATE)
+        //                         .build()
+        //         )
+        //         .documentRetriever(VectorStoreDocumentRetriever.builder()
+        //                 .vectorStore(vectorStore)
+        //                 .build())
+        //         .build();
         this.chatClient = ChatClient.builder(mistraModel)
-                .defaultAdvisors(memoryAdvisor, memoryAdvisor, retrievalAugmentationAdvisor)
+                .defaultAdvisors(memoryAdvisor)
                 .defaultToolCallbacks(toolCallbackProvider)
+                .defaultTools(new CurrentDateTimeZoneTool())
                 .build();
 
     }
 
 
-    public ChatClient.ChatClientRequestSpec input(OrchestratorWorkers.FinalResponse finalResponse, String userRequest, String conversationId) {
+    public ChatClient.ChatClientRequestSpec input(OrchestratorWorkers.FinalResponse finalResponse, String userRequest) {
         String systemPrompt = """
                 This is analyzed user request:
                 {analysis}
@@ -108,50 +115,42 @@ public class CoreAgent {
                 {workerResponses}
                 """;
 
-        return chatClient.prompt()
-                .advisors(spec -> spec.param(CONVERSATION_ID, conversationId).param(ADD_USER_MESSAGE, false))
-                .system(s -> s.text(systemPrompt)
+        Prompt prompt=Prompt.builder()
+
+        .chatOptions(MistralAiChatOptions
+                .builder()
+                .responseFormat(
+                        new ResponseFormat("json_object",outputConverter.getJsonSchemaMap()))
+                .build())
+        .build();
+        prompt.augmentSystemMessage(systemPrompt).augmentUserMessage(userRequest);
+        return chatClient.prompt(prompt)
+                .system(s -> s
                         .param("analysis", finalResponse.analysis())
                         .param("workerResponses",
                                 finalResponse.workerResponses().stream().collect(Collectors.joining("\n")))
-
-                )
-                .user(u ->
-                        u.text("This is the user request, make sure generate the response follow user language: "
-                                        + System.lineSeparator() + "{userRequest}"
-                                        + System.lineSeparator() + "End of user request."
-                                        + System.lineSeparator() + "{format}"
-                                )
-                                .param("userRequest", userRequest)
-                                .param("format", CurlyBracketEscaper.escapeCurlyBrackets(outputConverter.getFormat()))
-
-                )
-                ;
+                );
     }
 
-    public Flux<String> stream(OrchestratorWorkers.FinalResponse finalResponse, String userRequest, String conversationId) {
-        return input(finalResponse, userRequest, conversationId)
+    public Flux<String> stream(OrchestratorWorkers.FinalResponse finalResponse, String userRequest) {
+        return input(finalResponse, userRequest)
                 .stream().content();
     }
 
 
     public Flux<StructuredChatPayload> processStreamStructured(String message, String conversationId) {
         OrchestratorWorkers workers = new OrchestratorWorkers(chatClient);
-        OrchestratorWorkers.FinalResponse finalAnalysis = workers.process(message);
+        OrchestratorWorkers.FinalResponse finalAnalysis = workers.process(message,conversationId);
 
-        Flux<String> contentStream = stream(finalAnalysis, message, conversationId);
+        Flux<String> contentStream = stream(finalAnalysis, message);
 
-        // Use scan to accumulate the string content incrementally.
         return contentStream.scan("", (accumulator, newChunk) -> accumulator + newChunk)
                 .flatMap(accumulatedText -> {
                     try {
-                        // Try to parse the full structure. This will succeed only towards the end.
                         StructuredChatPayload fullPayload = outputConverter.convert(accumulatedText);
                         return Mono.just(fullPayload);
                     } catch (Exception e) {
-                        // If parsing fails, the JSON is likely incomplete.
-                        // We'll send a payload with the message text we can salvage so far.
-                        // This provides the text-streaming effect on the frontend.
+
                         String messageSoFar = extractMessageFromPartialJson(accumulatedText);
                         return Mono.just(StructuredChatPayload.builder()
                                 .message(messageSoFar)
@@ -161,14 +160,7 @@ public class CoreAgent {
                     }
                 })
                 // Ensure we don't send duplicate payloads if only whitespace is added.
-                .distinctUntilChanged()
-                .onErrorResume(e -> {
-                    logger.error("Error processing stream and creating structured payload", e);
-                    return Flux.just(StructuredChatPayload.builder()
-                            .message(ERROR_MESSAGE)
-                            .results(List.of())
-                            .build());
-                });
+                .distinctUntilChanged();
     }
 
     /**

@@ -6,10 +6,10 @@ server:
     max-http-form-post-size: 20MB
     max-swallow-size: 20MB
 keycloak:
-  client-id: $$$$$$$
-  client-secret: $$$$$
-  username: $$$$$
-  password: $$$$$
+  client-id: storefront-bff
+  client-secret: 75eYfom5gp8FxX09a12MtZWKpAvwAA2U
+  username: phamduyhuy
+  password: Tun!8111474652
   # Vector store configuration for default profile
 
 # OpenAPI Documentation Configuration
@@ -97,11 +97,11 @@ spring:
     password: p0stgr3s
     driver-class-name: org.postgresql.Driver
   elasticsearch:
-    uris: http://localhost:9200
-    username: elastic
-    password: changeme
+    uris: ${ELASTIC_URIS}
+    username: ${ELASTIC_USERNAME}
+    password: ${ELASTIC_PASSWORD}
   kafka:
-    bootstrap-servers: localhost:9092
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
     consumer:
       group-id: bookingsmart-rag-service
       auto-offset-reset: latest
@@ -228,6 +228,11 @@ spring:
     username: ${DB_USERNAME}
     password: ${DB_PASSWORD}
     driver-class-name: org.postgresql.Driver
+  elasticsearch:
+    uris: ${ELASTIC_URIS}
+  
+    
+
   kafka:
     bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
     consumer:
@@ -258,33 +263,31 @@ spring:
   ai:
   
     model:
-      embedding: mistral
+      embedding: ollama
+      
     vectorstore:
-      milvus:
-        client:
-          uri: ${MILVUS_URI}
-          username: ${MILVUS_USERNAME}
-          password: ${MILVUS_PASSWORD}
-          token: ${MILVUS_TOKEN}
-        initialize-schema: true
-        embedding-dimension: 1024
-        database-name: default
-        collection-name: vector_store
-        index-type: hnsw
-        metric-type: cosine
-        
-        
+      elasticsearch:
+      #dimensions must match the embedding model output dimension embeddinggemma:300m
+        dimensions: 768
+        similarity: cosine
+        initialize-schema: true     
+    ollama:
+      base-url: http://ollama:11434
+      embedding:
+        options:
+          model: nomic-embed-text:latest
+
+
     mistralai:
       api-key: ${MISTRAL_API_KEY}
       chat:
         options:
           model: mistral-medium-2508
           temperature: 0.0
-      embedding:
-        options:
-          model: mistral-embed
-          
 
+
+            
+        
     mcp:
       client:
         enabled: true

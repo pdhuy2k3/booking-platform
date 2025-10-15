@@ -7,6 +7,7 @@ import com.pdh.ai.model.dto.StructuredChatPayload;
 import com.pdh.ai.rag.service.RagInitializationService;
 import com.pdh.ai.service.AiService;
 import com.pdh.ai.service.LLMAiService;
+import com.pdh.common.utils.AuthenticationUtils;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -42,11 +43,9 @@ public class ChatController {
     
     private static final Logger logger = LoggerFactory.getLogger(ChatController.class);
     
-    private final AiService aiService;
     private final LLMAiService llmAiService;
     private final RagInitializationService ragInitializationService;
-    public ChatController(AiService aiService, LLMAiService llmAiService, RagInitializationService ragInitializationService) {
-        this.aiService = aiService;
+    public ChatController( LLMAiService llmAiService, RagInitializationService ragInitializationService) {
         this.llmAiService = llmAiService;
         this.ragInitializationService = ragInitializationService;
     }
@@ -89,12 +88,6 @@ public class ChatController {
 //                .build());
 //        }
 //    }
-    @GetMapping("init-rag")
-    public String getMethodName(@RequestParam String param) {
-        ragInitializationService.initializeRagData();
-        return new String(param);
-
-    }
 
     /**
      * Streaming chat endpoint - Returns response chunks as they are generated.
@@ -115,11 +108,10 @@ public class ChatController {
      */
     @PostMapping(path = "/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
     public Flux<StructuredChatPayload> streamChat(@RequestBody ChatMessageRequest request,
-                                                  @RequestParam String conversationId,
-                                                  @AuthenticationPrincipal OAuth2User principal) {
+                                                  @RequestParam String conversationId) {
         try {
             // Extract username from OAuth2 principal
-            String username = principal.getAttribute("preferred_username");
+            String username = AuthenticationUtils.extractUsername();
             logger.info("💬 [CHAT-STREAM] Received streaming message from user: {}, conversation: {}", 
                        username, conversationId);
 
@@ -160,11 +152,11 @@ public class ChatController {
 
 
     @GetMapping("/history/{conversationId}")
-    public ResponseEntity<ChatHistoryResponse> getChatHistory(@PathVariable String conversationId, @AuthenticationPrincipal OAuth2User principal) {
+    public ResponseEntity<ChatHistoryResponse> getChatHistory(@PathVariable String conversationId) {
         try {
             // Extract username from OAuth2 principal
-            String username = principal.getAttribute("preferred_username");
-            ChatHistoryResponse history = aiService.getChatHistory(conversationId, username);
+            String username = AuthenticationUtils.extractUsername();
+            ChatHistoryResponse history = llmAiService.getChatHistory(conversationId, username);
             return ResponseEntity.ok(history);
         } catch (IllegalArgumentException e) {
             return ResponseEntity.status(404).body(
@@ -188,11 +180,11 @@ public class ChatController {
     }
 
     @DeleteMapping("/history/{conversationId}")
-    public ResponseEntity<Void> clearChatHistory(@PathVariable String conversationId, @AuthenticationPrincipal OAuth2User principal) {
+    public ResponseEntity<Void> clearChatHistory(@PathVariable String conversationId) {
         try {
             // Extract username from OAuth2 principal
-            String username = principal.getAttribute("preferred_username");
-            aiService.clearChatHistory(conversationId, username);
+            String username = AuthenticationUtils.extractUsername();
+            llmAiService.clearChatHistory(conversationId, username);
             return ResponseEntity.ok().build();
         } catch (IllegalArgumentException e) {
             return ResponseEntity.status(404).build();
@@ -202,11 +194,11 @@ public class ChatController {
     }
 
     @GetMapping("/conversations")
-    public ResponseEntity<java.util.List<ChatConversationSummaryDto>> getUserConversations(@AuthenticationPrincipal OAuth2User principal) {
+    public ResponseEntity<java.util.List<ChatConversationSummaryDto>> getUserConversations() {
         try {
             // Extract username from OAuth2 principal
-            String username = principal.getAttribute("preferred_username");
-            java.util.List<ChatConversationSummaryDto> conversations = aiService.getUserConversations(username);
+            String username = AuthenticationUtils.extractUsername();
+            java.util.List<ChatConversationSummaryDto> conversations = llmAiService.getUserConversations(username);
             return ResponseEntity.ok(conversations);
         } catch (Exception e) {
             return ResponseEntity.status(500).body(java.util.List.<ChatConversationSummaryDto>of());

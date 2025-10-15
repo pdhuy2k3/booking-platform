@@ -15,13 +15,11 @@ import org.springframework.ai.chat.messages.UserMessage;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.util.Assert;
 
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
-import java.util.Map;
-import java.util.stream.Collectors;
 
 @Service
 @org.springframework.context.annotation.Primary
@@ -37,11 +35,38 @@ public class JpaChatMemory implements ChatMemory {
     @Override
     @Transactional
     public void add(String conversationId, List<Message> messages) {
-        List<ChatMessage> entities = messages.stream()
-                .map(message -> new ChatMessage(conversationId, mapRole(message), extractContent(message), Instant.now()))
-                .filter(message-> message.getRole() != MessageType.TOOL && message.getRole() != MessageType.SYSTEM)
-                .collect(Collectors.toList());
-        chatMessageRepository.saveAll(entities);
+        ChatMessage rootMessage = chatMessageRepository.findTopByConversationIdOrderByTimestampAsc(conversationId).orElse(null);
+
+        List<ChatMessage> entitiesToSave = new ArrayList<>();
+        boolean newConversation = (rootMessage == null);
+
+        for (Message message : messages) {
+            MessageType role = mapRole(message);
+            if (role == MessageType.TOOL || role == MessageType.SYSTEM) {
+                continue;
+            }
+
+            ChatMessage chatMessage = ChatMessage.builder()
+                    .conversationId(conversationId)
+                    .role(role)
+                    .content(extractContent(message))
+                    .timestamp(Instant.now())
+                    .build();
+
+            if (newConversation) {
+                // This is a new conversation. The first message in the list is the root.
+                chatMessage.setTitle(defaultTitle(message.getText()));
+                rootMessage = chatMessage; // Set for subsequent messages in this batch.
+                newConversation = false; // Only first message is root.
+            } else {
+                chatMessage.setParentMessage(rootMessage);
+            }
+            entitiesToSave.add(chatMessage);
+        }
+
+        if (!entitiesToSave.isEmpty()) {
+            chatMessageRepository.saveAll(entitiesToSave);
+        }
     }
 
     @Override
@@ -123,5 +148,14 @@ public class JpaChatMemory implements ChatMemory {
         catch (JsonProcessingException e) {
             throw new IllegalStateException("Failed to serialize tool responses", e);
         }
+    }
+
+    private String defaultTitle(String message) {
+        if (message == null || message.isBlank()) {
+            return "New Conversation";
+        }
+        int maxLength = 60;
+        String sanitized = message.replaceAll("\s+", " ").trim();
+        return sanitized.length() <= maxLength ? sanitized : sanitized.substring(0, maxLength) + "...";
     }
 }
