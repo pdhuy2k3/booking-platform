@@ -107,7 +107,7 @@ public class ExploreController {
         return StructuredChatPayload.builder()
                 .message(message)
                 .results(java.util.List.of())
-                .nextRequestSuggesstions(new String[] {
+                .nextRequestSuggestions(new String[]{
                         "Hãy thử một từ khóa khác",
                         "Bạn có muốn tìm theo ngân sách cụ thể không?"
                 })

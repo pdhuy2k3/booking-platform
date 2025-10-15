@@ -107,7 +107,7 @@ public class RagInitializationService implements ApplicationRunner{
 
     @Override
     public void run(ApplicationArguments args) throws Exception {
-        // logger.info("🚀 [RAG-INIT] Starting RAG data initialization...");
+        logger.info("🚀 [RAG-INIT] Starting RAG data initialization...");
         
         // First authenticate with Keycloak to get access token
         

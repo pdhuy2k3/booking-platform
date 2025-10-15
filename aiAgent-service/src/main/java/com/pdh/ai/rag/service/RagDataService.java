@@ -37,7 +37,8 @@ public class RagDataService {
            
             // Add documents to vector store
             if (!documents.isEmpty()) {
-                vectorStore.add(documents);
+            
+                vectorStore.accept(documents);
                 log.info("Added {} flight documents to vector store", documents.size());
             }
         } catch (Exception e) {

@@ -230,10 +230,12 @@ export const ChatInterface = forwardRef<any, ChatInterfaceProps>(function ChatIn
           </Alert>
         )}
 
-        {messages.map((message) => {
+        {messages.map((message, index) => {
           const formattedTimestamp = formatMessageTimestamp(message.timestamp)
           const isUserMessage = message.isUser
-          const messageSuggestions = Array.isArray(message.suggestions) ? message.suggestions : []
+
+          const isLastMessage = index === messages.length - 1
+          const isCurrentlyStreaming = isLastMessage && !isUserMessage && isLoading
 
           return (
             <div key={message.id} className={`flex ${isUserMessage ? "justify-end" : "justify-start"}`}>
@@ -256,9 +258,10 @@ export const ChatInterface = forwardRef<any, ChatInterfaceProps>(function ChatIn
                       onHotelBook={onHotelBook}
                       onLocationClick={onLocationClick}
                       canBook={true}
+                      isStreaming={isCurrentlyStreaming}
                     />
 
-                    {formattedTimestamp && (
+                    {formattedTimestamp && (!isCurrentlyStreaming || message.content) && (
                       <div className="mt-3 text-xs text-gray-500 text-left">
                         {formattedTimestamp}
                       </div>
@@ -269,18 +272,6 @@ export const ChatInterface = forwardRef<any, ChatInterfaceProps>(function ChatIn
             </div>
           )
         })}
-
-        {isLoading && (
-          <div className="flex justify-start">
-            <div className="bg-gray-100 rounded-2xl px-4 py-3 text-sm text-gray-700">
-              <div className="flex items-center gap-2">
-                <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"></div>
-                <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: "0.1s" }}></div>
-                <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: "0.2s" }}></div>
-              </div>
-            </div>
-          </div>
-        )}
 
         <div ref={messagesEndRef} />
       </div>

@@ -2,7 +2,6 @@ server:
   port: 8036
   servlet:
     context-path: /ai
-  # Tomcat configuration for large payloads
   tomcat:
     max-http-form-post-size: 20MB
     max-swallow-size: 20MB
@@ -264,10 +263,12 @@ spring:
       milvus:
         client:
           uri: ${MILVUS_URI}
+          username: ${MILVUS_USERNAME}
+          password: ${MILVUS_PASSWORD}
           token: ${MILVUS_TOKEN}
-        initialize-schema: 
+        initialize-schema: true
         embedding-dimension: 1024
-        database-name: bookingsmart
+        database-name: default
         collection-name: vector_store
         index-type: hnsw
         metric-type: cosine
@@ -348,26 +349,13 @@ spring:
                 BRAVE_MCP_DISABLED_TOOLS: brave_news_search brave_web_search brave_summarizer	
         initialized: true
   
-  # Service URLs for RAG initialization
+
 app:
   flight-service:
     url: http://flight-service
   hotel-service:
     url: http://hotel-service
 
-# Logging Configuration for Tool Tracking
-# logging:
-#   level:
-#     '[com.pdh.ai.agent.CoreAgent]': INFO
-#     '[com.pdh.ai.service.ToolResultCollector]': INFO
-#     '[com.pdh.ai.agent.mcp.client.CustomSyncMcpToolCallbackProvider]': INFO
-#     '[com.pdh.ai.agent.advisor.LoggingAdvisor]': INFO
-#     '[org.springframework.ai.mcp]': DEBUG
-#     '[org.springframework.ai.tool]': DEBUG
-#     '[io.modelcontextprotocol]': DEBUG
-#   pattern:
-#     console: "%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n"
-#     file: "%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n"
 
 eureka:
   client:

@@ -21,6 +21,8 @@ interface UseAiChatReturn {
     loadChatHistory: () => Promise<void>;
     suggestions: string[];
     getSuggestions: () => Promise<void>;
+    isStreaming: boolean; // New: specific flag for streaming state
+    streamProgress: number; // New: 0-100 percentage of content received
 }
 
 interface ParsedStructuredPayload {
@@ -136,6 +138,7 @@ const createMessageId = (prefix: 'user' | 'assistant'): string => {
     return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 };
 
+
 export function useAiChat(options: UseAiChatOptions = {}): UseAiChatReturn {
     const {
         conversationId: initialConversationId,
@@ -146,6 +149,7 @@ export function useAiChat(options: UseAiChatOptions = {}): UseAiChatReturn {
 
     const [messages, setMessages] = useState<ChatMessage[]>(() => createInitialMessages());
     const [isLoading, setIsLoading] = useState(false);
+    const [isStreaming, setIsStreaming] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [conversationId, setConversationId] = useState<string | null>(initialConversationId || null);
     const [suggestions, setSuggestions] = useState<string[]>([]);
@@ -256,8 +260,9 @@ export function useAiChat(options: UseAiChatOptions = {}): UseAiChatReturn {
             if (!stream) {
                 throw new Error('Failed to establish streaming connection');
             }
+            setIsStreaming(true);
 
-            const reader = stream.getReader();
+            const reader = (stream as unknown as ReadableStream<Uint8Array>).getReader();
             const decoder = new TextDecoder();
             let buffer = '';
 
@@ -391,6 +396,7 @@ export function useAiChat(options: UseAiChatOptions = {}): UseAiChatReturn {
 
         } finally {
             setIsLoading(false);
+            setIsStreaming(false);
             abortControllerRef.current = null;
         }
     }, [isLoading, conversationId, context, refreshChatConversations, onError]);
@@ -460,5 +466,7 @@ export function useAiChat(options: UseAiChatOptions = {}): UseAiChatReturn {
         loadChatHistory,
         suggestions,
         getSuggestions,
+        isStreaming,
+        streamProgress: 0,
     };
 }

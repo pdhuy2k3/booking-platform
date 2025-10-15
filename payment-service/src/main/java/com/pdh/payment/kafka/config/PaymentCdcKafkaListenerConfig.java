@@ -2,7 +2,8 @@ package com.pdh.payment.kafka.config;
 
 import com.pdh.common.kafka.cdc.config.BaseKafkaListenerConfig;
 import com.pdh.common.kafka.cdc.message.BookingCdcMessage;
-import com.pdh.common.kafka.cdc.message.BookingMsgKey;
+import com.pdh.common.kafka.cdc.message.keys.BookingMsgKey;
+
 import org.springframework.boot.autoconfigure.kafka.KafkaProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;

@@ -49,10 +49,7 @@
         </dependency>
 
         <!-- Add Elasticsearch starter for vector store -->
-        <dependency>
-            <groupId>org.springframework.ai</groupId>
-            <artifactId>spring-ai-starter-vector-store-milvus</artifactId>
-        </dependency>
+
         <!-- Add advisors for RAG implementation -->
         <dependency>
             <groupId>org.springframework.ai</groupId>

@@ -365,7 +365,10 @@ services:
       - BRAVE_API_KEY
       - MISTRAL_API_KEY
       - STRIPE_SECRET_KEY
-      - ELASTICSEARCH_URI=http://elasticsearch:9200
+      - MILVUS_URI
+      - MILVUS_USERNAME
+      - MILVUS_PASSWORD
+      - MILVUS_TOKEN
       - app.flight-service.url=http://flight-service
       - app.hotel-service.url=http://hotel-service
     extra_hosts:

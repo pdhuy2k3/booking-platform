@@ -186,9 +186,9 @@ public class ExploreAgent {
             return StructuredChatPayload.builder()
                     .message(ERROR_MESSAGE)
                     .results(List.of())
-                    .nextRequestSuggesstions(new String[] {
+                    .nextRequestSuggestions(new String[]{
                             "Thử tìm kiếm với ngân sách khác",
-                            "Yêu cầu gợi ý theo mùa hoặc hoạt động cụ thể" })
+                            "Yêu cầu gợi ý theo mùa hoặc hoạt động cụ thể"})
                     .build();
         }
     }

@@ -6,7 +6,7 @@ import org.springframework.ai.chat.client.advisor.vectorstore.QuestionAnswerAdvi
 import org.springframework.ai.converter.BeanOutputConverter;
 import org.springframework.ai.mistralai.MistralAiChatModel;
 import org.springframework.ai.vectorstore.SearchRequest;
-import org.springframework.ai.vectorstore.elasticsearch.ElasticsearchVectorStore;
+import org.springframework.ai.vectorstore.VectorStore;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
@@ -14,10 +14,10 @@ import org.springframework.stereotype.Service;
 public class RagService {
 
     private final ChatClient chatClient;
-    private final ElasticsearchVectorStore vectorStore;
+    private final VectorStore vectorStore;
 
     @Autowired
-    public RagService(MistralAiChatModel mistralAiChatModel, ElasticsearchVectorStore vectorStore) {
+    public RagService(MistralAiChatModel mistralAiChatModel, VectorStore vectorStore) {
         this.vectorStore = vectorStore;
         
         // Create QuestionAnswerAdvisor for RAG following Spring AI documentation

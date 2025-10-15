@@ -22,7 +22,7 @@ public class StructuredChatPayload {
 
     @JsonProperty(required = true, value = "next_request_suggestions")
     @JsonPropertyDescription("Set of suggested user requests for follow-up interactions")
-    private String[] nextRequestSuggesstions;
+    private String[] nextRequestSuggestions;
     
     @JsonProperty(required = true, value = "results")
     @JsonPropertyDescription("Array of structured result items like flights, hotels, or information cards")
