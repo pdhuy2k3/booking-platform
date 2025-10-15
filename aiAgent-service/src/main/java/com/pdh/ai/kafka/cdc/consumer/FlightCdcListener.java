@@ -2,13 +2,16 @@ package com.pdh.ai.kafka.cdc.consumer;
 
 import com.pdh.ai.client.StorefrontClientService;
 import com.pdh.ai.rag.service.RagDataService;
+import com.pdh.common.kafka.cdc.BaseCdcConsumer;
 import com.pdh.common.kafka.cdc.message.FlightCdcMessage;
+import com.pdh.common.kafka.cdc.message.keys.FlightMsgKey;
 import com.pdh.common.utils.AuthenticationUtils;
 
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.kafka.support.KafkaHeaders;
+import org.springframework.messaging.MessageHeaders;
 import org.springframework.messaging.handler.annotation.Header;
 import org.springframework.messaging.handler.annotation.Payload;
 import org.springframework.stereotype.Component;
@@ -21,7 +24,7 @@ import java.util.Map;
  */
 @Slf4j
 @Component
-public class FlightCdcListener {
+public class FlightCdcListener extends BaseCdcConsumer<FlightMsgKey, FlightCdcMessage> {
 
     @Autowired
     private RagDataService ragDataService;
@@ -32,29 +35,29 @@ public class FlightCdcListener {
     /**
      * Listen for flight CDC messages and update RAG data
      *
-     * @param message The flight CDC message
-     * @param topic The Kafka topic
-     * @param partition The Kafka partition
-     * @param offset The message offset
+     * @param message   The flight CDC message
+     * @param key       The message key containing the flight ID
+     * @param headers   The message headers
      */
-    @KafkaListener(
-        topics = "flight-db-server.public.flights",
-        groupId = "bookingsmart-rag-service",
-        containerFactory = "flightKafkaListenerContainerFactory"
-    )
+    @KafkaListener(topics = "flight-db-server.public.flights", groupId = "bookingsmart-rag-service", containerFactory = "flightKafkaListenerContainerFactory")
     public void listenFlightChanges(
             @Payload FlightCdcMessage message,
-            @Header(KafkaHeaders.RECEIVED_TOPIC) String topic,
-            @Header(KafkaHeaders.RECEIVED_PARTITION) Integer partition,
-            @Header(KafkaHeaders.OFFSET) Long offset) {
-        
+            @Header(KafkaHeaders.RECEIVED_KEY) FlightMsgKey key,
+            @Header MessageHeaders headers) {
+        processMessage(key, message, headers, this::syncData);
+    }
+    
+    public void syncData(FlightMsgKey key, FlightCdcMessage message) {
         try {
-            log.debug("Received flight CDC message: topic={}, partition={}, offset={}, operation={}", 
-                     topic, partition, offset, message.getOp());
-            
-            // Extract flight ID from the message
-            String flightIdStr = message.getAfter() != null ? message.getAfter().getId() : 
-                                message.getBefore() != null ? message.getBefore().getId() : null;
+            // Extract flight ID from the message key
+            String flightIdStr = null;
+            if (key != null && key.getFlightId() != null) {
+                flightIdStr = key.getFlightId().toString();
+            } else {
+                // Fallback to extracting from message if key is not available
+                flightIdStr = message.getAfter() != null ? message.getAfter().getId() : 
+                             message.getBefore() != null ? message.getBefore().getId() : null;
+            }
             
             if (flightIdStr != null) {
                 try {
@@ -80,8 +83,7 @@ public class FlightCdcListener {
             log.debug("Successfully processed flight CDC message: flightId={}", 
                      message.getAfter() != null ? message.getAfter().getId() : message.getBefore().getId());
         } catch (Exception e) {
-            log.error("Error processing flight CDC message: topic={}, partition={}, offset={}, error={}", 
-                     topic, partition, offset, e.getMessage(), e);
+            log.error("Error processing flight CDC message: error={}", e.getMessage(), e);
         }
     }
 }

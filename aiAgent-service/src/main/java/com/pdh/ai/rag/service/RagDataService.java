@@ -48,6 +48,27 @@ public class RagDataService {
     }
 
     /**
+     * Process flight fare change and update RAG data
+     *
+     * @param flightDetails The complete flight details from storefront endpoint
+     * @param scheduleId The schedule ID that had fare changes
+     */
+    public void processFlightFareChange(Map<String, Object> flightDetails, String scheduleId) {
+        try {
+            log.debug("Processing flight fare change for schedule ID: {}", scheduleId);
+            
+            // For now, we'll just reprocess the entire flight details
+            // In a more sophisticated implementation, we might want to update only fare-specific information
+            processFlightDetails(flightDetails);
+            
+            log.info("Processed flight fare change for schedule ID: {}", scheduleId);
+        } catch (Exception e) {
+            log.error("Error processing flight fare change for schedule ID {}: {}", scheduleId, e.getMessage(), e);
+            throw new RuntimeException("Failed to process flight fare change", e);
+        }
+    }
+
+    /**
      * Process complete hotel details and update RAG data
      *
      * @param hotelDetails The complete hotel details from storefront endpoint
@@ -61,7 +82,7 @@ public class RagDataService {
             
             // Add documents to vector store
             if (!documents.isEmpty()) {
-                vectorStore.add(documents);
+                vectorStore.accept(documents);
                 log.info("Added {} hotel documents to vector store", documents.size());
             }
         } catch (Exception e) {
@@ -104,7 +125,6 @@ public class RagDataService {
             String basePrice = getStringValue(flightDetails, "basePrice");
             
             // Add flight details to content
-            appendIfNotNull(content, "Flight ID", flightId);
             appendIfNotNull(content, "Flight Number", flightNumber);
             appendIfNotNull(content, "Airline", airlineName);
             appendIfNotNull(content, "Departure Airport", departureAirportName);
@@ -115,12 +135,6 @@ public class RagDataService {
             appendIfNotNull(content, "Arrival City", arrivalAirportCity);
             appendIfNotNull(content, "Aircraft Type", aircraftType);
             appendIfNotNull(content, "Status", status);
-            
-            // Add base price information if available
-            Object basePriceObj = flightDetails.get("basePrice");
-            if (basePriceObj != null) {
-                content.append("Base Price: ").append(basePriceObj).append(" VND. ");
-            }
             
             // Add schedule information if available
             Object schedulesObj = flightDetails.get("schedules");
@@ -136,7 +150,6 @@ public class RagDataService {
             
             // Create metadata
             Map<String, Object> metadata = new HashMap<>();
-            metadata.put("source_type", "flight");
             metadata.put("flight_id", flightId);
             metadata.put("flight_number", flightNumber);
             metadata.put("airline_name", airlineName);
@@ -149,8 +162,8 @@ public class RagDataService {
             metadata.put("aircraft_type", aircraftType);
             metadata.put("status", status);
             
-            if (basePriceObj != null) {
-                metadata.put("base_price", basePriceObj);
+            if (basePrice != null) {
+                metadata.put("base_price", basePrice);
             }
             
             // Add schedule and fare counts

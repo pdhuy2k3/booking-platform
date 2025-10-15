@@ -1,6 +1,5 @@
 package com.pdh.ai.kafka.config;
 
-import com.pdh.ai.kafka.cdc.message.*;
 import com.pdh.common.kafka.cdc.config.BaseKafkaListenerConfig;
 import com.pdh.common.kafka.cdc.message.FlightCdcMessage;
 import com.pdh.common.kafka.cdc.message.FlightFareCdcMessage;
@@ -9,6 +8,11 @@ import com.pdh.common.kafka.cdc.message.HotelCdcMessage;
 import com.pdh.common.kafka.cdc.message.RoomAvailabilityCdcMessage;
 import com.pdh.common.kafka.cdc.message.RoomTypeCdcMessage;
 import com.pdh.common.kafka.cdc.message.keys.FlightMsgKey;
+import com.pdh.common.kafka.cdc.message.keys.FlightScheduleMsgKey;
+import com.pdh.common.kafka.cdc.message.keys.FlightFareMsgKey;
+import com.pdh.common.kafka.cdc.message.keys.HotelMsgKey;
+import com.pdh.common.kafka.cdc.message.keys.RoomAvailabilityMsgKey;
+import com.pdh.common.kafka.cdc.message.keys.RoomTypeMsgKey;
 
 import org.springframework.boot.autoconfigure.kafka.KafkaProperties;
 import org.springframework.context.annotation.Bean;
@@ -29,11 +33,11 @@ public class KafkaConfig {
      * Kafka listener container factory for flight schedule CDC messages
      */
     @Bean
-    public ConcurrentKafkaListenerContainerFactory<FlightMsgKey, FlightScheduleCdcMessage> flightScheduleKafkaListenerContainerFactory(KafkaProperties kafkaProperties) {
-        BaseKafkaListenerConfig<FlightMsgKey, FlightScheduleCdcMessage> config = 
-            new BaseKafkaListenerConfig<FlightMsgKey, FlightScheduleCdcMessage>(FlightMsgKey.class, FlightScheduleCdcMessage.class, kafkaProperties) {
+    public ConcurrentKafkaListenerContainerFactory<FlightScheduleMsgKey, FlightScheduleCdcMessage> flightScheduleKafkaListenerContainerFactory(KafkaProperties kafkaProperties) {
+        BaseKafkaListenerConfig<FlightScheduleMsgKey, FlightScheduleCdcMessage> config = 
+            new BaseKafkaListenerConfig<FlightScheduleMsgKey, FlightScheduleCdcMessage>(FlightScheduleMsgKey.class, FlightScheduleCdcMessage.class, kafkaProperties) {
                 @Override
-                public ConcurrentKafkaListenerContainerFactory<FlightMsgKey, FlightScheduleCdcMessage> listenerContainerFactory() {
+                public ConcurrentKafkaListenerContainerFactory<FlightScheduleMsgKey, FlightScheduleCdcMessage> listenerContainerFactory() {
                     return kafkaListenerContainerFactory();
                 }
             };
@@ -44,11 +48,11 @@ public class KafkaConfig {
      * Kafka listener container factory for flight fare CDC messages
      */
     @Bean
-    public ConcurrentKafkaListenerContainerFactory<String, FlightFareCdcMessage> flightFareKafkaListenerContainerFactory(KafkaProperties kafkaProperties) {
-        BaseKafkaListenerConfig<String, FlightFareCdcMessage> config = 
-            new BaseKafkaListenerConfig<String, FlightFareCdcMessage>(String.class, FlightFareCdcMessage.class, kafkaProperties) {
+    public ConcurrentKafkaListenerContainerFactory<FlightFareMsgKey, FlightFareCdcMessage> flightFareKafkaListenerContainerFactory(KafkaProperties kafkaProperties) {
+        BaseKafkaListenerConfig<FlightFareMsgKey, FlightFareCdcMessage> config = 
+            new BaseKafkaListenerConfig<FlightFareMsgKey, FlightFareCdcMessage>(FlightFareMsgKey.class, FlightFareCdcMessage.class, kafkaProperties) {
                 @Override
-                public ConcurrentKafkaListenerContainerFactory<String, FlightFareCdcMessage> listenerContainerFactory() {
+                public ConcurrentKafkaListenerContainerFactory<FlightFareMsgKey, FlightFareCdcMessage> listenerContainerFactory() {
                     return kafkaListenerContainerFactory();
                 }
             };
@@ -59,11 +63,11 @@ public class KafkaConfig {
      * Kafka listener container factory for room availability CDC messages
      */
     @Bean
-    public ConcurrentKafkaListenerContainerFactory<String, RoomAvailabilityCdcMessage> roomAvailabilityKafkaListenerContainerFactory(KafkaProperties kafkaProperties) {
-        BaseKafkaListenerConfig<String, RoomAvailabilityCdcMessage> config = 
-            new BaseKafkaListenerConfig<String, RoomAvailabilityCdcMessage>(String.class, RoomAvailabilityCdcMessage.class, kafkaProperties) {
+    public ConcurrentKafkaListenerContainerFactory<RoomAvailabilityMsgKey, RoomAvailabilityCdcMessage> roomAvailabilityKafkaListenerContainerFactory(KafkaProperties kafkaProperties) {
+        BaseKafkaListenerConfig<RoomAvailabilityMsgKey, RoomAvailabilityCdcMessage> config = 
+            new BaseKafkaListenerConfig<RoomAvailabilityMsgKey, RoomAvailabilityCdcMessage>(RoomAvailabilityMsgKey.class, RoomAvailabilityCdcMessage.class, kafkaProperties) {
                 @Override
-                public ConcurrentKafkaListenerContainerFactory<String, RoomAvailabilityCdcMessage> listenerContainerFactory() {
+                public ConcurrentKafkaListenerContainerFactory<RoomAvailabilityMsgKey, RoomAvailabilityCdcMessage> listenerContainerFactory() {
                     return kafkaListenerContainerFactory();
                 }
             };
@@ -74,11 +78,11 @@ public class KafkaConfig {
      * Kafka listener container factory for hotel CDC messages
      */
     @Bean
-    public ConcurrentKafkaListenerContainerFactory<String, HotelCdcMessage> hotelKafkaListenerContainerFactory(KafkaProperties kafkaProperties) {
-        BaseKafkaListenerConfig<String, HotelCdcMessage> config = 
-            new BaseKafkaListenerConfig<String, HotelCdcMessage>(String.class, HotelCdcMessage.class, kafkaProperties) {
+    public ConcurrentKafkaListenerContainerFactory<HotelMsgKey, HotelCdcMessage> hotelKafkaListenerContainerFactory(KafkaProperties kafkaProperties) {
+        BaseKafkaListenerConfig<HotelMsgKey, HotelCdcMessage> config = 
+            new BaseKafkaListenerConfig<HotelMsgKey, HotelCdcMessage>(HotelMsgKey.class, HotelCdcMessage.class, kafkaProperties) {
                 @Override
-                public ConcurrentKafkaListenerContainerFactory<String, HotelCdcMessage> listenerContainerFactory() {
+                public ConcurrentKafkaListenerContainerFactory<HotelMsgKey, HotelCdcMessage> listenerContainerFactory() {
                     return kafkaListenerContainerFactory();
                 }
             };
@@ -89,11 +93,11 @@ public class KafkaConfig {
      * Kafka listener container factory for room type CDC messages
      */
     @Bean
-    public ConcurrentKafkaListenerContainerFactory<String, RoomTypeCdcMessage> roomTypeKafkaListenerContainerFactory(KafkaProperties kafkaProperties) {
-        BaseKafkaListenerConfig<String, RoomTypeCdcMessage> config = 
-            new BaseKafkaListenerConfig<String, RoomTypeCdcMessage>(String.class, RoomTypeCdcMessage.class, kafkaProperties) {
+    public ConcurrentKafkaListenerContainerFactory<RoomTypeMsgKey, RoomTypeCdcMessage> roomTypeKafkaListenerContainerFactory(KafkaProperties kafkaProperties) {
+        BaseKafkaListenerConfig<RoomTypeMsgKey, RoomTypeCdcMessage> config = 
+            new BaseKafkaListenerConfig<RoomTypeMsgKey, RoomTypeCdcMessage>(RoomTypeMsgKey.class, RoomTypeCdcMessage.class, kafkaProperties) {
                 @Override
-                public ConcurrentKafkaListenerContainerFactory<String, RoomTypeCdcMessage> listenerContainerFactory() {
+                public ConcurrentKafkaListenerContainerFactory<RoomTypeMsgKey, RoomTypeCdcMessage> listenerContainerFactory() {
                     return kafkaListenerContainerFactory();
                 }
             };
@@ -104,11 +108,11 @@ public class KafkaConfig {
      * Kafka listener container factory for flight CDC messages
      */
     @Bean
-    public ConcurrentKafkaListenerContainerFactory<String, FlightCdcMessage> flightKafkaListenerContainerFactory(KafkaProperties kafkaProperties) {
-        BaseKafkaListenerConfig<String, FlightCdcMessage> config = 
-            new BaseKafkaListenerConfig<String, FlightCdcMessage>(String.class, FlightCdcMessage.class, kafkaProperties) {
+    public ConcurrentKafkaListenerContainerFactory<FlightMsgKey, FlightCdcMessage> flightKafkaListenerContainerFactory(KafkaProperties kafkaProperties) {
+        BaseKafkaListenerConfig<FlightMsgKey, FlightCdcMessage> config = 
+            new BaseKafkaListenerConfig<FlightMsgKey, FlightCdcMessage>(FlightMsgKey.class, FlightCdcMessage.class, kafkaProperties) {
                 @Override
-                public ConcurrentKafkaListenerContainerFactory<String, FlightCdcMessage> listenerContainerFactory() {
+                public ConcurrentKafkaListenerContainerFactory<FlightMsgKey, FlightCdcMessage> listenerContainerFactory() {
                     return kafkaListenerContainerFactory();
                 }
             };

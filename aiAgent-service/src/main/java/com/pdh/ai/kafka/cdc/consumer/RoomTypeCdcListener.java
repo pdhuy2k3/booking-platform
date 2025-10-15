@@ -2,15 +2,22 @@ package com.pdh.ai.kafka.cdc.consumer;
 
 import com.pdh.ai.client.StorefrontClientService;
 import com.pdh.ai.rag.service.RagDataService;
+import com.pdh.common.kafka.cdc.BaseCdcConsumer;
 import com.pdh.common.kafka.cdc.message.RoomTypeCdcMessage;
+import com.pdh.common.kafka.cdc.message.keys.RoomTypeMsgKey;
 import com.pdh.common.utils.AuthenticationUtils;
 
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.kafka.annotation.KafkaListener;
+import org.springframework.kafka.support.KafkaHeaders;
+import org.springframework.messaging.MessageHeaders;
+import org.springframework.messaging.handler.annotation.Header;
+import org.springframework.messaging.handler.annotation.Payload;
 import org.springframework.stereotype.Component;
 
 import java.util.Map;
+import java.util.function.BiConsumer;
 
 /**
  * Kafka listener for room type CDC events
@@ -18,7 +25,7 @@ import java.util.Map;
  */
 @Slf4j
 @Component
-public class RoomTypeCdcListener {
+public class RoomTypeCdcListener extends BaseCdcConsumer<RoomTypeMsgKey, RoomTypeCdcMessage> {
 
     @Autowired
     private RagDataService ragDataService;
@@ -30,13 +37,21 @@ public class RoomTypeCdcListener {
      * Listen to room type CDC events and process them for RAG
      *
      * @param message The CDC message containing room type changes
+     * @param key The message key containing the room type ID
      */
     @KafkaListener(
         topics = "booking.hotel-db-server.public.room_types",
         groupId = "bookingsmart-rag-service",
         containerFactory = "roomTypeKafkaListenerContainerFactory"
     )
-    public void handleRoomTypeChange(RoomTypeCdcMessage message) {
+    public void handleRoomTypeChange(
+            @Payload RoomTypeCdcMessage message,
+            @Header(KafkaHeaders.RECEIVED_KEY) RoomTypeMsgKey key,
+            @Header MessageHeaders headers) {
+        processMessage(key, message, headers, this::syncData);
+    }
+    
+    public void syncData(RoomTypeMsgKey key, RoomTypeCdcMessage message) {
         try {
             log.debug("Received room type CDC message: {}", message);
             

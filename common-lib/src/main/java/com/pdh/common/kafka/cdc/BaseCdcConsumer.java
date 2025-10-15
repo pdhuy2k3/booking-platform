@@ -1,6 +1,10 @@
 package com.pdh.common.kafka.cdc;
 
-import com.pdh.common.kafka.cdc.message.Operation;
+import org.springframework.kafka.support.KafkaHeaders;
+import org.springframework.messaging.MessageHeaders;
+import java.util.function.BiConsumer;
+import java.util.function.Consumer;
+
 import lombok.extern.slf4j.Slf4j;
 
 /**
@@ -9,46 +13,21 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 public abstract class BaseCdcConsumer<K, V> {
 
-    /**
-     * Handle CDC message based on operation type
-     */
-    protected void handleCdcMessage(K key, V message, Operation operation) {
-        log.debug("Processing CDC message with key: {} and operation: {}", key, operation);
-        
-        try {
-            switch (operation) {
-                case CREATE -> handleCreate(key, message);
-                case UPDATE -> handleUpdate(key, message);
-                case DELETE -> handleDelete(key, message);
-                case READ -> handleRead(key, message);
-                default -> log.warn("Unknown operation: {}", operation);
-            }
-        } catch (Exception e) {
-            log.error("Error processing CDC message with key: {} and operation: {}", key, operation, e);
-            throw e; // Re-throw để Kafka retry mechanism xử lý
-        }
+    public static final String RECEIVED_MESSAGE_HEADERS = "## Received message - headers: {}";
+    public static final String PROCESSING_RECORD_KEY_VALUE = "## Processing record - Key: {} | Value: {}";
+    public static final String RECORD_PROCESSED_SUCCESSFULLY_KEY = "## Record processed successfully - Key: {} \n";
+
+    protected void processMessage(V record, MessageHeaders headers, Consumer<V> consumer) {
+        log.debug(RECEIVED_MESSAGE_HEADERS, headers);
+        log.debug(PROCESSING_RECORD_KEY_VALUE, headers.get(KafkaHeaders.RECEIVED_KEY), record);
+        consumer.accept(record);
+        log.debug(RECORD_PROCESSED_SUCCESSFULLY_KEY, headers.get(KafkaHeaders.RECEIVED_KEY));
     }
 
-    /**
-     * Handle CREATE operation
-     */
-    protected abstract void handleCreate(K key, V message);
-
-    /**
-     * Handle UPDATE operation
-     */
-    protected abstract void handleUpdate(K key, V message);
-
-    /**
-     * Handle DELETE operation
-     */
-    protected abstract void handleDelete(K key, V message);
-
-    /**
-     * Handle READ operation (optional, có thể override nếu cần)
-     */
-    protected void handleRead(K key, V message) {
-        log.debug("READ operation for key: {}, message: {}", key, message);
-        // Default implementation - do nothing
+    protected void processMessage(K key, V value, MessageHeaders headers, BiConsumer<K, V> consumer) {
+        log.debug(RECEIVED_MESSAGE_HEADERS, headers);
+        log.debug(PROCESSING_RECORD_KEY_VALUE, key, value);
+        consumer.accept(key, value);
+        log.debug(RECORD_PROCESSED_SUCCESSFULLY_KEY, key);
     }
 }

@@ -13,6 +13,7 @@ import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientException;
 
 import java.util.Map;
+import java.util.UUID;
 
 import com.pdh.ai.rag.service.RagInitializationService;
 import com.pdh.common.utils.AuthenticationUtils;
@@ -71,6 +72,56 @@ public class StorefrontClientService {
             log.error("Error calling flight service for flight ID {}: {}", flightId, e.getMessage(), e);
             return null;
         }
+    }
+
+    /**
+     * Get flight details by schedule ID from backoffice endpoint
+     *
+     * @param scheduleId The schedule ID
+     * @return Flight details map or null if not found
+     */
+    public Map<String, Object> getFlightDetailsByScheduleId(UUID scheduleId, String token) {
+        try {
+            // First get the schedule to extract the flight ID
+            String scheduleUrl = String.format("%s/backoffice/schedules/%s", flightServiceUrl, scheduleId.toString());
+            log.debug("Calling flight service backoffice endpoint to get schedule: {}", scheduleUrl);
+            
+            ResponseEntity<Map<String, Object>> scheduleResponse = restClient.get()
+                .uri(scheduleUrl)
+                .headers(h -> h.setBearerAuth(token))
+                .retrieve()
+                .toEntity(new org.springframework.core.ParameterizedTypeReference<Map<String, Object>>() {});
+
+            if (scheduleResponse.getStatusCode().is2xxSuccessful() && scheduleResponse.getBody() != null) {
+                // Extract the data from the ApiResponse wrapper
+                Map<String, Object> apiResponse = (Map<String, Object>) scheduleResponse.getBody();
+                Object data = apiResponse.get("data");
+                if (data instanceof Map) {
+                    Map<String, Object> scheduleData = (Map<String, Object>) data;
+                    Object flightIdObj = scheduleData.get("flightId");
+                    if (flightIdObj != null) {
+                        try {
+                            Long flightId = Long.parseLong(flightIdObj.toString());
+                            // Now get the flight details using the flight ID
+                            return getFlightDetails(flightId, token);
+                        } catch (NumberFormatException e) {
+                            log.error("Invalid flight ID format in schedule data: {}", flightIdObj);
+                            return null;
+                        }
+                    } else {
+                        log.warn("Flight ID not found in schedule data for schedule ID: {}", scheduleId);
+                        return null;
+                    }
+                }
+            } else {
+                log.warn("Failed to retrieve schedule details for ID: {}, status: {}", scheduleId, scheduleResponse.getStatusCode());
+                return null;
+            }
+        } catch (RestClientException e) {
+            log.error("Error calling flight service for schedule ID {}: {}", scheduleId, e.getMessage(), e);
+            return null;
+        }
+        return null;
     }
 
     /**

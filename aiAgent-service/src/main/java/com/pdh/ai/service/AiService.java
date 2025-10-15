@@ -4,7 +4,6 @@ import com.pdh.ai.model.dto.ChatConversationSummaryDto;
 import com.pdh.ai.model.dto.ChatHistoryResponse;
 import com.pdh.ai.model.dto.StructuredChatPayload;
 import reactor.core.publisher.Flux;
-import reactor.core.publisher.Mono;
 
 public interface AiService {
     // Synchronous methods for regular chat and history operations
