@@ -96,6 +96,8 @@ public class BookingSagaOrchestrator {
 
     @Transactional
     @KafkaListener(topics = { "booking.Booking.events",
+            "booking.Flight.events",
+            "booking.Hotel.events",
             "booking.Payment.events" }, groupId = "booking-saga-outbox-listener", containerFactory = "bookingOutboxListenerContainerFactory")
     public void handleOutboxEvents(@Payload JsonNode message,
             @Header(value = "eventType", required = false) String eventTypeHeader) {
@@ -114,18 +116,22 @@ public class BookingSagaOrchestrator {
             payload = normalize(payload);
         }
 
-        // 3) Lấy eventType từ body (ưu tiên), KHÔNG phụ thuộc header
-        String eventType = text(root, "eventType");
-        if (isBlank(eventType))
-            eventType = text(payload, "eventType");
-        // Fallback cuối cùng: nếu producer lỡ đặt "type"
-        if (isBlank(eventType))
-            eventType = text(root, "type");
-        if (isBlank(eventType))
-            eventType = text(payload, "type");
+        // 3) Determine eventType, prioritizing the reliable Kafka header
+        String eventType = eventTypeHeader;
+        if (isBlank(eventType)) {
+            log.debug("eventType header is blank, falling back to body parsing.");
+            eventType = text(root, "eventType");
+            if (isBlank(eventType))
+                eventType = text(payload, "eventType");
+            // Fallback cuối cùng: nếu producer lỡ đặt "type"
+            if (isBlank(eventType))
+                eventType = text(root, "type");
+            if (isBlank(eventType))
+                eventType = text(payload, "type");
+        }
 
         log.debug("EVENT TYPE HEADER: {}", eventTypeHeader);
-        log.debug("DETERMINED EVENT TYPE (from body): {}", eventType);
+        log.debug("DETERMINED EVENT TYPE: {}", eventType);
 
         if (isBlank(eventType)) {
             log.warn("Saga outbox event ignored due to missing eventType. message={}", root.toString());

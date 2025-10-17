@@ -59,9 +59,7 @@ public class HotelEventConsumer {
 
         if (details != null) {
             hotelService.reserveHotel(bookingId, sagaId, details);
-        } else {
-            hotelService.reserveHotel(bookingId);
-        }
+        } 
     }
 
     private void cancelHotel(SagaCommand command) {

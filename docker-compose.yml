@@ -160,29 +160,6 @@ services:
           --data-binary @/tmp/connectors/notification-db-connector.json \
           http://connect:8083/connectors/notification-connector/config
         
-        curl -i -X PUT -H "Accept: application/json" -H "Content-Type: application/json" \
-          --data-binary @/tmp/connectors/flights-cdc-connector.json \
-          http://connect:8083/connectors/flight-cdc-connector/config
-        
-        curl -i -X PUT -H "Accept: application/json" -H "Content-Type: application/json" \
-          --data-binary @/tmp/connectors/hotels-cdc-connector.json \
-          http://connect:8083/connectors/hotel-cdc-connector/config
-        
-        curl -i -X PUT -H "Accept: application/json" -H "Content-Type: application/json" \
-          --data-binary @/tmp/connectors/flight-schedules-cdc-connector.json \
-          http://connect:8083/connectors/flight-schedules-cdc-connector/config
-        
-        curl -i -X PUT -H "Accept: application/json" -H "Content-Type: application/json" \
-          --data-binary @/tmp/connectors/flight-fares-cdc-connector.json \
-          http://connect:8083/connectors/flight-fares-cdc-connector/config
-        
-        curl -i -X PUT -H "Accept: application/json" -H "Content-Type: application/json" \
-          --data-binary @/tmp/connectors/room-availability-cdc-connector.json \
-          http://connect:8083/connectors/room-availability-cdc-connector/config
-
-        curl -i -X PUT -H "Accept: application/json" -H "Content-Type: application/json" \
-          --data-binary @/tmp/connectors/room-types-cdc-connector.json \
-          http://connect:8083/connectors/room-types-cdc-connector/config
       '
     networks:
       - booking-network

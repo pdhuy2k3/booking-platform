@@ -11,7 +11,7 @@ import org.springframework.scheduling.annotation.EnableAsync;
 
 @SpringBootApplication
 @EnableDiscoveryClient
-@EnableAsync
+
 public class AiAgentServiceApplication {
 
     public static void main(String[] args) {

@@ -36,11 +36,10 @@ spring:
             provider: keycloak
         provider:
           keycloak:
-            issuer-uri: http://localhost:9090/realms/BookingSmart
-
-
   cloud:
     gateway:
+      httpclient:
+        response-timeout: 600s
       routes:
         - id: flight-service
           uri: lb://FLIGHT-SERVICE
@@ -143,6 +142,8 @@ spring:
             issuer-uri: ${JWT_ISSUER_URI}
   cloud:
     gateway:
+      httpclient:
+        response-timeout: 600s
       server:
         webflux:
           routes:

@@ -33,16 +33,16 @@ const PROCESSING_STATUSES = new Set(["PENDING", "VALIDATION_PENDING", "PAYMENT_P
 const PAGE_SIZE = 10
 
 const STATUS_BADGE_MAP: Record<string, { label: string; className: string; icon: JSX.Element }> = {
-  CONFIRMED: { label: "Confirmed", className: "bg-green-500/10 text-green-400", icon: <CheckCircle2 className="h-4 w-4" /> },
-  PAID: { label: "Paid", className: "bg-green-500/10 text-green-400", icon: <CheckCircle2 className="h-4 w-4" /> },
-  PENDING: { label: "Processing", className: "bg-amber-500/10 text-amber-400", icon: <Clock3 className="h-4 w-4" /> },
-  PAYMENT_PENDING: { label: "Awaiting Payment", className: "bg-amber-500/10 text-amber-400", icon: <Clock3 className="h-4 w-4" /> },
-  VALIDATION_PENDING: { label: "Validating", className: "bg-blue-500/10 text-blue-400", icon: <Clock3 className="h-4 w-4" /> },
-  CANCELLED: { label: "Cancelled", className: "bg-red-500/10 text-red-400", icon: <XCircle className="h-4 w-4" /> },
-  CANCELED: { label: "Cancelled", className: "bg-red-500/10 text-red-400", icon: <XCircle className="h-4 w-4" /> },
-  FAILED: { label: "Failed", className: "bg-red-500/10 text-red-400", icon: <XCircle className="h-4 w-4" /> },
-  PAYMENT_FAILED: { label: "Payment Failed", className: "bg-red-500/10 text-red-400", icon: <AlertTriangle className="h-4 w-4" /> },
-  VALIDATION_FAILED: { label: "Validation Failed", className: "bg-red-500/10 text-red-400", icon: <AlertTriangle className="h-4 w-4" /> },
+  CONFIRMED: { label: "Đã xác nhận", className: "bg-green-500/10 text-green-400", icon: <CheckCircle2 className="h-4 w-4" /> },
+  PAID: { label: "Đã thanh toán", className: "bg-green-500/10 text-green-400", icon: <CheckCircle2 className="h-4 w-4" /> },
+  PENDING: { label: "Đang xử lý", className: "bg-amber-500/10 text-amber-400", icon: <Clock3 className="h-4 w-4" /> },
+  PAYMENT_PENDING: { label: "Chờ thanh toán", className: "bg-amber-500/10 text-amber-400", icon: <Clock3 className="h-4 w-4" /> },
+  VALIDATION_PENDING: { label: "Đang xác thực", className: "bg-blue-500/10 text-blue-400", icon: <Clock3 className="h-4 w-4" /> },
+  CANCELLED: { label: "Đã hủy", className: "bg-red-500/10 text-red-400", icon: <XCircle className="h-4 w-4" /> },
+  CANCELED: { label: "Đã hủy", className: "bg-red-500/10 text-red-400", icon: <XCircle className="h-4 w-4" /> },
+  FAILED: { label: "Thất bại", className: "bg-red-500/10 text-red-400", icon: <XCircle className="h-4 w-4" /> },
+  PAYMENT_FAILED: { label: "Thanh toán thất bại", className: "bg-red-500/10 text-red-400", icon: <AlertTriangle className="h-4 w-4" /> },
+  VALIDATION_FAILED: { label: "Xác thực thất bại", className: "bg-red-500/10 text-red-400", icon: <AlertTriangle className="h-4 w-4" /> },
 }
 
 const getBookingIcon = (type?: string) => {
@@ -162,34 +162,34 @@ const parseProductDetails = (json?: string | null) => {
 
     return (
       <div className="space-y-2 rounded-lg border border-gray-300/30 bg-gray-100 p-4">
-        <h4 className="font-semibold text-gray-700">Flight Details</h4>
+        <h4 className="font-semibold text-gray-700">Chi tiết chuyến bay</h4>
         <div className="grid gap-2 text-sm text-gray-600 md:grid-cols-2">
           <div>
-            <span className="text-xs uppercase text-gray-500">Flight</span>
+            <span className="text-xs uppercase text-gray-500">Chuyến bay</span>
             <p className="font-medium">{flightNumber || 'N/A'}</p>
             {airline && <p className="text-xs text-gray-500">{airline}</p>}
           </div>
           <div>
-            <span className="text-xs uppercase text-gray-500">Route</span>
+            <span className="text-xs uppercase text-gray-500">Hành trình</span>
             <p className="font-medium">{origin || '—'} → {destination || '—'}</p>
           </div>
           <div>
-            <span className="text-xs uppercase text-gray-500">Departure</span>
+            <span className="text-xs uppercase text-gray-500">Khởi hành</span>
           <p>{formatDateTime(departure)}</p>
           </div>
           <div>
-            <span className="text-xs uppercase text-gray-500">Arrival</span>
+            <span className="text-xs uppercase text-gray-500">Đến</span>
           <p>{formatDateTime(arrival)}</p>
           </div>
           <div>
-            <span className="text-xs uppercase text-gray-500">Seat Class</span>
+            <span className="text-xs uppercase text-gray-500">Hạng ghế</span>
             <p>{seatClass}</p>
           </div>
           <div>
-            <span className="text-xs uppercase text-gray-500">Fare</span>
+            <span className="text-xs uppercase text-gray-500">Giá vé</span>
             <p>{formatCurrency(price ?? priceRaw, currency)}</p>
             {availableSeats != null && Number.isFinite(availableSeats) && (
-              <p className="text-xs text-gray-500">Available seats: {availableSeats}</p>
+              <p className="text-xs text-gray-500">Số ghế trống: {availableSeats}</p>
             )}
           </div>
         </div>
@@ -212,23 +212,23 @@ const parseProductDetails = (json?: string | null) => {
 
     return (
       <div className="space-y-2 rounded-lg border border-gray-300/30 bg-gray-100 p-4">
-        <h4 className="font-semibold text-gray-700">Room Details</h4>
+        <h4 className="font-semibold text-gray-700">Chi tiết phòng</h4>
         <div className="grid gap-2 text-sm text-gray-600 md:grid-cols-2">
           <div>
-            <span className="text-xs uppercase text-gray-500">Room</span>
-            <p className="font-medium">{title || 'Room'}</p>
-            {roomNumber && <p className="text-xs text-gray-500">Room ID: {roomNumber}</p>}
+            <span className="text-xs uppercase text-gray-500">Phòng</span>
+            <p className="font-medium">{title || 'Phòng'}</p>
+            {roomNumber && <p className="text-xs text-gray-500">Mã phòng: {roomNumber}</p>}
           </div>
           <div>
-            <span className="text-xs uppercase text-gray-500">Price</span>
+            <span className="text-xs uppercase text-gray-500">Giá</span>
             <p>{formatCurrency(price ?? priceRaw, currency)}</p>
           </div>
           <div>
-            <span className="text-xs uppercase text-gray-500">Capacity</span>
-            <p>{capacity ? `${capacity} guests` : '—'}</p>
+            <span className="text-xs uppercase text-gray-500">Sức chứa</span>
+            <p>{capacity ? `${capacity} khách` : '—'}</p>
           </div>
           <div>
-            <span className="text-xs uppercase text-gray-500">Bed Type</span>
+            <span className="text-xs uppercase text-gray-500">Loại giường</span>
             <p>{bedType || '—'}</p>
           </div>
         </div>
@@ -288,8 +288,8 @@ export function BookingHistoryTab() {
 
     if (!Number.isFinite(lat ?? NaN) || !Number.isFinite(lng ?? NaN)) {
       toast({
-        title: "Location unavailable",
-        description: `The ${target === 'origin' ? 'departure' : 'arrival'} airport does not have coordinates configured in the system yet.`,
+        title: "Vị trí không có sẵn",
+        description: `Sân bay ${target === 'origin' ? 'khởi hành' : 'đến'} chưa được cấu hình tọa độ trong hệ thống.`,
         variant: "destructive",
       })
       return
@@ -298,7 +298,7 @@ export function BookingHistoryTab() {
     showLocation({
       lat: lat as number,
       lng: lng as number,
-      title: `${target === 'origin' ? 'Departure' : 'Arrival'} • ${booking.bookingReference}`,
+      title: `${target === 'origin' ? 'Khởi hành' : 'Đến'} • ${booking.bookingReference}`,
       description: booking.productSummary ?? undefined,
       type: 'airport'
     });
@@ -312,8 +312,8 @@ export function BookingHistoryTab() {
 
     if (!Number.isFinite(lat ?? NaN) || !Number.isFinite(lng ?? NaN)) {
       toast({
-        title: "Location unavailable",
-        description: "The hotel location is not yet configured in the system.",
+        title: "Vị trí không có sẵn",
+        description: "Vị trí khách sạn chưa được cấu hình trong hệ thống.",
         variant: "destructive",
       })
       return;
@@ -323,7 +323,7 @@ export function BookingHistoryTab() {
     showLocation({
       lat: lat as number,
       lng: lng as number,
-      title: `Hotel • ${booking.bookingReference}`,
+      title: `Khách sạn • ${booking.bookingReference}`,
       description: booking.productSummary ?? undefined,
       type: 'hotel'
     });
@@ -337,8 +337,8 @@ export function BookingHistoryTab() {
 
     if (!originLat || !originLng || !destLat || !destLng) {
       toast({
-        title: "Journey unavailable",
-        description: "This flight booking does not have complete coordinate data to display the journey.",
+        title: "Hành trình không có sẵn",
+        description: "Đặt vé máy bay này không có đủ dữ liệu tọa độ để hiển thị hành trình.",
         variant: "destructive",
       });
       return;
@@ -356,14 +356,14 @@ export function BookingHistoryTab() {
     showLocation({
       lat: originLat,
       lng: originLng,
-      title: `Departure: ${booking.originAirportCode}`,
+      title: `Khởi hành: ${booking.originAirportCode}`,
       description: booking.productSummary ?? undefined,
       type: 'airport'
     });
     showLocation({
       lat: destLat,
       lng: destLng,
-      title: `Arrival: ${booking.destinationAirportCode}`,
+      title: `Đến: ${booking.destinationAirportCode}`,
       description: booking.productSummary ?? undefined,
       type: 'airport'
     });
@@ -383,10 +383,10 @@ export function BookingHistoryTab() {
       // Redirect to homepage with resume parameter - this will open the booking modal at the appropriate step
       router.push(`/?resume=${booking.bookingId}`)
     } catch (error) {
-      console.error('Failed to prepare booking for resuming', error)
+      console.error('Không thể chuẩn bị đặt chỗ để tiếp tục', error)
       toast({
-        title: "Unable to resume booking",
-        description: "Please try again later.",
+        title: "Không thể tiếp tục đặt chỗ",
+        description: "Vui lòng thử lại sau.",
         variant: "destructive",
       })
     }
@@ -517,8 +517,8 @@ export function BookingHistoryTab() {
     <div className="space-y-4 h-full flex flex-col">
       <Card className="bg-white/70 border-gray-200 flex-1 flex flex-col min-h-0">
         <CardHeader>
-          <CardTitle className="text-gray-900">Booking History</CardTitle>
-          <CardDescription>Review your completed and in-progress bookings</CardDescription>
+          <CardTitle className="text-gray-900">Lịch sử đặt chỗ</CardTitle>
+          <CardDescription>Xem lại các đặt chỗ đã hoàn thành và đang thực hiện của bạn</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4 overflow-y-auto">
           {error && (
@@ -528,7 +528,7 @@ export function BookingHistoryTab() {
                 <div>
                   <p className="text-sm text-red-600">{error}</p>
                   <Button variant="outline" size="sm" className="mt-2" onClick={handleRetry}>
-                    Retry
+                    Thử lại
                   </Button>
                 </div>
               </div>
@@ -538,8 +538,8 @@ export function BookingHistoryTab() {
           {items.length === 0 && !isLoading && !error && (
             <div className="text-center py-10 bg-gray-50 rounded-lg">
               <Calendar className="h-12 w-12 text-gray-500 mx-auto mb-3" />
-              <h3 className="text-lg font-medium text-gray-900 mb-1">No bookings yet</h3>
-              <p className="text-gray-600">Plan your next trip to see bookings listed here.</p>
+              <h3 className="text-lg font-medium text-gray-900 mb-1">Chưa có đặt chỗ nào</h3>
+              <p className="text-gray-600">Lên kế hoạch cho chuyến đi tiếp theo của bạn để xem các đặt chỗ được liệt kê ở đây.</p>
             </div>
           )}
 
@@ -571,19 +571,19 @@ export function BookingHistoryTab() {
                           <div>
                             <div className="flex flex-wrap items-center gap-1">
                               <h3 className="text-gray-900 font-medium">
-                                {booking.productSummary ?? booking.bookingType ?? "Booking"}
+                                {booking.productSummary ?? booking.bookingType ?? "Đặt chỗ"}
                               </h3>
                               {renderStatusBadge(booking.status)}
                             </div>
                             <div className="text-sm text-gray-600 space-y-1">
-                              <p>{`Reference: ${booking.bookingReference}`}</p>
-                              {booking.confirmationNumber && <p>{`Confirmation: ${booking.confirmationNumber}`}</p>}
-                              <p>{`Created: ${formatDateTime(booking.createdAt)}`}</p>
-                              <p>{`Updated: ${formatDateTime(booking.updatedAt)}`}</p>
+                              <p>{`Mã tham chiếu: ${booking.bookingReference}`}</p>
+                              {booking.confirmationNumber && <p>{`Xác nhận: ${booking.confirmationNumber}`}</p>}
+                              <p>{`Tạo lúc: ${formatDateTime(booking.createdAt)}`}</p>
+                              <p>{`Cập nhật lúc: ${formatDateTime(booking.updatedAt)}`}</p>
                               {isProcessing && hasCountdown && (
                                 <p className={`flex items-center gap-1 ${isExpired ? 'text-red-500' : 'text-amber-600'}`}>
                                   <Clock3 className="h-4 w-4" />
-                                  {isExpired ? 'Reservation hold expired' : `Reservation expires in ${countdown}`}
+                                  {isExpired ? 'Giữ chỗ đã hết hạn' : `Giữ chỗ sẽ hết hạn trong ${countdown}`}
                                 </p>
                               )}
                             </div>
@@ -601,7 +601,7 @@ export function BookingHistoryTab() {
                               onClick={() => handleViewDetails(booking)}
                               disabled={detailLoadingId === bookingId}
                             >
-                              {isExpanded ? 'Hide Details' : 'View Details'}
+                              {isExpanded ? 'Ẩn chi tiết' : 'Xem chi tiết'}
                             </Button>
                           </div>
                         </div>
@@ -612,7 +612,7 @@ export function BookingHistoryTab() {
                           {detailLoadingId === bookingId && (
                             <div className="flex items-center gap-1 text-sm text-gray-300">
                               <Loader2 className="h-4 w-4 animate-spin" />
-                              Loading booking details…
+                              Đang tải chi tiết đặt chỗ…
                             </div>
                           )}
                           {detailError && (
@@ -626,7 +626,7 @@ export function BookingHistoryTab() {
                               {renderFlightDetails(detail.flight, detail.fallbackFlight)}
                               {renderHotelDetails(detail.hotel, detail.fallbackHotel)}
                               {!detail.flight && !detail.hotel && !detail.fallbackFlight && !detail.fallbackHotel && (
-                                <p className="text-sm text-gray-300">No additional details available for this booking.</p>
+                                <p className="text-sm text-gray-300">Không có chi tiết bổ sung cho đặt chỗ này.</p>
                               )}
                             </div>
                           )}
@@ -637,24 +637,24 @@ export function BookingHistoryTab() {
                         {(booking.bookingType === 'FLIGHT' || booking.bookingType === 'COMBO') && (
                           <>
                             <Button variant="outline" size="sm" onClick={() => handleShowFlightLocation(booking, 'origin')}>
-                              View departure on map
+                              Xem điểm đi trên bản đồ
                             </Button>
                             <Button variant="outline" size="sm" onClick={() => handleShowFlightLocation(booking, 'destination')}>
-                              View arrival on map
+                              Xem điểm đến trên bản đồ
                             </Button>
                             <Button variant="outline" size="sm" onClick={() => handleShowFlightJourney(booking)}>
-                              View Journey
+                              Xem hành trình
                             </Button>
                           </>
                         )}
                         {(booking.bookingType === 'HOTEL' || booking.bookingType === 'COMBO') && (
                           <Button variant="outline" size="sm" onClick={() => handleShowHotelLocation(booking)}>
-                            View hotel on map
+                            Xem khách sạn trên bản đồ
                           </Button>
                         )}
                         {isProcessing && (!hasCountdown || !isExpired) && (
                           <Button size="sm" onClick={() => handleContinueBooking(booking)}>
-                            {isAwaitingPayment || booking.status?.toUpperCase() === 'PENDING' || booking.sagaState?.toUpperCase() === 'PAYMENT_PENDING' ? 'Complete Payment' : 'Continue booking'}
+                            {isAwaitingPayment || booking.status?.toUpperCase() === 'PENDING' || booking.sagaState?.toUpperCase() === 'PAYMENT_PENDING' ? 'Hoàn tất thanh toán' : 'Tiếp tục đặt chỗ'}
                           </Button>
                         )}
                       </div>
@@ -668,14 +668,14 @@ export function BookingHistoryTab() {
           {isLoading && (
             <div className="flex items-center justify-center gap-1 text-sm text-gray-300">
               <Loader2 className="h-4 w-4 animate-spin" />
-              Loading booking history…
+              Đang tải lịch sử đặt chỗ…
             </div>
           )}
 
           {hasNext && !isLoading && (
             <div className="flex justify-center">
               <Button variant="outline" onClick={handleLoadMore}>
-                Load More
+                Tải thêm
               </Button>
             </div>
           )}

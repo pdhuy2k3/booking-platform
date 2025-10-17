@@ -488,7 +488,7 @@ export function BookingProvider({ children }: { children: React.ReactNode }) {
     // PAYMENT_PENDING can be in either status or sagaState field
     const normalizedStatus = booking.status?.toUpperCase()
     const normalizedSagaState = booking.sagaState?.toUpperCase()
-    const requiresPayment = normalizedStatus === 'PAYMENT_PENDING' || normalizedSagaState === 'PAYMENT_PENDING'
+    const requiresPayment = normalizedStatus === 'PAYMENT_PENDING' || normalizedSagaState === 'PAYMENT_PENDING' || normalizedStatus === 'PENDING'
     const nextStep = requiresPayment ? 'payment' : 'review'
     setStep(nextStep as BookingStep)
 

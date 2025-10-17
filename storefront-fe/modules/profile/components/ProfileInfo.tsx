@@ -20,12 +20,12 @@ type PhoneCountry = {
 }
 
 const PHONE_COUNTRIES: PhoneCountry[] = [
-  { code: "VN", dialCode: "+84", label: "Vietnam" },
-  { code: "US", dialCode: "+1", label: "United States" },
+  { code: "VN", dialCode: "+84", label: "Việt Nam" },
+  { code: "US", dialCode: "+1", label: "Hoa Kỳ" },
   { code: "SG", dialCode: "+65", label: "Singapore" },
-  { code: "JP", dialCode: "+81", label: "Japan" },
-  { code: "KR", dialCode: "+82", label: "South Korea" },
-  { code: "AU", dialCode: "+61", label: "Australia" },
+  { code: "JP", dialCode: "+81", label: "Nhật Bản" },
+  { code: "KR", dialCode: "+82", label: "Hàn Quốc" },
+  { code: "AU", dialCode: "+61", label: "Úc" },
 ]
 
 const DEFAULT_PHONE_COUNTRY = PHONE_COUNTRIES[0]
@@ -143,16 +143,16 @@ export function ProfileInfo({ user, onUpdate }: ProfileInfoProps) {
       setPhoneNumber(normalizeNationalNumber(phoneNumber))
       setIsEditing(false)
       toast({
-        title: "Profile Updated",
+        title: "Hồ sơ đã được cập nhật",
         description: formattedPhone
-          ? `Phone saved as ${phoneDisplayLabel}`
-          : "Your profile has been successfully updated.",
+          ? `Số điện thoại đã được lưu là ${phoneDisplayLabel}`
+          : "Hồ sơ của bạn đã được cập nhật thành công.",
       })
     } catch (error) {
       console.error('Failed to update profile:', error)
       toast({
-        title: "Update Failed",
-        description: "Failed to update profile. Please try again.",
+        title: "Cập nhật thất bại",
+        description: "Không thể cập nhật hồ sơ. Vui lòng thử lại.",
         variant: "destructive",
       })
     } finally {
@@ -165,8 +165,8 @@ export function ProfileInfo({ user, onUpdate }: ProfileInfoProps) {
 
     if (!file.type.startsWith('image/')) {
       toast({
-        title: "Invalid File Type",
-        description: "Please select an image file.",
+        title: "Loại tệp không hợp lệ",
+        description: "Vui lòng chọn một tệp hình ảnh.",
         variant: "destructive",
       })
       return
@@ -174,8 +174,8 @@ export function ProfileInfo({ user, onUpdate }: ProfileInfoProps) {
 
     if (file.size > 5 * 1024 * 1024) {
       toast({
-        title: "File Too Large",
-        description: "Please select an image smaller than 5MB.",
+        title: "Tệp quá lớn",
+        description: "Vui lòng chọn một hình ảnh nhỏ hơn 5MB.",
         variant: "destructive",
       })
       return
@@ -188,14 +188,14 @@ export function ProfileInfo({ user, onUpdate }: ProfileInfoProps) {
       await onUpdate()
       setAvatarPreview(uploadResult.secureUrl)
       toast({
-        title: "Avatar Updated",
-        description: "Your profile picture has been successfully updated.",
+        title: "Ảnh đại diện đã được cập nhật",
+        description: "Ảnh đại diện của bạn đã được cập nhật thành công.",
       })
     } catch (error) {
       console.error('Failed to update avatar:', error)
       toast({
-        title: "Avatar Update Failed",
-        description: "Failed to update avatar. Please try again.",
+        title: "Cập nhật ảnh đại diện thất bại",
+        description: "Không thể cập nhật ảnh đại diện. Vui lòng thử lại.",
         variant: "destructive",
       })
     } finally {
@@ -214,8 +214,8 @@ export function ProfileInfo({ user, onUpdate }: ProfileInfoProps) {
     <Card className="border-gray-200 bg-white">
       <CardHeader className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <CardTitle className="text-gray-900">Personal Information</CardTitle>
-          <CardDescription>Update your personal details and contact information</CardDescription>
+          <CardTitle className="text-gray-900">Thông tin cá nhân</CardTitle>
+          <CardDescription>Cập nhật chi tiết cá nhân và thông tin liên hệ của bạn</CardDescription>
         </div>
         <div className="flex flex-wrap gap-1 sm:flex-nowrap">
           <Button
@@ -231,12 +231,12 @@ export function ProfileInfo({ user, onUpdate }: ProfileInfoProps) {
                 ) : (
                   <CheckCircle className="h-4 w-4 mr-2" />
                 )}
-                {isSaving ? "Saving..." : "Save Changes"}
+                {isSaving ? "Đang lưu..." : "Lưu thay đổi"}
               </>
             ) : (
               <>
                 <Edit3 className="h-4 w-4 mr-2" />
-                Edit Profile
+                Chỉnh sửa hồ sơ
               </>
             )}
           </Button>
@@ -275,14 +275,14 @@ export function ProfileInfo({ user, onUpdate }: ProfileInfoProps) {
           <div>
             <h3 className="text-lg font-medium text-gray-900">{userInfo.fullName}</h3>
             <p className="text-gray-600">{userInfo.email}</p>
-            <p className="text-sm text-gray-500">Click to change avatar</p>
+            <p className="text-sm text-gray-500">Nhấp để thay đổi ảnh đại diện</p>
           </div>
         </div>
 
         {/* Form Fields */}
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
           <div className="space-y-1">
-            <Label htmlFor="name">Full Name</Label>
+            <Label htmlFor="name">Họ và tên</Label>
             <Input
               id="name"
               value={userInfo.fullName}
@@ -292,7 +292,7 @@ export function ProfileInfo({ user, onUpdate }: ProfileInfoProps) {
             />
           </div>
           <div className="space-y-1">
-            <Label htmlFor="username">Username</Label>
+            <Label htmlFor="username">Tên người dùng</Label>
             <Input
               id="username"
               value={userInfo.username}
@@ -301,7 +301,7 @@ export function ProfileInfo({ user, onUpdate }: ProfileInfoProps) {
             />
           </div>
           <div className="space-y-1">
-            <Label htmlFor="email">Email Address</Label>
+            <Label htmlFor="email">Địa chỉ email</Label>
             <Input
               id="email"
               type="email"
@@ -312,7 +312,7 @@ export function ProfileInfo({ user, onUpdate }: ProfileInfoProps) {
             />
           </div>
           <div className="space-y-1">
-            <Label htmlFor="phone">Phone Number</Label>
+            <Label htmlFor="phone">Số điện thoại</Label>
             <div className="flex flex-col gap-1 sm:flex-row">
               <Select
                 value={phoneCountry.code}
@@ -324,7 +324,7 @@ export function ProfileInfo({ user, onUpdate }: ProfileInfoProps) {
                 disabled={!isEditing}
               >
                 <SelectTrigger className="w-full bg-white border-gray-300 disabled:opacity-60 sm:w-[140px]">
-                  <SelectValue placeholder="Country" />
+                  <SelectValue placeholder="Quốc gia" />
                 </SelectTrigger>
                 <SelectContent>
                   {PHONE_COUNTRIES.map((country) => (
@@ -345,11 +345,11 @@ export function ProfileInfo({ user, onUpdate }: ProfileInfoProps) {
               />
             </div>
             <p className="text-xs text-gray-500">
-              {formatInternationalPhone(phoneCountry.dialCode, phoneNumber) || `${phoneCountry.dialCode} • Example: 772 726 533`}
+              {formatInternationalPhone(phoneCountry.dialCode, phoneNumber) || `${phoneCountry.dialCode} • Ví dụ: 772 726 533`}
             </p>
           </div>
           <div className="space-y-1">
-            <Label htmlFor="dateOfBirth">Date of Birth</Label>
+            <Label htmlFor="dateOfBirth">Ngày sinh</Label>
             <Input
               id="dateOfBirth"
               type="date"

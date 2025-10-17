@@ -26,8 +26,8 @@ export function PasswordChangeModal({ isOpen, onClose, onSuccess }: PasswordChan
   const handleChangePassword = async () => {
     if (passwordData.newPassword !== passwordData.confirmPassword) {
       toast({
-        title: "Password Mismatch",
-        description: "New password and confirm password do not match.",
+        title: "Mật khẩu không khớp",
+        description: "Mật khẩu mới và xác nhận mật khẩu không khớp.",
         variant: "destructive",
       })
       return
@@ -35,8 +35,8 @@ export function PasswordChangeModal({ isOpen, onClose, onSuccess }: PasswordChan
 
     if (passwordData.newPassword.length < 8) {
       toast({
-        title: "Password Too Short",
-        description: "New password must be at least 8 characters long.",
+        title: "Mật khẩu quá ngắn",
+        description: "Mật khẩu mới phải có ít nhất 8 ký tự.",
         variant: "destructive",
       })
       return
@@ -53,14 +53,14 @@ export function PasswordChangeModal({ isOpen, onClose, onSuccess }: PasswordChan
       handleClose()
       onSuccess()
       toast({
-        title: "Password Updated",
-        description: "Your password has been successfully updated.",
+        title: "Đã cập nhật mật khẩu",
+        description: "Mật khẩu của bạn đã được cập nhật thành công.",
       })
     } catch (error) {
       console.error('Failed to update password:', error)
       toast({
-        title: "Password Update Failed",
-        description: "Failed to update password. Please check your current password and try again.",
+        title: "Cập nhật mật khẩu thất bại",
+        description: "Không thể cập nhật mật khẩu. Vui lòng kiểm tra mật khẩu hiện tại của bạn và thử lại.",
         variant: "destructive",
       })
     } finally {
@@ -83,13 +83,13 @@ export function PasswordChangeModal({ isOpen, onClose, onSuccess }: PasswordChan
     }}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>Change Password</DialogTitle>
-          <DialogDescription>Update your account password</DialogDescription>
+          <DialogTitle>Đổi mật khẩu</DialogTitle>
+          <DialogDescription>Cập nhật mật khẩu tài khoản của bạn</DialogDescription>
         </DialogHeader>
 
         <div className="space-y-3 py-1">
           <div className="space-y-1">
-            <Label htmlFor="currentPassword">Current Password</Label>
+            <Label htmlFor="currentPassword">Mật khẩu hiện tại</Label>
             <Input
               id="currentPassword"
               type="password"
@@ -99,7 +99,7 @@ export function PasswordChangeModal({ isOpen, onClose, onSuccess }: PasswordChan
             />
           </div>
           <div className="space-y-1">
-            <Label htmlFor="newPassword">New Password</Label>
+            <Label htmlFor="newPassword">Mật khẩu mới</Label>
             <Input
               id="newPassword"
               type="password"
@@ -109,7 +109,7 @@ export function PasswordChangeModal({ isOpen, onClose, onSuccess }: PasswordChan
             />
           </div>
           <div className="space-y-1">
-            <Label htmlFor="confirmPassword">Confirm New Password</Label>
+            <Label htmlFor="confirmPassword">Xác nhận mật khẩu mới</Label>
             <Input
               id="confirmPassword"
               type="password"
@@ -128,7 +128,7 @@ export function PasswordChangeModal({ isOpen, onClose, onSuccess }: PasswordChan
             className="sm:min-w-[120px]"
           >
             <X className="mr-2 h-4 w-4" />
-            Cancel
+            Hủy
           </Button>
           <Button
             onClick={handleChangePassword}
@@ -138,12 +138,12 @@ export function PasswordChangeModal({ isOpen, onClose, onSuccess }: PasswordChan
             {isSaving ? (
               <>
                 <Clock className="mr-2 h-4 w-4 animate-spin" />
-                Updating...
+                Đang cập nhật...
               </>
             ) : (
               <>
                 <CheckCircle className="mr-2 h-4 w-4" />
-                Update Password
+                Cập nhật mật khẩu
               </>
             )}
           </Button>

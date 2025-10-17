@@ -38,15 +38,18 @@
                     <groupId>org.springframework.boot</groupId>
                     <artifactId>spring-boot-starter-data-redis</artifactId>
                 </exclusion>
-                <!-- Re-include Kafka dependency for RAG implementation -->
+                <exclusion>
+                       <groupId>org.springframework.kafka</groupId>
+            <artifactId>spring-kafka</artifactId>
+                </exclusion>
             </exclusions>
         </dependency>
 
         <!-- Add Kafka dependency explicitly for RAG implementation -->
-        <dependency>
+        <!-- <dependency>
             <groupId>org.springframework.kafka</groupId>
             <artifactId>spring-kafka</artifactId>
-        </dependency>
+        </dependency> -->
 
         <!-- Add Elasticsearch starter for vector store -->
 

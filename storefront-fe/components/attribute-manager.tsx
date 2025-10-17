@@ -85,8 +85,8 @@ export function AttributeManager({ user, onUpdate }: AttributeManagerProps) {
   const handleSave = async () => {
     if (!validateAllAttributes()) {
       toast({
-        title: "Validation Error",
-        description: "Please fix the errors before saving.",
+        title: "Lỗi xác thực",
+        description: "Vui lòng sửa các lỗi trước khi lưu.",
         variant: "destructive",
       })
       return
@@ -130,14 +130,14 @@ export function AttributeManager({ user, onUpdate }: AttributeManagerProps) {
       onUpdate()
 
       toast({
-        title: "Profile Updated",
-        description: "Your profile has been successfully updated.",
+        title: "Hồ sơ đã được cập nhật",
+        description: "Hồ sơ của bạn đã được cập nhật thành công.",
       })
     } catch (error) {
       console.error('Failed to update profile:', error)
       toast({
-        title: "Update Failed",
-        description: "Failed to update profile. Please try again.",
+        title: "Cập nhật thất bại",
+        description: "Không thể cập nhật hồ sơ. Vui lòng thử lại.",
         variant: "destructive",
       })
     } finally {
@@ -257,8 +257,8 @@ export function AttributeManager({ user, onUpdate }: AttributeManagerProps) {
     <Card className="bg-white border-gray-200">
       <CardHeader className="flex flex-row items-center justify-between">
         <div>
-          <CardTitle className="text-gray-900">User Preferences</CardTitle>
-          <CardDescription>Manage your application preferences and settings</CardDescription>
+          <CardTitle className="text-gray-900">Tùy chọn người dùng</CardTitle>
+          <CardDescription>Quản lý các tùy chọn và cài đặt ứng dụng của bạn</CardDescription>
         </div>
         <div className="flex gap-2">
           {!isEditing ? (
@@ -267,7 +267,7 @@ export function AttributeManager({ user, onUpdate }: AttributeManagerProps) {
               className="bg-cyan-500 hover:bg-cyan-600"
             >
               <Settings className="h-4 w-4 mr-2" />
-              Edit Preferences
+              Chỉnh sửa tùy chọn
             </Button>
           ) : (
             <>
@@ -279,12 +279,12 @@ export function AttributeManager({ user, onUpdate }: AttributeManagerProps) {
                 {isSaving ? (
                   <>
                     <div className="h-4 w-4 mr-2 animate-spin rounded-full border-2 border-white border-t-transparent" />
-                    Saving...
+                    Đang lưu...
                   </>
                 ) : (
                   <>
                     <Save className="h-4 w-4 mr-2" />
-                    Save Changes
+                    Lưu thay đổi
                   </>
                 )}
               </Button>
@@ -295,7 +295,7 @@ export function AttributeManager({ user, onUpdate }: AttributeManagerProps) {
                 className="border-gray-300 hover:bg-gray-50"
               >
                 <X className="h-4 w-4 mr-2" />
-                Cancel
+                Hủy
               </Button>
             </>
           )}

@@ -164,7 +164,7 @@ function HomePageContent() {
     
     // Set selected hotel with room details
     setSelectedHotel({
-      id: hotel.id,
+      id: selectedHotelForDetails.hotelId,
       name: hotel.name,
       address: hotel.address,
       city: hotel.city,

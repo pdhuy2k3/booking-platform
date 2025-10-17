@@ -146,25 +146,25 @@ export function AddPaymentMethodDialog({ open, onOpenChange, onSuccess }: AddPay
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[550px]">
         <DialogHeader>
-          <DialogTitle>Add Payment Method</DialogTitle>
+          <DialogTitle>Thêm phương thức thanh toán</DialogTitle>
           <DialogDescription>
-            Add a new payment method to your account. Card details are securely processed by Stripe.
+            Thêm phương thức thanh toán mới vào tài khoản của bạn. Chi tiết thẻ được xử lý an toàn bởi Stripe.
           </DialogDescription>
         </DialogHeader>
 
         <Alert>
           <AlertCircle className="h-4 w-4" />
           <AlertDescription>
-            For testing, use card: 4242 4242 4242 4242, any future expiry date, and any CVC.
+            Để thử nghiệm, hãy sử dụng thẻ: 4242 4242 4242 4242, ngày hết hạn bất kỳ trong tương lai và CVC bất kỳ.
           </AlertDescription>
         </Alert>
 
         <form onSubmit={handleSubmit} className="space-y-3">
           <div className="space-y-1">
-            <Label htmlFor="displayName">Display Name *</Label>
+            <Label htmlFor="displayName">Tên hiển thị *</Label>
             <Input
               id="displayName"
-              placeholder="My Credit Card"
+              placeholder="Thẻ tín dụng của tôi"
               value={displayName}
               onChange={(e) => setDisplayName(e.target.value)}
               required
@@ -172,7 +172,7 @@ export function AddPaymentMethodDialog({ open, onOpenChange, onSuccess }: AddPay
           </div>
 
           <div className="space-y-1">
-            <Label htmlFor="cardHolderName">Cardholder Name</Label>
+            <Label htmlFor="cardHolderName">Tên chủ thẻ</Label>
             <Input
               id="cardHolderName"
               placeholder="John Doe"
@@ -182,7 +182,7 @@ export function AddPaymentMethodDialog({ open, onOpenChange, onSuccess }: AddPay
           </div>
 
           <div className="space-y-1">
-            <Label htmlFor="cardHolderEmail">Cardholder Email</Label>
+            <Label htmlFor="cardHolderEmail">Email chủ thẻ</Label>
             <Input
               id="cardHolderEmail"
               type="email"
@@ -193,7 +193,7 @@ export function AddPaymentMethodDialog({ open, onOpenChange, onSuccess }: AddPay
           </div>
 
           <div className="space-y-1">
-            <Label>Card Details *</Label>
+            <Label>Chi tiết thẻ *</Label>
             <div className="border rounded-md p-2 bg-white">
               <CardElement
                 options={{
@@ -214,7 +214,7 @@ export function AddPaymentMethodDialog({ open, onOpenChange, onSuccess }: AddPay
               />
             </div>
             <p className="text-xs text-gray-500">
-              Stripe securely processes your card details. We never see your full card number.
+              Stripe xử lý chi tiết thẻ của bạn một cách an toàn. Chúng tôi không bao giờ thấy số thẻ đầy đủ của bạn.
             </p>
           </div>
 
@@ -227,7 +227,7 @@ export function AddPaymentMethodDialog({ open, onOpenChange, onSuccess }: AddPay
               className="rounded border-gray-300"
             />
             <Label htmlFor="setAsDefault" className="cursor-pointer font-normal">
-              Set as default payment method
+              Đặt làm phương thức thanh toán mặc định
             </Label>
           </div>
 
@@ -238,7 +238,7 @@ export function AddPaymentMethodDialog({ open, onOpenChange, onSuccess }: AddPay
               onClick={handleCancel}
               disabled={isProcessing}
             >
-              Cancel
+              Hủy
             </Button>
             <Button
               type="submit"
@@ -248,10 +248,10 @@ export function AddPaymentMethodDialog({ open, onOpenChange, onSuccess }: AddPay
               {isProcessing ? (
                 <>
                   <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                  Processing...
+                  Đang xử lý...
                 </>
               ) : (
-                'Add Payment Method'
+                'Thêm phương thức thanh toán'
               )}
             </Button>
           </div>

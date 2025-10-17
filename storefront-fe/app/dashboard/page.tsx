@@ -50,8 +50,8 @@ export default function DashboardPage() {
         <div className="h-screen bg-gray-50 text-gray-900 p-6">
           <div className="max-w-6xl mx-auto">
             <div className="text-center py-12">
-              <h1 className="text-2xl font-bold mb-4">Loading...</h1>
-              <p className="text-gray-600">Please wait while we load your dashboard.</p>
+              <h1 className="text-2xl font-bold mb-4">Đang tải...</h1>
+              <p className="text-gray-600">Vui lòng đợi trong khi chúng tôi tải bảng điều khiển của bạn.</p>
             </div>
           </div>
         </div>
@@ -66,8 +66,8 @@ export default function DashboardPage() {
           {/* Header */}
           <div className="flex items-center justify-between">
             <div>
-              <h1 className="text-3xl font-bold text-balance text-gray-900">Dashboard</h1>
-              <p className="text-gray-600 mt-2">Manage your account information and preferences</p>
+              <h1 className="text-3xl font-bold text-balance text-gray-900">Bảng điều khiển</h1>
+              <p className="text-gray-600 mt-2">Quản lý thông tin tài khoản và tùy chọn của bạn</p>
             </div>
           </div>
 
@@ -78,35 +78,35 @@ export default function DashboardPage() {
                 className="flex flex-1 min-w-[140px] items-center justify-center gap-2 rounded-md transition-all duration-200 text-gray-600 hover:bg-gray-100 hover:text-gray-900 data-[state=active]:bg-blue-500 data-[state=active]:text-white data-[state=active]:shadow-sm md:flex-none md:min-w-0"
               >
                 <User className="h-4 w-4" />
-                Profile
+                Hồ sơ
               </TabsTrigger>
               <TabsTrigger
                 value="address"
                 className="flex flex-1 min-w-[140px] items-center justify-center gap-2 rounded-md transition-all duration-200 text-gray-600 hover:bg-gray-100 hover:text-gray-900 data-[state=active]:bg-blue-500 data-[state=active]:text-white data-[state=active]:shadow-sm md:flex-none md:min-w-0"
               >
                 <MapPin className="h-4 w-4" />
-                Address
+                Địa chỉ
               </TabsTrigger>
               <TabsTrigger
                 value="preferences"
                 className="flex flex-1 min-w-[140px] items-center justify-center gap-2 rounded-md transition-all duration-200 text-gray-600 hover:bg-gray-100 hover:text-gray-900 data-[state=active]:bg-blue-500 data-[state=active]:text-white data-[state=active]:shadow-sm md:flex-none md:min-w-0"
               >
                 <Settings className="h-4 w-4" />
-                Preferences
+                Tùy chọn
               </TabsTrigger>
               <TabsTrigger
                 value="payments"
                 className="flex flex-1 min-w-[140px] items-center justify-center gap-2 rounded-md transition-all duration-200 text-gray-600 hover:bg-gray-100 hover:text-gray-900 data-[state=active]:bg-blue-500 data-[state=active]:text-white data-[state=active]:shadow-sm md:flex-none md:min-w-0"
               >
                 <CreditCard className="h-4 w-4" />
-                Payment Methods
+                Phương thức thanh toán
               </TabsTrigger>
               <TabsTrigger
                 value="bookings"
                 className="flex flex-1 min-w-[140px] items-center justify-center gap-2 rounded-md transition-all duration-200 text-gray-600 hover:bg-gray-100 hover:text-gray-900 data-[state=active]:bg-blue-500 data-[state=active]:text-white data-[state=active]:shadow-sm md:flex-none md:min-w-0"
               >
                 <Calendar className="h-4 w-4" />
-                Booking History
+                Lịch sử đặt chỗ
               </TabsTrigger>
             </TabsList>
 
@@ -119,14 +119,14 @@ export default function DashboardPage() {
                     <div className="flex items-start gap-3">
                       <ShieldCheck className="mt-1 h-5 w-5 text-blue-500" />
                       <div>
-                        <CardTitle className="text-gray-900">Account Security</CardTitle>
+                        <CardTitle className="text-gray-900">Bảo mật tài khoản</CardTitle>
                         <CardDescription>
-                          Keep your account secure by updating your password regularly.
+                          Giữ tài khoản của bạn an toàn bằng cách cập nhật mật khẩu thường xuyên.
                         </CardDescription>
                       </div>
                     </div>
                     <Button variant="outline" onClick={() => setIsChangingPassword(true)}>
-                      Change Password
+                      Đổi mật khẩu
                     </Button>
                   </CardHeader>
                 </Card>

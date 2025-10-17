@@ -1,4 +1,4 @@
-import type { Hotel, PaginatedResponse, MediaResponse } from "@/types/api"
+import type { Hotel, PaginatedResponse, MediaResponse, ApiResponse } from "@/types/api"
 import { apiClient } from "@/lib/api-client"
 
 export class HotelService {
@@ -20,36 +20,42 @@ export class HotelService {
     const queryString = queryParams.toString()
     const url = `${this.BASE_PATH}${queryString ? `?${queryString}` : ''}`
     
-    return await apiClient.get<PaginatedResponse<Hotel>>(url)
-
+    // The backend returns ApiResponse<PaginatedResponse<Hotel>>, so we need to extract the data field
+    const response = await apiClient.get<ApiResponse<PaginatedResponse<Hotel>>>(url);
+    return response.data; // Extract the 'data' field from the ApiResponse wrapper
   }
 
   static async getHotel(id: number): Promise<Hotel> {
-    return  await apiClient.get<Hotel>(`${this.BASE_PATH}/${id}`)
-
+    // The backend returns ApiResponse<Hotel>, so we need to extract the data field
+    const response = await apiClient.get<ApiResponse<Hotel>>(`${this.BASE_PATH}/${id}`);
+    return response.data; // Extract the 'data' field from the ApiResponse wrapper
   }
 
   static async createHotel(hotel: Omit<Hotel, "id" | "createdAt" | "updatedAt" | "availableRooms" | "minPrice"> & { media?: MediaResponse[] }): Promise<Hotel> {
     // Remove images field if it exists and prepare data for backend
     const { images, ...hotelData } = hotel as any
     
-    return await apiClient.post<Hotel>(this.BASE_PATH, hotelData)
+    const response = await apiClient.post<ApiResponse<Hotel>>(this.BASE_PATH, hotelData);
+    return response.data; // Extract the 'data' field from the ApiResponse wrapper
   }
 
   static async updateHotel(id: number, hotel: Partial<Hotel> & { media?: MediaResponse[] }): Promise<Hotel> {
     // Remove images field if it exists and prepare data for backend
     const { images, ...hotelData } = hotel as any
     
-    return await apiClient.put<Hotel>(`${this.BASE_PATH}/${id}`, hotelData)
+    const response = await apiClient.put<ApiResponse<Hotel>>(`${this.BASE_PATH}/${id}`, hotelData);
+    return response.data; // Extract the 'data' field from the ApiResponse wrapper
   }
 
   static async deleteHotel(id: number): Promise<void> {
-    await apiClient.delete(`${this.BASE_PATH}/${id}`)
+    await apiClient.delete<ApiResponse<void>>(`${this.BASE_PATH}/${id}`);
+    // No return value needed for delete operation
   }
 
   static async updateHotelAmenities(hotelId: number, amenityIds: number[]): Promise<Hotel> {
-    return await apiClient.put<Hotel>(`${this.BASE_PATH}/${hotelId}/amenities`, {
+    const response = await apiClient.put<ApiResponse<Hotel>>(`${this.BASE_PATH}/${hotelId}/amenities`, {
       amenityIds
-    })
+    });
+    return response.data; // Extract the 'data' field from the ApiResponse wrapper
   }
 }

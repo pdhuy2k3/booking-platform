@@ -136,7 +136,7 @@ export function HotelBookingForm({ hotel, onSubmit, onCancel }: HotelBookingForm
   }, [numberOfGuests, toast]);
 
   // Add the room type functionality
-  const [selectedRoomTypeId, setSelectedRoomTypeId] = useState<number>(hotel.roomTypeId || hotel.id || 1);
+  const [selectedRoomTypeId, setSelectedRoomTypeId] = useState<number>(Number(hotel.roomTypeId) || 1);
   
   // Show toast when room type changes and fetch updated price
   useEffect(() => {
@@ -236,7 +236,7 @@ export function HotelBookingForm({ hotel, onSubmit, onCancel }: HotelBookingForm
     }
 
     const bookingDetails: HotelBookingDetails = {
-      hotelId: hotel.id,
+      hotelId: hotel.id, // Correctly assign hotelId
       hotelName: hotel.name,
       hotelAddress: hotel.address,
       city: hotel.city,
@@ -244,7 +244,7 @@ export function HotelBookingForm({ hotel, onSubmit, onCancel }: HotelBookingForm
       hotelLatitude: hotel.hotelLatitude ?? hotel.latitude,
       hotelLongitude: hotel.hotelLongitude ?? hotel.longitude,
       starRating: hotel.rating,
-      roomTypeId: selectedRoomTypeId || hotel.roomTypeId || hotel.id || 1,
+      roomTypeId: selectedRoomTypeId, // Use state, remove incorrect fallback
       roomId: hotel.roomId,
       roomType: hotel.roomType,
       roomName: hotel.roomName,

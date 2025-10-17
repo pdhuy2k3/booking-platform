@@ -79,9 +79,8 @@ public class FlightEventConsumer {
 
         if (details != null) {
             flightService.reserveFlight(bookingId, sagaId, details);
-        } else {
-            flightService.reserveFlight(bookingId);
         }
+        
     }
 
     private void cancelFlight(SagaCommand command) {
