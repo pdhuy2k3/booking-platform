@@ -315,12 +315,16 @@ export default function FlightDetailsModal({
                         onPromptSearch?.()
                         return
                       }
-                      onBookFlight?.({
-                        ...flight,
-                        arrivalTime: flight.arrivalDateTime|| '',
-                        departureTime: flight.departureDateTime||''
-                      })
-                    
+                      // Close modal before calling booking callback to prevent state update conflicts
+                      onClose()
+                      // Use setTimeout to ensure modal is closed before booking callback
+                      setTimeout(() => {
+                        onBookFlight?.({
+                          ...flight,
+                          arrivalTime: flight.arrivalDateTime|| '',
+                          departureTime: flight.departureDateTime||''
+                        })
+                      }, 0)
                     }}
                   >
                     Đặt ngay

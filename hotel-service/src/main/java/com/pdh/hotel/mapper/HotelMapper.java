@@ -33,7 +33,7 @@ import java.util.stream.Collectors;
 @Slf4j
 public class HotelMapper {
 
-    private static final double DEFAULT_PRICE = 50000000.0;
+    private static final double DEFAULT_PRICE = 5000000.0;
 
     private final HotelImageRepository hotelImageRepository;
     private final RoomTypeService roomTypeService;

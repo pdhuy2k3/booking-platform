@@ -6,7 +6,6 @@ import { cn } from "@/lib/utils";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import type { ChatStructuredResult } from "@/modules/ai/types";
 import { useRecommendPanel } from "@/contexts/recommend-panel-context";
 import { MapboxMap, type MapLocation } from "@/components/mapbox-map";
 import { useExploreDestinations } from "@/hooks/use-explore-destinations";
@@ -333,15 +332,15 @@ export const RecommendPanel = React.forwardRef<RecommendPanelRef, RecommendPanel
                         className="p-4 cursor-pointer hover:shadow-md transition-shadow"
                         onClick={() => handleExploreCardClick(index)}
                       >
-                        <div className="flex flex-col items-start space-x-3">
+                        <div className="flex flex-col items-start space-y-3">
                           {imageUrl && (
-                            <div className="w-16 h-16 rounded-md overflow-hidden flex-shrink-0">
+                            <div className="w-full h-32 rounded-md overflow-hidden flex-shrink-0">
                               <Image
                                 src={imageUrl} 
                                 alt={item.title}
-                                width={64}
-                                height={64}
-                                className="object-cover"
+                                width={300}
+                                height={128}
+                                className="w-full h-full object-cover"
                                 onError={(e) => {
                                   // Hide image if it fails to load
                                   (e.target as HTMLImageElement).style.display = 'none';
@@ -349,7 +348,7 @@ export const RecommendPanel = React.forwardRef<RecommendPanelRef, RecommendPanel
                               />
                             </div>
                           )}
-                          <div className="flex-1">
+                          <div className="w-full">
                             <div className="flex items-start justify-between mb-1">
                               <h3 className="font-semibold">{item.title}</h3>
                               {/* Show map pin if coordinates exist */}
@@ -435,13 +434,12 @@ export const RecommendPanel = React.forwardRef<RecommendPanelRef, RecommendPanel
                       >
                         <div className="flex items-start space-x-3">
                           {imageUrl && (
-                            <div className="w-16 h-16 rounded-md overflow-hidden flex-shrink-0">
+                            <div className="w-full h-32 rounded-md overflow-hidden flex-shrink-0">
                               <Image
                                 src={imageUrl}
-                                alt={result.title || result.name || 'Location'}
-                                width={64}
-                                height={64}
-                                className="object-cover"
+                                width={300}
+                                height={128}
+                                className="w-full h-full object-cover"
                                 onError={(e) => {
                                   // Hide image if it fails to load
                                   (e.target as HTMLImageElement).style.display = 'none';

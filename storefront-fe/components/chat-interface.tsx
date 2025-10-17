@@ -258,7 +258,6 @@ export const ChatInterface = forwardRef<any, ChatInterfaceProps>(function ChatIn
                       onHotelBook={onHotelBook}
                       onLocationClick={onLocationClick}
                       canBook={true}
-                      isStreaming={isCurrentlyStreaming}
                     />
 
                     {formattedTimestamp && (!isCurrentlyStreaming || message.content) && (

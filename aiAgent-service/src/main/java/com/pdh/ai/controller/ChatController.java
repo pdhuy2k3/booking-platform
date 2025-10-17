@@ -13,14 +13,13 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.core.annotation.AuthenticationPrincipal;
-import org.springframework.security.oauth2.core.user.OAuth2User;
+
 import org.springframework.web.bind.annotation.*;
 import reactor.core.publisher.Flux;
-import reactor.core.publisher.Mono;
 
 import java.time.LocalDateTime;
-import java.util.UUID;
+import java.util.List;
+
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 
@@ -38,7 +37,6 @@ import org.springframework.web.bind.annotation.RequestParam;
  */
 @RestController
 @RequestMapping("/chat")
-@CrossOrigin(origins = "*", allowedHeaders = "*")
 public class ChatController {
     
     private static final Logger logger = LoggerFactory.getLogger(ChatController.class);
@@ -50,52 +48,14 @@ public class ChatController {
         this.ragInitializationService = ragInitializationService;
     }
 
-//    @PostMapping(value = "/message", produces = MediaType.APPLICATION_JSON_VALUE)
-//    public Mono<StructuredChatPayload> sendMessage(@RequestBody ChatMessageRequest request, @AuthenticationPrincipal OAuth2User principal) {
-//        try {
-//            // Extract username from OAuth2 principal
-//            String username = principal.getAttribute("preferred_username");
-//            logger.info("💬 [CHAT-SYNC] Received message from user: {}, conversation: {}",
-//                       username, request.getConversationId());
-//
-//            // Validate request
-//            if (request.getMessage() == null || request.getMessage().trim().isEmpty()) {
-//                return Mono.just(StructuredChatPayload.builder()
-//                    .message("Message cannot be empty")
-//                    .results(java.util.List.of())
-//                    .build());
-//            }
-//
-//            // Generate conversation ID if not provided
-//            String conversationId = request.getConversationId();
-//            if (conversationId == null || conversationId.trim().isEmpty()) {
-//                conversationId = UUID.randomUUID().toString();
-//                logger.debug("📝 Generated new conversation ID: {}", conversationId);
-//            }
-//
-//            // Process with all agentic patterns automatically
-//            return llmAiService.processSyncStructured(
-//                request.getMessage(),
-//                conversationId,
-//                username
-//            );
-//
-//        } catch (Exception e) {
-//            logger.error("❌ [CHAT-SYNC] Error processing message: {}", e.getMessage(), e);
-//            return Mono.just(StructuredChatPayload.builder()
-//                .message("Xin lỗi, đã xảy ra lỗi khi xử lý yêu cầu của bạn.")
-//                .results(java.util.List.of())
-//                .build());
-//        }
-//    }
+
 
     /**
-     * Streaming chat endpoint - Returns response chunks as they are generated.
-     * Uses Server-Sent Events to stream the AI response in real-time.
+     * Synchronous chat endpoint - Returns a complete structured response.
      * 
      * <p>Example Request:</p>
      * <pre>
-     * POST /chat/stream?conversationId={conversationId}
+     * POST /chat/message?conversationId={conversationId}
      * {
      *   "message": "Compare flights from Hanoi to Da Nang, Phu Quoc, and Nha Trang"
      * }
@@ -103,40 +63,45 @@ public class ChatController {
      * 
      * @param request Chat message request
      * @param conversationId The conversation ID for this chat
-     * @param principal The authenticated OAuth2 user
-     * @return Flux of StructuredChatPayload chunks
+     * @return Complete structured response
      */
-    @PostMapping(path = "/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
-    public Flux<StructuredChatPayload> streamChat(@RequestBody ChatMessageRequest request,
-                                                  @RequestParam String conversationId) {
+    @PostMapping(path = "/message")
+    public ResponseEntity<StructuredChatPayload> sendMessage(@RequestBody ChatMessageRequest request) {
         try {
             // Extract username from OAuth2 principal
             String username = AuthenticationUtils.extractUsername();
-            logger.info("💬 [CHAT-STREAM] Received streaming message from user: {}, conversation: {}", 
-                       username, conversationId);
+            String conversationId = request.getConversationId(); // Extract from request body
+            String effectiveConversationId = conversationId != null ? conversationId : generateConversationId();
+            logger.info("💬 [CHAT-MESSAGE] Received message from user: {}, conversation: {}", 
+                       username, effectiveConversationId);
 
             // Validate request
             if (request.getMessage() == null || request.getMessage().trim().isEmpty()) {
-                return Flux.just(StructuredChatPayload.builder()
+                return ResponseEntity.badRequest().body(StructuredChatPayload.builder()
                     .message("Message cannot be empty")
                     .results(java.util.List.of())
                     .build());
             }
 
-            // Process with streaming - each chunk of the response will be emitted as it's available
-            return llmAiService.processStreamStructured(
+            // Process and return complete response
+            StructuredChatPayload response = llmAiService.processStructured(
                 request.getMessage(),
-                conversationId,
+                effectiveConversationId,
                 username
             );
+            return ResponseEntity.ok(response);
 
         } catch (Exception e) {
-            logger.error("❌ [CHAT-STREAM] Error processing message: {}", e.getMessage(), e);
-            return Flux.just(StructuredChatPayload.builder()
+            logger.error("❌ [CHAT-MESSAGE] Error processing message: {}", e.getMessage(), e);
+            return ResponseEntity.status(500).body(StructuredChatPayload.builder()
                 .message("Xin lỗi, đã xảy ra lỗi khi xử lý yêu cầu của bạn.")
                 .results(java.util.List.of())
                 .build());
         }
+    }
+    
+    private String generateConversationId() {
+        return java.util.UUID.randomUUID().toString();
     }
     
     /**
@@ -194,7 +159,7 @@ public class ChatController {
     }
 
     @GetMapping("/conversations")
-    public ResponseEntity<java.util.List<ChatConversationSummaryDto>> getUserConversations() {
+    public ResponseEntity<List<ChatConversationSummaryDto>> getUserConversations() {
         try {
             // Extract username from OAuth2 principal
             String username = AuthenticationUtils.extractUsername();

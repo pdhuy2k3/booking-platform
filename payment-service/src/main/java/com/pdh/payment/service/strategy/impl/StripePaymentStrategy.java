@@ -537,21 +537,19 @@ public class StripePaymentStrategy implements PaymentStrategy {
             if (customerEmail == null && additionalData != null) {
                 customerEmail = (String) additionalData.get("customer_email");
             }
-            
+
             if (customerEmail != null) {
-                customerId = getOrCreateCustomer(customerEmail, 
-                    request.getCustomerName() != null ? request.getCustomerName() : 
+                customerId = getOrCreateCustomer(customerEmail,
+                    request.getCustomerName() != null ? request.getCustomerName() :
                     additionalData != null ? (String) additionalData.get("customer_name") : null);
-                
-                if (customerId != null) {
-                    paramsBuilder.setCustomer(customerId);
-                    // Set setup_future_usage to save payment method to customer for future use
-                    paramsBuilder.setSetupFutureUsage(PaymentIntentCreateParams.SetupFutureUsage.ON_SESSION);
-                }
             }
-        } else {
+        }
+
+        // Always attach customer and set setup_future_usage if a customer is available.
+        // This ensures consistency with the frontend Elements provider.
+        // The decision to actually save the payment method in our DB is handled separately after payment success.
+        if (customerId != null && !customerId.isBlank()) {
             paramsBuilder.setCustomer(customerId);
-            // Set setup_future_usage to save payment method to customer for future use
             paramsBuilder.setSetupFutureUsage(PaymentIntentCreateParams.SetupFutureUsage.ON_SESSION);
         }
 

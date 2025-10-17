@@ -35,7 +35,7 @@ public class JpaChatMemory implements ChatMemory {
     @Override
     @Transactional
     public void add(String conversationId, List<Message> messages) {
-        ChatMessage rootMessage = chatMessageRepository.findTopByConversationIdOrderByTimestampAsc(conversationId).orElse(null);
+        ChatMessage rootMessage = chatMessageRepository.findTopByConversationIdOrderByTimestampDesc(conversationId).orElse(null);
 
         List<ChatMessage> entitiesToSave = new ArrayList<>();
         boolean newConversation = (rootMessage == null);

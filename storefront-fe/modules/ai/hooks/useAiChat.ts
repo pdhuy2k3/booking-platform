@@ -21,8 +21,6 @@ interface UseAiChatReturn {
     loadChatHistory: () => Promise<void>;
     suggestions: string[];
     getSuggestions: () => Promise<void>;
-    isStreaming: boolean; // New: specific flag for streaming state
-    streamProgress: number; // New: 0-100 percentage of content received
 }
 
 interface ParsedStructuredPayload {
@@ -149,7 +147,6 @@ export function useAiChat(options: UseAiChatOptions = {}): UseAiChatReturn {
 
     const [messages, setMessages] = useState<ChatMessage[]>(() => createInitialMessages());
     const [isLoading, setIsLoading] = useState(false);
-    const [isStreaming, setIsStreaming] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [conversationId, setConversationId] = useState<string | null>(initialConversationId || null);
     const [suggestions, setSuggestions] = useState<string[]>([]);
@@ -157,7 +154,6 @@ export function useAiChat(options: UseAiChatOptions = {}): UseAiChatReturn {
     const currentAssistantMessageIdRef = useRef<string | null>(null);
     const conversationIdRef = useRef(conversationId);
     const onErrorRef = useRef(onError);
-    const abortControllerRef = useRef<AbortController | null>(null);
 
     useEffect(() => {
         conversationIdRef.current = conversationId;
@@ -216,11 +212,6 @@ export function useAiChat(options: UseAiChatOptions = {}): UseAiChatReturn {
             return;
         }
 
-        // Cancel any ongoing request
-        if (abortControllerRef.current) {
-            abortControllerRef.current.abort();
-        }
-
         const effectiveConversationId = conversationId || context?.conversationId || createConversationId();
         const userMessageId = createMessageId('user');
         const assistantMessageId = createMessageId('assistant');
@@ -252,102 +243,55 @@ export function useAiChat(options: UseAiChatOptions = {}): UseAiChatReturn {
         }
 
         currentAssistantMessageIdRef.current = assistantMessageId;
-        abortControllerRef.current = new AbortController();
 
         try {
-            const stream = await aiChatService.streamMessage(trimmedMessage, effectiveConversationId);
+            // Call the synchronous sendMessage method instead of streamMessage
+            const response = await aiChatService.sendMessage(trimmedMessage, {
+                ...context,
+                conversationId: effectiveConversationId
+            });
 
-            if (!stream) {
-                throw new Error('Failed to establish streaming connection');
-            }
-            setIsStreaming(true);
+            // Check if the response contains an error
+            if (response.error) {
+                const errorMessage = response.error || 'Không thể gửi tin nhắn. Vui lòng thử lại.';
+                setError(errorMessage);
+                onError?.(errorMessage);
 
-            const reader = (stream as unknown as ReadableStream<Uint8Array>).getReader();
-            const decoder = new TextDecoder();
-            let buffer = '';
+                // Update the assistant message with the error
+                setMessages(prev => {
+                    const newMessages = [...prev];
+                    const messageIndex = newMessages.findIndex(msg => msg.id === assistantMessageId);
 
-            let assistantMessageContent = '';
-            let assistantResults: ChatStructuredResult[] = [];
-            let assistantSuggestions: string[] = [];
-
-            try {
-                while (true) {
-                    const { done, value } = await reader.read();
-
-                    if (done) {
-                        console.log('✅ Stream completed');
-                        break;
+                    if (messageIndex !== -1) {
+                        newMessages[messageIndex] = {
+                            ...newMessages[messageIndex],
+                            content: response.aiResponse || errorMessage,
+                            results: [],
+                            timestamp: new Date(response.timestamp || new Date()),
+                            suggestions: [],
+                        };
                     }
 
-                    // Decode and add to buffer
-                    buffer += decoder.decode(value, { stream: true });
+                    return newMessages;
+                });
+            } else {
+                // Update the assistant message with the complete response
+                setMessages(prev => {
+                    const newMessages = [...prev];
+                    const messageIndex = newMessages.findIndex(msg => msg.id === assistantMessageId);
 
-                    // Process complete lines from buffer
-                    const lines = buffer.split('\n');
-                    buffer = lines.pop() || ''; // Keep incomplete line in buffer
-
-                    for (const line of lines) {
-                        const trimmedLine = line.trim();
-
-                        if (!trimmedLine) continue;
-
-                        // Handle SSE format: "data: {...}"
-                        if (trimmedLine.startsWith('data:')) {
-                            const dataStr = trimmedLine.substring(5).trim();
-
-                            // Check for stream end marker
-                            if (dataStr === '[DONE]') {
-                                console.log('🏁 Received [DONE] marker');
-                                break;
-                            }
-
-                            try {
-                                const payload = JSON.parse(dataStr);
-
-                                // Update content progressively
-                                if (payload.message !== undefined) {
-                                    assistantMessageContent = payload.message;
-                                }
-
-                                if (payload.results !== undefined) {
-                                    assistantResults = Array.isArray(payload.results) ? payload.results : [];
-                                }
-
-                                if (payload.next_request_suggestions !== undefined || payload.nextRequestSuggestions !== undefined) {
-                                    assistantSuggestions = payload.next_request_suggestions || payload.nextRequestSuggestions || [];
-                                }
-
-                                // Update UI in real-time
-                                setMessages(prev => {
-                                    const newMessages = [...prev];
-                                    const messageIndex = newMessages.findIndex(msg => msg.id === assistantMessageId);
-
-                                    if (messageIndex !== -1) {
-                                        newMessages[messageIndex] = {
-                                            ...newMessages[messageIndex],
-                                            content: assistantMessageContent,
-                                            results: [...assistantResults],
-                                            suggestions: [...assistantSuggestions],
-                                        };
-                                    }
-
-                                    return newMessages;
-                                });
-
-                                console.log('📦 Stream chunk processed:', {
-                                    messageLength: assistantMessageContent.length,
-                                    resultsCount: assistantResults.length,
-                                    suggestionsCount: assistantSuggestions.length
-                                });
-
-                            } catch (parseError) {
-                                console.error('❌ Error parsing stream data:', parseError, 'Data:', dataStr);
-                            }
-                        }
+                    if (messageIndex !== -1) {
+                        newMessages[messageIndex] = {
+                            ...newMessages[messageIndex],
+                            content: response.aiResponse,
+                            results: response.results || [],
+                            suggestions: response.nextRequestSuggestions || [],
+                            timestamp: new Date(response.timestamp),
+                        };
                     }
-                }
-            } finally {
-                reader.releaseLock();
+
+                    return newMessages;
+                });
             }
 
             const shouldRefreshConversations = !conversationId || effectiveConversationId !== conversationId;
@@ -365,12 +309,6 @@ export function useAiChat(options: UseAiChatOptions = {}): UseAiChatReturn {
             currentAssistantMessageIdRef.current = null;
 
         } catch (err: any) {
-            // Don't show error if request was aborted
-            if (err.name === 'AbortError') {
-                console.log('Stream aborted by user');
-                return;
-            }
-
             const errorMessage = 'Không thể gửi tin nhắn. Vui lòng thử lại.';
             setError(errorMessage);
             onError?.(errorMessage);
@@ -396,28 +334,16 @@ export function useAiChat(options: UseAiChatOptions = {}): UseAiChatReturn {
 
         } finally {
             setIsLoading(false);
-            setIsStreaming(false);
-            abortControllerRef.current = null;
         }
     }, [isLoading, conversationId, context, refreshChatConversations, onError]);
 
     const startNewConversation = useCallback(() => {
-        // Cancel any ongoing request
-        if (abortControllerRef.current) {
-            abortControllerRef.current.abort();
-        }
-
         setMessages(createInitialMessages());
         setError(null);
         setConversationId(null);
     }, []);
 
     const clearMessages = useCallback(async () => {
-        // Cancel any ongoing request
-        if (abortControllerRef.current) {
-            abortControllerRef.current.abort();
-        }
-
         if (conversationId) {
             try {
                 await aiChatService.clearChatHistory(conversationId);
@@ -446,15 +372,6 @@ export function useAiChat(options: UseAiChatOptions = {}): UseAiChatReturn {
         }
     }, [conversationId, context]);
 
-    // Cleanup on unmount
-    useEffect(() => {
-        return () => {
-            if (abortControllerRef.current) {
-                abortControllerRef.current.abort();
-            }
-        };
-    }, []);
-
     return {
         messages,
         isLoading,
@@ -466,7 +383,5 @@ export function useAiChat(options: UseAiChatOptions = {}): UseAiChatReturn {
         loadChatHistory,
         suggestions,
         getSuggestions,
-        isStreaming,
-        streamProgress: 0,
     };
 }

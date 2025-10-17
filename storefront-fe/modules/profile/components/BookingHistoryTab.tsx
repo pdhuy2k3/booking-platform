@@ -372,25 +372,16 @@ export function BookingHistoryTab() {
 
   const handleContinueBooking = useCallback((booking: BookingHistoryItemDto) => {
     try {
-      // Check if the booking requires payment based on status
-      // PAYMENT_PENDING and PENDING (as per clarification) should go to payment
-      const requiresPayment = ['PAYMENT_PENDING', 'PENDING'].includes(booking.status?.toUpperCase());
+      // For all bookings, including those requiring payment, use the resume flow
+      // The resumeBooking function in booking context will handle setting the correct step based on status and sagaState
+      const productDetails = booking.productDetailsJson ? JSON.parse(booking.productDetailsJson) : null
+      const payload = { booking, productDetails }
       
-      if (requiresPayment) {
-        // For bookings requiring payment, redirect directly to the payment page
-        // Pass the booking ID and total amount to the payment page
-        router.push(`/payment?bookingId=${encodeURIComponent(booking.bookingId)}&amount=${booking.totalAmount || 0}&currency=${booking.currency || 'VND'}`)
-      } else {
-        // For other statuses, use the original flow
-        const productDetails = booking.productDetailsJson ? JSON.parse(booking.productDetailsJson) : null
-        const payload = { booking, productDetails }
-        
-        // Store in sessionStorage with a consistent key
-        sessionStorage.setItem('bookingResumePayload', JSON.stringify(payload))
-        
-        // Redirect to homepage with resume parameter
-        router.push(`/?resume=${booking.bookingId}`)
-      }
+      // Store in sessionStorage with a consistent key
+      sessionStorage.setItem('bookingResumePayload', JSON.stringify(payload))
+      
+      // Redirect to homepage with resume parameter - this will open the booking modal at the appropriate step
+      router.push(`/?resume=${booking.bookingId}`)
     } catch (error) {
       console.error('Failed to prepare booking for resuming', error)
       toast({
@@ -663,7 +654,7 @@ export function BookingHistoryTab() {
                         )}
                         {isProcessing && (!hasCountdown || !isExpired) && (
                           <Button size="sm" onClick={() => handleContinueBooking(booking)}>
-                            {isAwaitingPayment || booking.status?.toUpperCase() === 'PENDING' ? 'Complete Payment' : 'Continue booking'}
+                            {isAwaitingPayment || booking.status?.toUpperCase() === 'PENDING' || booking.sagaState?.toUpperCase() === 'PAYMENT_PENDING' ? 'Complete Payment' : 'Continue booking'}
                           </Button>
                         )}
                       </div>

@@ -197,7 +197,9 @@ export default function AdminAmenities() {
   }
 
   const toggleSelectAll = () => {
-    if (!amenities) return
+    if (!amenities?.content) return
+    
+    if (!amenities?.content) return
     
     if (selectedAmenities.length === amenities.content.length) {
       setSelectedAmenities([])
@@ -207,7 +209,7 @@ export default function AdminAmenities() {
   }
 
   const totalAmenities = amenities?.totalElements || 0
-  const activeAmenities = amenities?.content.filter(a => a.isActive).length || 0
+  const activeAmenities = amenities?.content ? amenities.content.filter(a => a.isActive).length : 0
 
   return (
     <AdminLayout>

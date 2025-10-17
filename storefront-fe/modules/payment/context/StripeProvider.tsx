@@ -76,6 +76,7 @@ export const StripeProvider: React.FC<StripeProviderProps> = ({
       case 'payment':
         return {
           ...createPaymentElementsOptions(amount, currency, appearance),
+          setupFutureUsage: 'on_session', // Match the backend configuration
           wallets: {
             applePay: 'auto',
             googlePay: 'auto',
@@ -85,6 +86,7 @@ export const StripeProvider: React.FC<StripeProviderProps> = ({
         return {
           mode: 'setup',
           paymentMethodCreation: 'manual',
+          setupFutureUsage: 'on_session', // Match the backend configuration
           appearance: {
             theme: 'stripe',
             ...appearance,
@@ -97,6 +99,7 @@ export const StripeProvider: React.FC<StripeProviderProps> = ({
       case 'subscription':
         return {
           mode: 'subscription',
+          setupFutureUsage: 'on_session', // Match the backend configuration
           appearance: {
             theme: 'stripe',
             ...appearance,
@@ -109,6 +112,7 @@ export const StripeProvider: React.FC<StripeProviderProps> = ({
       default:
         return {
           ...createPaymentElementsOptions(amount, currency, appearance),
+          setupFutureUsage: 'on_session', // Match the backend configuration
           wallets: {
             applePay: 'auto',
             googlePay: 'auto',

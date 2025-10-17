@@ -144,28 +144,46 @@ export function BookingProvider({ children }: { children: React.ReactNode }) {
   const [state, dispatch] = useReducer(bookingReducer, initialState)
   const { toast } = useToast()
   const statusPollingRef = useRef<NodeJS.Timeout | null>(null)
+  const mountedRef = useRef(true)
+
+  // Set mounted ref to false on unmount
+  useEffect(() => {
+    return () => {
+      mountedRef.current = false
+      if (statusPollingRef.current) {
+        clearTimeout(statusPollingRef.current)
+        statusPollingRef.current = null
+      }
+    }
+  }, [])
 
   const setBookingType = useCallback((type: BookingType) => {
+    if (!mountedRef.current) return
     dispatch({ type: 'SET_BOOKING_TYPE', payload: type })
   }, [])
 
   const updateBookingData = useCallback((data: Partial<StorefrontBookingRequest>) => {
+    if (!mountedRef.current) return
     dispatch({ type: 'UPDATE_BOOKING_DATA', payload: data })
   }, [])
 
   const setStep = useCallback((step: BookingStep) => {
+    if (!mountedRef.current) return
     dispatch({ type: 'SET_STEP', payload: step })
   }, [])
 
   const setSelectedFlight = useCallback((flight: SelectedFlight | null) => {
+    if (!mountedRef.current) return
     dispatch({ type: 'SET_SELECTED_FLIGHT', payload: flight })
   }, [])
 
   const setSelectedHotel = useCallback((hotel: SelectedHotel | null) => {
+    if (!mountedRef.current) return
     dispatch({ type: 'SET_SELECTED_HOTEL', payload: hotel })
   }, [])
 
   const nextStep = useCallback(() => {
+    if (!mountedRef.current) return
     const steps: BookingStep[] = ['selection', 'passengers', 'review', 'payment', 'confirmation']
     const currentIndex = steps.indexOf(state.step)
     if (currentIndex < steps.length - 1) {
@@ -174,6 +192,7 @@ export function BookingProvider({ children }: { children: React.ReactNode }) {
   }, [state.step])
 
   const prevStep = useCallback(() => {
+    if (!mountedRef.current) return
     const steps: BookingStep[] = ['selection', 'passengers', 'review', 'payment', 'confirmation']
     const currentIndex = steps.indexOf(state.step)
     if (currentIndex > 0) {
@@ -182,6 +201,7 @@ export function BookingProvider({ children }: { children: React.ReactNode }) {
   }, [state.step])
 
   const setError = useCallback((error: string | null) => {
+    if (!mountedRef.current) return
     dispatch({ type: 'SET_ERROR', payload: error })
   }, [])
 
@@ -193,7 +213,19 @@ export function BookingProvider({ children }: { children: React.ReactNode }) {
     dispatch({ type: 'SET_STATUS_POLLING', payload: false })
   }, [])
 
+  // Enhanced cleanup that also clears any pending promises
+  const enhancedStopStatusPolling = useCallback(() => {
+    if (statusPollingRef.current) {
+      clearTimeout(statusPollingRef.current)
+      statusPollingRef.current = null
+    }
+    dispatch({ type: 'SET_STATUS_POLLING', payload: false })
+  }, [])
+
   const pollBookingStatus = useCallback(async (bookingIdParam?: string) => {
+    // Check if component is still mounted before proceeding
+    if (!mountedRef.current) return
+    
     const bookingId = bookingIdParam || state.bookingResponse?.bookingId
     if (!bookingId) return
 
@@ -201,6 +233,10 @@ export function BookingProvider({ children }: { children: React.ReactNode }) {
 
     try {
       const statusResponse = await bookingService.getStatus(bookingId)
+      
+      // Check again if component is still mounted before updating state
+      if (!mountedRef.current) return
+      
       dispatch({ type: 'SET_BOOKING_STATUS', payload: statusResponse })
 
       const pendingStatuses = new Set(['VALIDATION_PENDING', 'PENDING', 'PAYMENT_PENDING'])
@@ -208,40 +244,49 @@ export function BookingProvider({ children }: { children: React.ReactNode }) {
       const failureStatuses = new Set(['FAILED', 'PAYMENT_FAILED', 'CANCELLED', 'CANCELED', 'VALIDATION_FAILED', 'REJECTED'])
 
       if (successStatuses.has(statusResponse.status)) {
-        stopStatusPolling()
+        enhancedStopStatusPolling()
         dispatch({ type: 'SET_STEP', payload: 'confirmation' })
       } else if (failureStatuses.has(statusResponse.status)) {
-        stopStatusPolling()
+        enhancedStopStatusPolling()
         dispatch({ type: 'SET_ERROR', payload: statusResponse.message || 'Booking failed. Please try again.' })
       } else if (pendingStatuses.has(statusResponse.status)) {
+        // Check if we should continue polling
         if (statusPollingRef.current) {
           clearTimeout(statusPollingRef.current)
         }
-        statusPollingRef.current = setTimeout(() => {
-          void pollBookingStatus(bookingId)
-        }, 5000)
+        // Only set timeout if component is still mounted
+        if (mountedRef.current) {
+          statusPollingRef.current = setTimeout(() => {
+            void pollBookingStatus(bookingId)
+          }, 5000)
+        }
       } else {
         // Unknown status - stop polling to avoid infinite loop
-        stopStatusPolling()
+        enhancedStopStatusPolling()
       }
     } catch (error) {
       console.error('Booking status polling error:', error)
-      stopStatusPolling()
+      // Check if component is still mounted before updating state
+      if (!mountedRef.current) return
+      enhancedStopStatusPolling()
       dispatch({ type: 'SET_ERROR', payload: 'Unable to retrieve booking status. Please try again.' })
     }
-  }, [state.bookingResponse?.bookingId, stopStatusPolling])
+  }, [state.bookingResponse?.bookingId, enhancedStopStatusPolling])
 
   const refreshBookingStatus = useCallback(async () => {
     await pollBookingStatus()
   }, [pollBookingStatus])
 
   const createBooking = useCallback(async () => {
+    // Check if component is still mounted before proceeding
+    if (!mountedRef.current) return
+    
     if (!state.bookingData.bookingType || !state.bookingData.productDetails) {
       dispatch({ type: 'SET_ERROR', payload: 'Missing required booking information' })
       return
     }
 
-    stopStatusPolling()
+    enhancedStopStatusPolling()
     dispatch({ type: 'SET_LOADING', payload: true })
     dispatch({ type: 'SET_ERROR', payload: null })
 
@@ -256,6 +301,9 @@ export function BookingProvider({ children }: { children: React.ReactNode }) {
 
       const response = await bookingService.create(request)
       
+      // Check if component is still mounted before updating state
+      if (!mountedRef.current) return
+      
       if (response.error) {
         throw new Error(response.error)
       }
@@ -267,7 +315,10 @@ export function BookingProvider({ children }: { children: React.ReactNode }) {
         if (statusPollingRef.current) {
           clearTimeout(statusPollingRef.current)
         }
-        void pollBookingStatus(response.bookingId)
+        // Only start polling if component is still mounted
+        if (mountedRef.current) {
+          void pollBookingStatus(response.bookingId)
+        }
       }
       
       toast({
@@ -276,6 +327,9 @@ export function BookingProvider({ children }: { children: React.ReactNode }) {
       })
     } catch (error: any) {
       console.error('Booking creation error:', error)
+      // Check if component is still mounted before updating state
+      if (!mountedRef.current) return
+      
       const errorMessage = error.message || 'Failed to create booking. Please try again.'
       dispatch({ type: 'SET_ERROR', payload: errorMessage })
       
@@ -285,15 +339,16 @@ export function BookingProvider({ children }: { children: React.ReactNode }) {
         variant: "destructive",
       })
     } finally {
+      // Check if component is still mounted before updating state
+      if (!mountedRef.current) return
       dispatch({ type: 'SET_LOADING', payload: false })
     }
-  }, [state.bookingData, toast, pollBookingStatus, stopStatusPolling])
+  }, [state.bookingData, toast, pollBookingStatus, enhancedStopStatusPolling])
 
   const resetBooking = useCallback(() => {
-    stopStatusPolling()
-    stopStatusPolling()
+    enhancedStopStatusPolling()
     dispatch({ type: 'RESET_BOOKING' })
-  }, [stopStatusPolling])
+  }, [enhancedStopStatusPolling])
 
   const cancelInFlightBooking = useCallback(async () => {
     const bookingId = state.bookingResponse?.bookingId
@@ -398,7 +453,6 @@ export function BookingProvider({ children }: { children: React.ReactNode }) {
           hotelLongitude: hotelDetails.hotelLongitude,
           rating: hotelDetails.starRating,
           roomTypeId: String(hotelDetails.roomTypeId ?? ''),
-          roomId: hotelDetails.roomId ?? '',
           roomType: hotelDetails.roomType,
           roomName: hotelDetails.roomName,
           price: hotelDetails.pricePerNight,
@@ -430,8 +484,12 @@ export function BookingProvider({ children }: { children: React.ReactNode }) {
     dispatch({ type: 'SET_BOOKING_RESPONSE', payload: response })
     dispatch({ type: 'SET_BOOKING_STATUS', payload: null })
 
-    // Set the correct step based on booking status
-    const nextStep = booking.status === 'PAYMENT_PENDING' ? 'payment' : 'review'
+    // Set the correct step based on booking status (checking both status and sagaState)
+    // PAYMENT_PENDING can be in either status or sagaState field
+    const normalizedStatus = booking.status?.toUpperCase()
+    const normalizedSagaState = booking.sagaState?.toUpperCase()
+    const requiresPayment = normalizedStatus === 'PAYMENT_PENDING' || normalizedSagaState === 'PAYMENT_PENDING'
+    const nextStep = requiresPayment ? 'payment' : 'review'
     setStep(nextStep as BookingStep)
 
     if (booking.bookingId) {

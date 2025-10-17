@@ -278,6 +278,7 @@ export function FlightSearchTab({ onBookingStart }: FlightSearchTabProps = {}) {
     const normalizedSeatClass = (flightData.seatClass || flight?.seatClass || flight?.class || 'ECONOMY').toString().toUpperCase()
     const ticketPrice = Number(flightData.price ?? flight?.price ?? 0)
 
+    // Use a functional approach to ensure all state updates are processed together
     resetBooking()
     setBookingType('flight')
     setSelectedFlight({
@@ -308,12 +309,15 @@ export function FlightSearchTab({ onBookingStart }: FlightSearchTabProps = {}) {
     })
     setStep('passengers')
     
-    // Use callback if provided (for modal), otherwise navigate to booking page
-    if (onBookingStart) {
-      onBookingStart()
-    } else {
-      router.push('/bookings')
-    }
+    // Ensure all context updates are flushed before proceeding
+    setTimeout(() => {
+      // Use callback if provided (for modal), otherwise navigate to booking page
+      if (onBookingStart) {
+        onBookingStart()
+      } else {
+        router.push('/bookings')
+      }
+    }, 0)
   }
 
   const handleModalBookFlight = (details: FlightDetails) => {

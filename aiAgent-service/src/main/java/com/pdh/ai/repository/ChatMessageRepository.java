@@ -20,7 +20,7 @@ public interface ChatMessageRepository extends JpaRepository<ChatMessage, Long> 
 
     void deleteByConversationId(String conversationId);
 
-    Optional<ChatMessage> findTopByConversationIdOrderByTimestampAsc(String conversationId);
+    Optional<ChatMessage> findTopByConversationIdOrderByTimestampDesc(String conversationId);
 
     interface ConversationInfo {
         String getConversationId();

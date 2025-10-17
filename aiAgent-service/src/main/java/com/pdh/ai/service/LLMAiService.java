@@ -8,9 +8,14 @@ import com.pdh.ai.model.dto.ChatHistoryResponse;
 import com.pdh.ai.model.dto.StructuredChatPayload;
 import com.pdh.ai.model.entity.ChatMessage;
 import com.pdh.ai.repository.ChatMessageRepository;
+
+import lombok.extern.slf4j.Slf4j;
+
+import org.springframework.ai.chat.messages.MessageType;
 import org.springframework.stereotype.Service;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
+import reactor.core.scheduler.Schedulers;
 
 import java.time.Instant;
 import java.time.LocalDateTime;
@@ -20,6 +25,7 @@ import java.util.Collections;
 import java.util.List;
 
 @Service
+@Slf4j
 public class LLMAiService implements AiService {
 
     private final CoreAgent coreAgent;
@@ -27,20 +33,22 @@ public class LLMAiService implements AiService {
     private final ObjectMapper objectMapper;
 
     public LLMAiService(CoreAgent coreAgent,
-                        ChatMessageRepository chatMessageRepository,
-                        ObjectMapper objectMapper) {
+            ChatMessageRepository chatMessageRepository,
+            ObjectMapper objectMapper) {
         this.coreAgent = coreAgent;
         this.chatMessageRepository = chatMessageRepository;
         this.objectMapper = objectMapper;
     }
 
     @Override
-    public Flux<StructuredChatPayload> processStreamStructured(String message, String conversationId, String userId) {
+    public StructuredChatPayload processStructured(String message, String conversationId, String userId) {
         String actualUserId = resolveAuthenticatedUserId(userId);
         String conversationKey = formatConversationKey(actualUserId, conversationId);
         Instant now = Instant.now();
 
-        ChatMessage parent = chatMessageRepository.findTopByConversationIdOrderByTimestampAsc(conversationKey).orElse(null);
+        ChatMessage parent = chatMessageRepository
+                .findTopByConversationIdOrderByTimestampDesc(conversationKey)
+                .orElse(null);
 
         ChatMessage userMessage = ChatMessage.builder()
                 .conversationId(conversationKey)
@@ -61,38 +69,43 @@ public class LLMAiService implements AiService {
         final ChatMessage effectiveParent = (parent == null) ? savedUserMessage : parent;
 
         try {
-            List<StructuredChatPayload> payloads = new ArrayList<>();
-            return coreAgent.processStreamStructured(message, conversationKey)
-                    .map(this::ensureValidPayload)
-                    .doOnNext(payloads::add)
-                    .doOnComplete(() -> {
-                        if (!payloads.isEmpty()) {
-                            try {
-                                String assistantContent = payloads.size() == 1 ?
-                                        objectMapper.writeValueAsString(payloads.get(0)) :
-                                        objectMapper.writeValueAsString(payloads);
+            // Call the synchronous method in CoreAgent
+StructuredChatPayload payload = coreAgent.processStructured(message, conversationKey).block();
+            StructuredChatPayload validPayload = ensureValidPayload(payload);
+            
+            // Save the complete response to the database
+            String content = objectMapper.writeValueAsString(validPayload);
+            ChatMessage assistantMessage = ChatMessage.builder()
+                    .conversationId(conversationKey)
+                    .role(MessageType.ASSISTANT) 
+                    .content(content)
+                    .timestamp(Instant.now())
+                    .parentMessage(effectiveParent)
+                    .build();
+            chatMessageRepository.save(assistantMessage);
+            
+            return validPayload;
 
-                                ChatMessage assistantMessage = ChatMessage.builder()
-                                        .conversationId(conversationKey)
-                                        .role(org.springframework.ai.chat.messages.MessageType.ASSISTANT)
-                                        .content(assistantContent)
-                                        .timestamp(Instant.now())
-                                        .parentMessage(effectiveParent)
-                                        .build();
-                                chatMessageRepository.save(assistantMessage);
-                            } catch (JsonProcessingException e) {
-                                // Consider logging this error
-                                e.printStackTrace();
-                            }
-                        }
-                    })
-                    .onErrorResume(e -> {
-                        e.printStackTrace();
-                        return Mono.just(buildErrorResponse());
-                    });
         } catch (Exception e) {
-            e.printStackTrace();
-            return Flux.just(buildErrorResponse());
+            log.error("[CHAT-MESSAGE] Error processing message", e);
+            StructuredChatPayload errorResponse = buildErrorResponse();
+            
+            // Save the error response to the database
+            try {
+                String content = objectMapper.writeValueAsString(errorResponse);
+                ChatMessage assistantMessage = ChatMessage.builder()
+                        .conversationId(conversationKey)
+                        .role(MessageType.ASSISTANT) 
+                        .content(content)
+                        .timestamp(Instant.now())
+                        .parentMessage(effectiveParent)
+                        .build();
+                chatMessageRepository.save(assistantMessage);
+            } catch (Exception dbException) {
+                log.error("Failed to save error response to database", dbException);
+            }
+            
+            return errorResponse;
         }
     }
 
@@ -112,7 +125,8 @@ public class LLMAiService implements AiService {
                         .build())
                 .toList();
 
-        // For this implementation, we'll use the timestamp of the first message as createdAt
+        // For this implementation, we'll use the timestamp of the first message as
+        // createdAt
         // and the last message as lastUpdated, or current time if no messages exist
         Instant createdAt = storedMessages.isEmpty() ? Instant.now()
                 : storedMessages.get(0).getTimestamp();
@@ -142,7 +156,8 @@ public class LLMAiService implements AiService {
         String actualUserId = resolveAuthenticatedUserId(userId);
         String userIdPrefix = actualUserId + ":";
 
-        List<ChatMessageRepository.ConversationInfo> conversations = chatMessageRepository.findUserConversations(userIdPrefix);
+        List<ChatMessageRepository.ConversationInfo> conversations = chatMessageRepository
+                .findUserConversations(userIdPrefix);
 
         return conversations.stream().map(conv -> {
             String conversationKey = conv.getConversationId();
@@ -150,7 +165,7 @@ public class LLMAiService implements AiService {
             if (conversationKey != null && conversationKey.startsWith(userIdPrefix)) {
                 unprefixedId = conversationKey.substring(userIdPrefix.length());
             }
-            
+
             return ChatConversationSummaryDto.builder()
                     .id(unprefixedId)
                     .title(normalizeTitle(conv.getTitle()))
@@ -160,10 +175,10 @@ public class LLMAiService implements AiService {
         }).toList();
     }
 
-
     /**
      * Validates and resolves the authenticated user ID.
-     * Since the userId parameter comes from the controller which extracts it from OAuth2 principal,
+     * Since the userId parameter comes from the controller which extracts it from
+     * OAuth2 principal,
      * we just validate it's not null or empty.
      */
     private String resolveAuthenticatedUserId(String requestUserId) {
@@ -181,11 +196,10 @@ public class LLMAiService implements AiService {
     }
 
     private String defaultTitle(String message) {
-        if (message == null || message.isBlank()) {
+        if (message == null || message.isBlank())
             return defaultTitle();
-        }
+        String sanitized = message.replaceAll("\\\\s+", " ").trim(); // chú ý Java escaping
         int maxLength = 60;
-        String sanitized = message.replaceAll("\s+", " ").trim();
         return sanitized.length() <= maxLength ? sanitized : sanitized.substring(0, maxLength) + "...";
     }
 

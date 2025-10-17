@@ -77,46 +77,6 @@ class AiChatService {
   }
 
   /**
-   * Send a message to the AI chatbot with streaming response
-   * Uses Server-Sent Events to receive response chunks in real-time
-   */
-  async streamMessage(
-    message: string, 
-    conversationId: string
-  ): Promise<ReadableStream<StructuredChatPayload> | null> {
-    try {
-      // Create the request object
-      const request: ChatMessageRequest = {
-        message: message.trim(),
-        conversationId: conversationId,
-        // userId is extracted from JWT token on backend - no need to send
-      };
-
-      // Use fetch API for SSE - the gateway (BFF) should handle authentication
-      // We'll route through the same base as our apiClient
-      const url = `/api${this.baseUrl}/chat/stream?conversationId=${encodeURIComponent(conversationId)}`;
-      const response = await fetch(url, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Accept': 'text/event-stream',
-        },
-        body: JSON.stringify(request),
-      });
-
-      if (!response.ok || !response.body) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-
-      // Return the readable stream
-      return response.body;
-    } catch (error: any) {
-      console.error('AI Chat Streaming Service Error:', error);
-      return null;
-    }
-  }
-
-  /**
    * Get chat history for a conversation
    */
   async getChatHistory(conversationId: string): Promise<ChatHistoryResponse> {

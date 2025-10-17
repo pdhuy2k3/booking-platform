@@ -10,11 +10,13 @@ interface HotelStatsProps {
 }
 
 export function HotelStats({ hotels, formatPrice }: HotelStatsProps) {
+  const content = hotels?.content || []
+
   const totalHotels = hotels?.totalElements || 0
-  const activeHotels = hotels?.content.filter((h) => h.status !== "INACTIVE").length || 0
-  const totalRooms = hotels?.content.reduce((sum, hotel) => sum + (hotel.availableRooms || 0), 0) || 0
-  const avgRating = hotels?.content.length
-    ? (hotels.content.reduce((sum, hotel) => sum + (hotel.starRating || 0), 0) / hotels.content.length).toFixed(1)
+  const activeHotels = content.filter((h) => h.status !== "INACTIVE").length
+  const totalRooms = content.reduce((sum, hotel) => sum + (hotel.availableRooms || 0), 0)
+  const avgRating = content.length
+    ? (content.reduce((sum, hotel) => sum + (hotel.starRating || 0), 0) / content.length).toFixed(1)
     : "0.0"
 
   return (

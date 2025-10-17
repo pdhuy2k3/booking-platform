@@ -9,6 +9,7 @@ import { SearchInterface } from "@/components/search-interface"
 import { BookingModal } from "@/components/booking-modal"
 import { useBooking } from "@/contexts/booking-context"
 import { useRecommendPanel } from "@/contexts/recommend-panel-context"
+import HotelDetailsModal from "@/modules/hotel/component/HotelDetailsModal"
 
 type MainTab = "chat" | "search"
 
@@ -19,6 +20,7 @@ function HomePageContent() {
   const [conversationId, setConversationId] = useState<string | null>(null)
   const [newChatSignal, setNewChatSignal] = useState(0)
   const [isBookingModalOpen, setIsBookingModalOpen] = useState(false)
+  const [selectedHotelForDetails, setSelectedHotelForDetails] = useState<{ hotelId: string | null; checkInDate?: string; checkOutDate?: string; guestCount?: number; roomCount?: number }>({ hotelId: null })
   const { setResults: setRecommendResults, clearResults: clearRecommendResults, showLocation } = useRecommendPanel()
   
   const {
@@ -140,7 +142,20 @@ function HomePageContent() {
     setIsBookingModalOpen(true)
   }
 
-  const handleHotelBook = (hotel: any, room: any) => {
+  const handleHotelBook = (hotel: any, room?: any) => {
+    // If room is not provided, this means we're coming from AI response
+    // In this case, we should open the hotel details modal to select a room
+    if (!room) {
+      setSelectedHotelForDetails({ 
+        hotelId: hotel.id || hotel.hotelId,
+        checkInDate: hotel.checkInDate,
+        checkOutDate: hotel.checkOutDate,
+        guestCount: hotel.guests,
+        roomCount: hotel.rooms
+      })
+      return
+    }
+
     // Reset previous booking
     resetBooking()
     
@@ -157,8 +172,7 @@ function HomePageContent() {
       hotelLatitude: hotel.hotelLatitude ?? hotel.latitude ?? hotel.location?.latitude,
       hotelLongitude: hotel.hotelLongitude ?? hotel.longitude ?? hotel.location?.longitude,
       rating: hotel.rating,
-    roomTypeId: room.roomTypeId,
-    roomId: room.id,
+
     roomType: room.type,
     roomName: room.name,
     price: room.price,
@@ -262,6 +276,22 @@ function HomePageContent() {
       <BookingModal 
         open={isBookingModalOpen} 
         onOpenChange={setIsBookingModalOpen}
+      />
+
+      {/* Hotel Details Modal */}
+      <HotelDetailsModal
+        hotelId={selectedHotelForDetails.hotelId}
+        isOpen={!!selectedHotelForDetails.hotelId}
+        onClose={() => setSelectedHotelForDetails({ hotelId: null })}
+        onBookRoom={(payload) => {
+          // Handle booking room from hotel details modal
+          handleHotelBook(payload.hotel, payload.room)
+        }}
+        checkInDate={selectedHotelForDetails.checkInDate}
+        checkOutDate={selectedHotelForDetails.checkOutDate}
+        guestCount={selectedHotelForDetails.guestCount}
+        roomCount={selectedHotelForDetails.roomCount}
+        canBook={true}
       />
     </>
   )

@@ -367,9 +367,14 @@ export default function HotelDetailsModal({
                           onPromptSearch?.()
                           return
                         }
-                        if (selectedRoomData) {
-                          onBookRoom?.({ hotel, room: selectedRoomData, checkInDate, checkOutDate })
-                        }
+                        // Close modal before calling booking callback to prevent state update conflicts
+                        onClose()
+                        // Use setTimeout to ensure modal is closed before booking callback
+                        setTimeout(() => {
+                          if (selectedRoomData) {
+                            onBookRoom?.({ hotel, room: selectedRoomData, checkInDate, checkOutDate })
+                          }
+                        }, 0)
                       }}
                     >
                       Đặt ngay

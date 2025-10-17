@@ -277,7 +277,15 @@ spring:
         options:
           model: nomic-embed-text:latest
 
-
+    openai:
+      base-url: https://openrouter.ai/api/v1
+      api-key: ${GEMINI_API_KEY}
+      chat:
+        options:
+          model: qwen/qwen3-235b-a22b:free
+          temperature: 0.0
+          parallel-tool-calls: true
+          
     mistralai:
       api-key: ${MISTRAL_API_KEY}
       chat:
@@ -294,7 +302,7 @@ spring:
         version: 1.0.0
         type: sync
         request-timeout: 300s
-        name: bookingsmrt-mcp-client
+        name: bookingsmart
         root-change-notification: true
         toolcallback.enabled: true
         sse:

@@ -1,4 +1,4 @@
-import React, { useMemo, useCallback, memo } from 'react'
+import React, { useMemo, useCallback, memo, useState } from 'react'
 import { Sparkles, Info, MapPin, AlertTriangle, CheckCircle, XCircle } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
@@ -8,12 +8,8 @@ import type {
   ConfirmationContext,
 } from '@/modules/ai/types'
 import {FlightCard, HotelCard} from "@/components/cards";
-import {
-    ProgressiveLoading,
-    ResultsSkeleton,
-    StreamingText,
-    TypingIndicator
-} from "@/components/StreamingIndicator";
+import { ResultsSkeleton } from "@/components/StreamingIndicator";
+import FlightDetailsModal from "@/modules/flight/component/FlightDetailsModal";
 
 // Types that were likely intended to be here or in a local types file.
 interface FlightDataForCard {
@@ -81,7 +77,6 @@ interface AiResponseRendererProps {
   onConfirm?: (context: ConfirmationContext) => void
   onCancel?: () => void
   canBook?: boolean
-  isStreaming?: boolean // New prop to indicate if message is still streaming
 }
 
 // Memoized sub-components for better performance
@@ -106,124 +101,121 @@ const FlightResultsSection = memo(({
         <Sparkles className="h-4 w-4 text-blue-500" />
         <span>Chuyến bay gợi ý ({results.length})</span>
       </div>
-        <ProgressiveLoading
-            items={results}
-            isLoading={false}
-            renderItem={(result, index) => {
-                const metadata = result.metadata ?? {}
-                const flightId = Number(result.ids?.flightId) || Number(metadata?.flightId || metadata?.id || `flight-${index}`)
-                const scheduleId = result.ids?.scheduleId || (metadata?.scheduleId ? String(metadata?.scheduleId) : undefined)
-                const fareId = result.ids?.fareId || (metadata?.fareId ? String(metadata?.fareId) : undefined)
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+        {results.map((result, index) => {
+          const metadata = result.metadata ?? {}
+          const flightId = Number(result.ids?.flightId) || Number(metadata?.flightId || metadata?.id || `flight-${index}`)
+          const scheduleId = result.ids?.scheduleId || (metadata?.scheduleId ? String(metadata?.scheduleId) : undefined)
+          const fareId = result.ids?.fareId || (metadata?.fareId ? String(metadata?.fareId) : undefined)
 
-                const subtitleInfo = parseFlightSubtitle(result.subtitle || optionalString(metadata?.subtitle))
-                const { airlineName, flightNumber: titleFlightNumber } = extractFlightInfoFromTitle(
-                    optionalString(result.title || metadata?.title)
-                )
+          const subtitleInfo = parseFlightSubtitle(result.subtitle || optionalString(metadata?.subtitle))
+          const { airlineName, flightNumber: titleFlightNumber } = extractFlightInfoFromTitle(
+              optionalString(result.title || metadata?.title)
+          )
 
-                const priceSource = metadata?.price ?? metadata?.totalPrice ?? metadata?.fare ?? metadata?.amount ?? metadata?.pricePerPerson
-                const price = parsePriceToNumber(priceSource)
+          const priceSource = metadata?.price ?? metadata?.totalPrice ?? metadata?.fare ?? metadata?.amount ?? metadata?.pricePerPerson
+          const price = parsePriceToNumber(priceSource)
 
-                const currencyCandidate =
-                    optionalString(metadata?.currency) ||
-                    optionalString(metadata?.currencyCode) ||
-                    optionalString(metadata?.priceCurrency)
+          const currencyCandidate =
+              optionalString(metadata?.currency) ||
+              optionalString(metadata?.currencyCode) ||
+              optionalString(metadata?.priceCurrency)
 
-                const normalizedCurrencyCandidate = currencyCandidate?.replace(/[^A-Za-z]/g, "").toUpperCase()
+          const normalizedCurrencyCandidate = currencyCandidate?.replace(/[^A-Za-z]/g, "").toUpperCase()
 
-                const currency =
-                    normalizedCurrencyCandidate ||
-                    extractCurrency(currencyCandidate ?? priceSource ?? metadata?.currency ?? metadata?.price, "VND")
+          const currency =
+              normalizedCurrencyCandidate ||
+              extractCurrency(currencyCandidate ?? priceSource ?? metadata?.currency ?? metadata?.price, "VND")
 
-                const originRaw = metadata?.origin ?? metadata?.departureAirport ?? metadata?.departure_airport ?? metadata?.from ?? subtitleInfo.origin
-                const destinationRaw = metadata?.destination ?? metadata?.arrivalAirport ?? metadata?.arrival_airport ?? metadata?.to ?? subtitleInfo.destination
+          const originRaw = metadata?.origin ?? metadata?.departureAirport ?? metadata?.departure_airport ?? metadata?.from ?? subtitleInfo.origin
+          const destinationRaw = metadata?.destination ?? metadata?.arrivalAirport ?? metadata?.arrival_airport ?? metadata?.to ?? subtitleInfo.destination
 
-                const departureTimeRaw =
-                    metadata?.departureTime ??
-                    metadata?.departure_time ??
-                    metadata?.departureDateTime ??
-                    metadata?.departure_time_local ??
-                    subtitleInfo.departureTime
+          const departureTimeRaw =
+              metadata?.departureTime ??
+              metadata?.departure_time ??
+              metadata?.departureDateTime ??
+              metadata?.departure_time_local ??
+              subtitleInfo.departureTime
 
-                const arrivalTimeRaw =
-                    metadata?.arrivalTime ??
-                    metadata?.arrival_time ??
-                    metadata?.arrivalDateTime ??
-                    metadata?.arrival_time_local ??
-                    subtitleInfo.arrivalTime
+          const arrivalTimeRaw =
+              metadata?.arrivalTime ??
+              metadata?.arrival_time ??
+              metadata?.arrivalDateTime ??
+              metadata?.arrival_time_local ??
+              subtitleInfo.arrivalTime
 
-                const seatClassRaw = metadata?.seatClass ?? metadata?.seat_class ?? metadata?.cabinClass ?? metadata?.class
+          const seatClassRaw = metadata?.seatClass ?? metadata?.seat_class ?? metadata?.cabinClass ?? metadata?.class
 
-                const logo =
-                    optionalString(result.imageUrl) ||
-                    optionalString(metadata?.airlineLogo) ||
-                    optionalString(metadata?.airline_logo) ||
-                    optionalString(metadata?.logo) ||
-                    optionalString(metadata?.logoUrl)
+          const logo =
+              optionalString(result.imageUrl) ||
+              optionalString(metadata?.airlineLogo) ||
+              optionalString(metadata?.airline_logo) ||
+              optionalString(metadata?.logo) ||
+              optionalString(metadata?.logoUrl)
 
-                const stopsRaw = metadata?.stops ?? metadata?.stopCount ?? metadata?.number_of_stops ?? metadata?.stopsCount
-                const stopsValue =
-                    typeof stopsRaw === "number"
-                        ? stopsRaw
-                        : typeof stopsRaw === "string" && stopsRaw.trim().length > 0
-                            ? stopsRaw
-                            : undefined
+          const stopsRaw = metadata?.stops ?? metadata?.stopCount ?? metadata?.number_of_stops ?? metadata?.stopsCount
+          const stopsValue =
+              typeof stopsRaw === "number"
+                  ? stopsRaw
+                  : typeof stopsRaw === "string" && stopsRaw.trim().length > 0
+                      ? stopsRaw
+                      : undefined
 
-                const flightData: FlightDataForCard = {
-                    flightId: flightId,
-                    airline: optionalString(metadata?.airline) || airlineName || optionalString(result.title) || "",
-                    flightNumber: optionalString(metadata?.flightNumber) || optionalString(metadata?.flight_number) || optionalString(metadata?.code) || titleFlightNumber || "",
-                    origin: optionalString(originRaw) || "",
-                    destination: optionalString(destinationRaw) || "",
-                    departureTime: optionalString(departureTimeRaw) || "",
-                    arrivalTime: optionalString(arrivalTimeRaw) || "",
-                    departureDateTime: optionalString(metadata?.departureDateTime) || optionalString(metadata?.departure_date_time) || optionalString(metadata?.departureDate) || optionalString(metadata?.departure_date) || optionalString(metadata?.departureTime),
-                    arrivalDateTime: optionalString(metadata?.arrivalDateTime) || optionalString(metadata?.arrival_date_time) || optionalString(metadata?.arrivalDate) || optionalString(metadata?.arrival_date) || optionalString(metadata?.arrivalTime),
-                    duration: optionalString(metadata?.duration) || optionalString(metadata?.flightDuration) || optionalString(metadata?.travelTime) || "",
-                    stops: stopsValue,
-                    price,
-                    currency,
-                    seatClass: optionalString(seatClassRaw) || "ECONOMY",
-                    logo,
-                    scheduleId,
-                    fareId,
-                    rating: optionalNumber(metadata?.rating),
-                    originLatitude: optionalNumber(metadata?.originLatitude),
-                    originLongitude: optionalNumber(metadata?.originLongitude),
-                    destinationLatitude: optionalNumber(metadata?.destinationLatitude),
-                    destinationLongitude: optionalNumber(metadata?.destinationLongitude),
-                    raw: {
-                        flightId,
-                        flightNumber: optionalString(metadata?.flightNumber) || optionalString(metadata?.flight_number) || optionalString(metadata?.code) || titleFlightNumber,
-                        airline: optionalString(metadata?.airline) || airlineName || optionalString(result.title),
-                        origin: optionalString(originRaw),
-                        destination: optionalString(destinationRaw),
-                        departureDateTime: optionalString(metadata?.departureDateTime) || optionalString(metadata?.departure_date_time) || optionalString(metadata?.departureDate) || optionalString(metadata?.departure_date) || optionalString(metadata?.departureTime),
-                        arrivalDateTime: optionalString(metadata?.arrivalDateTime) || optionalString(metadata?.arrival_date_time) || optionalString(metadata?.arrivalDate) || optionalString(metadata?.arrival_date) || optionalString(metadata?.arrivalTime),
-                        departureTime: optionalString(departureTimeRaw),
-                        arrivalTime: optionalString(arrivalTimeRaw),
-                        scheduleId,
-                        fareId,
-                        seatClass: optionalString(seatClassRaw) || "ECONOMY",
-                        price,
-                        currency,
-                    },
-                }
+          const flightData: FlightDataForCard = {
+              flightId: flightId,
+              airline: optionalString(metadata?.airline) || airlineName || optionalString(result.title) || "",
+              flightNumber: optionalString(metadata?.flightNumber) || optionalString(metadata?.flight_number) || optionalString(metadata?.code) || titleFlightNumber || "",
+              origin: optionalString(originRaw) || "",
+              destination: optionalString(destinationRaw) || "",
+              departureTime: optionalString(departureTimeRaw) || "",
+              arrivalTime: optionalString(arrivalTimeRaw) || "",
+              departureDateTime: optionalString(metadata?.departureDateTime) || optionalString(metadata?.departure_date_time) || optionalString(metadata?.departureDate) || optionalString(metadata?.departure_date) || optionalString(metadata?.departureTime),
+              arrivalDateTime: optionalString(metadata?.arrivalDateTime) || optionalString(metadata?.arrival_date_time) || optionalString(metadata?.arrivalDate) || optionalString(metadata?.arrival_date) || optionalString(metadata?.arrivalTime),
+              duration: optionalString(metadata?.duration) || optionalString(metadata?.flightDuration) || optionalString(metadata?.travelTime) || "",
+              stops: stopsValue,
+              price,
+              currency,
+              seatClass: optionalString(seatClassRaw) || "ECONOMY",
+              logo,
+              scheduleId,
+              fareId,
+              rating: optionalNumber(metadata?.rating),
+              originLatitude: optionalNumber(metadata?.originLatitude),
+              originLongitude: optionalNumber(metadata?.originLongitude),
+              destinationLatitude: optionalNumber(metadata?.destinationLatitude),
+              destinationLongitude: optionalNumber(metadata?.destinationLongitude),
+              raw: {
+                  flightId,
+                  flightNumber: optionalString(metadata?.flightNumber) || optionalString(metadata?.flight_number) || optionalString(metadata?.code) || titleFlightNumber,
+                  airline: optionalString(metadata?.airline) || airlineName || optionalString(result.title),
+                  origin: optionalString(originRaw),
+                  destination: optionalString(destinationRaw),
+                  departureDateTime: optionalString(metadata?.departureDateTime) || optionalString(metadata?.departure_date_time) || optionalString(metadata?.departureDate) || optionalString(metadata?.departure_date) || optionalString(metadata?.departureTime),
+                  arrivalDateTime: optionalString(metadata?.arrivalDateTime) || optionalString(metadata?.arrival_date_time) || optionalString(metadata?.arrivalDate) || optionalString(metadata?.arrival_date) || optionalString(metadata?.arrivalTime),
+                  departureTime: optionalString(departureTimeRaw),
+                  arrivalTime: optionalString(arrivalTimeRaw),
+                  scheduleId,
+                  fareId,
+                  seatClass: optionalString(seatClassRaw) || "ECONOMY",
+                  price,
+                  currency,
+              },
+          }
 
-                return (
-                    <FlightCard
-                        key={flightData.flightId}
-                        flight={flightData}
-                        onViewDetails={onViewDetails}
-                        onBook={() => onBook(flightData)}
-                        onLocationClick={onLocationClick}
-                        showBookButton={canBook}
-                        compact={false}
-                        className="h-full"
-                    />
-                )
-            }}
-            className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3"
-        />
+          return (
+              <FlightCard
+                  key={flightData.flightId}
+                  flight={flightData}
+                  onViewDetails={onViewDetails}
+                  onBook={() => onBook(flightData)}
+                  onLocationClick={onLocationClick}
+                  showBookButton={canBook}
+                  compact={false}
+                  className="h-full"
+              />
+          )
+        })}
+      </div>
     </div>
   )
 })
@@ -250,77 +242,74 @@ const HotelResultsSection = memo(({
         <Sparkles className="h-4 w-4 text-blue-500" />
         <span>Khách sạn gợi ý ({results.length})</span>
       </div>
-        <ProgressiveLoading
-            items={results}
-            isLoading={false}
-            renderItem={(result, index) => {
-                const metadata = result.metadata ?? {}
-                const hotelId = result.ids?.hotelId || String(metadata?.hotelId || metadata?.id || `hotel-${index}`)
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+        {results.map((result, index) => {
+          const metadata = result.metadata ?? {}
+          const hotelId = result.ids?.hotelId || String(metadata?.hotelId || metadata?.id || `hotel-${index}`)
 
-                const subtitleInfo = parseHotelSubtitle(result.subtitle || optionalString(metadata?.subtitle))
+          const subtitleInfo = parseHotelSubtitle(result.subtitle || optionalString(metadata?.subtitle))
 
-                const priceSource = metadata?.price ?? metadata?.pricePerNight ?? metadata?.price_per_night ?? metadata?.amount ?? metadata?.lowestPrice
-                const price = parsePriceToNumber(priceSource)
+          const priceSource = metadata?.price ?? metadata?.pricePerNight ?? metadata?.price_per_night ?? metadata?.amount ?? metadata?.lowestPrice
+          const price = parsePriceToNumber(priceSource)
 
-                const currencyCandidate =
-                    optionalString(metadata?.currency) ||
-                    optionalString(metadata?.currencyCode) ||
-                    optionalString(metadata?.priceCurrency)
+          const currencyCandidate =
+              optionalString(metadata?.currency) ||
+              optionalString(metadata?.currencyCode) ||
+              optionalString(metadata?.priceCurrency)
 
-                const normalizedCurrencyCandidate = currencyCandidate?.replace(/[^A-Za-z]/g, "").toUpperCase()
+          const normalizedCurrencyCandidate = currencyCandidate?.replace(/[^A-Za-z]/g, "").toUpperCase()
 
-                const currency =
-                    normalizedCurrencyCandidate ||
-                    extractCurrency(currencyCandidate ?? priceSource ?? metadata?.currency ?? metadata?.price, "VND")
+          const currency =
+              normalizedCurrencyCandidate ||
+              extractCurrency(currencyCandidate ?? priceSource ?? metadata?.currency ?? metadata?.price, "VND")
 
-                const ratingRaw = metadata?.rating ?? metadata?.reviewScore ?? metadata?.averageRating
-                const reviewsRaw = metadata?.reviews ?? metadata?.reviewCount
-                const city = optionalString(metadata?.city)
-                const country = optionalString(metadata?.country)
-                const location =
-                    optionalString(metadata?.location) ||
-                    subtitleInfo.location ||
-                    (city && country ? `${city}, ${country}` : city || country) ||
-                    undefined
+          const ratingRaw = metadata?.rating ?? metadata?.reviewScore ?? metadata?.averageRating
+          const reviewsRaw = metadata?.reviews ?? metadata?.reviewCount
+          const city = optionalString(metadata?.city)
+          const country = optionalString(metadata?.country)
+          const location =
+              optionalString(metadata?.location) ||
+              subtitleInfo.location ||
+              (city && country ? `${city}, ${country}` : city || country) ||
+              undefined
 
-                const hotelData: HotelDataForCard = {
-                    id: hotelId,
-                    name: optionalString(result.title) || optionalString(metadata?.name) || "",
-                    image:
-                        optionalString(result.imageUrl) ||
-                        optionalString(metadata?.primaryImage) ||
-                        optionalString(metadata?.image) ||
-                        optionalString(metadata?.thumbnail),
-                    location,
-                    city,
-                    country,
-                    rating: optionalNumber(ratingRaw) ?? subtitleInfo.rating,
-                    reviews: optionalNumber(reviewsRaw),
-                    price,
-                    originalPrice: optionalNumber(metadata?.originalPrice),
-                    currency,
-                    amenities: Array.isArray(metadata?.amenities) ? (metadata?.amenities as string[]) : undefined,
-                    description: optionalString(result.description) || optionalString(metadata?.description),
-                    starRating: optionalNumber(metadata?.starRating) ?? subtitleInfo.rating,
-                    latitude: optionalNumber(metadata?.latitude),
-                    longitude: optionalNumber(metadata?.longitude),
-                }
+          const hotelData: HotelDataForCard = {
+              id: hotelId,
+              name: optionalString(result.title) || optionalString(metadata?.name) || "",
+              image:
+                  optionalString(result.imageUrl) ||
+                  optionalString(metadata?.primaryImage) ||
+                  optionalString(metadata?.image) ||
+                  optionalString(metadata?.thumbnail),
+              location,
+              city,
+              country,
+              rating: optionalNumber(ratingRaw) ?? subtitleInfo.rating,
+              reviews: optionalNumber(reviewsRaw),
+              price,
+              originalPrice: optionalNumber(metadata?.originalPrice),
+              currency,
+              amenities: Array.isArray(metadata?.amenities) ? (metadata?.amenities as string[]) : undefined,
+              description: optionalString(result.description) || optionalString(metadata?.description),
+              starRating: optionalNumber(metadata?.starRating) ?? subtitleInfo.rating,
+              latitude: optionalNumber(metadata?.latitude),
+              longitude: optionalNumber(metadata?.longitude),
+          }
 
-                return (
-                    <HotelCard
-                        key={hotelData.id}
-                        hotel={hotelData}
-                        onViewDetails={onViewDetails}
-                        onBook={() => onBook(hotelData)}
-                        onLocationClick={onLocationClick}
-                        showBookButton={canBook}
-                        compact={false}
-                        className="h-full"
-                    />
-                )
-            }}
-            className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3"
-        />
+          return (
+              <HotelCard
+                  key={hotelData.id}
+                  hotel={hotelData}
+                  onViewDetails={onViewDetails}
+                  onBook={() => onBook(hotelData)}
+                  onLocationClick={onLocationClick}
+                  showBookButton={canBook}
+                  compact={false}
+                  className="h-full"
+              />
+          )
+        })}
+      </div>
     </div>
   )
 })
@@ -383,7 +372,7 @@ const InfoResultsSection = memo(({
           }
           
           const isClickable = hasCoordinates && Boolean(onLocationClick)
-          
+          console.log('Rendering Info Card:', { title: result.title, hasCoordinates, isClickable })
           return (
             <div 
               key={`info-${index}`}
@@ -533,8 +522,11 @@ export function AiResponseRenderer({
   onConfirm,
   onCancel,
   canBook = true,
-  isStreaming = false,
 }: AiResponseRendererProps) {
+  // State for flight details modal
+  const [selectedFlightForModal, setSelectedFlightForModal] = useState<FlightDataForCard | null>(null);
+  const [isFlightModalOpen, setIsFlightModalOpen] = useState(false);
+
   // Normalize results to always be an array
   const normalizedResults = useMemo(() => 
     Array.isArray(results) ? results : [], 
@@ -559,61 +551,70 @@ export function AiResponseRenderer({
     [normalizedResults]
   )
 
-  // Memoized handlers to prevent unnecessary re-renders
+  // Handle flight view details - opens flight details modal
   const handleFlightViewDetails = useCallback((flight: FlightDataForCard) => {
-    onFlightBook?.(flight)
+    setSelectedFlightForModal(flight);
+    setIsFlightModalOpen(true);
+  }, [])
+
+  // Handle flight booking - called from the flight details modal
+  const handleFlightBookFromModal = useCallback((flight: FlightDataForCard) => {
+    onFlightBook?.(flight);
   }, [onFlightBook])
 
   const handleHotelViewDetails = useCallback((hotel: HotelDataForCard) => {
-    onHotelBook?.(hotel)
+    onHotelBook?.(hotel);
   }, [onHotelBook])
 
-    const hasAnyResults = flightResults.length > 0 || hotelResults.length > 0 || infoResults.length > 0;
+  const hasAnyResults = flightResults.length > 0 || hotelResults.length > 0 || infoResults.length > 0;
 
 
-    return (
+  return (
     <div className="space-y-4">
       {/* AI Message Text */}
-        <div className="prose prose-sm max-w-none">
-            {isStreaming && !message.trim() && !hasAnyResults && <TypingIndicator />}
-            {message.trim() && <StreamingText text={message} isComplete={!isStreaming} className="whitespace-pre-wrap text-gray-800 leading-relaxed" />}
-        </div>
+      <div className="prose prose-sm max-w-none">
+        {message.trim() && <div className="whitespace-pre-wrap text-gray-800 leading-relaxed">{message}</div>}
+      </div>
 
-      {/* Skeletons: Show if streaming and no results have arrived yet */}
-        {isStreaming && !hasAnyResults && (
-            <ResultsSkeleton count={2} />
-        )}
+      {/* Results */}
+      {hasAnyResults && (
+        <>
+          {/* Flight Results */}
+          {flightResults.length > 0 && (
+              <FlightResultsSection
+                  results={flightResults}
+                  onViewDetails={handleFlightViewDetails}
+                  onBook={handleFlightViewDetails}
+                  onLocationClick={onLocationClick}
+                  canBook={canBook}
+              />
+          )}
 
-      {/* Flight Results */}
-        {flightResults.length > 0 && (
-            <FlightResultsSection
-                results={flightResults}
-                onViewDetails={handleFlightViewDetails}
-                onBook={handleFlightViewDetails}
-                onLocationClick={onLocationClick}
-                canBook={canBook}
-            />
-        )}
+          {/* Hotel Results */}
+          {hotelResults.length > 0 && (
+              <HotelResultsSection
+                  results={hotelResults}
+                  onViewDetails={handleHotelViewDetails}
+                  onBook={handleHotelViewDetails}
+                  onLocationClick={onLocationClick}
+                  canBook={canBook}
+              />
+          )}
 
+          {/* Info Results */}
+          {infoResults.length > 0 && (
+              <InfoResultsSection
+                  results={infoResults}
+                  onLocationClick={onLocationClick}
+              />
+          )}
+        </>
+      )}
 
-      {/* Hotel Results */}
-        {hotelResults.length > 0 && (
-            <HotelResultsSection
-                results={hotelResults}
-                onViewDetails={handleHotelViewDetails}
-                onBook={handleHotelViewDetails}
-                onLocationClick={onLocationClick}
-                canBook={canBook}
-            />
-        )}
-
-      {/* Info Results */}
-        {infoResults.length > 0 && (
-            <InfoResultsSection
-                results={infoResults}
-                onLocationClick={onLocationClick}
-            />
-        )}
+      {/* Skeletons: Show if no results are available yet and message is empty (e.g., during initial loading) */}
+      {!hasAnyResults && !message && (
+          <ResultsSkeleton count={2} />
+      )}
 
       {/* Confirmation UI */}
       {requiresConfirmation && confirmationContext && (
@@ -623,6 +624,18 @@ export function AiResponseRenderer({
           onCancel={onCancel}
         />
       )}
+
+      {/* Flight Details Modal */}
+      <FlightDetailsModalComponent
+        selectedFlight={selectedFlightForModal}
+        isOpen={isFlightModalOpen}
+        onClose={() => {
+          setIsFlightModalOpen(false);
+          setSelectedFlightForModal(null);
+        }}
+        onBookFlight={handleFlightBookFromModal}
+        canBook={canBook}
+      />
     </div>
   )
 }
@@ -734,3 +747,34 @@ const extractFlightInfoFromTitle = (title?: string) => {
     flightNumber,
   }
 }
+
+// Flight Details Modal Component
+const FlightDetailsModalComponent = ({
+  selectedFlight,
+  isOpen,
+  onClose,
+  onBookFlight,
+  canBook = true,
+}: {
+  selectedFlight: FlightDataForCard | null;
+  isOpen: boolean;
+  onClose: () => void;
+  onBookFlight: (flight: FlightDataForCard) => void;
+  canBook?: boolean;
+}) => {
+  if (!selectedFlight || !isOpen) return null;
+
+  return (
+    <FlightDetailsModal
+      flightId={selectedFlight.flightId ? Number(selectedFlight.flightId) : null}
+      seatClass={selectedFlight.seatClass || null}
+      departureDateTime={selectedFlight.departureDateTime || selectedFlight.departureTime || null}
+      scheduleId={selectedFlight.scheduleId || null}
+      fareId={selectedFlight.fareId || null}
+      isOpen={isOpen}
+      onClose={onClose}
+      onBookFlight={onBookFlight}
+      canBook={canBook}
+    />
+  );
+};

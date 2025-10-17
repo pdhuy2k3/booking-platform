@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react'
 import { useStripe, useElements, PaymentElement } from '@stripe/react-stripe-js'
-import { useForm } from 'react-hook-form'
+import { useForm, useWatch } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { Button } from '@/components/ui/button'
@@ -89,6 +89,7 @@ export const StripePaymentForm: React.FC<StripePaymentFormProps> = ({
     handleSubmit,
     formState: { errors },
     reset,
+    control,
   } = useForm<PaymentFormData>({
     resolver: zodResolver(paymentFormSchema),
     defaultValues: {
@@ -104,10 +105,16 @@ export const StripePaymentForm: React.FC<StripePaymentFormProps> = ({
         postalCode: '',
         country: 'US',
       },
-      savePaymentMethod: false,
+      savePaymentMethod: true,
       setAsDefault: false,
     },
   })
+
+  const savePaymentMethodValue = useWatch({
+    control,
+    name: 'savePaymentMethod',
+  });
+
 
   useEffect(() => {
     if (!user) {
@@ -128,7 +135,7 @@ export const StripePaymentForm: React.FC<StripePaymentFormProps> = ({
         postalCode: user.address?.postalCode || '',
         country: (user.address?.country || 'VN').toUpperCase(),
       },
-      savePaymentMethod: false,
+      savePaymentMethod: true,
       setAsDefault: false,
     })
   }, [user, amountToCharge, currency, reset])
@@ -190,6 +197,8 @@ export const StripePaymentForm: React.FC<StripePaymentFormProps> = ({
           customerId: savedPaymentMethod?.stripeCustomerId || undefined,
           confirmPayment: isUsingSavedMethod,
           metadata: metadataPayload,
+          savePaymentMethod: data.savePaymentMethod,
+          setAsDefault: data.setAsDefault,
         })
 
         activeClientSecret = createdIntent.clientSecret ?? null
@@ -218,7 +227,6 @@ export const StripePaymentForm: React.FC<StripePaymentFormProps> = ({
       if (isUsingSavedMethod && savedPaymentMethod?.stripePaymentMethodId) {
         const confirmation = await stripe.confirmCardPayment(activeClientSecret, {
           payment_method: savedPaymentMethod.stripePaymentMethodId,
-          setup_future_usage: 'off_session', // This ensures the payment method can be reused for future payments
           return_url: `${window.location.origin}/payment/result`,
         })
         error = confirmation.error
@@ -498,6 +506,32 @@ export const StripePaymentForm: React.FC<StripePaymentFormProps> = ({
                     }
                   }}
                 />
+              </div>
+              <div className="space-y-4">
+                <div className="flex items-center space-x-2">
+                  <input
+                    type="checkbox"
+                    id="savePaymentMethod"
+                    {...register('savePaymentMethod')}
+                    className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                  />
+                  <Label htmlFor="savePaymentMethod" className="text-sm font-medium leading-none">
+                    Save this payment method for future use
+                  </Label>
+                </div>
+                {savePaymentMethodValue && (
+                  <div className="flex items-center space-x-2 pl-6">
+                    <input
+                      type="checkbox"
+                      id="setAsDefault"
+                      {...register('setAsDefault')}
+                      className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                    />
+                    <Label htmlFor="setAsDefault" className="text-sm font-medium leading-none">
+                      Set as default payment method
+                    </Label>
+                  </div>
+                )}
               </div>
               <p className="text-xs text-gray-500">
                 Apple Pay and Google Pay will appear automatically if available on your device.
