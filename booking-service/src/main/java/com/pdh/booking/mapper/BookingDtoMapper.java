@@ -119,6 +119,8 @@ public class BookingDtoMapper {
                 .bookingType(booking.getBookingType())
                 .createdAt(booking.getCreatedAt() != null ? booking.getCreatedAt().toString() : null)
                 .updatedAt(booking.getUpdatedAt() != null ? booking.getUpdatedAt().toString() : null)
+                .reservationLockedAt(booking.getReservationLockedAt() != null ? booking.getReservationLockedAt().toString() : null)
+                .reservationExpiresAt(booking.getReservationExpiresAt() != null ? booking.getReservationExpiresAt().toString() : null)
                 .build();
     }
     

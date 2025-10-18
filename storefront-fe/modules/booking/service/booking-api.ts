@@ -26,6 +26,8 @@ export interface StorefrontBookingResponse {
   message?: string;
   error?: string;
   errorCode?: string;
+  reservationLockedAt?: string | null;
+  reservationExpiresAt?: string | null;
 }
 
 export interface BookingStatusPollResponse {
@@ -35,6 +37,8 @@ export interface BookingStatusPollResponse {
   lastUpdated: string;
   message?: string;
   estimatedCompletion?: string;
+  reservationLockedAt?: string | null;
+  reservationExpiresAt?: string | null;
 }
 
 class BookingApiService {

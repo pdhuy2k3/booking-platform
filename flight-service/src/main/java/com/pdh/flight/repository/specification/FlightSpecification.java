@@ -1,4 +1,4 @@
-package com.pdh.flight.specification;
+package com.pdh.flight.repository.specification;
 
 import com.pdh.flight.model.Flight;
 import com.pdh.flight.model.Airport;

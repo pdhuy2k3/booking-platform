@@ -8,13 +8,16 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.kafka.annotation.KafkaListener;
-import org.springframework.kafka.listener.ContainerProperties.AckMode;
 import org.springframework.messaging.handler.annotation.Header;
 import org.springframework.messaging.handler.annotation.Payload;
 import org.springframework.stereotype.Component;
 import org.springframework.kafka.support.Acknowledgment;
+import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.List;
+import java.util.Set;
 
 import static org.springframework.kafka.support.KafkaHeaders.RECEIVED_TOPIC;
 
@@ -28,6 +31,12 @@ public class NotificationEventConsumer {
 
     private final NotificationService notificationService;
     private final ObjectMapper objectMapper;
+
+    private static final Set<String> SUPPORTED_EVENT_TYPES = Set.of(
+            "PaymentFailed",
+            "BookingPaymentFailed",
+            "BookingConfirmed"
+    );
 
     @KafkaListener(topics = { "booking.Booking.events",
             "booking.Payment.events" }, groupId = "notification-saga-outbox-listener", containerFactory = "notificationEventListenerContainerFactory")
@@ -55,20 +64,20 @@ public class NotificationEventConsumer {
                 log.debug("Skipping notification message without eventType from topic {}", topic);
                 return;
             }
-            if (eventType.equals("PaymentProcessed") || eventType.equals("PaymentFailed")) {
-                Map<String, Object> payloadMap = convertPayload(payload);
-                if (payloadMap == null || payloadMap.isEmpty()) {
-                    log.debug("Skipping notification for event {} due to empty payload", eventType);
-                    return;
-                }
 
-                log.info("Dispatching notification event {} from topic {}", eventType, topic);
-                if (notificationService != null) {
-                    notificationService.handleBookingEvent(eventType, payloadMap);
-                } else {
-                    log.error("Notification service is null, cannot process event {} from topic {}", eventType, topic);
-                }
+            if (!SUPPORTED_EVENT_TYPES.contains(eventType)) {
+                log.debug("Skipping unsupported notification event {} from topic {}", eventType, topic);
+                return;
             }
+
+            Map<String, Object> payloadMap = convertPayload(payload);
+            if (payloadMap == null || payloadMap.isEmpty()) {
+                log.debug("Skipping notification for event {} due to empty payload", eventType);
+                return;
+            }
+
+            log.info("Dispatching notification event {} from topic {}", eventType, topic);
+            notificationService.handleBookingEvent(eventType, payloadMap);
 
         } catch (Exception e) {
             log.error("Error processing notification event from topic {}: {}", topic, e.getMessage(), e);
@@ -134,10 +143,101 @@ public class NotificationEventConsumer {
         }
         try {
             Map<String, Object> result = objectMapper.convertValue(payload, MAP_TYPE);
-            return result != null ? result : new HashMap<>();
+            if (result == null) {
+                return new HashMap<>();
+            }
+            return flattenPayload(result);
         } catch (IllegalArgumentException ex) {
             log.warn("Failed to convert payload for notification: {}", payload, ex);
             return new HashMap<>();
         }
+    }
+
+    private Map<String, Object> flattenPayload(Map<String, Object> source) {
+        if (source == null) {
+            return new HashMap<>();
+        }
+
+        Map<String, Object> result = new HashMap<>();
+        source.forEach((key, value) -> {
+            if ("payload".equalsIgnoreCase(key) || ("data".equalsIgnoreCase(key) && result.isEmpty())) {
+                Map<String, Object> nested = convertToMap(value);
+                if (nested != null && !nested.isEmpty()) {
+                    result.putAll(flattenPayload(nested));
+                }
+            } else {
+                result.put(key, normalizeValue(value));
+            }
+        });
+        return result;
+    }
+
+    private Object normalizeValue(Object value) {
+        if (value instanceof Map<?, ?> map) {
+            return flattenPayload(convertToMap(map));
+        }
+        if (value instanceof Collection<?> collection) {
+            List<Object> normalized = new ArrayList<>(collection.size());
+            for (Object element : collection) {
+                normalized.add(normalizeValue(element));
+            }
+            return normalized;
+        }
+        if (value != null && value.getClass().isArray()) {
+            int length = java.lang.reflect.Array.getLength(value);
+            List<Object> normalized = new ArrayList<>(length);
+            for (int i = 0; i < length; i++) {
+                normalized.add(normalizeValue(java.lang.reflect.Array.get(value, i)));
+            }
+            return normalized;
+        }
+        if (value instanceof String str && looksLikeJson(str)) {
+            Map<String, Object> parsed = parseJsonString(str);
+            if (parsed != null) {
+                return flattenPayload(parsed);
+            }
+        }
+        return value;
+    }
+
+    private Map<String, Object> convertToMap(Object value) {
+        if (value == null) {
+            return null;
+        }
+        if (value instanceof Map<?, ?> map) {
+            Map<String, Object> result = new HashMap<>();
+            map.forEach((k, v) -> result.put(String.valueOf(k), v));
+            return result;
+        }
+        if (value instanceof String str) {
+            return parseJsonString(str);
+        }
+        try {
+            return objectMapper.convertValue(value, MAP_TYPE);
+        } catch (IllegalArgumentException ex) {
+            log.debug("Unable to convert value to map: {}", value);
+            return null;
+        }
+    }
+
+    private Map<String, Object> parseJsonString(String json) {
+        if (StringUtils.isBlank(json)) {
+            return null;
+        }
+        try {
+            return objectMapper.readValue(json, MAP_TYPE);
+        } catch (Exception ex) {
+            log.debug("String value is not JSON: {}", json);
+            return null;
+        }
+    }
+
+    private boolean looksLikeJson(String value) {
+        if (StringUtils.isBlank(value)) {
+            return false;
+        }
+        String trimmed = value.trim();
+        return (trimmed.startsWith("{") && trimmed.endsWith("}")) ||
+               (trimmed.startsWith("[") && trimmed.endsWith("]"));
     }
 }

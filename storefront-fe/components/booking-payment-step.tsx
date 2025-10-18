@@ -10,7 +10,6 @@ import { Separator } from '@/components/ui/separator'
 import { PaymentPage } from '@/modules/payment'
 import { formatCurrency } from '@/lib/currency'
 import { Loader2, CheckCircle2, AlertCircle, Clock3, CreditCard } from 'lucide-react'
-import { bookingApiService } from '@/modules/booking/service/booking-api'
 
 interface BookingPaymentStepProps {
   onPaymentSuccess: () => void
@@ -33,6 +32,7 @@ export function BookingPaymentStep({ onPaymentSuccess, onBack, onCancel }: Booki
     refreshBookingStatus,
   } = useBooking()
   const [paymentError, setPaymentError] = useState<string | null>(null)
+  const [now, setNow] = useState(() => Date.now())
   const amount = bookingData.totalAmount || 0
   const currency = (bookingData.currency || 'VND').toUpperCase()
   const bookingId = bookingResponse?.bookingId
@@ -41,6 +41,35 @@ export function BookingPaymentStep({ onPaymentSuccess, onBack, onCancel }: Booki
   const message = bookingStatus?.message || bookingResponse?.message || 'Đang xử lý đặt chỗ...'
   const lastUpdated = bookingStatus?.lastUpdated
   const estimatedCompletion = bookingStatus?.estimatedCompletion
+  const reservationLockedAt = bookingStatus?.reservationLockedAt ?? bookingResponse?.reservationLockedAt
+  const reservationExpiresAt = bookingStatus?.reservationExpiresAt ?? bookingResponse?.reservationExpiresAt
+
+  useEffect(() => {
+    if (!reservationExpiresAt) {
+      return
+    }
+    const timer = window.setInterval(() => setNow(Date.now()), 1000)
+    return () => window.clearInterval(timer)
+  }, [reservationExpiresAt])
+
+  const reservationCountdown = useMemo(() => {
+    if (!reservationExpiresAt) return null
+    const target = new Date(reservationExpiresAt).getTime()
+    if (Number.isNaN(target)) return null
+    const remaining = target - now
+    if (remaining <= 0) {
+      return { text: '00:00', expired: true }
+    }
+    const totalSeconds = Math.floor(remaining / 1000)
+    const minutes = Math.floor(totalSeconds / 60)
+    const seconds = totalSeconds % 60
+    return {
+      text: `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`,
+      expired: false,
+    }
+  }, [reservationExpiresAt, now])
+
+  const shouldShowCountdown = reservationCountdown !== null && PENDING_STATUSES.has(status)
 
   const statusMeta = useMemo(() => {
     if (SUCCESS_STATUSES.has(status)) {
@@ -103,14 +132,11 @@ export function BookingPaymentStep({ onPaymentSuccess, onBack, onCancel }: Booki
   const handlePaymentSuccess = async () => {
     try {
       setPaymentError(null)
-      if (bookingId) {
-        await bookingApiService.confirmBooking(bookingId)
-      }
       await refreshBookingStatus()
       onPaymentSuccess()
     } catch (error) {
-      console.error('Error confirming booking after payment:', error)
-      setPaymentError('Payment succeeded but confirmation failed. Please contact support.')
+      console.error('Error refreshing booking status after payment:', error)
+      setPaymentError('Payment succeeded but we could not update the booking status. Please refresh or contact support.')
     }
   }
 
@@ -136,6 +162,26 @@ export function BookingPaymentStep({ onPaymentSuccess, onBack, onCancel }: Booki
           <div>
             <p className="font-medium">{statusMeta.title}</p>
             <p className="text-sm text-muted-foreground">{statusMeta.description}</p>
+            {shouldShowCountdown && (
+              <p
+                className={`mt-2 flex items-center gap-2 text-xs ${reservationCountdown?.expired ? 'text-red-500' : 'text-amber-600'}`}
+              >
+                <Clock3 className="h-4 w-4" />
+                {reservationCountdown?.expired
+                  ? 'Giữ chỗ đã hết hạn'
+                  : `Giữ chỗ sẽ hết hạn trong ${reservationCountdown.text}`}
+              </p>
+            )}
+            {reservationExpiresAt && (
+              <p className="mt-1 text-xs text-muted-foreground">
+                Hết hạn lúc: {new Date(reservationExpiresAt).toLocaleString()}
+              </p>
+            )}
+            {reservationLockedAt && (
+              <p className="text-xs text-muted-foreground">
+                Giữ chỗ từ: {new Date(reservationLockedAt).toLocaleString()}
+              </p>
+            )}
             <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
               <Badge variant="outline" className="uppercase tracking-wide">
                 {status}

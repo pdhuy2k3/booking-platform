@@ -50,6 +50,16 @@ public class BookingStatusResponseDto {
      * Progress percentage (0-100) for UI progress bars
      */
     private Integer progressPercentage;
+
+    /**
+     * Timestamp when reservation lock was acquired.
+     */
+    private String reservationLockedAt;
+
+    /**
+     * Timestamp when reservation lock expires.
+     */
+    private String reservationExpiresAt;
     
     /**
      * Checks if the booking is in a final state (no more updates expected)

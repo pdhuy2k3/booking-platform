@@ -125,6 +125,8 @@ public class BookingController {
                 .status(booking.getStatus())
                 .lastUpdated(booking.getUpdatedAt().toString())
                 .message("Booking confirmed successfully!")
+                .reservationLockedAt(booking.getReservationLockedAt() != null ? booking.getReservationLockedAt().toString() : null)
+                .reservationExpiresAt(booking.getReservationExpiresAt() != null ? booking.getReservationExpiresAt().toString() : null)
                 .build();
 
             response.setEstimatedCompletion(null);
@@ -168,6 +170,8 @@ public class BookingController {
                 .status(refreshed.getStatus())
                 .lastUpdated(refreshed.getUpdatedAt() != null ? refreshed.getUpdatedAt().toString() : null)
                 .message("Payment initiation acknowledged. Please complete payment to confirm booking.")
+                .reservationLockedAt(refreshed.getReservationLockedAt() != null ? refreshed.getReservationLockedAt().toString() : null)
+                .reservationExpiresAt(refreshed.getReservationExpiresAt() != null ? refreshed.getReservationExpiresAt().toString() : null)
                 .build();
         response.setProgressPercentage(null);
         response.setEstimatedCompletion(null);
@@ -368,6 +372,8 @@ public class BookingController {
                 .status(effectiveStatus)
                 .lastUpdated(booking.getUpdatedAt() != null ? booking.getUpdatedAt().toString() : null)
                 .progressPercentage(resolveProgress(effectiveStatus))
+                .reservationLockedAt(booking.getReservationLockedAt() != null ? booking.getReservationLockedAt().toString() : null)
+                .reservationExpiresAt(booking.getReservationExpiresAt() != null ? booking.getReservationExpiresAt().toString() : null)
                 .build();
 
             switch (effectiveStatus) {

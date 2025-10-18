@@ -143,6 +143,8 @@ export interface BookingResponse {
   bookingType: 'FLIGHT' | 'HOTEL' | 'COMBO';
   createdAt: string;
   updatedAt: string;
+  reservationLockedAt?: string | null;
+  reservationExpiresAt?: string | null;
 }
 
 export interface BookingStatusResponse {
@@ -152,6 +154,8 @@ export interface BookingStatusResponse {
   lastUpdated: string;
   message?: string;
   estimatedCompletion?: string;
+  reservationLockedAt?: string | null;
+  reservationExpiresAt?: string | null;
 }
 
 export interface BookingItem {

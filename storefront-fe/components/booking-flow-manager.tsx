@@ -1,6 +1,6 @@
 "use client"
 
-import React, { useMemo } from 'react'
+import React, { useEffect, useMemo, useState } from 'react'
 import { Button } from "@/components/ui/button"
 import { useBooking } from '@/contexts/booking-context'
 import { BookingFlow } from '@/components/booking-flow'
@@ -39,6 +39,7 @@ export function BookingFlowManager({ onBookingComplete, showSelection = true }: 
     setSelectedHotel,
     cancelInFlightBooking,
   } = useBooking()
+  const [comboStage, setComboStage] = useState<'flight' | 'hotel'>('flight')
   
   const activeFlight = useMemo(() => (bookingType === 'hotel' ? null : selectedFlight), [bookingType, selectedFlight])
   const activeHotel = useMemo(() => (bookingType === 'flight' ? null : selectedHotel), [bookingType, selectedHotel])
@@ -48,6 +49,7 @@ export function BookingFlowManager({ onBookingComplete, showSelection = true }: 
     setBookingType(type)
     setSelectedFlight(null)
     setSelectedHotel(null)
+    setComboStage('flight')
     updateBookingData({
       bookingType: (type === 'both' ? 'COMBO' : type.toUpperCase()) as 'FLIGHT' | 'HOTEL' | 'COMBO',
       totalAmount: 0,
@@ -101,6 +103,10 @@ export function BookingFlowManager({ onBookingComplete, showSelection = true }: 
       scheduleId: details.scheduleId || selectedFlight?.scheduleId,
       fareId: details.fareId || selectedFlight?.fareId,
     })
+    if (bookingType === 'both') {
+      setComboStage('hotel')
+      return
+    }
     nextStep()
   }
 
@@ -174,6 +180,7 @@ export function BookingFlowManager({ onBookingComplete, showSelection = true }: 
     } else {
       resetBooking()
     }
+    setComboStage('flight')
   }
 
   const handleNewBooking = () => {
@@ -188,6 +195,23 @@ export function BookingFlowManager({ onBookingComplete, showSelection = true }: 
   const handleEditDetails = () => {
     prevStep()
   }
+
+  useEffect(() => {
+    if (bookingType !== 'both') {
+      setComboStage('flight')
+    }
+  }, [bookingType])
+
+  useEffect(() => {
+    if (step === 'selection') {
+      setComboStage('flight')
+    }
+  }, [step])
+
+  const comboDetails = bookingData.bookingType === 'COMBO'
+    ? (bookingData.productDetails as ComboBookingDetails | undefined)
+    : undefined
+  const hasFlightDetails = Boolean(comboDetails?.flightDetails)
 
   return (
     <div className="container mx-auto py-8">
@@ -241,24 +265,40 @@ export function BookingFlowManager({ onBookingComplete, showSelection = true }: 
       )}
 
       {step === 'passengers' && bookingType === 'both' && (
-        <div className="space-y-8">
-          <h2 className="text-2xl font-bold text-center">Đặt gói chuyến đi</h2>
-          {activeFlight ? (
-            <FlightBookingForm 
-              flight={activeFlight} 
-              onSubmit={handleFlightBookingSubmit}
-              onCancel={prevStep}
-            />
-          ) : (
-            <div className="rounded-lg border border-dashed border-muted-foreground/40 bg-muted/10 p-6 text-center text-sm text-muted-foreground">
-              Không có dữ liệu chuyến bay. Quay lại bước trước để chọn chuyến bay.
-            </div>
-          )}
-          {activeHotel ? (
-            <HotelBookingForm 
-              hotel={activeHotel} 
+        <div className="space-y-6">
+          <div className="flex flex-wrap justify-center gap-2">
+            <Button
+              variant={comboStage === 'flight' ? 'default' : 'outline'}
+              onClick={() => setComboStage('flight')}
+            >
+              1. Thông tin chuyến bay
+            </Button>
+            <Button
+              variant={comboStage === 'hotel' ? 'default' : 'outline'}
+              disabled={!hasFlightDetails}
+              onClick={() => setComboStage('hotel')}
+            >
+              2. Thông tin khách sạn
+            </Button>
+          </div>
+
+          {comboStage === 'flight' ? (
+            activeFlight ? (
+              <FlightBookingForm
+                flight={activeFlight}
+                onSubmit={handleFlightBookingSubmit}
+                onCancel={prevStep}
+              />
+            ) : (
+              <div className="rounded-lg border border-dashed border-muted-foreground/40 bg-muted/10 p-6 text-center text-sm text-muted-foreground">
+                Không có dữ liệu chuyến bay. Quay lại bước trước để chọn chuyến bay.
+              </div>
+            )
+          ) : activeHotel ? (
+            <HotelBookingForm
+              hotel={activeHotel}
               onSubmit={handleHotelBookingSubmit}
-              onCancel={prevStep}
+              onCancel={() => setComboStage('flight')}
             />
           ) : (
             <div className="rounded-lg border border-dashed border-muted-foreground/40 bg-muted/10 p-6 text-center text-sm text-muted-foreground">

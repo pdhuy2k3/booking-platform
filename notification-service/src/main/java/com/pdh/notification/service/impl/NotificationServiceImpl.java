@@ -24,9 +24,11 @@ import java.io.StringWriter;
 import java.math.BigDecimal;
 import java.text.NumberFormat;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
+import java.util.List;
 import java.util.UUID;
 
 @Service
@@ -93,23 +95,29 @@ public class NotificationServiceImpl implements NotificationService {
 
         Map<String, Object> model = new HashMap<>(payload);
         model.put("recipientEmail", recipient); // Maintain for backward compatibility
-        
+
         // Extract contact information if available in nested structures
         Map<String, Object> contactInfo = extractContactInfo(payload, eventType);
         model.put("contact", contactInfo);
         model.put("eventType", eventType);
         model.put("formattedTotalAmount", formatCurrency(payload.get("totalAmount"), (String) payload.get("currency")));
 
+        Map<String, Object> normalizedProductDetails = normalizeProductDetails(payload.get("productDetails"));
+        if (normalizedProductDetails != null) {
+            model.put("productDetails", normalizedProductDetails);
+        }
+
         String template = resolveTemplate(eventType, payload);
         String subject = resolveSubject(eventType, payload);
 
         // Extract booking status and amount from nested structures for templates
-        Object bookingStatus = payload.get("status");
+        String bookingStatus = normalizeStatus(payload.get("status"));
         Object totalAmount = extractTotalAmount(payload, eventType);
         String currency = String.valueOf(payload.getOrDefault("currency", "VND"));
 
         // Add status and formatted amount to the model for templates
         model.put("status", bookingStatus);
+        model.put("statusLabel", formatStatusLabel(bookingStatus));
         model.put("totalAmount", totalAmount);
         model.put("currency", currency);
         model.put("formattedTotalAmount", formatCurrency(totalAmount, currency));
@@ -188,8 +196,86 @@ public class NotificationServiceImpl implements NotificationService {
             return objectMapper.convertValue(value, MAP_TYPE);
         } catch (IllegalArgumentException ex) {
             log.debug("Failed to convert value to map: {}", value, ex);
+        return null;
+    }
+}
+
+    private Map<String, Object> normalizeProductDetails(Object productDetails) {
+        Map<String, Object> detailsMap = toMap(productDetails);
+        if (detailsMap == null || detailsMap.isEmpty()) {
             return null;
         }
+
+        Map<String, Object> normalized = new HashMap<>();
+        detailsMap.forEach((key, value) -> normalized.put(key, deepNormalize(value)));
+        return normalized;
+    }
+
+    private Object deepNormalize(Object value) {
+        if (value instanceof Map<?, ?> map) {
+            Map<String, Object> nested = new HashMap<>();
+            map.forEach((k, v) -> nested.put(String.valueOf(k), deepNormalize(v)));
+            return nested;
+        }
+        if (value instanceof Iterable<?> iterable) {
+            List<Object> result = new ArrayList<>();
+            for (Object element : iterable) {
+                result.add(deepNormalize(element));
+            }
+            return result;
+        }
+        if (value != null && value.getClass().isArray()) {
+            int length = java.lang.reflect.Array.getLength(value);
+            List<Object> result = new ArrayList<>(length);
+            for (int i = 0; i < length; i++) {
+                Object element = java.lang.reflect.Array.get(value, i);
+                result.add(deepNormalize(element));
+            }
+            return result;
+        }
+        return value;
+    }
+
+    private String normalizeStatus(Object status) {
+        if (status == null) {
+            return null;
+        }
+        if (status instanceof Map<?, ?> map) {
+            Object value = map.get("name");
+            if (value == null) {
+                value = map.get("status");
+            }
+            if (value == null) {
+                value = map.get("value");
+            }
+            return value != null ? value.toString() : null;
+        }
+        return status.toString();
+    }
+
+    private String formatStatusLabel(String status) {
+        if (StringUtils.isBlank(status)) {
+            return null;
+        }
+        String normalized = status.toLowerCase(Locale.ROOT).replace('_', ' ').trim();
+        if (normalized.isEmpty()) {
+            return null;
+        }
+        String[] parts = normalized.split("\\s+");
+        StringBuilder builder = new StringBuilder();
+        for (int i = 0; i < parts.length; i++) {
+            if (parts[i].isEmpty()) {
+                continue;
+            }
+            builder.append(Character.toUpperCase(parts[i].charAt(0)));
+            if (parts[i].length() > 1) {
+                builder.append(parts[i].substring(1));
+            }
+            if (i < parts.length - 1) {
+                builder.append(' ');
+            }
+        }
+        return builder.toString();
     }
 
     private String resolveTemplate(String eventType, Map<String, Object> payload) {
