@@ -30,7 +30,6 @@ public class BackofficeAircraftService {
 
     private final AircraftRepository aircraftRepository;
     private final AircraftMapper aircraftMapper;
-    private final MediaServiceClient mediaServiceClient;
 
     /**
      * Get all aircraft with pagination and filtering for backoffice
@@ -90,15 +89,11 @@ public class BackofficeAircraftService {
         Aircraft aircraft = aircraftMapper.toEntity(aircraftRequestDto);
         aircraft = aircraftRepository.save(aircraft);
         
-        // Associate media if provided
-        if (aircraftRequestDto.getMediaPublicIds() != null && !aircraftRequestDto.getMediaPublicIds().isEmpty()) {
-            try {
-                mediaServiceClient.associateMediaWithEntity("AIRCRAFT", aircraft.getAircraftId(), aircraftRequestDto.getMediaPublicIds());
-                log.info("Associated {} media items with aircraft ID: {}", aircraftRequestDto.getMediaPublicIds().size(), aircraft.getAircraftId());
-            } catch (Exception e) {
-                log.error("Failed to associate media with aircraft ID: {}. Error: {}", aircraft.getAircraftId(), e.getMessage());
-                // Continue without failing the aircraft creation
-            }
+        // Set featured media URL if provided
+        if (aircraftRequestDto.getFeaturedMediaUrl() != null && !aircraftRequestDto.getFeaturedMediaUrl().isEmpty()) {
+            aircraft.setFeaturedMediaUrl(aircraftRequestDto.getFeaturedMediaUrl());
+            aircraft = aircraftRepository.save(aircraft); // Save the updated aircraft with featured media URL
+            log.info("Set featured media URL for aircraft ID: {}", aircraft.getAircraftId());
         }
         
         log.info("Aircraft created with ID: {}", aircraft.getAircraftId());
@@ -127,15 +122,11 @@ public class BackofficeAircraftService {
         aircraftMapper.updateEntityFromRequest(existingAircraft, aircraftRequestDto);
         Aircraft updatedAircraft = aircraftRepository.save(existingAircraft);
 
-        // Associate media if provided
-        if (aircraftRequestDto.getMediaPublicIds() != null && !aircraftRequestDto.getMediaPublicIds().isEmpty()) {
-            try {
-                mediaServiceClient.associateMediaWithEntity("AIRCRAFT", updatedAircraft.getAircraftId(), aircraftRequestDto.getMediaPublicIds());
-                log.info("Associated {} media items with aircraft ID: {}", aircraftRequestDto.getMediaPublicIds().size(), updatedAircraft.getAircraftId());
-            } catch (Exception e) {
-                log.error("Failed to associate media with aircraft ID: {}. Error: {}", updatedAircraft.getAircraftId(), e.getMessage());
-                // Continue without failing the aircraft update
-            }
+        // Update featured media URL if provided
+        if (aircraftRequestDto.getFeaturedMediaUrl() != null) {
+            updatedAircraft.setFeaturedMediaUrl(aircraftRequestDto.getFeaturedMediaUrl());
+            updatedAircraft = aircraftRepository.save(updatedAircraft); // Save the updated aircraft with featured media URL
+            log.info("Updated featured media URL for aircraft ID: {}", updatedAircraft.getAircraftId());
         }
 
         log.info("Aircraft updated with ID: {}", id);

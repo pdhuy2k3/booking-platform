@@ -19,9 +19,23 @@ export interface MapLocation {
   image?: string;
 }
 
+export interface MapJourney {
+  id: string;
+  origin: {
+    latitude: number;
+    longitude: number;
+  };
+  destination: {
+    latitude: number;
+    longitude: number;
+  };
+  color?: string;
+}
+
 export interface MapboxMapProps {
   className?: string;
   locations?: MapLocation[];
+  journeys?: MapJourney[];
   center?: [number, number]; // [longitude, latitude]
   zoom?: number;
   style?: string;
@@ -35,9 +49,10 @@ export interface MapboxMapProps {
 export function MapboxMap({
   className,
   locations = [],
-  center = [106.6297, 10.8231], // Ho Chi Minh City default
+  journeys = [],
+  center = [106.80337596151362, 10.870060732280548], // Ho Chi Minh City default
   zoom = 10,
-  style = 'mapbox://styles/mapbox/streets-v12',
+  style = 'mapbox://styles/phamduyhuy/cmgnvl0ec00ud01se98ju3a80',
   showControls = true,
   onLocationClick,
   onMapLoad,
@@ -144,6 +159,65 @@ export function MapboxMap({
       map.current.fitBounds(bounds, { padding: 50 });
     }
   }, [locations, isLoaded, onLocationClick]);
+
+  // Effect to draw journeys
+  useEffect(() => {
+    if (!map.current || !isLoaded) return;
+    
+    const mapInstance = map.current;
+
+    // This is a simple way to clear previous journeys. In a more complex app,
+    // you might want a more sophisticated way to manage layers.
+    mapInstance.getStyle().layers.forEach(layer => {
+      if (layer.id.startsWith('journey-')) {
+        mapInstance.removeLayer(layer.id);
+      }
+    });
+    Object.keys(mapInstance.getStyle().sources).forEach(sourceId => {
+      if (sourceId.startsWith('journey-')) {
+        mapInstance.removeSource(sourceId);
+      }
+    });
+
+    // Add new journeys
+    journeys.forEach(journey => {
+      const sourceId = `journey-source-${journey.id}`;
+      const layerId = `journey-layer-${journey.id}`;
+      
+      const geojson: GeoJSON.Feature<GeoJSON.LineString> = {
+        type: 'Feature',
+        properties: {},
+        geometry: {
+          type: 'LineString',
+          coordinates: [
+            [journey.origin.longitude, journey.origin.latitude],
+            [journey.destination.longitude, journey.destination.latitude]
+          ]
+        }
+      };
+
+      mapInstance.addSource(sourceId, {
+        type: 'geojson',
+        data: geojson
+      });
+
+      mapInstance.addLayer({
+        id: layerId,
+        type: 'line',
+        source: sourceId,
+        layout: {
+          'line-join': 'round',
+          'line-cap': 'round'
+        },
+        paint: {
+          'line-color': journey.color || '#2563eb', // Default to a blue color
+          'line-width': 2,
+          'line-dasharray': [2, 2] // Creates a dashed line effect
+        }
+      });
+    });
+
+  }, [journeys, isLoaded]);
 
   const getMarkerHTML = (location: MapLocation): string => {
     const iconClass = getMarkerIcon(location.type);

@@ -32,7 +32,6 @@ public class BackofficeAirlineService {
     private final AirlineRepository airlineRepository;
     private final FlightRepository flightRepository;
     private final AirlineMapper airlineMapper;
-    private final MediaServiceClient mediaServiceClient;
 
     /**
      * Get all airlines with pagination and filtering for backoffice
@@ -82,15 +81,11 @@ public class BackofficeAirlineService {
         Airline airline = airlineMapper.toEntity(airlineRequestDto);
         airline = airlineRepository.save(airline);
         
-        // Associate media if provided
-        if (airlineRequestDto.getMediaPublicIds() != null && !airlineRequestDto.getMediaPublicIds().isEmpty()) {
-            try {
-                mediaServiceClient.associateMediaWithEntity("AIRLINE", airline.getAirlineId(), airlineRequestDto.getMediaPublicIds());
-                log.info("Associated {} media items with airline ID: {}", airlineRequestDto.getMediaPublicIds().size(), airline.getAirlineId());
-            } catch (Exception e) {
-                log.error("Failed to associate media with airline ID: {}. Error: {}", airline.getAirlineId(), e.getMessage());
-                // Continue without failing the airline creation
-            }
+        // Set featured media URL if provided
+        if (airlineRequestDto.getFeaturedMediaUrl() != null && !airlineRequestDto.getFeaturedMediaUrl().isEmpty()) {
+            airline.setFeaturedMediaUrl(airlineRequestDto.getFeaturedMediaUrl());
+            airline = airlineRepository.save(airline); // Save the updated airline with featured media URL
+            log.info("Set featured media URL for airline ID: {}", airline.getAirlineId());
         }
         
         log.info("Airline created with ID: {}", airline.getAirlineId());
@@ -113,15 +108,11 @@ public class BackofficeAirlineService {
         
         Airline updatedAirline = airlineRepository.save(existingAirline);
 
-        // Associate media if provided
-        if (airlineRequestDto.getMediaPublicIds() != null && !airlineRequestDto.getMediaPublicIds().isEmpty()) {
-            try {
-                mediaServiceClient.associateMediaWithEntity("AIRLINE", updatedAirline.getAirlineId(), airlineRequestDto.getMediaPublicIds());
-                log.info("Associated {} media items with airline ID: {}", airlineRequestDto.getMediaPublicIds().size(), updatedAirline.getAirlineId());
-            } catch (Exception e) {
-                log.error("Failed to associate media with airline ID: {}. Error: {}", updatedAirline.getAirlineId(), e.getMessage());
-                // Continue without failing the airline update
-            }
+        // Update featured media URL if provided
+        if (airlineRequestDto.getFeaturedMediaUrl() != null) {
+            updatedAirline.setFeaturedMediaUrl(airlineRequestDto.getFeaturedMediaUrl());
+            updatedAirline = airlineRepository.save(updatedAirline); // Save the updated airline with featured media URL
+            log.info("Updated featured media URL for airline ID: {}", updatedAirline.getAirlineId());
         }
 
         log.info("Airline updated with ID: {}", id);

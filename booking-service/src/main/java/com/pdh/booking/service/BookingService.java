@@ -9,11 +9,17 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.pdh.common.saga.SagaState;
 import com.pdh.booking.model.dto.response.BookingHistoryItemDto;
+import com.pdh.common.lock.DistributedLock;
+import com.pdh.common.lock.DistributedLockManager;
+import com.pdh.common.lock.LockResourceType;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Duration;
+import java.time.ZonedDateTime;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -32,6 +38,10 @@ public class BookingService {
     private final BookingRepository bookingRepository;
     private final AnalyticsEventService analyticsEventService;
     private final ObjectMapper objectMapper;
+    private final DistributedLockManager distributedLockManager;
+
+    @Value("${booking.reservation.lock-minutes:15}")
+    private long reservationLockMinutes;
 
     /**
      * Create booking entity and emit analytics signal
@@ -44,15 +54,29 @@ public class BookingService {
         booking.setUserId(UUID.fromString(AuthenticationUtils.extractUserId()));
         booking.setStatus(BookingStatus.PENDING);
 
-        // Save booking first
-        Booking savedBooking = bookingRepository.save(booking);
+        DistributedLock reservationLock = null;
+        try {
+            reservationLock = assignReservationLock(booking);
 
-        // Publish analytics event for booking initiated
-        analyticsEventService.publishBookingAnalyticsEvent(savedBooking, "booking.initiated");
+            // Save booking first
+            Booking savedBooking = bookingRepository.save(booking);
 
-        log.info("Booking {} created", savedBooking.getBookingReference());
+            // Publish analytics event for booking initiated
+            analyticsEventService.publishBookingAnalyticsEvent(savedBooking, "booking.initiated");
 
-        return savedBooking;
+            log.info("Booking {} created", savedBooking.getBookingReference());
+
+            return savedBooking;
+        } catch (Exception ex) {
+            if (reservationLock != null && distributedLockManager != null) {
+                try {
+                    distributedLockManager.releaseLock(reservationLock.getLockId(), booking.getSagaId());
+                } catch (Exception releaseEx) {
+                    log.warn("Failed to release reservation lock {} after creation failure: {}", reservationLock.getLockId(), releaseEx.getMessage());
+                }
+            }
+            throw ex;
+        }
     }
 
     // Utility methods
@@ -69,6 +93,12 @@ public class BookingService {
         return bookingRepository.findByBookingId(bookingId)
             .map(booking -> {
                 booking.setStatus(newStatus);
+                if (shouldReleaseLock(newStatus)) {
+                    releaseLockForBooking(booking);
+                }
+                if (newStatus == BookingStatus.CANCELLED) {
+                    booking.setCancelledAt(ZonedDateTime.now());
+                }
                 return bookingRepository.save(booking);
             });
     }
@@ -92,26 +122,47 @@ public class BookingService {
                 if (booking.getConfirmationNumber() == null || booking.getConfirmationNumber().isBlank()) {
                     booking.setConfirmationNumber(generateConfirmationNumber());
                 }
+                releaseLockForBooking(booking);
                 return bookingRepository.save(booking);
             })
             .orElseThrow(() -> new IllegalArgumentException("Booking not found: " + bookingId));
     }
 
     private BookingHistoryItemDto mapToHistoryItem(Booking booking) {
-        return BookingHistoryItemDto.builder()
+        BookingHistoryItemDto.BookingHistoryItemDtoBuilder builder = BookingHistoryItemDto.builder()
             .bookingId(booking.getBookingId().toString())
             .bookingReference(booking.getBookingReference())
             .bookingType(booking.getBookingType())
             .status(booking.getStatus())
             .sagaState(booking.getSagaState() != null ? booking.getSagaState().name() : null)
+            .sagaId(booking.getSagaId())
             .totalAmount(booking.getTotalAmount())
             .currency(booking.getCurrency())
             .createdAt(booking.getCreatedAt() != null ? booking.getCreatedAt().toString() : null)
             .updatedAt(booking.getUpdatedAt() != null ? booking.getUpdatedAt().toString() : null)
             .confirmationNumber(booking.getConfirmationNumber())
-            .productSummary(buildProductSummary(booking))
-            .productDetailsJson(booking.getProductDetailsJson())
-            .build();
+            .productDetailsJson(booking.getProductDetailsJson());
+
+        if (booking.getReservationLockedAt() != null) {
+            builder.reservationLockedAt(booking.getReservationLockedAt().toString());
+        }
+        if (booking.getReservationExpiresAt() != null) {
+            builder.reservationExpiresAt(booking.getReservationExpiresAt().toString());
+        }
+
+        JsonNode productNode = null;
+        if (booking.getProductDetailsJson() != null && !booking.getProductDetailsJson().isBlank()) {
+            try {
+                productNode = objectMapper.readTree(booking.getProductDetailsJson());
+            } catch (Exception e) {
+                log.warn("Failed to parse product details for booking {}", booking.getBookingId(), e);
+            }
+        }
+
+        builder.productSummary(buildProductSummary(booking, productNode));
+        populateCoordinateMetadata(booking, builder, productNode);
+
+        return builder.build();
     }
 
     private String buildProductSummary(Booking booking) {
@@ -121,6 +172,19 @@ public class BookingService {
 
         try {
             JsonNode root = objectMapper.readTree(booking.getProductDetailsJson());
+            return buildProductSummary(booking, root);
+        } catch (Exception e) {
+            log.warn("Failed to build product summary for booking {}", booking.getBookingId(), e);
+            return null;
+        }
+    }
+
+    private String buildProductSummary(Booking booking, JsonNode root) {
+        if (root == null) {
+            return null;
+        }
+
+        try {
             return switch (booking.getBookingType()) {
                 case FLIGHT -> summarizeFlight(root);
                 case HOTEL -> summarizeHotel(root);
@@ -130,6 +194,33 @@ public class BookingService {
         } catch (Exception e) {
             log.warn("Failed to build product summary for booking {}", booking.getBookingId(), e);
             return null;
+        }
+    }
+
+    private void populateCoordinateMetadata(Booking booking, BookingHistoryItemDto.BookingHistoryItemDtoBuilder builder, JsonNode root) {
+        if (root == null) {
+            return;
+        }
+
+        try {
+            switch (booking.getBookingType()) {
+                case FLIGHT -> applyFlightCoordinates(builder, root);
+                case HOTEL -> applyHotelCoordinates(builder, root);
+                case COMBO -> {
+                    JsonNode flightNode = root.path("flightDetails");
+                    JsonNode hotelNode = root.path("hotelDetails");
+                    if (!flightNode.isMissingNode()) {
+                        applyFlightCoordinates(builder, flightNode);
+                    }
+                    if (!hotelNode.isMissingNode()) {
+                        applyHotelCoordinates(builder, hotelNode);
+                    }
+                }
+                default -> {
+                }
+            }
+        } catch (Exception e) {
+            log.warn("Failed to populate coordinate metadata for booking {}", booking.getBookingId(), e);
         }
     }
 
@@ -196,5 +287,110 @@ public class BookingService {
             }
         }
         return builder.length() == 0 ? null : builder.toString();
+    }
+
+    private void applyFlightCoordinates(BookingHistoryItemDto.BookingHistoryItemDtoBuilder builder, JsonNode node) {
+        builder.originLatitude(getDouble(node, "originLatitude"));
+        builder.originLongitude(getDouble(node, "originLongitude"));
+        builder.destinationLatitude(getDouble(node, "destinationLatitude"));
+        builder.destinationLongitude(getDouble(node, "destinationLongitude"));
+    }
+
+    private void applyHotelCoordinates(BookingHistoryItemDto.BookingHistoryItemDtoBuilder builder, JsonNode node) {
+        builder.hotelLatitude(getDouble(node, "hotelLatitude"));
+        builder.hotelLongitude(getDouble(node, "hotelLongitude"));
+    }
+
+    private Double getDouble(JsonNode node, String fieldName) {
+        JsonNode valueNode = node.get(fieldName);
+        if (valueNode == null || valueNode.isNull()) {
+            return null;
+        }
+        if (valueNode.isNumber()) {
+            return valueNode.asDouble();
+        }
+        if (valueNode.isTextual()) {
+            try {
+                return Double.parseDouble(valueNode.asText());
+            } catch (NumberFormatException ignored) {
+                return null;
+            }
+        }
+        return null;
+    }
+
+    private DistributedLock assignReservationLock(Booking booking) {
+        if (distributedLockManager == null || reservationLockMinutes <= 0) {
+            return null;
+        }
+
+        if (booking.getSagaId() == null || booking.getSagaId().isBlank()) {
+            booking.setSagaId(UUID.randomUUID().toString());
+        }
+
+        Duration timeout = Duration.ofMinutes(Math.max(1, reservationLockMinutes));
+        String resourceKey = "booking:" + booking.getBookingId();
+
+        DistributedLock lock = distributedLockManager.acquireLock(
+                resourceKey,
+                LockResourceType.BOOKING,
+                booking.getSagaId(),
+                timeout)
+            .orElseThrow(() -> new IllegalStateException("Unable to reserve booking items. Please try again."));
+
+        ZonedDateTime lockedAt = ZonedDateTime.now();
+        booking.setReservationLockId(lock.getLockId());
+        booking.setReservationLockedAt(lockedAt);
+        booking.setReservationExpiresAt(lockedAt.plus(timeout));
+
+        return lock;
+    }
+
+    private void releaseLockForBooking(Booking booking) {
+        if (booking == null) {
+            return;
+        }
+        try {
+            if (distributedLockManager != null && booking.getReservationLockId() != null && booking.getSagaId() != null) {
+                distributedLockManager.releaseLock(booking.getReservationLockId(), booking.getSagaId());
+            }
+        } catch (Exception e) {
+            log.warn("Failed to release reservation lock for booking {}: {}", booking.getBookingId(), e.getMessage());
+        } finally {
+            clearReservationLockMetadata(booking);
+        }
+    }
+
+    private void clearReservationLockMetadata(Booking booking) {
+        booking.setReservationLockId(null);
+        booking.setReservationLockedAt(null);
+        booking.setReservationExpiresAt(null);
+    }
+
+    private boolean shouldReleaseLock(BookingStatus status) {
+        return status == BookingStatus.CANCELLED
+                || status == BookingStatus.FAILED
+                || status == BookingStatus.PAYMENT_FAILED
+                || status == BookingStatus.CONFIRMED;
+    }
+
+    @Transactional
+    public void expireReservation(Booking booking, String reason) {
+        if (booking == null) {
+            return;
+        }
+        releaseLockForBooking(booking);
+        booking.setStatus(BookingStatus.CANCELLED);
+        booking.setSagaState(SagaState.BOOKING_CANCELLED);
+        booking.setCancelledAt(ZonedDateTime.now());
+        booking.setCancellationReason(reason);
+        bookingRepository.save(booking);
+    }
+
+    public void releaseReservationLock(Booking booking) {
+        if (booking == null) {
+            return;
+        }
+        releaseLockForBooking(booking);
     }
 }

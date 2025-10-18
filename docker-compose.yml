@@ -13,6 +13,8 @@ services:
       KC_DB_PASSWORD: ${DB_PASSWORD}
       KC_HEALTH_ENABLED: true
       KC_HTTP_PORT: 80
+      # Turnstile Site Key - available to the theme during runtime
+      TURNSTILE_SITE_KEY: ${TURNSTILE_SITE_KEY}
     volumes:
       - ./identity/bookingsmart-keycloak-theme.jar:/opt/keycloak/providers/bookingsmart-keycloak-theme.jar
       - ./identity/realm-export.json:/opt/keycloak/data/import/realm-export.json
@@ -38,7 +40,7 @@ services:
       - "5432:5432"
     networks:
       - booking-network
-    command: postgres -c wal_level=logical
+    command: postgres -c wal_level=logical -c max_replication_slots=10 -c max_wal_senders=10
 
   # Redis for Event Deduplication
   redis:
@@ -64,6 +66,9 @@ services:
     environment:
       ZOOKEEPER_CLIENT_PORT: 2181
       ZOOKEEPER_TICK_TIME: 2000
+    volumes:
+      - zookeeper_data:/var/lib/zookeeper/data
+      - zookeeper_log:/var/lib/zookeeper/log
 
   # Kafka
   kafka:
@@ -82,6 +87,10 @@ services:
       KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
       KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+    volumes:
+      - kafka_data:/var/lib/kafka/data
+
+
 
   # Debezium Connect
   connect:
@@ -104,19 +113,29 @@ services:
       CONNECT_REST_ADVERTISED_HOST_NAME: connect
 
   kafka-setup:
-    image: confluentinc/cp-kafka:7.7.1
+    image: alpine:3.20
     container_name: kafka-setup
     depends_on:
       - kafka
       - connect
     volumes:
-      - ./debezium:/tmp/connectors
+      - ./debezium:/tmp/connectors:ro
+      - ./wait-for-it.sh:/wait-for-it.sh:ro
     command: >
-      bash -lc '
+      sh -lc '
         set -e
-        echo "Waiting for Kafka Connect..." 
-        sleep 20
+        apk add --no-cache curl bash netcat-openbsd
 
+        cp /wait-for-it.sh /tmp/wait-for-it.sh
+        sed -i "s/\r$//" /tmp/wait-for-it.sh
+        chmod +x /tmp/wait-for-it.sh
+
+        echo "Waiting for Kafka broker..."
+        /usr/bin/env bash /tmp/wait-for-it.sh kafka:29092 --timeout=90
+
+        echo "Waiting for Kafka Connect..."
+        /usr/bin/env bash /tmp/wait-for-it.sh connect:8083 --timeout=120
+        sleep 5
         echo "Deploy flight connector"
         curl -i -X PUT -H "Accept: application/json" -H "Content-Type: application/json" \
           --data-binary @/tmp/connectors/flight-db-connector.json \
@@ -136,13 +155,16 @@ services:
         curl -i -X PUT -H "Accept: application/json" -H "Content-Type: application/json" \
           --data-binary @/tmp/connectors/payment-db-connector.json \
           http://connect:8083/connectors/payment-connector/config
+        echo "Deloy notification connector"
+        curl -i -X PUT -H "Accept: application/json" -H "Content-Type: application/json" \
+          --data-binary @/tmp/connectors/notification-db-connector.json \
+          http://connect:8083/connectors/notification-connector/config
+        
       '
-    environment:
-      KAFKA_BROKER_ID: ignored
-      KAFKA_ZOOKEEPER_CONNECT: ignored
     networks:
       - booking-network
-      
+
+
   debezium-ui:
     image: quay.io/debezium/debezium-ui:2.1.2.Final
     ports:
@@ -151,6 +173,48 @@ services:
       KAFKA_CONNECT_URIS: http://connect:8083
     networks:
       - booking-network
+  # Elasticsearch
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.19.5
+    container_name: elasticsearch
+    environment:
+      - discovery.type=single-node
+      - xpack.security.enabled=false
+      - xpack.security.http.ssl.enabled=false
+      - xpack.security.transport.ssl.enabled=false
+      - ES_JAVA_OPTS=-Xms1g -Xmx1g
+    ports:
+      - "9200:9200"
+      - "9300:9300"
+    networks:
+      - booking-network
+    volumes:
+      - elasticsearch_data:/usr/share/elasticsearch/data
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:9200/_cluster/health?wait_for_status=yellow&timeout=60s >/dev/null || exit 1"]
+      interval: 30s
+      timeout: 20s
+      retries: 10
+
+  # kibana:
+  #   image: docker.elastic.co/kibana/kibana:8.19.5
+  #   container_name: kibana
+  #   depends_on:
+  #     elasticsearch:
+  #       condition: service_healthy
+  #   environment:
+  #     - ELASTICSEARCH_HOSTS=["http://elasticsearch:9200"]
+  #     - XPACK_SECURITY_ENABLED=false
+  #   ports:
+  #     - "5601:5601"
+  #   networks:
+  #     - booking-network
+  #   healthcheck:
+  #     test: ["CMD-SHELL", "curl -sf http://localhost:5601/api/status >/dev/null || exit 1"]
+  #     interval: 30s
+  #     timeout: 20s
+  #     retries: 10
+
   # Kafka UI
   # kafka-ui:
   #   image: provectuslabs/kafka-ui:latest
@@ -243,7 +307,7 @@ services:
     build:
       context: ./storefront-fe
       dockerfile: Dockerfile
-
+    image: phamduyhuyuit/bookingsmart-storefront-fe:latest
     environment:
       - NODE_ENV=production
 
@@ -308,17 +372,24 @@ services:
       - EUREKA_URI
       - JWT_ISSUER_URI
       - KEYCLOAK_HOST
+      - KAFKA_BOOTSTRAP_SERVERS
       - BOOKING_SMART_AI_CLIENT_SECRET
       - SERVER_PORT
       - DB_URL=jdbc:postgresql://postgres:5432/ai_db
       - DB_USERNAME
       - DB_PASSWORD
-      - GEMINI_API_KEY
       - OWM_API_KEY
       - MAPBOX_ACCESS_TOKEN
       - BRAVE_API_KEY
       - MISTRAL_API_KEY
-      - STRIPE_SECRET_KEY
+      - GEMINI_API_KEY
+      - ELASTIC_URIS
+      - ELASTIC_USERNAME
+      - ELASTIC_PASSWORD
+      - app.flight-service.url=http://flight-service
+      - app.hotel-service.url=http://hotel-service
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     volumes:
       # Docker socket for running MCP server on containers
       - /var/run/docker.sock:/var/run/docker.sock
@@ -390,6 +461,33 @@ services:
     networks:
       - booking-network
 
+  # Notification Service
+  notification-service:
+    build:
+      context: ./notification-service
+      dockerfile: Dockerfile
+    image: phamduyhuyuit/bookingsmart-notification-service:latest
+    depends_on:
+      postgres:
+        condition: service_healthy
+      kafka:
+        condition: service_started
+    environment:
+      - SPRING_PROFILES_ACTIVE=docker
+      - EUREKA_URI
+      - DB_URL=jdbc:postgresql://postgres:5432/notification_db
+      - DB_USERNAME
+      - DB_PASSWORD
+      - JWT_ISSUER_URI
+      - KAFKA_BOOTSTRAP_SERVERS
+      - SERVER_PORT
+      - MAIL_HOST=smtp.gmail.com
+      - MAIL_PORT=587
+      - MAIL_USERNAME
+      - MAIL_PASSWORD
+    networks:
+      - booking-network
+
   # Customer Service
   customer-service:
     build:
@@ -409,6 +507,7 @@ services:
       - DB_USERNAME
       - DB_PASSWORD
       - SERVER_PORT
+      - TURNSTILE_SECRET_KEY
     networks:
       - booking-network
   # Media Service -
@@ -452,44 +551,37 @@ services:
       - booking-network
 
   #Ollama
-  # ollama:
-  #   image: ollama/ollama:latest
+  ollama:
+    image: ollama/ollama:latest
+    restart: unless-stopped
+    environment:
+      - OLLAMA_KEEP_ALIVE=24h
+      - OLLAMA_HOST=0.0.0.0
+    ports:
+      - "11434:11434"
+    volumes:
+      - pulled_models:/root/.ollama
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    networks:
+      - booking-network
+  # redis-insight:
+  #   image: redis/redisinsight:latest
+  #   container_name: redis-insight
   #   restart: unless-stopped
-  #   environment:
-  #     - OLLAMA_KEEP_ALIVE=24h
-  #     - OLLAMA_HOST=0.0.0.0
   #   ports:
-  #      - "11434:11434"
+  #     - "5540:5540"
   #   volumes:
-  #      - pulled_models:/root/.ollama
-  #   deploy:
-  #     resources:
-  #       reservations:
-  #         devices:
-  #           - driver: nvidia
-  #             count: all
-  #             capabilities: [gpu]
+  #     - redis-insight-data:/data
   #   networks:
   #     - booking-network
-#  # PgAdmin for database management
-#  pgadmin:
-#    profiles:
-#      - dev
-#      - auth
-#    image: dpage/pgadmin4:latest
-#    environment:
-#      PGADMIN_CONFIG_SERVER_MODE: 'False'
-#      PGADMIN_DEFAULT_EMAIL: huypd.dev@gmail.com
-#      PGADMIN_DEFAULT_PASSWORD: admin123
-#    ports:
-#      - "8666:80"
-#    volumes:
-#      - pgadmin_data:/var/lib/pgadmin
-#    depends_on:
-#      - postgres
-#    restart: unless-stopped
-#    networks:
-#      - booking-network
+  #   depends_on:
+  #     - redis
 
 networks:
   booking-network:
@@ -498,6 +590,9 @@ networks:
 volumes:
   postgres_data:
   redis_data:
-  # n8n_data:
-  # pulled_models:
-#    pgadmin_data:
+  redis-insight-data:
+  zookeeper_data:
+  zookeeper_log:
+  kafka_data:
+  elasticsearch_data:
+  pulled_models:

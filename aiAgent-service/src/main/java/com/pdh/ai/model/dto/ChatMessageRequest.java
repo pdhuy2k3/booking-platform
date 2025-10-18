@@ -6,14 +6,17 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 /**
- * DTO for chat messages sent via WebSocket.
+ * DTO for chat messages sent via REST API.
  * 
  * <p>Message Flow:</p>
  * <ol>
- * <li>Client types message and sends ChatMessageRequest via WebSocket</li>
- * <li>Server processes message using CoreAgent + Gemini</li>
- * <li>Server sends ChatMessageResponse back</li>
+ * <li>Client types message and sends ChatMessageRequest via REST POST</li>
+ * <li>Server extracts userId from JWT token automatically</li>
+ * <li>Server processes message using AgenticWorkflowService</li>
+ * <li>Server sends StructuredChatPayload back</li>
  * </ol>
+ * 
+ * <p>Note: userId is NOT included in request body - it's extracted from JWT authentication</p>
  * 
  * @author PDH
  * @since 2025-01-05
@@ -23,11 +26,6 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor
 @AllArgsConstructor
 public class ChatMessageRequest {
-    
-    /**
-     * User ID from JWT token or session.
-     */
-    private String userId;
     
     /**
      * Conversation ID for context tracking.

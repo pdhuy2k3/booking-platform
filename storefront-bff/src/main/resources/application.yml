@@ -36,11 +36,10 @@ spring:
             provider: keycloak
         provider:
           keycloak:
-            issuer-uri: http://localhost:9090/realms/BookingSmart
-
-
   cloud:
     gateway:
+      httpclient:
+        response-timeout: 600s
       routes:
         - id: flight-service
           uri: lb://FLIGHT-SERVICE
@@ -143,6 +142,8 @@ spring:
             issuer-uri: ${JWT_ISSUER_URI}
   cloud:
     gateway:
+      httpclient:
+        response-timeout: 600s
       server:
         webflux:
           routes:
@@ -158,6 +159,13 @@ spring:
               uri: http://storefront-fe:3000
               predicates:
                 - Path=/**
+            - id: aiagent-ws
+              uri: lb:ws://aiAgent-service
+              predicates:
+                - Path=/api/ai/ws/**
+              filters:
+                - RewritePath=/api/ai/ws/(?<segment>.*), /ws/${segment}
+                - TokenRelay=
           default-filters:
             - SaveSession
 

@@ -1,5 +1,5 @@
 import { apiClient } from '@/lib/api-client';
-import type { MediaResponse } from '@/types/api';
+import type { ApiResponse, MediaResponse } from '@/types/api';
 
 export interface MediaUploadResponse {
   mediaUrl: string;    // URL in format "/api/media/{publicId}"
@@ -51,6 +51,68 @@ class MediaService {
       mediaType: data.mediaType || 'image',
       message: data.message || 'Media uploaded successfully'
     };
+  }
+  
+  /**
+   * Upload media from URL to media service
+   * Returns mediaUrl that can be stored in any entity's media field
+   */
+  async uploadMediaFromUrl(url: string, folder?: string): Promise<MediaUploadResponse> {
+    const params = new URLSearchParams();
+    params.append('url', url);
+    
+    if (folder) {
+      params.append('folder', folder);
+    }
+
+    const response = await apiClient.post('/api/media/management/upload-url', params, {
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded'
+      }
+    }) as { data: any };
+
+    // Extract data from media service response
+    const data = response.data.data || response.data;
+    
+    return {
+      mediaUrl: `/api/media/${data.publicId}`,
+      publicId: data.publicId,
+      secureUrl: data.secureUrl || data.url,
+      mediaType: data.mediaType || 'image',
+      message: data.message || 'Media uploaded successfully'
+    };
+  }
+  
+  /**
+   * Upload multiple media files at once
+   */
+  async bulkUploadMedia(files: File[], folder?: string): Promise<MediaUploadResponse[]> {
+    const formData = new FormData();
+    
+    files.forEach(file => {
+      formData.append('files', file);
+    });
+    
+    if (folder) {
+      formData.append('folder', folder);
+    }
+
+    const response = await apiClient.post('/api/media/management/upload-multiple', formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data'
+      }
+    }) as { data: any };
+
+    // Extract data from media service response
+    const data = response.data.data || response.data;
+    
+    return data.map((item: any) => ({
+      mediaUrl: `/api/media/${item.publicId}`,
+      publicId: item.publicId,
+      secureUrl: item.secureUrl || item.url,
+      mediaType: item.mediaType || 'image',
+      message: item.message || 'Media uploaded successfully'
+    }));
   }
 
   /**
@@ -320,23 +382,8 @@ class MediaService {
     
     try {
       // Use single browse endpoint for all searches
-      const response = await apiClient.get('/api/media/browse', { params }) as { data: any };
-      const data = response.data.data || response.data;
-      
-      return {
-        items: data.resources?.map((item: any) => ({
-          publicId: item.public_id,
-          url: item.url,
-          secureUrl: item.secure_url,
-          format: item.format,
-          width: item.width,
-          height: item.height,
-          bytes: item.bytes,
-          folder: item.folder
-        })) || [],
-        total: data.total_count || 0,
-        totalPages: data.total_pages || Math.ceil((data.total_count || 0) / limit)
-      };
+      const response = await apiClient.get<ApiResponse<{ items: SimpleMediaItem[], total: number, totalPages: number }>>('/api/media/browse', { params });
+      return response.data;
     } catch (error) {
       console.error('Error searching media:', error);
       

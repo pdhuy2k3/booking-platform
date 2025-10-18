@@ -1,5 +1,6 @@
 package com.pdh.hotel.controller;
 
+import com.pdh.common.dto.ApiResponse;
 import com.pdh.hotel.dto.request.HotelRequestDto;
 import com.pdh.hotel.service.BackofficeHotelService;
 import lombok.RequiredArgsConstructor;
@@ -25,9 +26,7 @@ public class BackofficeHotelController {
      * Get all hotels with pagination and filtering for backoffice
      */
     @GetMapping
-
-
-    public ResponseEntity<Map<String, Object>> getAllHotels(
+    public ResponseEntity<ApiResponse<Map<String, Object>>> getAllHotels(
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "10") int size,
             @RequestParam(required = false) String search,
@@ -39,13 +38,11 @@ public class BackofficeHotelController {
         try {
             Map<String, Object> response = backofficeHotelService.getAllHotels(page, size, search, city, status);
             log.info("Found {} hotels for backoffice", ((List<?>) response.getOrDefault("content", List.of())).size());
-            return ResponseEntity.ok(response);
+            return ResponseEntity.ok(ApiResponse.success(response));
         } catch (Exception e) {
             log.error("Error fetching hotels for backoffice", e);
-            Map<String, Object> errorResponse = new HashMap<>();
-            errorResponse.put("error", "Failed to fetch hotels");
-            errorResponse.put("message", e.getMessage());
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(errorResponse);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(ApiResponse.error("Failed to fetch hotels", e.getMessage()));
         }
     }
 
@@ -53,17 +50,15 @@ public class BackofficeHotelController {
      * Get hotel by ID for backoffice
      */
     @GetMapping("/{id}")
-    public ResponseEntity<Map<String, Object>> getHotel(@PathVariable Long id) {
+    public ResponseEntity<ApiResponse<Map<String, Object>>> getHotel(@PathVariable Long id) {
         log.info("Fetching hotel details for backoffice: ID={}", id);
         try {
             Map<String, Object> response = backofficeHotelService.getHotel(id);
-            return ResponseEntity.ok(response);
+            return ResponseEntity.ok(ApiResponse.success(response));
         } catch (Exception e) {
             log.error("Error fetching hotel details for backoffice: ID={}", id, e);
-            Map<String, Object> errorResponse = new HashMap<>();
-            errorResponse.put("error", "Failed to fetch hotel details");
-            errorResponse.put("message", e.getMessage());
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(errorResponse);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(ApiResponse.error("Failed to fetch hotel details", e.getMessage()));
         }
     }
 
@@ -71,18 +66,16 @@ public class BackofficeHotelController {
      * Create a new hotel
      */
     @PostMapping
-    public ResponseEntity<Map<String, Object>> createHotel(@Valid @RequestBody HotelRequestDto hotelRequestDto) {
+    public ResponseEntity<ApiResponse<Map<String, Object>>> createHotel(@Valid @RequestBody HotelRequestDto hotelRequestDto) {
         log.info("Creating new hotel: {}", hotelRequestDto);
         try {
             Map<String, Object> response = backofficeHotelService.createHotel(hotelRequestDto);
             log.info("Hotel created successfully with response: {}", response);
-            return ResponseEntity.status(HttpStatus.CREATED).body(response);
+            return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.success(response));
         } catch (Exception e) {
             log.error("Error creating hotel", e);
-            Map<String, Object> errorResponse = new HashMap<>();
-            errorResponse.put("error", "Failed to create hotel");
-            errorResponse.put("message", e.getMessage());
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(errorResponse);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(ApiResponse.error("Failed to create hotel", e.getMessage()));
         }
     }
 
@@ -90,18 +83,16 @@ public class BackofficeHotelController {
      * Update an existing hotel
      */
     @PutMapping("/{id}")
-    public ResponseEntity<Map<String, Object>> updateHotel(@PathVariable Long id, @Valid @RequestBody HotelRequestDto hotelRequestDto) {
+    public ResponseEntity<ApiResponse<Map<String, Object>>> updateHotel(@PathVariable Long id, @Valid @RequestBody HotelRequestDto hotelRequestDto) {
         log.info("Updating hotel: ID={}, data={}", id, hotelRequestDto);
         try {
             Map<String, Object> response = backofficeHotelService.updateHotel(id, hotelRequestDto);
             log.info("Hotel updated successfully with ID: {}", id);
-            return ResponseEntity.ok(response);
+            return ResponseEntity.ok(ApiResponse.success(response));
         } catch (Exception e) {
             log.error("Error updating hotel: ID={}", id, e);
-            Map<String, Object> errorResponse = new HashMap<>();
-            errorResponse.put("error", "Failed to update hotel");
-            errorResponse.put("message", e.getMessage());
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(errorResponse);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(ApiResponse.error("Failed to update hotel", e.getMessage()));
         }
     }
 
@@ -109,20 +100,39 @@ public class BackofficeHotelController {
      * Delete a hotel (soft delete)
      */
     @DeleteMapping("/{id}")
-    public ResponseEntity<Map<String, Object>> deleteHotel(@PathVariable Long id) {
+    public ResponseEntity<ApiResponse<Map<String, Object>>> deleteHotel(@PathVariable Long id) {
         log.info("Deleting hotel: ID={}", id);
         try {
             backofficeHotelService.deleteHotel(id);
             Map<String, Object> response = new HashMap<>();
             response.put("message", "Hotel deleted successfully");
             log.info("Hotel deleted successfully with ID: {}", id);
-            return ResponseEntity.ok(response);
+            return ResponseEntity.ok(ApiResponse.success(response));
         } catch (Exception e) {
             log.error("Error deleting hotel: ID={}", id, e);
-            Map<String, Object> errorResponse = new HashMap<>();
-            errorResponse.put("error", "Failed to delete hotel");
-            errorResponse.put("message", e.getMessage());
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(errorResponse);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(ApiResponse.error("Failed to delete hotel", e.getMessage()));
+        }
+    }
+
+    /**
+     * Get all hotel IDs for RAG initialization
+     */
+    @GetMapping("/ids")
+    public ResponseEntity<ApiResponse<Map<String, Object>>> getAllHotelIds(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "100") int size) {
+
+        log.info("Fetching hotel IDs for RAG initialization: page={}, size={}", page, size);
+        
+        try {
+            Map<String, Object> response = backofficeHotelService.getAllHotelIds(page, size);
+            log.info("Found {} hotel IDs for RAG initialization", ((List<?>) response.getOrDefault("content", List.of())).size());
+            return ResponseEntity.ok(ApiResponse.success(response));
+        } catch (Exception e) {
+            log.error("Error fetching hotel IDs for RAG initialization", e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(ApiResponse.error("Failed to fetch hotel IDs", e.getMessage()));
         }
     }
 
@@ -130,7 +140,7 @@ public class BackofficeHotelController {
      * Update hotel's amenities
      */
     @PutMapping("/{id}/amenities")
-    public ResponseEntity<Map<String, Object>> updateHotelAmenities(
+    public ResponseEntity<ApiResponse<Map<String, Object>>> updateHotelAmenities(
             @PathVariable("id") Long hotelId,
             @RequestBody Map<String, List<Long>> requestBody
     ) {
@@ -138,16 +148,28 @@ public class BackofficeHotelController {
         try {
             List<Long> amenityIds = requestBody != null ? requestBody.getOrDefault("amenityIds", List.of()) : List.of();
             Map<String, Object> response = backofficeHotelService.updateHotelAmenities(hotelId, amenityIds);
-            return ResponseEntity.ok(response);
+            return ResponseEntity.ok(ApiResponse.success(response));
         } catch (Exception e) {
             log.error("Error updating hotel amenities: ID={}", hotelId, e);
-            Map<String, Object> errorResponse = new HashMap<>();
-            errorResponse.put("error", "Failed to update hotel amenities");
-            errorResponse.put("message", e.getMessage());
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(errorResponse);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(ApiResponse.error("Failed to update hotel amenities", e.getMessage()));
         }
     }
 
-
-
+    /**
+     * Get hotel statistics
+     */
+    @GetMapping("/statistics")
+    public ResponseEntity<ApiResponse<Map<String, Object>>> getHotelStatistics() {
+        log.info("Fetching hotel statistics for backoffice");
+        
+        try {
+            Map<String, Object> response = backofficeHotelService.getHotelStatistics();
+            return ResponseEntity.ok(ApiResponse.success(response));
+        } catch (Exception e) {
+            log.error("Error fetching hotel statistics", e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(ApiResponse.error("Failed to fetch hotel statistics", e.getMessage()));
+        }
+    }
 }

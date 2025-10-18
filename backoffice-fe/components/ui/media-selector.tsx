@@ -8,7 +8,7 @@ import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Upload, Image, Trash2, Eye, Search, Check } from 'lucide-react';
+import { Upload, Image, Trash2, Eye, Search, Check, Link, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { mediaService } from '@/services/media-service';
 import type { MediaResponse } from '@/types/api';
@@ -48,6 +48,7 @@ export function MediaSelector({
   folder = 'general',
   maxSelection = 5,
   allowUpload = true,
+  allowUrlInput = true,
   className = '',
   mode = 'publicIds'
 }: MediaSelectorProps) {
@@ -60,7 +61,10 @@ export function MediaSelector({
   const [loading, setLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [bulkFiles, setBulkFiles] = useState<File[]>([]);
+  const [urlInput, setUrlInput] = useState<string>('');
   const [uploading, setUploading] = useState(false);
+  const [isUploadingUrl, setIsUploadingUrl] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const pageSize = 12;
@@ -237,6 +241,40 @@ export function MediaSelector({
       toast.error('Failed to upload media');
     } finally {
       setUploading(false);
+    }
+  };
+
+  const handleBulkUpload = async () => {
+    if (bulkFiles.length === 0) return;
+
+    try {
+      setUploading(true);
+      const results = await mediaService.bulkUploadMedia(bulkFiles, folder);
+      toast.success(`Successfully uploaded ${results.length} media files`);
+      setBulkFiles([]);
+      fetchMediaItems();
+    } catch (error) {
+      console.error('Error uploading media:', error);
+      toast.error('Failed to upload media');
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const handleUrlUpload = async () => {
+    if (!urlInput.trim()) return;
+
+    try {
+      setIsUploadingUrl(true);
+      const result = await mediaService.uploadMediaFromUrl(urlInput, folder);
+      toast.success(result.message || 'Media uploaded successfully');
+      setUrlInput('');
+      fetchMediaItems();
+    } catch (error) {
+      console.error('Error uploading media from URL:', error);
+      toast.error('Failed to upload media from URL');
+    } finally {
+      setIsUploadingUrl(false);
     }
   };
 
@@ -486,6 +524,70 @@ export function MediaSelector({
                   {uploading ? 'Uploading...' : 'Upload'}
                 </Button>
               </div>
+              
+              {allowUrlInput && (
+                <>
+                  <div className="space-y-2 md:col-span-2">
+                    <Label htmlFor="url-input">Or Enter Media URL</Label>
+                    <div className="flex gap-2">
+                      <Input
+                        id="url-input"
+                        placeholder="Enter image or video URL..."
+                        value={urlInput}
+                        onChange={(e) => setUrlInput(e.target.value)}
+                        disabled={isUploadingUrl}
+                        className="flex-1"
+                      />
+                      <Button
+                        onClick={handleUrlUpload}
+                        disabled={!urlInput.trim() || isUploadingUrl}
+                        variant="outline"
+                        className="h-[38px]"
+                      >
+                        <Link className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </div>
+                  
+                  <div className="space-y-2">
+                    <Label htmlFor="bulk-upload">Bulk Upload</Label>
+                    <div className="flex gap-2">
+                      <Input
+                        id="bulk-upload"
+                        type="file"
+                        accept="image/*,video/*"
+                        multiple
+                        onChange={(e) => {
+                          const files = Array.from(e.target.files || []);
+                          if (files.length > maxSelection) {
+                            toast.warning(`You can only select up to ${maxSelection} files`);
+                            return;
+                          }
+                          setBulkFiles(files);
+                        }}
+                        disabled={uploading}
+                      />
+                    </div>
+                    {bulkFiles.length > 0 && (
+                      <div className="text-sm text-gray-600">
+                        {bulkFiles.length} file(s) selected
+                      </div>
+                    )}
+                  </div>
+                  
+                  <div className="space-y-2">
+                    <Label>&nbsp;</Label>
+                    <Button
+                      onClick={handleBulkUpload}
+                      disabled={bulkFiles.length === 0 || uploading}
+                      className="w-full"
+                    >
+                      <Upload className="h-4 w-4 mr-2" />
+                      {uploading ? 'Uploading...' : `Upload ${bulkFiles.length} files`}
+                    </Button>
+                  </div>
+                </>
+              )}
             </div>
 
             {/* Media Grid */}

@@ -10,6 +10,8 @@ interface AirportCreateRequest {
   latitude?: number
   longitude?: number
   images?: string[] // Array of publicIds from MediaSelector
+  mediaPublicIds?: string[]
+  featuredMediaUrl?: string | null
 }
 
 interface AirportUpdateRequest {
@@ -21,6 +23,8 @@ interface AirportUpdateRequest {
   latitude?: number
   longitude?: number
   images?: string[] // Array of publicIds from MediaSelector
+  mediaPublicIds?: string[]
+  featuredMediaUrl?: string | null
 }
 
 export class AirportService {
@@ -56,6 +60,8 @@ export class AirportService {
         city: airport.city,
         country: airport.country,
         timezone: airport.timezone,
+        latitude: airport.latitude,
+        longitude: airport.longitude,
         isActive: airport.isActive,
         createdAt: airport.createdAt,
         updatedAt: airport.updatedAt,

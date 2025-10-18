@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { MediaSelector } from "@/components/ui/media-selector"
-import type { Airline } from "@/types/api"
+import type { Airline, MediaResponse } from "@/types/api"
 
 interface AirlineFormData {
   name: string
@@ -16,7 +16,7 @@ interface AirlineFormData {
 interface AirlineFormDialogProps {
   isOpen: boolean
   onClose: () => void
-  onSubmit: (data: AirlineFormData & { mediaPublicIds: string[] }) => void
+  onSubmit: (data: AirlineFormData & { mediaPublicIds: string[]; featuredMediaUrl?: string | null }) => void
   isSubmitting: boolean
   editingAirline?: Airline | null
   title: string
@@ -36,7 +36,7 @@ export function AirlineFormDialog({
     name: "",
     iataCode: ""
   })
-  const [images, setImages] = useState<string[]>([])
+  const [media, setMedia] = useState<MediaResponse[]>([])
   const [errors, setErrors] = useState<Partial<AirlineFormData>>({})
 
   useEffect(() => {
@@ -45,7 +45,7 @@ export function AirlineFormDialog({
         name: editingAirline.name,
         iataCode: editingAirline.iataCode
       })
-      setImages(editingAirline.media?.map(m => m.publicId) || [])
+      setMedia(editingAirline.media || [])
     } else {
       resetForm()
     }
@@ -56,7 +56,7 @@ export function AirlineFormDialog({
       name: "",
       iataCode: ""
     })
-    setImages([])
+    setMedia([])
     setErrors({})
   }
 
@@ -82,7 +82,8 @@ export function AirlineFormDialog({
     
     onSubmit({
       ...formData,
-      mediaPublicIds: images
+      mediaPublicIds: media.map(m => m.publicId),
+      featuredMediaUrl: media[0]?.secureUrl || null
     })
   }
 
@@ -132,11 +133,13 @@ export function AirlineFormDialog({
           <div className="space-y-2">
             <Label>Logo hãng hàng không</Label>
             <MediaSelector
-              value={images}
-              onChange={setImages}
+              value={media}
+              onMediaChange={setMedia}
               folder="airlines"
               maxSelection={2}
               allowUpload={true}
+              allowUrlInput={true}
+              mode="publicIds"
             />
           </div>
         </div>

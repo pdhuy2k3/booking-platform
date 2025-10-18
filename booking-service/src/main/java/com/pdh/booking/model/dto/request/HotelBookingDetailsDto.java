@@ -53,6 +53,16 @@ public class HotelBookingDetailsDto {
     private String country;
     
     /**
+     * Hotel latitude
+     */
+    private Double hotelLatitude;
+    
+    /**
+     * Hotel longitude
+     */
+    private Double hotelLongitude;
+    
+    /**
      * Hotel star rating
      */
     @Min(value = 1, message = "Star rating must be at least 1")

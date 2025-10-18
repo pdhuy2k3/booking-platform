@@ -103,3 +103,49 @@ export type ValidationResult = {
   isValid: boolean
   errors: ValidationError[]
 }
+
+export interface SelectedFlight {
+  flightId: number
+  flightNumber?: string
+  airline: string
+  origin: string
+  destination: string
+  originLatitude?: number
+  originLongitude?: number
+  destinationLatitude?: number
+  destinationLongitude?: number
+  departureTime: string
+  arrivalTime: string
+  duration?: string
+  price: number
+  currency: string
+  seatClass?: string
+  logo?: string
+  scheduleId?: string
+  fareId?: string
+}
+
+export interface SelectedHotel {
+  id: string
+  name: string
+  address: string
+  city: string
+  country: string
+  hotelLatitude?: number
+  hotelLongitude?: number
+  rating?: number
+  roomTypeId: string
+  roomType: string
+  roomName: string
+  price: number // deprecated: kept for compatibility (represents price per night)
+  pricePerNight: number
+  totalPrice?: number
+  currency: string
+  amenities: string[]
+  image?: string
+  checkInDate?: string
+  checkOutDate?: string
+  guests?: number
+  rooms?: number
+  nights?: number
+}

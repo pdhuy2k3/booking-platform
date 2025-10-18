@@ -70,7 +70,7 @@ public class ExploreResponse {
         @JsonPropertyDescription("Longitude coordinate (decimal degrees)")
         private Double longitude;
         
-        @JsonProperty(value = "image_url",required = true)
+        @JsonProperty(value = "imageUrl",required = true)
         @JsonPropertyDescription("URL to destination image from Brave image search")
         private String imageUrl;
         

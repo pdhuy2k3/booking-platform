@@ -61,6 +61,12 @@ public class StripePaymentIntentRequest {
     
     // Additional metadata
     private Map<String, String> metadata;
+
+    @Builder.Default
+    private Boolean savePaymentMethod = false;
+
+    @Builder.Default
+    private Boolean setAsDefault = false;
     
     /**
      * Nested DTO for billing address

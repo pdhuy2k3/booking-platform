@@ -1,11 +1,15 @@
 // Booking types for the frontend
 
 export interface FlightBookingDetails {
-  flightId: string;
+  flightId: number;
   flightNumber: string;
   airline: string;
   originAirport: string;
   destinationAirport: string;
+  originLatitude?: number;
+  originLongitude?: number;
+  destinationLatitude?: number;
+  destinationLongitude?: number;
   departureDateTime: string; // ISO format
   arrivalDateTime: string; // ISO format
   seatClass: string;
@@ -27,6 +31,8 @@ export interface HotelBookingDetails {
   hotelAddress: string;
   city: string;
   country: string;
+  hotelLatitude?: number;
+  hotelLongitude?: number;
   starRating?: number;
   roomTypeId?: string;
   roomId?: string;
@@ -173,6 +179,7 @@ export interface BookingHistoryItemDto {
   bookingType: 'FLIGHT' | 'HOTEL' | 'COMBO';
   status: string;
   sagaState?: string | null;
+  sagaId?: string | null;
   totalAmount?: number | string | null;
   currency?: string | null;
   createdAt?: string | null;
@@ -180,6 +187,14 @@ export interface BookingHistoryItemDto {
   productSummary?: string | null;
   confirmationNumber?: string | null;
   productDetailsJson?: string | null;
+  originLatitude?: number | null;
+  originLongitude?: number | null;
+  destinationLatitude?: number | null;
+  destinationLongitude?: number | null;
+  hotelLatitude?: number | null;
+  hotelLongitude?: number | null;
+  reservationLockedAt?: string | null;
+  reservationExpiresAt?: string | null;
 }
 
 export interface BookingHistoryResponseDto {

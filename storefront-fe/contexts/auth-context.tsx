@@ -3,7 +3,7 @@
 import React, { createContext, useContext, useEffect, useState, useCallback } from 'react'
 import { AuthClient, UserInfo } from '@/lib/auth-client'
 import { aiChatService } from '@/modules/ai'
-import type { ChatConversationSummary, ChatHistoryResponse } from '@/modules/ai'
+import type { ChatConversationSummary } from '@/modules/ai'
 
 interface AuthContextType {
   user: UserInfo | null
@@ -23,13 +23,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [isLoading, setIsLoading] = useState(true)
   const [chatConversations, setChatConversations] = useState<ChatConversationSummary[]>([])
 
-  const deriveConversationTitle = (history: ChatHistoryResponse, index: number): string => {
-    const firstUserMessage = history.messages.find((msg) => msg.role === 'user' && msg.content?.trim())
-    const fallback = `Cuộc trò chuyện ${index + 1}`
-    const rawTitle = firstUserMessage?.content?.trim() || fallback
-    return rawTitle.length > 50 ? `${rawTitle.slice(0, 50)}…` : rawTitle
-  }
-
   const loadChatConversations = useCallback(async (currentUser?: UserInfo | null) => {
     const resolvedUser = currentUser ?? user
     if (!resolvedUser) {
@@ -38,26 +31,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
 
     try {
-      const conversationIds = await aiChatService.listConversations()
-      if (!conversationIds || conversationIds.length === 0) {
+      const serverConversations = await aiChatService.listConversations()
+      if (!serverConversations || serverConversations.length === 0) {
         setChatConversations([])
         return
       }
 
-      const limitedIds = conversationIds.slice(0, 10)
-      const histories = await Promise.allSettled(
-        limitedIds.map(async (conversationId, index) => {
-          const history = await aiChatService.getChatHistory(conversationId)
-          return {
-            id: conversationId,
-            title: deriveConversationTitle(history, index),
-            lastUpdated: history.lastUpdated,
-          } satisfies ChatConversationSummary
-        })
-      )
-
-      const summaries = histories
-        .flatMap((result) => (result.status === 'fulfilled' ? [result.value] : []))
+      const summaries: ChatConversationSummary[] = serverConversations.slice(0, 50).map((conversation, index) => {
+        const fallbackTitle = `Cuộc trò chuyện ${index + 1}`
+        const normalizedTitle = conversation.title?.trim()?.length ? conversation.title.trim() : fallbackTitle
+        return {
+          id: conversation.id,
+          title: normalizedTitle,
+          createdAt: conversation.createdAt,
+          lastUpdated: conversation.lastUpdated ?? conversation.createdAt ?? new Date().toISOString(),
+        }
+      })
 
       setChatConversations(summaries)
     } catch (error) {

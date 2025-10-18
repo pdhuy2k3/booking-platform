@@ -60,6 +60,9 @@ export interface CreatePaymentIntentPayload {
   paymentMethodType?: string
   metadata?: Record<string, string>
   billingAddress?: StripeBillingAddress
+  paymentMethodId?: string
+  customerId?: string
+  confirmPayment?: boolean
 }
 
 export interface RefundRequest {

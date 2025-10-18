@@ -1,6 +1,6 @@
 package com.pdh.flight.service;
 
-import com.pdh.flight.client.MediaServiceClient;
+
 import com.pdh.flight.dto.request.FlightCreateDto;
 import com.pdh.flight.dto.request.FlightUpdateDto;
 import com.pdh.flight.dto.response.FlightDto;
@@ -37,7 +37,6 @@ public class BackofficeFlightService {
     private final AirlineRepository airlineRepository;
     private final AirportRepository airportRepository;
     private final BackofficeFlightMapper flightMapper;
-    private final MediaServiceClient mediaServiceClient;
 
     /**
      * Get all flights with pagination and filtering
@@ -74,6 +73,32 @@ public class BackofficeFlightService {
         response.put("empty", flightPage.isEmpty());
 
         log.info("Found {} flights for backoffice", flights.size());
+        return response;
+    }
+
+    /**
+     * Get all flight IDs for RAG initialization
+     */
+    @Transactional(readOnly = true)
+    public Map<String, Object> getAllFlightIds(int page, int size) {
+        log.info("Fetching flight IDs for RAG initialization: page={}, size={}", page, size);
+
+        Sort sort = Sort.by(Sort.Direction.ASC, "flightId");
+        Pageable pageable = PageRequest.of(page, size, sort);
+
+        Page<Long> flightIdPage = flightRepository.findAllFlightIds(pageable);
+
+        Map<String, Object> response = new HashMap<>();
+        response.put("content", flightIdPage.getContent());
+        response.put("totalElements", flightIdPage.getTotalElements());
+        response.put("totalPages", flightIdPage.getTotalPages());
+        response.put("size", flightIdPage.getSize());
+        response.put("number", flightIdPage.getNumber());
+        response.put("first", flightIdPage.isFirst());
+        response.put("last", flightIdPage.isLast());
+        response.put("empty", flightIdPage.isEmpty());
+
+        log.info("Found {} flight IDs for RAG initialization", flightIdPage.getContent().size());
         return response;
     }
 
@@ -132,7 +157,12 @@ public class BackofficeFlightService {
         // Associate media if provided
         if (createDto.getMediaPublicIds() != null && !createDto.getMediaPublicIds().isEmpty()) {
             try {
-                mediaServiceClient.associateMediaWithEntity("FLIGHT", savedFlight.getFlightId(), createDto.getMediaPublicIds());
+                // Set featured media URL if provided
+                if (createDto.getFeaturedMediaUrl() != null && !createDto.getFeaturedMediaUrl().isEmpty()) {
+                    savedFlight.setFeaturedMediaUrl(createDto.getFeaturedMediaUrl());
+                    savedFlight = flightRepository.save(savedFlight); // Save the updated flight with featured media URL
+                    log.info("Set featured media URL for flight ID: {}", savedFlight.getFlightId());
+                }
                 log.info("Associated {} media items with flight ID: {}", createDto.getMediaPublicIds().size(), savedFlight.getFlightId());
             } catch (Exception e) {
                 log.error("Failed to associate media with flight ID: {}. Error: {}", savedFlight.getFlightId(), e.getMessage());
@@ -205,7 +235,12 @@ public class BackofficeFlightService {
         // Associate media if provided
         if (updateDto.getMediaPublicIds() != null && !updateDto.getMediaPublicIds().isEmpty()) {
             try {
-                mediaServiceClient.associateMediaWithEntity("FLIGHT", updatedFlight.getFlightId(), updateDto.getMediaPublicIds());
+                // Update featured media URL if provided
+                if (updateDto.getFeaturedMediaUrl() != null) {
+                    updatedFlight.setFeaturedMediaUrl(updateDto.getFeaturedMediaUrl());
+                    updatedFlight = flightRepository.save(updatedFlight); // Save the updated flight with featured media URL
+                    log.info("Updated featured media URL for flight ID: {}", updatedFlight.getFlightId());
+                }
                 log.info("Associated {} media items with flight ID: {}", updateDto.getMediaPublicIds().size(), updatedFlight.getFlightId());
             } catch (Exception e) {
                 log.error("Failed to associate media with flight ID: {}. Error: {}", updatedFlight.getFlightId(), e.getMessage());

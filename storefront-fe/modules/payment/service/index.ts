@@ -32,6 +32,10 @@ export const paymentService = {
         customerName: payload.customerName,
         description: payload.description,
         billingAddress: payload.billingAddress,
+        paymentMethodId: payload.paymentMethodId,
+        customerId: payload.customerId,
+        confirmPayment: payload.confirmPayment,
+        metadata: payload.metadata,
       })
 
       return {

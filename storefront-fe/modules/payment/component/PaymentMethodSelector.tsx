@@ -5,12 +5,11 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { CreditCard, Plus, Trash2, Star } from 'lucide-react'
-import { PaymentMethod } from '../type'
-import { paymentService } from '../service'
+import { paymentMethodService, type PaymentMethodResponse } from '../service/payment-method'
 
 interface PaymentMethodSelectorProps {
   selectedMethodId?: string
-  onSelectMethod: (methodId: string | null) => void
+  onSelectMethod: (method: PaymentMethodResponse | null) => void
   onAddNewMethod: () => void
   className?: string
 }
@@ -21,7 +20,7 @@ export const PaymentMethodSelector: React.FC<PaymentMethodSelectorProps> = ({
   onAddNewMethod,
   className,
 }) => {
-  const [paymentMethods, setPaymentMethods] = useState<PaymentMethod[]>([])
+  const [paymentMethods, setPaymentMethods] = useState<PaymentMethodResponse[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
@@ -32,7 +31,8 @@ export const PaymentMethodSelector: React.FC<PaymentMethodSelectorProps> = ({
   const loadPaymentMethods = async () => {
     try {
       setIsLoading(true)
-      const methods = await paymentService.getPaymentMethods()
+      const methods = await paymentMethodService.getPaymentMethods()
+      setError(null)
       setPaymentMethods(methods)
     } catch (error) {
       console.error('Error loading payment methods:', error)
@@ -44,13 +44,13 @@ export const PaymentMethodSelector: React.FC<PaymentMethodSelectorProps> = ({
 
   const handleDeleteMethod = async (methodId: string) => {
     try {
-      // This would need to be implemented in the service
-      // await paymentService.deletePaymentMethod(methodId)
-      setPaymentMethods(prev => prev.filter(method => method.id !== methodId))
-      
+      await paymentMethodService.deletePaymentMethod(methodId)
+      setPaymentMethods(prev => prev.filter(method => method.methodId !== methodId))
+
       if (selectedMethodId === methodId) {
         onSelectMethod(null)
       }
+      setError(null)
     } catch (error) {
       console.error('Error deleting payment method:', error)
       setError('Failed to delete payment method')
@@ -58,7 +58,7 @@ export const PaymentMethodSelector: React.FC<PaymentMethodSelectorProps> = ({
   }
 
   const getCardIcon = (brand?: string) => {
-    switch (brand) {
+    switch (brand?.toLowerCase()) {
       case 'visa':
         return '💳'
       case 'mastercard':
@@ -138,27 +138,27 @@ export const PaymentMethodSelector: React.FC<PaymentMethodSelectorProps> = ({
           ) : (
             paymentMethods.map((method) => (
               <div
-                key={method.id}
+                key={method.methodId}
                 className={`border rounded-lg p-4 cursor-pointer transition-all hover:shadow-md ${
-                  selectedMethodId === method.id
+                  selectedMethodId === method.methodId
                     ? 'border-blue-500 bg-blue-50'
                     : 'border-gray-200 hover:border-gray-300'
                 }`}
-                onClick={() => onSelectMethod(method.id)}
+                onClick={() => onSelectMethod(method)}
               >
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-3">
                     <div className="text-2xl">
-                      {getCardIcon(method.brand)}
+                      {getCardIcon(method.cardBrand)}
                     </div>
                     <div>
                       <div className="flex items-center gap-2">
                         <span className="font-medium">
-                          {formatCardNumber(method.last4)}
+                      {formatCardNumber(method.cardLastFour)}
                         </span>
-                        {method.brand && (
+                        {method.cardBrand && (
                           <Badge variant="secondary" className="text-xs">
-                            {method.brand.toUpperCase()}
+                            {method.cardBrand.toUpperCase()}
                           </Badge>
                         )}
                         {method.isDefault && (
@@ -169,18 +169,18 @@ export const PaymentMethodSelector: React.FC<PaymentMethodSelectorProps> = ({
                         )}
                       </div>
                       <p className="text-sm text-gray-500">
-                        Expires {formatExpiry(method.expiryMonth, method.expiryYear)}
+                        Expires {formatExpiry(method.cardExpiryMonth, method.cardExpiryYear)}
                       </p>
                     </div>
                   </div>
                   
                   <div className="flex items-center gap-2">
                     <div className={`w-4 h-4 rounded-full border-2 ${
-                      selectedMethodId === method.id
+                      selectedMethodId === method.methodId
                         ? 'border-blue-500 bg-blue-500'
                         : 'border-gray-300'
                     }`}>
-                      {selectedMethodId === method.id && (
+                      {selectedMethodId === method.methodId && (
                         <div className="w-2 h-2 bg-white rounded-full mx-auto mt-0.5"></div>
                       )}
                     </div>
@@ -190,7 +190,7 @@ export const PaymentMethodSelector: React.FC<PaymentMethodSelectorProps> = ({
                       size="sm"
                       onClick={(e) => {
                         e.stopPropagation()
-                        handleDeleteMethod(method.id)
+                        handleDeleteMethod(method.methodId)
                       }}
                       className="text-red-500 hover:text-red-700 hover:bg-red-50"
                     >

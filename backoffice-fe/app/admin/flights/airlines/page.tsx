@@ -53,8 +53,9 @@ export default function AdminAirlines() {
       
       const airlineData = {
         name: data.name.trim(),
-        iataCode: data.iataCode.trim().toUpperCase(),
-        mediaPublicIds: data.mediaPublicIds
+        code: data.iataCode.trim().toUpperCase(),
+        mediaPublicIds: data.mediaPublicIds,
+        featuredMediaUrl: data.featuredMediaUrl
       }
       
       await AirlineService.createAirline(airlineData)
@@ -78,8 +79,9 @@ export default function AdminAirlines() {
       
       const airlineData = {
         name: data.name.trim(),
-        iataCode: data.iataCode.trim().toUpperCase(),
-        mediaPublicIds: data.mediaPublicIds
+        code: data.iataCode.trim().toUpperCase(),
+        mediaPublicIds: data.mediaPublicIds,
+        featuredMediaUrl: data.featuredMediaUrl
       }
       
       await AirlineService.updateAirline(editingAirline.airlineId, airlineData)
@@ -115,9 +117,18 @@ export default function AdminAirlines() {
     }
   }
 
-  const openEditDialog = (airline: Airline) => {
-    setEditingAirline(airline)
-    setIsEditDialogOpen(true)
+  const openEditDialog = async (airline: Airline) => {
+    try {
+      setSubmitting(true) // Use submitting state to show a loader
+      const fullAirlineDetails = await AirlineService.getAirline(airline.airlineId)
+      setEditingAirline(fullAirlineDetails)
+      setIsEditDialogOpen(true)
+    } catch (error) {
+      console.error("Failed to fetch full airline details:", error)
+      toast.error("Could not load airline details for editing.")
+    } finally {
+      setSubmitting(false)
+    }
   }
 
   const openDeleteDialog = (airline: Airline) => {

@@ -1,6 +1,7 @@
 import type { PageProps } from "keycloakify/login/pages/PageProps";
 import type { KcContext } from "../KcContext";
 import type { I18n } from "../i18n";
+import { TurnstileWidget } from "../../components/TurnstileWidget";
 
 
 export default function LoginResetPassword(props: PageProps<Extract<KcContext, { pageId: "login-reset-password.ftl" }>, I18n>) {
@@ -9,6 +10,9 @@ export default function LoginResetPassword(props: PageProps<Extract<KcContext, {
     const { url, realm, auth, messagesPerField } = kcContext;
 
     const { msg, msgStr } = i18n;
+    
+    // Get Turnstile site key from environment variables
+    const turnstileSiteKey = (kcContext as any).properties?.TURNSTILE_SITE_KEY || "";
 
     return (
         <Template
@@ -43,14 +47,46 @@ export default function LoginResetPassword(props: PageProps<Extract<KcContext, {
                                 className="bookingsmart-input-enhanced"
                                 autoFocus
                                 defaultValue={auth.attemptedUsername ?? ""}
+                                placeholder={
+                                    !realm.loginWithEmailAllowed
+                                        ? msgStr("username")
+                                        : !realm.registrationEmailAsUsername
+                                            ? msgStr("usernameOrEmail")
+                                            : msgStr("email")
+                                }
                                 aria-invalid={messagesPerField.existsError("username")}
+                                aria-describedby={messagesPerField.existsError("username") ? "username-error" : undefined}
                             />
                             {messagesPerField.existsError("username") && (
-                                <div className="bookingsmart-error-enhanced">
+                                <div id="username-error" className="bookingsmart-error-enhanced">
                                     {messagesPerField.get("username")}
                                 </div>
                             )}
                         </div>
+
+                        {turnstileSiteKey && (
+                            <div className="form-group-enhanced slide-up">
+                                <TurnstileWidget 
+                                    siteKey={turnstileSiteKey} 
+                                    onVerify={(token) => {
+                                        // Add the token to a hidden input field in the form
+                                        const form = document.getElementById('kc-reset-password-form') as HTMLFormElement;
+                                        let tokenInput = document.getElementById('cf-turnstile-response') as HTMLInputElement;
+                                        
+                                        if (!tokenInput) {
+                                            tokenInput = document.createElement('input');
+                                            tokenInput.type = 'hidden';
+                                            tokenInput.id = 'cf-turnstile-response';
+                                            tokenInput.name = 'cf-turnstile-response';
+                                            form.appendChild(tokenInput);
+                                        }
+                                        
+                                        tokenInput.value = token;
+                                    }}
+                                    className="flex justify-center"
+                                />
+                            </div>
+                        )}
 
                         <div className="pt-6 scale-in">
                             <input

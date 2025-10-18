@@ -1,53 +1,121 @@
 package com.pdh.ai.service;
 
-import java.time.Instant;
-import java.time.LocalDateTime;
-import java.time.ZoneOffset;
-import java.util.Collections;
-import java.util.List;
-import java.util.UUID;
-
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.pdh.ai.agent.CoreAgent;
+import com.pdh.ai.model.dto.ChatConversationSummaryDto;
 import com.pdh.ai.model.dto.ChatHistoryResponse;
 import com.pdh.ai.model.dto.StructuredChatPayload;
-import com.pdh.ai.model.entity.ChatConversation;
 import com.pdh.ai.model.entity.ChatMessage;
-import com.pdh.common.utils.AuthenticationUtils;
+import com.pdh.ai.repository.ChatMessageRepository;
+
+import lombok.extern.slf4j.Slf4j;
+
+import org.springframework.ai.chat.messages.MessageType;
 import org.springframework.stereotype.Service;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
+import reactor.core.scheduler.Schedulers;
 
-
-import com.pdh.ai.repository.ChatMessageRepository;
-
+import java.time.Instant;
+import java.time.LocalDateTime;
+import java.time.ZoneOffset;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
 
 @Service
+@Slf4j
 public class LLMAiService implements AiService {
 
     private final CoreAgent coreAgent;
-    private final ConversationService conversationService;
     private final ChatMessageRepository chatMessageRepository;
+    private final ObjectMapper objectMapper;
 
     public LLMAiService(CoreAgent coreAgent,
-                        ConversationService conversationService,
-                        ChatMessageRepository chatMessageRepository) {
+            ChatMessageRepository chatMessageRepository,
+            ObjectMapper objectMapper) {
         this.coreAgent = coreAgent;
-        this.conversationService = conversationService;
         this.chatMessageRepository = chatMessageRepository;
+        this.objectMapper = objectMapper;
     }
 
+    @Override
+    public StructuredChatPayload processStructured(String message, String conversationId, String userId) {
+        String actualUserId = resolveAuthenticatedUserId(userId);
+        String conversationKey = formatConversationKey(actualUserId, conversationId);
+        Instant now = Instant.now();
+
+        ChatMessage parent = chatMessageRepository
+                .findTopByConversationIdOrderByTimestampDesc(conversationKey)
+                .orElse(null);
+
+        ChatMessage userMessage = ChatMessage.builder()
+                .conversationId(conversationKey)
+                .role(org.springframework.ai.chat.messages.MessageType.USER)
+                .content(message)
+                .timestamp(now)
+                .build();
+
+        ChatMessage savedUserMessage;
+        if (parent == null) {
+            userMessage.setTitle(defaultTitle(message));
+            savedUserMessage = chatMessageRepository.save(userMessage);
+        } else {
+            userMessage.setParentMessage(parent);
+            savedUserMessage = chatMessageRepository.save(userMessage);
+        }
+
+        final ChatMessage effectiveParent = (parent == null) ? savedUserMessage : parent;
+
+        try {
+            // Call the synchronous method in CoreAgent
+StructuredChatPayload payload = coreAgent.processStructured(message, conversationKey).block();
+            StructuredChatPayload validPayload = ensureValidPayload(payload);
+            
+            // Save the complete response to the database
+            String content = objectMapper.writeValueAsString(validPayload);
+            ChatMessage assistantMessage = ChatMessage.builder()
+                    .conversationId(conversationKey)
+                    .role(MessageType.ASSISTANT) 
+                    .content(content)
+                    .timestamp(Instant.now())
+                    .parentMessage(effectiveParent)
+                    .build();
+            chatMessageRepository.save(assistantMessage);
+            
+            return validPayload;
+
+        } catch (Exception e) {
+            log.error("[CHAT-MESSAGE] Error processing message", e);
+            StructuredChatPayload errorResponse = buildErrorResponse();
+            
+            // Save the error response to the database
+            try {
+                String content = objectMapper.writeValueAsString(errorResponse);
+                ChatMessage assistantMessage = ChatMessage.builder()
+                        .conversationId(conversationKey)
+                        .role(MessageType.ASSISTANT) 
+                        .content(content)
+                        .timestamp(Instant.now())
+                        .parentMessage(effectiveParent)
+                        .build();
+                chatMessageRepository.save(assistantMessage);
+            } catch (Exception dbException) {
+                log.error("Failed to save error response to database", dbException);
+            }
+            
+            return errorResponse;
+        }
+    }
 
     @Override
     public ChatHistoryResponse getChatHistory(String conversationId, String userId) {
         String actualUserId = resolveAuthenticatedUserId(userId);
-        UUID conversationUuid = parseConversationId(conversationId);
-
-        var conversation = conversationService.getConversation(conversationUuid)
-                .filter(c -> c.getUserId().equals(actualUserId))
-                .orElseThrow(() -> new IllegalArgumentException("Conversation not found for user"));
+        String conversationKey = formatConversationKey(actualUserId, conversationId);
 
         List<ChatMessage> storedMessages = chatMessageRepository
-                .findByConversationIdOrderByTimestampAsc(conversationUuid);
+                .findByConversationIdOrderByTimestampAsc(conversationKey);
 
         List<ChatHistoryResponse.ChatMessage> chatMessages = storedMessages.stream()
                 .map(entity -> ChatHistoryResponse.ChatMessage.builder()
@@ -57,7 +125,11 @@ public class LLMAiService implements AiService {
                         .build())
                 .toList();
 
-        Instant createdAt = conversation.getCreatedAt();
+        // For this implementation, we'll use the timestamp of the first message as
+        // createdAt
+        // and the last message as lastUpdated, or current time if no messages exist
+        Instant createdAt = storedMessages.isEmpty() ? Instant.now()
+                : storedMessages.get(0).getTimestamp();
         Instant lastUpdatedInstant = storedMessages.isEmpty()
                 ? createdAt
                 : storedMessages.get(storedMessages.size() - 1).getTimestamp();
@@ -73,81 +145,50 @@ public class LLMAiService implements AiService {
     @Override
     public void clearChatHistory(String conversationId, String userId) {
         String actualUserId = resolveAuthenticatedUserId(userId);
-        UUID conversationUuid = parseConversationId(conversationId);
+        String conversationKey = formatConversationKey(actualUserId, conversationId);
 
-        if (!conversationService.belongsToUser(conversationUuid, actualUserId)) {
-            throw new IllegalArgumentException("Conversation not found for user");
-        }
-
-        conversationService.deleteConversation(conversationUuid);
+        // Simply delete all messages with this conversation key
+        chatMessageRepository.deleteByConversationId(conversationKey);
     }
 
     @Override
-    public List<String> getUserConversations(String userId) {
+    public List<ChatConversationSummaryDto> getUserConversations(String userId) {
         String actualUserId = resolveAuthenticatedUserId(userId);
-        return conversationService.listConversations(actualUserId).stream()
-                .map(conversation -> conversation.getId().toString())
-                .toList();
-    }
+        String userIdPrefix = actualUserId + ":";
 
+        List<ChatMessageRepository.ConversationInfo> conversations = chatMessageRepository
+                .findUserConversations(userIdPrefix);
 
-    private String getCurrentUserId() {
-        try {
-            return AuthenticationUtils.extractUserId();
-        } catch (Exception e) {
+        return conversations.stream().map(conv -> {
+            String conversationKey = conv.getConversationId();
+            String unprefixedId = conversationKey;
+            if (conversationKey != null && conversationKey.startsWith(userIdPrefix)) {
+                unprefixedId = conversationKey.substring(userIdPrefix.length());
+            }
 
-            return null;
-        }
-    }
-
-    private String resolveUserId(String requestUserId) {
-        // If a specific user ID is requested, use it (for backward compatibility)
-        if (requestUserId != null && !requestUserId.isBlank()) {
-            return requestUserId;
-        }
-        
-        // Extract user ID from JWT token (the secure way)
-        String authenticatedUserId = getCurrentUserId();
-        if (authenticatedUserId != null && !authenticatedUserId.isBlank()) {
-            return authenticatedUserId;
-        }
-        
-        // Fallback to anonymous for backward compatibility
-        return "anonymous";
+            return ChatConversationSummaryDto.builder()
+                    .id(unprefixedId)
+                    .title(normalizeTitle(conv.getTitle()))
+                    .createdAt(conv.getCreatedAt())
+                    .lastUpdated(conv.getLastUpdated())
+                    .build();
+        }).toList();
     }
 
     /**
-     * Resolves user ID, preferring the provided userId over JWT extraction.
-     * This method is more lenient for WebSocket scenarios where userId comes from auth context.
+     * Validates and resolves the authenticated user ID.
+     * Since the userId parameter comes from the controller which extracts it from
+     * OAuth2 principal,
+     * we just validate it's not null or empty.
      */
     private String resolveAuthenticatedUserId(String requestUserId) {
         // If a specific user ID is provided (from auth context), use it
         if (requestUserId != null && !requestUserId.isBlank()) {
             return requestUserId;
         }
-        
-        // Try to extract user ID from JWT token as fallback
-        String authenticatedUserId = getCurrentUserId();
-        if (authenticatedUserId != null && !authenticatedUserId.isBlank()) {
-            return authenticatedUserId;
-        }
-        
+
         // For WebSocket scenarios, require user ID to be provided
         throw new IllegalStateException("User must be authenticated to perform this operation. Please log in.");
-    }
-
-    private UUID ensureConversation(String conversationId, String userId, String title) {
-        // Use the new ensureConversationExists method which handles both creation and validation
-        ChatConversation conversation = conversationService.ensureConversationExists(conversationId, userId, title);
-        return conversation.getId();
-    }
-
-    private UUID parseConversationId(String conversationId) {
-        try {
-            return UUID.fromString(conversationId);
-        } catch (IllegalArgumentException ex) {
-            throw new IllegalArgumentException("Invalid conversation id", ex);
-        }
     }
 
     private String defaultTitle() {
@@ -155,70 +196,40 @@ public class LLMAiService implements AiService {
     }
 
     private String defaultTitle(String message) {
-        if (message == null || message.isBlank()) {
+        if (message == null || message.isBlank())
             return defaultTitle();
-        }
+        String sanitized = message.replaceAll("\\\\s+", " ").trim(); // chú ý Java escaping
         int maxLength = 60;
-        String sanitized = message.replaceAll("\s+", " ").trim();
         return sanitized.length() <= maxLength ? sanitized : sanitized.substring(0, maxLength) + "...";
     }
 
-    @Override
-    public Flux<StructuredChatPayload> processStreamStructured(String message, String conversationId, String userId) {
-        return Mono.fromCallable(() -> {
-            // Use provided userId for WebSocket scenarios
-            String actualUserId = resolveAuthenticatedUserId(userId);
-            return ensureConversation(conversationId, actualUserId, defaultTitle(message));
-        })
-        .flatMapMany(conversationUuid -> {
-            String conversationIdStr = conversationUuid.toString();
-            
-            // IMPORTANT: Ensure conversation exists in database BEFORE processing
-            conversationService.getConversation(conversationUuid)
-                    .orElseThrow(() -> new IllegalStateException("Conversation must exist before processing: " + conversationIdStr));
-            
-            // Use CoreAgent's streaming structured processing
-            return coreAgent.processStreamStructured(message, conversationIdStr)
-                    .doOnSubscribe(s -> System.out.println("🌊 Starting structured stream for conversation: " + conversationIdStr))
-                    .doOnComplete(() -> System.out.println("✅ Structured stream completed for conversation: " + conversationIdStr))
-                    .doOnError(e -> System.err.println("❌ Structured stream failed: " + e.getMessage()));
-        })
-        .onErrorResume(e -> {
-            System.err.println("❌ Error in processStreamStructured: " + e.getMessage());
-            return Flux.just(buildErrorResponse());
-        });
+    private String normalizeTitle(String title) {
+        if (title != null) {
+            String trimmed = title.trim();
+            if (!trimmed.isEmpty()) {
+                return trimmed;
+            }
+        }
+        return defaultTitle();
     }
 
-    @Override
-    public Mono<StructuredChatPayload> processSyncStructured(String message, String conversationId, String userId) {
-        return Mono.fromCallable(() -> {
-            // Use provided userId for WebSocket scenarios
-            String actualUserId = resolveAuthenticatedUserId(userId);
-            return ensureConversation(conversationId, actualUserId, defaultTitle(message));
-        })
-        .flatMap(conversationUuid -> {
-            String conversationIdStr = conversationUuid.toString();
-            
-            // IMPORTANT: Ensure conversation exists in database BEFORE processing
-            conversationService.getConversation(conversationUuid)
-                    .orElseThrow(() -> new IllegalStateException("Conversation must exist before processing: " + conversationIdStr));
-            
-            // Use CoreAgent's sync structured processing
-            return coreAgent.processSyncStructured(message, conversationIdStr)
-                    .doOnSubscribe(s -> System.out.println("🔄 Starting sync structured processing for conversation: " + conversationIdStr))
-                    .doOnSuccess(result -> System.out.println("✅ Sync structured processing completed for conversation: " + conversationIdStr + 
-                        ", results: " + (result != null && result.getResults() != null ? result.getResults().size() : 0)))
-                    .doOnError(e -> System.err.println("❌ Sync structured processing failed: " + e.getMessage()));
-        })
-        .onErrorResume(e -> {
-            System.err.println("❌ Error in processSyncStructured: " + e.getMessage());
-            return Mono.just(buildErrorResponse());
-        });
+    /**
+     * Format conversation key as {userId}:{conversationId}
+     */
+    private String formatConversationKey(String userId, String conversationId) {
+        return String.format("%s:%s", userId, conversationId);
     }
 
-
-
-
+    /**
+     * Extract conversation ID from the full key
+     */
+    private String extractConversationIdFromKey(String conversationKey) {
+        int separatorIndex = conversationKey.lastIndexOf(':');
+        if (separatorIndex >= 0) {
+            return conversationKey.substring(separatorIndex + 1);
+        }
+        return conversationKey; // If no separator, return the whole string
+    }
 
     /**
      * Ensures payload has valid fields.

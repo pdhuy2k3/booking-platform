@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState, useRef } from 'react'
 import Image from 'next/image'
 import { useRouter } from 'next/navigation'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -65,6 +65,7 @@ export function BookingSummaryView() {
   } = useBooking()
   const [showFlow, setShowFlow] = useState(step !== 'selection')
   const [initialized, setInitialized] = useState(false)
+  const bookingFlowRef = useRef<HTMLDivElement>(null)
   const { isAuthenticated, isLoading: authLoading, login } = useAuth()
 
   const derivedType = useMemo(() => {
@@ -85,7 +86,12 @@ export function BookingSummaryView() {
   const hotelPricing = useMemo(() => {
     if (!selectedHotel) return null
 
-    const pricePerNight = Number(selectedHotel.price ?? 0)
+    const pricePerNight = Number(
+      selectedHotel.pricePerNight ??
+      selectedHotel.price ??
+      selectedHotel.totalPrice ??
+      0
+    )
     const rooms = Math.max(1, Number(selectedHotel.rooms ?? 1))
 
     let nights = Number(selectedHotel.nights ?? 0)
@@ -107,7 +113,10 @@ export function BookingSummaryView() {
       nights = 1
     }
 
-    const total = pricePerNight * nights * rooms
+    const total = Number(
+      selectedHotel.totalPrice ??
+      pricePerNight * nights * rooms
+    )
 
     return {
       pricePerNight,
@@ -119,16 +128,19 @@ export function BookingSummaryView() {
 
   useEffect(() => {
     if (!initialized) {
-      // Always land on summary view first, even if coming from another page
-      if (step !== 'selection') {
-        setStep('selection')
-      }
       setInitialized(true)
-      setShowFlow(false)
-      return
     }
     setShowFlow(step !== 'selection')
-  }, [initialized, setStep, step])
+  }, [initialized, step])
+
+  useEffect(() => {
+    if (showFlow && bookingFlowRef.current) {
+      bookingFlowRef.current.scrollIntoView({
+        behavior: 'smooth',
+        block: 'start',
+      })
+    }
+  }, [showFlow])
 
   const ensureBookingType = () => {
     if (!derivedType) return
@@ -137,7 +149,7 @@ export function BookingSummaryView() {
     }
     const upper = derivedType === 'both' ? 'COMBO' : derivedType.toUpperCase()
     if (bookingData.bookingType !== upper) {
-      updateBookingData({ bookingType: upper as any })
+      updateBookingData({ bookingType: upper as 'FLIGHT' | 'HOTEL' | 'COMBO' })
     }
   }
 
@@ -160,6 +172,16 @@ export function BookingSummaryView() {
     ensureBookingType()
     setStep('passengers')
     setShowFlow(true)
+    
+    // Scroll to the booking flow after a short delay to ensure DOM is updated
+    setTimeout(() => {
+      if (bookingFlowRef.current) {
+        bookingFlowRef.current.scrollIntoView({ 
+          behavior: 'smooth',
+          block: 'start'
+        })
+      }
+    }, 100)
   }
 
   const handleBookingComplete = () => {
@@ -307,7 +329,14 @@ export function BookingSummaryView() {
             </div>
             <div className="text-right">
               <p className="text-xs uppercase text-muted-foreground">Giá mỗi đêm</p>
-              <p className="text-lg font-semibold">{formatPrice(pricing?.pricePerNight || selectedHotel.price || 0)}</p>
+              <p className="text-lg font-semibold">
+                {formatPrice(
+                  pricing?.pricePerNight ??
+                  selectedHotel.pricePerNight ??
+                  selectedHotel.price ??
+                  0
+                )}
+              </p>
               {pricing && (
                 <>
                   <p className="mt-1 text-xs text-muted-foreground">
@@ -397,8 +426,8 @@ export function BookingSummaryView() {
   )
 
   return (
-    <div className="space-y-8 bg-background py-10">
-      <div className="container mx-auto max-w-6xl space-y-6">
+    <div className="space-y-4 bg-background h-full flex flex-col">
+      <div className="container mx-auto max-w-full space-y-4 px-4 flex-1">
         <div className="flex flex-wrap items-center justify-between gap-4">
           <div>
             <h1 className="text-3xl font-bold tracking-tight">Xem lại hành trình</h1>
@@ -417,7 +446,7 @@ export function BookingSummaryView() {
         </div>
 
         {selectedFlight || selectedHotel ? (
-          <div className="space-y-6">
+          <div className="space-y-4 flex-1 min-h-0 overflow-y-auto pb-4">
             {renderFlightCard()}
             {renderHotelCard()}
             {totalEstimated && (
@@ -441,12 +470,32 @@ export function BookingSummaryView() {
             )}
           </div>
         ) : (
-          renderEmptyState()
+          <div className="flex-1 min-h-0 overflow-y-auto">
+            {renderEmptyState()}
+          </div>
         )}
 
         {showFlow && (
-          <div className="rounded-lg border bg-card shadow-sm">
-            <BookingFlowManager onBookingComplete={handleBookingComplete} showSelection={false} />
+          <div 
+            ref={bookingFlowRef}
+            className="rounded-lg border bg-card shadow-sm flex-1 min-h-0 transition-all duration-300 relative"
+          >
+            <div className="absolute top-4 left-4 z-10">
+              <Button
+                variant="outline"
+                size="icon"
+                onClick={() => setShowFlow(false)}
+                className="rounded-full bg-background/80 backdrop-blur-sm"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4">
+                  <path d="m12 19-7-7 7-7" />
+                </svg>
+                <span className="sr-only">Quay lại</span>
+              </Button>
+            </div>
+            <div className="pt-12">
+              <BookingFlowManager onBookingComplete={handleBookingComplete} showSelection={false} />
+            </div>
           </div>
         )}
       </div>

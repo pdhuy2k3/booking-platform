@@ -1,6 +1,6 @@
 package com.pdh.flight.mapper;
 
-import com.pdh.flight.client.MediaServiceClient;
+
 import com.pdh.flight.dto.response.FlightDto;
 import com.pdh.flight.dto.response.FlightScheduleDto;
 import com.pdh.flight.dto.response.FlightFareDto;
@@ -29,7 +29,7 @@ import java.util.stream.Collectors;
 @Slf4j
 public class BackofficeFlightMapper {
 
-    private final MediaServiceClient mediaServiceClient;
+
     private final FlightScheduleService flightScheduleService;
 
     private final FlightFareService flightFareService;
@@ -185,42 +185,13 @@ public class BackofficeFlightMapper {
      * Add media information to a FlightDto
      */
     private FlightDto addMediaInformation(FlightDto flightDto, Flight flight) {
-        // Always fetch and include media information
-        if (flight.getFlightId() != null) {
-            try {
-                List<Map<String, Object>> mediaList = mediaServiceClient.getMediaByEntity(
-                        "FLIGHT",
-                        flight.getFlightId()
-                );
-                
-                if (mediaList != null && !mediaList.isEmpty()) {
-                    // Convert media maps to MediaInfo objects
-                    List<MediaInfo> images = mediaList.stream()
-                            .map(this::mapToMediaInfo)
-                            .collect(Collectors.toList());
-                    
-                    flightDto.setImages(images);
-                    flightDto.setHasMedia(true);
-                    flightDto.setMediaCount((long) images.size());
-                    
-                    // Set primary image
-                    images.stream()
-                            .filter(img -> Boolean.TRUE.equals(img.getIsPrimary()))
-                            .findFirst()
-                            .ifPresent(flightDto::setPrimaryImage);
-                } else {
-                    flightDto.setImages(List.of());
-                    flightDto.setHasMedia(false);
-                    flightDto.setMediaCount(0L);
-                }
-            } catch (Exception e) {
-                log.warn("Failed to fetch media for flight {}: {}", flight.getFlightId(), e.getMessage());
-                flightDto.setImages(List.of());
-                flightDto.setHasMedia(false);
-                flightDto.setMediaCount(0L);
-            }
-        }
-
+        // Media is no longer fetched through the media service client
+        // In the future, if full media lists are needed, they should be loaded separately
+        // For now, we'll just return the DTO with default media values as the media handling has changed
+        flightDto.setImages(List.of());
+        flightDto.setHasMedia(false);
+        flightDto.setMediaCount(0L);
+        
         return flightDto;
     }
 
@@ -296,39 +267,8 @@ public class BackofficeFlightMapper {
                     }
                 });
                 
-                // Batch fetch flight media
-                Map<Long, List<Map<String, Object>>> flightMediaMap = mediaServiceClient.getMediaForEntities(
-                        "FLIGHT",
-                        flightIds
-                );
-
-                flightDtos.forEach(flightDto -> {
-                    if (flightDto.getFlightId() != null) {
-                        List<Map<String, Object>> mediaList = flightMediaMap.get(flightDto.getFlightId());
-                        if (mediaList != null && !mediaList.isEmpty()) {
-                            // Convert media maps to MediaInfo objects
-                            List<MediaInfo> images = mediaList.stream()
-                                    .map(this::mapToMediaInfo)
-                                    .collect(Collectors.toList());
-                            
-                            flightDto.setImages(images);
-                            flightDto.setHasMedia(true);
-                            flightDto.setMediaCount((long) images.size());
-                            
-                            // Set primary image
-                            images.stream()
-                                    .filter(img -> Boolean.TRUE.equals(img.getIsPrimary()))
-                                    .findFirst()
-                                    .ifPresent(flightDto::setPrimaryImage);
-                        } else {
-                            flightDto.setImages(List.of());
-                            flightDto.setHasMedia(false);
-                            flightDto.setMediaCount(0L);
-                        }
-                    }
-                });
             } catch (Exception e) {
-                log.warn("Failed to batch fetch flight media: {}", e.getMessage());
+                log.warn("Error during DTO conversion (media section removed): {}", e.getMessage());
                 // Set default media values for all DTOs
                 flightDtos.forEach(dto -> {
                     dto.setImages(List.of());

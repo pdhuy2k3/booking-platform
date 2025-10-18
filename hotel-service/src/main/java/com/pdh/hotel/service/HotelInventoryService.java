@@ -67,6 +67,7 @@ public class HotelInventoryService {
             log.info("Successfully reserved {} rooms of type {} for hotel {} from {} to {}", 
                     roomCount, roomTypeName, hotelId, checkInDate, checkOutDate);
 
+            // Refresh availability flag after all dates are processed
             refreshRoomAvailabilityFlag(roomType, checkInDate, checkOutDate);
             return true;
             
@@ -107,6 +108,7 @@ public class HotelInventoryService {
             log.info("Successfully released {} rooms of type {} for hotel {} from {} to {}", 
                     roomCount, roomTypeName, hotelId, checkInDate, checkOutDate);
 
+            // Refresh availability flag after all dates are processed
             refreshRoomAvailabilityFlag(roomType, checkInDate, checkOutDate);
             
         } catch (Exception e) {

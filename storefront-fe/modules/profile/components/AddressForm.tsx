@@ -87,10 +87,10 @@ export function AddressForm({ user, onUpdate }: AddressFormProps) {
     <Card className="bg-white border-gray-200">
       <CardHeader className="flex flex-row items-center justify-between">
         <div>
-          <CardTitle className="text-gray-900">Billing Address</CardTitle>
-          <CardDescription>Your billing and contact address for bookings</CardDescription>
+          <CardTitle className="text-gray-900">Địa chỉ thanh toán</CardTitle>
+          <CardDescription>Địa chỉ thanh toán và liên hệ của bạn cho các đặt chỗ</CardDescription>
         </div>
-        <div className="flex gap-2">
+        <div className="flex gap-1">
           <Button
             variant={isEditing ? "default" : "outline"}
             onClick={isEditing ? handleSaveAddress : () => setIsEditing(true)}
@@ -104,71 +104,71 @@ export function AddressForm({ user, onUpdate }: AddressFormProps) {
                 ) : (
                   <CheckCircle className="h-4 w-4 mr-2" />
                 )}
-                {isSaving ? "Saving..." : "Save Address"}
+                {isSaving ? "Đang lưu..." : "Lưu địa chỉ"}
               </>
             ) : (
               <>
                 <Edit3 className="h-4 w-4 mr-2" />
-                Edit Address
+                Chỉnh sửa địa chỉ
               </>
             )}
           </Button>
         </div>
       </CardHeader>
-      <CardContent className="space-y-6">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <div className="space-y-2 md:col-span-2">
-            <Label htmlFor="address.street">Street Address</Label>
+      <CardContent className="space-y-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="space-y-1 md:col-span-2">
+            <Label htmlFor="address.street">Địa chỉ đường</Label>
             <Input
               id="address.street"
               value={addressInfo.address}
               onChange={(e) => setAddressInfo((prev) => ({ ...prev, address: e.target.value }))}
               disabled={!isEditing}
-              placeholder="Enter your street address (e.g., 123 Main Street, Apt 4B)"
+              placeholder="Nhập địa chỉ đường của bạn (ví dụ: 123 Đường Chính, Căn hộ 4B)"
               className="bg-white border-gray-300 disabled:opacity-60"
             />
           </div>
-          <div className="space-y-2">
-            <Label htmlFor="address.city">City</Label>
+          <div className="space-y-1">
+            <Label htmlFor="address.city">Thành phố</Label>
             <Input
               id="address.city"
               value={addressInfo.city}
               onChange={(e) => setAddressInfo((prev) => ({ ...prev, city: e.target.value }))}
               disabled={!isEditing}
-              placeholder="Enter your city name"
+              placeholder="Nhập tên thành phố của bạn"
               className="bg-white border-gray-300 disabled:opacity-60"
             />
           </div>
-          <div className="space-y-2">
-            <Label htmlFor="address.state">State/Province</Label>
+          <div className="space-y-1">
+            <Label htmlFor="address.state">Tiểu bang/Tỉnh</Label>
             <Input
               id="address.state"
               value={addressInfo.state}
               onChange={(e) => setAddressInfo((prev) => ({ ...prev, state: e.target.value }))}
               disabled={!isEditing}
-              placeholder="Enter your state or province (optional)"
+              placeholder="Nhập tiểu bang hoặc tỉnh của bạn (tùy chọn)"
               className="bg-white border-gray-300 disabled:opacity-60"
             />
           </div>
-          <div className="space-y-2">
-            <Label htmlFor="address.country">Country</Label>
+          <div className="space-y-1">
+            <Label htmlFor="address.country">Quốc gia</Label>
             <Input
               id="address.country"
               value={addressInfo.country}
               onChange={(e) => setAddressInfo((prev) => ({ ...prev, country: e.target.value }))}
               disabled={!isEditing}
-              placeholder="Select your country"
+              placeholder="Chọn quốc gia của bạn"
               className="bg-white border-gray-300 disabled:opacity-60"
             />
           </div>
-          <div className="space-y-2">
-            <Label htmlFor="address.postalCode">Postal Code</Label>
+          <div className="space-y-1">
+            <Label htmlFor="address.postalCode">Mã bưu điện</Label>
             <Input
               id="address.postalCode"
               value={addressInfo.postalCode}
               onChange={(e) => setAddressInfo((prev) => ({ ...prev, postalCode: e.target.value }))}
               disabled={!isEditing}
-              placeholder="Enter your postal/zip code (optional)"
+              placeholder="Nhập mã bưu điện/zip của bạn (tùy chọn)"
               className="bg-white border-gray-300 disabled:opacity-60"
             />
           </div>

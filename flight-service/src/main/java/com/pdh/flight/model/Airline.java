@@ -31,5 +31,6 @@ public class Airline extends AbstractAuditEntity {
     @Column(name = "is_active", nullable = false)
     private Boolean isActive = true;
 
-    private Long featuredMediaId;
+    @Column(name = "featured_media_url", length = 500)
+    private String featuredMediaUrl;
 }

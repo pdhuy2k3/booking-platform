@@ -10,6 +10,7 @@ import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.time.LocalDate;
+import java.util.List;
 import java.util.Optional;
 
 @Repository
@@ -318,4 +319,12 @@ public interface FlightRepository extends JpaRepository<Flight, Long>, JpaSpecif
         @Param("departureDate") LocalDate departureDate,
         Pageable pageable
     );
+
+    /**
+     * Get all flight IDs for RAG initialization
+     * @param pageable pagination information
+     * @return Page of flight IDs
+     */
+    @Query("SELECT f.flightId FROM Flight f WHERE f.isDeleted = false ORDER BY f.flightId")
+    Page<Long> findAllFlightIds(Pageable pageable);
 }

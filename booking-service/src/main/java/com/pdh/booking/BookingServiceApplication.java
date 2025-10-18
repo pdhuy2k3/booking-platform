@@ -7,10 +7,11 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.boot.autoconfigure.domain.EntityScan;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.cloud.client.discovery.EnableDiscoveryClient;
+import org.springframework.context.annotation.ComponentScan;
 import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
 import org.springframework.kafka.annotation.EnableKafka;
 import org.springframework.scheduling.annotation.EnableScheduling;
-
+import org.springframework.stereotype.Component;
 
 import java.util.TimeZone;
 
@@ -18,9 +19,8 @@ import java.util.TimeZone;
 @EnableDiscoveryClient
 @EnableJpaRepositories(basePackages = {"com.pdh.booking"})
 @EntityScan(basePackages = {"com.pdh.booking"})
-@EnableConfigurationProperties(ServiceUrlConfig.class)
-@EnableKafka
 @EnableScheduling
+@ComponentScan(basePackages = {"com.pdh.booking", "com.pdh.common"})
 @Slf4j
 public class BookingServiceApplication {
 

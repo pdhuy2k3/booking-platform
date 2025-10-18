@@ -32,6 +32,8 @@ export interface PaymentMethodResponse {
   walletEmail?: string
   createdAt: string
   updatedAt: string
+  stripePaymentMethodId?: string
+  stripeCustomerId?: string
 }
 
 export interface AddPaymentMethodRequest {

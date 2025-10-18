@@ -1,16 +1,24 @@
 package com.pdh.booking.saga;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.pdh.booking.model.Booking;
 import com.pdh.booking.model.BookingSagaInstance;
 import com.pdh.booking.model.SagaStateLog;
+import com.pdh.booking.model.dto.request.ComboBookingDetailsDto;
+import com.pdh.booking.model.dto.request.FlightBookingDetailsDto;
+import com.pdh.booking.model.dto.request.GuestDetailsDto;
+import com.pdh.booking.model.dto.request.HotelBookingDetailsDto;
+import com.pdh.booking.model.dto.request.PassengerDetailsDto;
 import com.pdh.booking.model.enums.BookingStatus;
 import com.pdh.booking.model.enums.BookingType;
 import com.pdh.booking.repository.BookingRepository;
 import com.pdh.booking.repository.BookingSagaRepository;
 import com.pdh.booking.repository.SagaStateLogRepository;
+import com.pdh.booking.service.BookingOutboxEventService;
+import com.pdh.booking.service.BookingService;
 import com.pdh.booking.service.ProductDetailsService;
 import com.pdh.common.saga.SagaCommand;
 import com.pdh.common.saga.SagaState;
@@ -20,13 +28,15 @@ import org.apache.commons.lang3.StringUtils;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.kafka.core.KafkaTemplate;
-import org.springframework.messaging.handler.annotation.Payload;
 import org.springframework.messaging.handler.annotation.Header;
+import org.springframework.messaging.handler.annotation.Payload;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.time.ZonedDateTime;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -37,11 +47,14 @@ public class BookingSagaOrchestrator {
 
     private static final String BOOKING_SAGA_COMMAND_TOPIC = "booking-saga-commands";
     private static final String PAYMENT_SAGA_COMMAND_TOPIC = "payment-saga-commands";
+    private static final TypeReference<Map<String, Object>> MAP_TYPE = new TypeReference<>() {};
 
     private final BookingSagaRepository sagaRepository;
     private final BookingRepository bookingRepository;
     private final SagaStateLogRepository sagaStateLogRepository;
     private final ProductDetailsService productDetailsService;
+    private final BookingOutboxEventService bookingOutboxEventService;
+    private final BookingService bookingService;
     private final ObjectMapper objectMapper;
     @Qualifier("sagaCommandKafkaTemplate")
     private final KafkaTemplate<String, String> sagaCommandKafkaTemplate;
@@ -52,14 +65,14 @@ public class BookingSagaOrchestrator {
     @Transactional
     public void startSaga(UUID bookingId) {
         Booking booking = bookingRepository.findByBookingId(bookingId)
-            .orElseThrow(() -> new IllegalArgumentException("Booking not found: " + bookingId));
+                .orElseThrow(() -> new IllegalArgumentException("Booking not found: " + bookingId));
 
         BookingSagaInstance saga = sagaRepository.findByBookingId(bookingId)
-            .orElseGet(() -> sagaRepository.save(BookingSagaInstance.builder()
-                .sagaId(booking.getSagaId())
-                .bookingId(bookingId)
-                .currentState(SagaState.BOOKING_INITIATED)
-                .build()));
+                .orElseGet(() -> sagaRepository.save(BookingSagaInstance.builder()
+                        .sagaId(booking.getSagaId())
+                        .bookingId(bookingId)
+                        .currentState(SagaState.BOOKING_INITIATED)
+                        .build()));
 
         updateBookingState(booking, SagaState.BOOKING_INITIATED, BookingStatus.PENDING);
         logStateTransition(saga, null, SagaState.BOOKING_INITIATED, "SagaStarted", null, null);
@@ -77,34 +90,56 @@ public class BookingSagaOrchestrator {
         }
 
         transitionState(saga, SagaState.PAYMENT_PENDING, "PaymentRequested", null, null);
-        publishPaymentCommand(booking, saga);
     }
 
     // ==== Kafka Listeners ====
 
-    @KafkaListener(
-        topics = "booking.Booking.events",
-        groupId = "booking-saga-outbox-listener",
-        containerFactory = "bookingOutboxListenerContainerFactory"
-    )
     @Transactional
+    @KafkaListener(topics = { "booking.Booking.events",
+            "booking.Flight.events",
+            "booking.Hotel.events",
+            "booking.Payment.events" }, groupId = "booking-saga-outbox-listener", containerFactory = "bookingOutboxListenerContainerFactory")
     public void handleOutboxEvents(@Payload JsonNode message,
-                                   @Header(value = "eventType", required = false) String eventTypeHeader) {
-        if (message == null || message.isNull()) {
+            @Header(value = "eventType", required = false) String eventTypeHeader) {
+
+        if (message == null || message.isNull())
+            return;
+
+        // 1) Chuẩn hoá root (gỡ double-encoded nếu có)
+        JsonNode root = normalize(message);
+
+        // 2) Lấy payload node (nếu có), cũng normalize
+        JsonNode payload = root.path("payload");
+        if (payload.isMissingNode() || payload.isNull()) {
+            payload = root;
+        } else if (payload.isTextual()) {
+            payload = normalize(payload);
+        }
+
+        // 3) Determine eventType, prioritizing the reliable Kafka header
+        String eventType = eventTypeHeader;
+        if (isBlank(eventType)) {
+            log.debug("eventType header is blank, falling back to body parsing.");
+            eventType = text(root, "eventType");
+            if (isBlank(eventType))
+                eventType = text(payload, "eventType");
+            // Fallback cuối cùng: nếu producer lỡ đặt "type"
+            if (isBlank(eventType))
+                eventType = text(root, "type");
+            if (isBlank(eventType))
+                eventType = text(payload, "type");
+        }
+
+        log.debug("EVENT TYPE HEADER: {}", eventTypeHeader);
+        log.debug("DETERMINED EVENT TYPE: {}", eventType);
+
+        if (isBlank(eventType)) {
+            log.warn("Saga outbox event ignored due to missing eventType. message={}", root.toString());
             return;
         }
 
-        String eventType = resolveEventType(message, eventTypeHeader);
-        if (StringUtils.isBlank(eventType)) {
-            log.warn("Saga outbox event ignored due to missing event type. message={}", message.toString());
-            return;
-        }
-
-        String payloadJson = extractPayloadJson(message.get("payload"));
-        if (StringUtils.isBlank(payloadJson)) {
-            log.warn("Saga outbox event ignored due to missing payload. eventType={} message={}", eventType, message.toString());
-            return;
-        }
+        // 4) Payload phẳng để downstream xử lý
+        String payloadJson = payload.toString();
 
         switch (eventType) {
             case "FlightReserved", "FlightReservationFailed", "FlightReservationCancelled" ->
@@ -116,6 +151,30 @@ public class BookingSagaOrchestrator {
             default ->
                 log.debug("Ignoring outbox event type {} for saga orchestration", eventType);
         }
+    }
+
+    private JsonNode normalize(JsonNode node) {
+        try {
+            // Nếu node là chuỗi JSON -> parse thành object
+            if (node != null && node.isTextual()) {
+                return objectMapper.readTree(node.asText());
+            }
+            return node;
+        } catch (Exception e) {
+            log.warn("Failed to normalize JSON node: {}", node, e);
+            return node;
+        }
+    }
+
+    private String text(JsonNode node, String field) {
+        if (node == null)
+            return null;
+        JsonNode v = node.get(field);
+        return (v != null && v.isTextual()) ? v.asText() : null;
+    }
+
+    private boolean isBlank(String s) {
+        return s == null || s.trim().isEmpty();
     }
 
     private interface SagaEventHandler {
@@ -140,7 +199,8 @@ public class BookingSagaOrchestrator {
             Optional<Booking> bookingOpt = bookingRepository.findByBookingId(bookingId);
 
             if (sagaOpt.isEmpty() || bookingOpt.isEmpty()) {
-                log.warn("Saga callback ignored because saga or booking not found: bookingId={}, type={}", bookingId, eventType);
+                log.warn("Saga callback ignored because saga or booking not found: bookingId={}, type={}", bookingId,
+                        eventType);
                 return;
             }
 
@@ -171,11 +231,55 @@ public class BookingSagaOrchestrator {
             JsonNode valueNode = node.get(fieldName);
             if (valueNode != null && !valueNode.isNull()) {
                 String value = valueNode.asText();
-                if (StringUtils.isNotBlank(value)) {
+                if (StringUtils.isNotBlank(value) && !"null".equalsIgnoreCase(value)) {
                     return value;
                 }
             }
         }
+        return null;
+    }
+
+    private String extractEventType(JsonNode node) {
+        return readFirstTextValue(node, "eventType", "event_type", "type");
+    }
+
+    private String determineEventType(String headerValue, JsonNode root, JsonNode payload) {
+        if (StringUtils.isNotBlank(headerValue)) {
+            return headerValue;
+        }
+
+        String eventType = extractEventType(root);
+        if (StringUtils.isNotBlank(eventType)) {
+            return eventType;
+        }
+
+        if (payload != null) {
+            eventType = extractEventType(payload);
+            if (StringUtils.isNotBlank(eventType)) {
+                return eventType;
+            }
+        }
+
+        JsonNode probe = payload != null ? payload : root;
+        if (probe != null) {
+            if (hasNonNull(probe, "eventType", "event_type", "type")) {
+                eventType = readFirstTextValue(probe, "eventType", "event_type", "type");
+                if (StringUtils.isNotBlank(eventType)) {
+                    return eventType;
+                }
+            }
+
+            if (hasNonNull(probe, "flightData", "flightDetails")) {
+                return "FlightReserved";
+            }
+            if (hasNonNull(probe, "hotelData", "hotelDetails")) {
+                return "HotelReserved";
+            }
+            if (hasNonNull(probe, "payment", "paymentId", "transactionId")) {
+                return "PaymentProcessed";
+            }
+        }
+
         return null;
     }
 
@@ -192,6 +296,19 @@ public class BookingSagaOrchestrator {
             log.warn("Failed to serialize outbox payload node", e);
             return null;
         }
+    }
+
+    private boolean hasNonNull(JsonNode node, String... fieldNames) {
+        if (node == null || node.isNull()) {
+            return false;
+        }
+        for (String fieldName : fieldNames) {
+            JsonNode child = node.get(fieldName);
+            if (child != null && !child.isNull()) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private void handleFlightEvent(BookingSagaInstance saga, Booking booking, String eventType, JsonNode payload) {
@@ -234,19 +351,20 @@ public class BookingSagaOrchestrator {
             publishHotelReservationCommand(booking, saga);
         } else {
             transitionState(saga, SagaState.PAYMENT_PENDING, "PaymentRequested", null, null);
-            publishPaymentCommand(booking, saga);
         }
     }
 
     @Transactional
     void onFlightReservationFailed(BookingSagaInstance saga, Booking booking, JsonNode payload) {
         log.warn("Flight reservation failed for booking {} saga {}", booking.getBookingId(), saga.getSagaId());
-        cancelSaga(saga, booking, BookingStatus.VALIDATION_FAILED, "FlightReservationFailed", payload, "Flight reservation failed");
+        cancelSaga(saga, booking, BookingStatus.VALIDATION_FAILED, "FlightReservationFailed", payload,
+                "Flight reservation failed");
     }
 
     @Transactional
     void onFlightReservationCancelled(BookingSagaInstance saga, Booking booking, JsonNode payload) {
-        log.info("Flight reservation cancellation acknowledged for booking {} saga {}", booking.getBookingId(), saga.getSagaId());
+        log.info("Flight reservation cancellation acknowledged for booking {} saga {}", booking.getBookingId(),
+                saga.getSagaId());
     }
 
     // ==== Hotel handlers ====
@@ -256,7 +374,6 @@ public class BookingSagaOrchestrator {
         log.info("Hotel reserved for booking {} saga {}", booking.getBookingId(), saga.getSagaId());
         transitionState(saga, SagaState.HOTEL_RESERVED, "HotelReserved", payload, null);
         transitionState(saga, SagaState.PAYMENT_PENDING, "PaymentRequested", null, null);
-        publishPaymentCommand(booking, saga);
     }
 
     @Transactional
@@ -265,12 +382,14 @@ public class BookingSagaOrchestrator {
         if (hasFlight(booking)) {
             requestFlightCancellation(saga, booking, payload, "Hotel reservation failed");
         }
-        cancelSaga(saga, booking, BookingStatus.VALIDATION_FAILED, "HotelReservationFailed", payload, "Hotel reservation failed");
+        cancelSaga(saga, booking, BookingStatus.VALIDATION_FAILED, "HotelReservationFailed", payload,
+                "Hotel reservation failed");
     }
 
     @Transactional
     void onHotelReservationCancelled(BookingSagaInstance saga, Booking booking, JsonNode payload) {
-        log.info("Hotel reservation cancellation acknowledged for booking {} saga {}", booking.getBookingId(), saga.getSagaId());
+        log.info("Hotel reservation cancellation acknowledged for booking {} saga {}", booking.getBookingId(),
+                saga.getSagaId());
     }
 
     // ==== Payment handlers ====
@@ -279,6 +398,13 @@ public class BookingSagaOrchestrator {
     void onPaymentProcessed(BookingSagaInstance saga, Booking booking, JsonNode payload) {
         log.info("Payment processed for booking {} saga {}", booking.getBookingId(), saga.getSagaId());
         transitionState(saga, SagaState.PAYMENT_COMPLETED, "PaymentProcessed", payload, null);
+        Map<String, Object> extras = new HashMap<>();
+        extras.put("emailTemplate", "booking-payment.ftl");
+        Map<String, Object> paymentDetails = convertJsonNodeToMap(payload);
+        if (!paymentDetails.isEmpty()) {
+            extras.put("payment", paymentDetails);
+        }
+        publishNotificationEvent(booking, "BookingPaymentSucceeded", extras);
         completeSaga(saga, booking, payload);
     }
 
@@ -310,85 +436,71 @@ public class BookingSagaOrchestrator {
 
     private void publishFlightReservationCommand(Booking booking, BookingSagaInstance saga) {
         SagaCommand command = SagaCommand.builder()
-            .sagaId(saga.getSagaId())
-            .bookingId(booking.getBookingId())
-            .customerId(booking.getUserId())
-            .bookingType(booking.getBookingType().name())
-            .totalAmount(toBigDecimal(booking.getTotalAmount()))
-            .action("RESERVE_FLIGHT")
-            .flightDetails(productDetailsService.getFlightDetails(booking))
-            .build();
+                .sagaId(saga.getSagaId())
+                .bookingId(booking.getBookingId())
+                .customerId(booking.getUserId())
+                .bookingType(booking.getBookingType().name())
+                .totalAmount(toBigDecimal(booking.getTotalAmount()))
+                .action("RESERVE_FLIGHT")
+                .flightDetails(productDetailsService.getFlightDetails(booking))
+                .build();
 
         sendCommand(command, BOOKING_SAGA_COMMAND_TOPIC);
     }
 
     private void publishHotelReservationCommand(Booking booking, BookingSagaInstance saga) {
         SagaCommand command = SagaCommand.builder()
-            .sagaId(saga.getSagaId())
-            .bookingId(booking.getBookingId())
-            .customerId(booking.getUserId())
-            .bookingType(booking.getBookingType().name())
-            .totalAmount(toBigDecimal(booking.getTotalAmount()))
-            .action("RESERVE_HOTEL")
-            .hotelDetails(productDetailsService.getHotelDetails(booking))
-            .build();
+                .sagaId(saga.getSagaId())
+                .bookingId(booking.getBookingId())
+                .customerId(booking.getUserId())
+                .bookingType(booking.getBookingType().name())
+                .totalAmount(toBigDecimal(booking.getTotalAmount()))
+                .action("RESERVE_HOTEL")
+                .hotelDetails(productDetailsService.getHotelDetails(booking))
+                .build();
 
         sendCommand(command, BOOKING_SAGA_COMMAND_TOPIC);
-    }
-
-    private void publishPaymentCommand(Booking booking, BookingSagaInstance saga) {
-        SagaCommand command = SagaCommand.builder()
-            .sagaId(saga.getSagaId())
-            .bookingId(booking.getBookingId())
-            .customerId(booking.getUserId())
-            .bookingType(booking.getBookingType().name())
-            .totalAmount(toBigDecimal(booking.getTotalAmount()))
-            .action("PROCESS_PAYMENT")
-            .build();
-
-        command.addMetadata("currency", booking.getCurrency());
-        sendCommand(command, PAYMENT_SAGA_COMMAND_TOPIC);
-        updateBookingStatus(booking, BookingStatus.PAYMENT_PENDING);
     }
 
     private void sendCommand(SagaCommand command, String topic) {
         try {
             String payload = objectMapper.writeValueAsString(command);
             sagaCommandKafkaTemplate.send(topic, command.getSagaId(), payload);
-            log.debug("Saga command sent: topic={} action={} sagaId={}", topic, command.getAction(), command.getSagaId());
+            log.debug("Saga command sent: topic={} action={} sagaId={}", topic, command.getAction(),
+                    command.getSagaId());
         } catch (JsonProcessingException e) {
             throw new IllegalStateException("Failed to serialize saga command", e);
         }
     }
 
     private void requestFlightCancellation(BookingSagaInstance saga,
-                                           Booking booking,
-                                           JsonNode payload,
-                                           String reason) {
+            Booking booking,
+            JsonNode payload,
+            String reason) {
         transitionState(saga, SagaState.COMPENSATION_FLIGHT_CANCEL, "FlightCancellationRequested", payload, reason);
         publishFlightCancellationCommand(booking, saga, reason);
     }
 
     private void requestHotelCancellation(BookingSagaInstance saga,
-                                          Booking booking,
-                                          JsonNode payload,
-                                          String reason) {
+            Booking booking,
+            JsonNode payload,
+            String reason) {
         transitionState(saga, SagaState.COMPENSATION_HOTEL_CANCEL, "HotelCancellationRequested", payload, reason);
         publishHotelCancellationCommand(booking, saga, reason);
     }
 
     private void publishFlightCancellationCommand(Booking booking,
-                                                  BookingSagaInstance saga,
-                                                  String reason) {
+            BookingSagaInstance saga,
+            String reason) {
         SagaCommand command = SagaCommand.builder()
-            .sagaId(saga.getSagaId())
-            .bookingId(booking.getBookingId())
-            .customerId(booking.getUserId())
-            .bookingType(booking.getBookingType().name())
-            .totalAmount(toBigDecimal(booking.getTotalAmount()))
-            .action("CANCEL_FLIGHT_RESERVATION")
-            .flightDetails(productDetailsService.getFlightDetails(booking))
-            .build();
+                .sagaId(saga.getSagaId())
+                .bookingId(booking.getBookingId())
+                .customerId(booking.getUserId())
+                .bookingType(booking.getBookingType().name())
+                .totalAmount(toBigDecimal(booking.getTotalAmount()))
+                .action("CANCEL_FLIGHT_RESERVATION")
+                .flightDetails(productDetailsService.getFlightDetails(booking))
+                .build();
 
         command.addMetadata("isCompensation", "true");
         if (reason != null) {
@@ -398,23 +510,236 @@ public class BookingSagaOrchestrator {
     }
 
     private void publishHotelCancellationCommand(Booking booking,
-                                                 BookingSagaInstance saga,
-                                                 String reason) {
+            BookingSagaInstance saga,
+            String reason) {
         SagaCommand command = SagaCommand.builder()
-            .sagaId(saga.getSagaId())
-            .bookingId(booking.getBookingId())
-            .customerId(booking.getUserId())
-            .bookingType(booking.getBookingType().name())
-            .totalAmount(toBigDecimal(booking.getTotalAmount()))
-            .action("CANCEL_HOTEL_RESERVATION")
-            .hotelDetails(productDetailsService.getHotelDetails(booking))
-            .build();
+                .sagaId(saga.getSagaId())
+                .bookingId(booking.getBookingId())
+                .customerId(booking.getUserId())
+                .bookingType(booking.getBookingType().name())
+                .totalAmount(toBigDecimal(booking.getTotalAmount()))
+                .action("CANCEL_HOTEL_RESERVATION")
+                .hotelDetails(productDetailsService.getHotelDetails(booking))
+                .build();
 
         command.addMetadata("isCompensation", "true");
         if (reason != null) {
             command.addMetadata("reason", reason);
         }
         sendCommand(command, BOOKING_SAGA_COMMAND_TOPIC);
+    }
+
+    private void publishNotificationEvent(Booking booking, String eventType, Map<String, Object> extras) {
+        try {
+            Map<String, Object> payload = buildNotificationPayload(booking);
+            payload.put("eventType", eventType);
+            if (extras != null && !extras.isEmpty()) {
+                payload.putAll(extras);
+            }
+            bookingOutboxEventService.publishEvent(eventType, "Booking", booking.getBookingId().toString(), payload);
+        } catch (Exception ex) {
+            log.warn("Failed to publish notification event {} for booking {}", eventType, booking.getBookingId(), ex);
+        }
+    }
+
+    private Map<String, Object> buildNotificationPayload(Booking booking) {
+        Map<String, Object> payload = new HashMap<>();
+        payload.put("bookingId", booking.getBookingId());
+        payload.put("bookingReference", booking.getBookingReference());
+        payload.put("bookingType", booking.getBookingType() != null ? booking.getBookingType().name() : null);
+        payload.put("userId", booking.getUserId());
+        payload.put("status", booking.getStatus() != null ? booking.getStatus().name() : null);
+        payload.put("sagaState", booking.getSagaState() != null ? booking.getSagaState().name() : null);
+        payload.put("totalAmount", booking.getTotalAmount());
+        payload.put("currency", booking.getCurrency());
+        payload.put("sagaId", booking.getSagaId());
+        payload.put("confirmationNumber", booking.getConfirmationNumber());
+        payload.put("createdAt", booking.getCreatedAt());
+        payload.put("updatedAt", booking.getUpdatedAt());
+        Map<String, Object> contact = extractPrimaryContact(booking);
+        if (!contact.isEmpty()) {
+            payload.put("contact", contact);
+        }
+        Map<String, Object> productDetails = extractProductDetails(booking);
+        if (!productDetails.isEmpty()) {
+            payload.put("productDetails", productDetails);
+        }
+        return payload;
+    }
+
+    private Map<String, Object> extractProductDetails(Booking booking) {
+        Map<String, Object> details = new HashMap<>();
+        if (hasFlight(booking)) {
+            FlightBookingDetailsDto flightDetails = productDetailsService.getFlightDetails(booking);
+            Map<String, Object> flight = convertObjectToMap(flightDetails);
+            if (!flight.isEmpty()) {
+                details.put("flight", flight);
+            }
+        }
+        if (hasHotel(booking)) {
+            HotelBookingDetailsDto hotelDetails = productDetailsService.getHotelDetails(booking);
+            Map<String, Object> hotel = convertObjectToMap(hotelDetails);
+            if (!hotel.isEmpty()) {
+                details.put("hotel", hotel);
+            }
+        }
+        if (booking.getBookingType() == BookingType.COMBO) {
+            ComboBookingDetailsDto combo = (ComboBookingDetailsDto) productDetailsService.convertFromJson(booking.getBookingType(), booking.getProductDetailsJson());
+            Map<String, Object> comboDetails = convertObjectToMap(combo);
+            if (!comboDetails.isEmpty()) {
+                details.put("combo", comboDetails);
+            }
+        }
+        return details;
+    }
+
+    private Map<String, Object> convertObjectToMap(Object source) {
+        if (source == null) {
+            return new HashMap<>();
+        }
+        try {
+            return objectMapper.convertValue(source, MAP_TYPE);
+        } catch (IllegalArgumentException ex) {
+            log.warn("Failed to convert object to map for notifications: {}", source, ex);
+            return new HashMap<>();
+        }
+    }
+
+    private Map<String, Object> extractPrimaryContact(Booking booking) {
+        Map<String, Object> contact = new HashMap<>();
+
+        if (hasFlight(booking)) {
+            FlightBookingDetailsDto flightDetails = productDetailsService.getFlightDetails(booking);
+            Map<String, Object> fromFlight = contactFromFlight(flightDetails);
+            if (!fromFlight.isEmpty()) {
+                contact.putAll(fromFlight);
+            }
+        }
+
+        if (contact.isEmpty() && hasHotel(booking)) {
+            HotelBookingDetailsDto hotelDetails = productDetailsService.getHotelDetails(booking);
+            Map<String, Object> fromHotel = contactFromHotel(hotelDetails);
+            if (!fromHotel.isEmpty()) {
+                contact.putAll(fromHotel);
+            }
+        }
+
+        return contact;
+    }
+
+    private Map<String, Object> contactFromFlight(FlightBookingDetailsDto flightDetails) {
+        if (flightDetails == null || flightDetails.getPassengers() == null) {
+            return new HashMap<>();
+        }
+        // Prefer passengers with explicit email
+        Map<String, Object> fallback = new HashMap<>();
+        for (PassengerDetailsDto passenger : flightDetails.getPassengers()) {
+            Map<String, Object> data = contactFromPassenger(passenger);
+            if (data.isEmpty()) {
+                continue;
+            }
+            if (StringUtils.isNotBlank((String) data.get("email"))) {
+                return data;
+            }
+            if (fallback.isEmpty()) {
+                fallback.putAll(data);
+            }
+        }
+        return fallback;
+    }
+
+    private Map<String, Object> contactFromHotel(HotelBookingDetailsDto hotelDetails) {
+        if (hotelDetails == null || hotelDetails.getGuests() == null) {
+            return new HashMap<>();
+        }
+        Map<String, Object> fallback = new HashMap<>();
+        for (GuestDetailsDto guest : hotelDetails.getGuests()) {
+            Map<String, Object> data = contactFromGuest(guest);
+            if (data.isEmpty()) {
+                continue;
+            }
+            if ("PRIMARY".equalsIgnoreCase(guest.getGuestType()) && StringUtils.isNotBlank((String) data.get("email"))) {
+                return data;
+            }
+            if (StringUtils.isNotBlank((String) data.get("email"))) {
+                return data;
+            }
+            if (fallback.isEmpty()) {
+                fallback.putAll(data);
+            }
+        }
+        return fallback;
+    }
+
+    private Map<String, Object> contactFromPassenger(PassengerDetailsDto passenger) {
+        if (passenger == null) {
+            return new HashMap<>();
+        }
+        Map<String, Object> contact = new HashMap<>();
+        contact.put("type", "PASSENGER");
+        contact.put("title", passenger.getTitle());
+        contact.put("firstName", passenger.getFirstName());
+        contact.put("lastName", passenger.getLastName());
+        contact.put("fullName", buildFullName(passenger.getFirstName(), passenger.getLastName()));
+        contact.put("email", passenger.getEmail());
+        contact.put("phoneNumber", passenger.getPhoneNumber());
+        contact.put("nationality", passenger.getNationality());
+        return sanitizeContact(contact);
+    }
+
+    private Map<String, Object> contactFromGuest(GuestDetailsDto guest) {
+        if (guest == null) {
+            return new HashMap<>();
+        }
+        Map<String, Object> contact = new HashMap<>();
+        contact.put("type", "GUEST");
+        contact.put("title", guest.getTitle());
+        contact.put("firstName", guest.getFirstName());
+        contact.put("lastName", guest.getLastName());
+        contact.put("fullName", buildFullName(guest.getFirstName(), guest.getLastName()));
+        contact.put("email", guest.getEmail());
+        contact.put("phoneNumber", guest.getPhoneNumber());
+        contact.put("nationality", guest.getNationality());
+        return sanitizeContact(contact);
+    }
+
+    private Map<String, Object> sanitizeContact(Map<String, Object> contact) {
+        Map<String, Object> cleaned = new HashMap<>();
+        contact.forEach((key, value) -> {
+            if (value instanceof String str) {
+                if (StringUtils.isNotBlank(str)) {
+                    cleaned.put(key, str.trim());
+                }
+            } else if (value != null) {
+                cleaned.put(key, value);
+            }
+        });
+        return cleaned;
+    }
+
+    private String buildFullName(String firstName, String lastName) {
+        if (StringUtils.isBlank(firstName) && StringUtils.isBlank(lastName)) {
+            return null;
+        }
+        if (StringUtils.isBlank(firstName)) {
+            return lastName;
+        }
+        if (StringUtils.isBlank(lastName)) {
+            return firstName;
+        }
+        return firstName.trim() + " " + lastName.trim();
+    }
+
+    private Map<String, Object> convertJsonNodeToMap(JsonNode node) {
+        if (node == null || node.isNull()) {
+            return new HashMap<>();
+        }
+        try {
+            return objectMapper.convertValue(node, MAP_TYPE);
+        } catch (IllegalArgumentException ex) {
+            log.warn("Failed to convert saga payload to map: {}", node, ex);
+            return new HashMap<>();
+        }
     }
 
     private boolean hasFlight(Booking booking) {
@@ -427,11 +752,28 @@ public class BookingSagaOrchestrator {
 
     // ==== State helpers ====
 
+    @Transactional
+    public void markPaymentInitiated(UUID bookingId) {
+        Booking booking = bookingRepository.findByBookingId(bookingId)
+                .orElseThrow(() -> new IllegalArgumentException("Booking not found: " + bookingId));
+        BookingSagaInstance saga = sagaRepository.findByBookingId(bookingId)
+                .orElseThrow(() -> new IllegalStateException("Saga instance not found for booking " + bookingId));
+
+        SagaState currentState = saga.getCurrentState();
+        if (currentState == SagaState.FLIGHT_RESERVED || currentState == SagaState.HOTEL_RESERVED) {
+            transitionState(saga, SagaState.PAYMENT_PENDING, "PaymentRequested", null, null);
+        }
+        else if (currentState != SagaState.PAYMENT_PENDING) {
+            log.warn("Ignoring manual payment initiation for booking {} in state {}", bookingId, currentState);
+            throw new IllegalStateException("Booking is not ready for payment: state=" + currentState);
+        }
+    }
+
     private void transitionState(BookingSagaInstance saga,
-                                 SagaState newState,
-                                 String eventType,
-                                 JsonNode payload,
-                                 String errorMessage) {
+            SagaState newState,
+            String eventType,
+            JsonNode payload,
+            String errorMessage) {
         SagaState previous = saga.getCurrentState();
         if (previous == newState) {
             return;
@@ -440,16 +782,16 @@ public class BookingSagaOrchestrator {
         saga.setLastUpdatedAt(ZonedDateTime.now());
         sagaRepository.save(saga);
         bookingRepository.findByBookingId(saga.getBookingId())
-            .ifPresent(b -> updateBookingState(b, newState, null));
+                .ifPresent(b -> updateBookingState(b, newState, null));
         logStateTransition(saga, previous, newState, eventType, payload, errorMessage);
     }
 
     private void logStateTransition(BookingSagaInstance saga,
-                                    SagaState from,
-                                    SagaState to,
-                                    String eventType,
-                                    JsonNode payload,
-                                    String errorMessage) {
+            SagaState from,
+            SagaState to,
+            String eventType,
+            JsonNode payload,
+            String errorMessage) {
         try {
             SagaStateLog logEntry = new SagaStateLog();
             logEntry.setSagaId(saga.getSagaId());
@@ -468,11 +810,11 @@ public class BookingSagaOrchestrator {
     }
 
     private void cancelSaga(BookingSagaInstance saga,
-                            Booking booking,
-                            BookingStatus finalStatus,
-                            String eventType,
-                            JsonNode payload,
-                            String reason) {
+            Booking booking,
+            BookingStatus finalStatus,
+            String eventType,
+            JsonNode payload,
+            String reason) {
         saga.setIsCompensating(true);
         saga.setCompensationReason(reason);
         transitionState(saga, SagaState.BOOKING_CANCELLED, eventType, payload, reason);
@@ -480,12 +822,13 @@ public class BookingSagaOrchestrator {
         sagaRepository.save(saga);
 
         Booking latestBooking = bookingRepository.findByBookingId(booking.getBookingId())
-            .orElse(booking);
+                .orElse(booking);
         latestBooking.setSagaState(SagaState.BOOKING_CANCELLED);
         latestBooking.setStatus(finalStatus);
         latestBooking.setCancellationReason(reason);
         latestBooking.setCompensationReason(reason);
         latestBooking.setCancelledAt(ZonedDateTime.now());
+        bookingService.releaseReservationLock(latestBooking);
         bookingRepository.save(latestBooking);
     }
 
@@ -500,6 +843,17 @@ public class BookingSagaOrchestrator {
         }
         booking.setSagaState(SagaState.BOOKING_COMPLETED);
         bookingRepository.save(booking);
+        Map<String, Object> extras = new HashMap<>();
+        extras.put("emailTemplate", "booking-confirmation.ftl");
+        publishNotificationEvent(booking, "BookingConfirmed", extras);
+        
+        // Release reservation lock after saving booking state to ensure consistency
+        try {
+            bookingService.releaseReservationLock(booking);
+        } catch (Exception e) {
+            log.error("Failed to release reservation lock for booking {}: {}", booking.getBookingId(), e.getMessage(), e);
+            // Don't fail the entire operation if lock release fails - just log the error
+        }
     }
 
     private void updateBookingState(Booking booking, SagaState sagaState, BookingStatus status) {
@@ -507,11 +861,6 @@ public class BookingSagaOrchestrator {
         if (status != null) {
             booking.setStatus(status);
         }
-        bookingRepository.save(booking);
-    }
-
-    private void updateBookingStatus(Booking booking, BookingStatus status) {
-        booking.setStatus(status);
         bookingRepository.save(booking);
     }
 

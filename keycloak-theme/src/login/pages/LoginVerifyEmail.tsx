@@ -27,11 +27,15 @@ export default function LoginVerifyEmail(props: PageProps<Extract<KcContext, { p
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 4.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
                             </svg>
                         </div>
-                        <div>
+                        <div className="flex-1">
+                            <h3 className="font-semibold text-gray-900 mb-1">{msg("emailVerifyTitle")}</h3>
                             <p className="text-sm leading-relaxed">
                                 {msg("emailVerifyInstruction1")}
                                 <strong className="text-primary font-semibold">{user?.email}</strong>
                                 {msg("emailVerifyInstruction2")}
+                            </p>
+                            <p className="text-sm text-gray-600 mt-2">
+                                {msg("emailVerifyInstruction3")}
                             </p>
                         </div>
                     </div>
@@ -39,15 +43,20 @@ export default function LoginVerifyEmail(props: PageProps<Extract<KcContext, { p
 
                 <div className="bookingsmart-divider-enhanced fade-in">
                     <div className="text-center">
-                        <span className="bookingsmart-subheader-enhanced">
+                        <div className="flex flex-col sm:flex-row gap-3 justify-center">
                             <a
                                 href={url.loginAction}
-                                className="bookingsmart-link-enhanced inline-flex items-center space-x-2"
+                                className="bookingsmart-button-enhanced text-center"
                             >
-                                <span>{msg("doClickHere")}</span>
-                                <span>{msg("emailVerifyInstruction3")}</span>
+                                {msg("doClickHere")}
                             </a>
-                        </span>
+                            <a
+                                href={url.loginUrl}
+                                className="bookingsmart-link-enhanced text-center"
+                            >
+                                {msg("backToLogin")}
+                            </a>
+                        </div>
                     </div>
                 </div>
             </div>

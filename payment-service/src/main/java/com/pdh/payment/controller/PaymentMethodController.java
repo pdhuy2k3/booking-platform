@@ -230,6 +230,104 @@ public class PaymentMethodController {
         response.setCreatedAt(method.getCreatedAt() != null ? method.getCreatedAt().toLocalDateTime() : null);
         response.setUpdatedAt(method.getUpdatedAt() != null ? method.getUpdatedAt().toLocalDateTime() : null);
         
+        // Gateway references
+        response.setStripePaymentMethodId(extractStripePaymentMethodId(method));
+        response.setStripeCustomerId(extractStripeCustomerId(method));
+        
         return response;
+    }
+
+    private String extractStripePaymentMethodId(PaymentMethod method) {
+        if (method == null) {
+            return null;
+        }
+
+        String token = sanitizeStripeId(method.getToken());
+        if (token != null) {
+            return token;
+        }
+
+        return parseStripeIdFromProviderData(method.getProviderData());
+    }
+
+    private String extractStripeCustomerId(PaymentMethod method) {
+        if (method == null) {
+            return null;
+        }
+        return parseCustomerIdFromProviderData(method.getProviderData());
+    }
+
+    private String sanitizeStripeId(String raw) {
+        if (raw == null) {
+            return null;
+        }
+        String trimmed = raw.trim();
+        if (trimmed.isEmpty()) {
+            return null;
+        }
+        if (trimmed.startsWith("pm_")) {
+            int separator = findSeparatorIndex(trimmed);
+            return separator > 0 ? trimmed.substring(0, separator) : trimmed;
+        }
+        if (trimmed.contains("pm_")) {
+            for (String segment : trimmed.split("[;,\\s]")) {
+                String cleaned = segment.trim();
+                if (cleaned.startsWith("pm_")) {
+                    int separator = findSeparatorIndex(cleaned);
+                    return separator > 0 ? cleaned.substring(0, separator) : cleaned;
+                }
+            }
+        }
+        return null;
+    }
+
+    private String parseStripeIdFromProviderData(String providerData) {
+        if (providerData == null || providerData.isBlank()) {
+            return null;
+        }
+        for (String segment : providerData.split("[;,]")) {
+            String value = segment.trim();
+            if (value.startsWith("pm_")) {
+                int separator = findSeparatorIndex(value);
+                return separator > 0 ? value.substring(0, separator) : value;
+            }
+            if (value.startsWith("stripePaymentMethodId=")) {
+                return sanitizeStripeId(value.substring("stripePaymentMethodId=".length()));
+            }
+        }
+        return null;
+    }
+
+    private String parseCustomerIdFromProviderData(String providerData) {
+        if (providerData == null || providerData.isBlank()) {
+            return null;
+        }
+        for (String segment : providerData.split("[;,]")) {
+            String value = segment.trim();
+            if (value.startsWith("customerId=")) {
+                return value.substring("customerId=".length()).trim();
+            }
+            if (value.startsWith("stripeCustomerId=")) {
+                return value.substring("stripeCustomerId=".length()).trim();
+            }
+        }
+        return null;
+    }
+
+    private int findSeparatorIndex(String value) {
+        int end = value.length();
+        int semicolon = value.indexOf(';');
+        if (semicolon > 0 && semicolon < end) {
+            end = semicolon;
+        }
+        int comma = value.indexOf(',');
+        if (comma > 0 && comma < end) {
+            end = comma;
+        }
+        int space = value.indexOf(' ');
+        if (space > 0 && space < end) {
+            end = space;
+        }
+        return end;
     }
 }

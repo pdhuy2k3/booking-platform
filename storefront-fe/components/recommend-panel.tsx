@@ -1,523 +1,285 @@
-"use client"
+'use client';
 
-import React, { useState, useEffect, useRef, useCallback } from "react"
-import { Map as MapIcon, Compass, MapPin, Search, TrendingUp, Calendar, Loader2 } from "lucide-react"
-import { cn } from "@/lib/utils"
-import { Card } from "@/components/ui/card"
-import { Input } from "@/components/ui/input"
-import { Button } from "@/components/ui/button"
-import { aiChatService } from "@/modules/ai/service/ai-chat"
-import { usePreferences } from "@/contexts/preferences-context"
-import { MapboxMap, type MapLocation } from "@/components/mapbox-map"
-import Image from "next/image"
+import React, { useState, useEffect, useRef, useCallback } from "react";
+import { Map as MapIcon, Compass, MapPin, Search, TrendingUp, Calendar, Loader2 } from "lucide-react";
+import { cn } from "@/lib/utils";
+import { Card } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+import { useRecommendPanel } from "@/contexts/recommend-panel-context";
+import { MapboxMap, type MapLocation } from "@/components/mapbox-map";
+import { useExploreDestinations } from "@/hooks/use-explore-destinations";
+import Image from "next/image";
 
 interface RecommendPanelProps {
-  results?: any[]
-  className?: string
-  externalLocation?: { lat: number; lng: number; title: string; description?: string } | null
-  onExternalLocationHandled?: () => void
-  onWidthChange?: (width: number) => void
+  results?: any[];
+  className?: string;
+  onWidthChange?: (width: number) => void;
 }
 
-type TabMode = "explore" | "map"
-
-interface LocationData {
-  lng: number
-  lat: number
-  title: string
-  description?: string
-  index: number
-}
+type TabMode = "explore" | "map";
 
 export interface RecommendPanelRef {
-  showLocationOnMap: (location: { lat: number; lng: number; title: string; description?: string }) => void
+  showLocationOnMap: (location: { lat: number; lng: number; title: string; description?: string }) => void;
 }
 
 export const RecommendPanel = React.forwardRef<RecommendPanelRef, RecommendPanelProps>(
-  ({ results = [], className, externalLocation, onExternalLocationHandled, onWidthChange }, ref) => {
-    const { locationInfo } = usePreferences()
-    const [activeTab, setActiveTab] = useState<TabMode>("explore")
-    const [selectedLocationIndex, setSelectedLocationIndex] = useState<number>(0)
-    const [mapCenter, setMapCenter] = useState<[number, number]>([108.2022, 16.0544]) // Da Nang default
-    const [mapZoom, setMapZoom] = useState<number>(12)
-    const [externalLocationState, setExternalLocationState] = useState<MapLocation | null>(null)
-    const [isExpanded, setIsExpanded] = useState<boolean>(true)
-    const [panelWidth, setPanelWidth] = useState<number>(0) // 0 means use default CSS width
-    const [isResizing, setIsResizing] = useState<boolean>(false)
+  ({ results = [], className, onWidthChange }, ref) => {
+    const {
+      externalLocation,
+      acknowledgeExternalLocation,
+      mapStyle,
+      journeys
+    } = useRecommendPanel();
+
+    const {
+      exploreQuery,
+      setExploreQuery,
+      exploreResults,
+      exploreLoading,
+      exploreMessage,
+      handleExploreSearch,
+      handleTrendingClick,
+      handleSeasonalClick,
+      loadDefaultDestinations
+    } = useExploreDestinations();
+
+    const [activeTab, setActiveTab] = useState<TabMode>("explore");
+    const [selectedLocationIndex, setSelectedLocationIndex] = useState<number>(0);
+    const [mapCenter, setMapCenter] = useState<[number, number]>([108.2022, 16.0544]); // Da Nang default
+    const [mapZoom, setMapZoom] = useState<number>(12);
+    const [isExpanded, setIsExpanded] = useState<boolean>(true);
+    const [panelWidth, setPanelWidth] = useState<number>(0);
+    const [isResizing, setIsResizing] = useState<boolean>(false);
     
-    const panelRef = useRef<HTMLDivElement>(null)
-    const MIN_WIDTH = 280 // 280px minimum
-    const MAX_WIDTH = 600 // 600px maximum
-    
-    // Explore tab state
-    const [exploreQuery, setExploreQuery] = useState("")
-    const [exploreResults, setExploreResults] = useState<any[]>([])
-    const [exploreLoading, setExploreLoading] = useState(false)
-    const [exploreMessage, setExploreMessage] = useState("")
+    const panelRef = useRef<HTMLDivElement>(null);
+    const MIN_WIDTH = 280;
+    const MAX_WIDTH = 600;
+
+    // Data extraction helpers (could also be moved to a utils file)
+    const parseCoordinate = (value: unknown): number | null => {
+      if (typeof value === 'number' && !Number.isNaN(value)) return value;
+      if (typeof value === 'string') {
+        const parsed = parseFloat(value);
+        return Number.isNaN(parsed) ? null : parsed;
+      }
+      return null;
+    };
+
+    const getCoordinatesFromMetadata = (metadata?: Record<string, unknown>) => {
+      if (!metadata) return null;
+      const latitude = parseCoordinate(metadata['latitude'] ?? metadata['lat']);
+      const longitude = parseCoordinate(metadata['longitude'] ?? metadata['lng']);
+      if (latitude == null || longitude == null) return null;
+      return { latitude, longitude };
+    };
 
     // Convert results to MapLocation format
     const mapLocations = React.useMemo((): MapLocation[] => {
-      if (activeTab === "map" && results.length > 0) {
-        return extractCoordinatesFromResults(results)
-      }
-      
       if (activeTab === "explore" && exploreResults.length > 0) {
-        return extractCoordinatesFromExplore(exploreResults)
+        return exploreResults.map((item, index) => {
+          const metadata = (item.metadata || {}) as Record<string, unknown>;
+          const coords = getCoordinatesFromMetadata(metadata);
+          return {
+            id: `explore-${item.ids?.destination_id || index}`,
+            name: item.title || 'Destination',
+            latitude: coords?.latitude || 0,
+            longitude: coords?.longitude || 0,
+            description: item.subtitle || item.description || '',
+            type: 'destination'
+          };
+        }).filter(loc => loc.latitude !== 0 && loc.longitude !== 0);
       }
-      
-      return []
-    }, [activeTab, results, exploreResults])
+      return [];
+    }, [activeTab, exploreResults]);
 
-    // Handle external location from prop
-    const externalLocationFromProp = React.useMemo(() => {
+    // Convert external results to MapLocation format
+    const externalResultsLocations = React.useMemo((): MapLocation[] => {
+      if (results.length > 0) {
+        return results.map((result, index) => {
+          // Try to extract coordinates from various possible locations in the result object
+          let latitude = null;
+          let longitude = null;
+          
+          // Check direct properties
+          if (typeof result.latitude === 'number' && typeof result.longitude === 'number') {
+            latitude = result.latitude;
+            longitude = result.longitude;
+          }
+          // Check metadata properties
+          else if (result.metadata && typeof result.metadata.latitude === 'number' && typeof result.metadata.longitude === 'number') {
+            latitude = result.metadata.latitude;
+            longitude = result.metadata.longitude;
+          }
+          // Check coordinates in metadata
+          else if (result.metadata?.coordinates) {
+            const coords = result.metadata.coordinates;
+            latitude = typeof coords.latitude === 'number' ? coords.latitude : null;
+            longitude = typeof coords.longitude === 'number' ? coords.longitude : null;
+          }
+          
+          if (latitude == null || longitude == null) return null;
+          
+          return {
+            id: `external-${index}`,
+            name: result.title || result.name || 'Location',
+            latitude,
+            longitude,
+            description: result.subtitle || result.description || result.metadata?.location || '',
+            type: result.type || 'destination'
+          };
+        }).filter((loc): loc is MapLocation => loc !== null);
+      }
+      return [];
+    }, [results]);
+
+    const allLocations = React.useMemo(() => {
+      const locations = [...mapLocations, ...externalResultsLocations];
       if (externalLocation) {
-        return {
+        locations.push({
           id: `external-${Date.now()}`,
           name: externalLocation.title,
           latitude: externalLocation.lat,
           longitude: externalLocation.lng,
           description: externalLocation.description || '',
-          type: 'custom' as const
-        }
+          type: (externalLocation as any).type || 'custom'
+        });
       }
-      return null
-    }, [externalLocation])
+      return locations;
+    }, [mapLocations, externalResultsLocations, externalLocation]);
 
-    // Add external location to map locations
-    const allLocations = React.useMemo(() => {
-      const locations = [...mapLocations]
-      if (externalLocationFromProp) {
-        locations.push(externalLocationFromProp)
+    const handleExploreCardClick = (index: number) => {
+      const location = exploreResults[index];
+      const metadata = (location?.metadata || {}) as Record<string, unknown>;
+      const coords = getCoordinatesFromMetadata(metadata);
+      if (coords) {
+        setActiveTab('map');
+        setSelectedLocationIndex(index);
+        setMapCenter([coords.longitude, coords.latitude]);
+        setMapZoom(15);
       }
-      if (externalLocationState) {
-        locations.push(externalLocationState)
+    };
+
+    // Handle external location prop changes
+    useEffect(() => {
+      if (externalLocation) {
+        setActiveTab('map');
+        setMapCenter([externalLocation.lng, externalLocation.lat]);
+        setMapZoom(15);
+        acknowledgeExternalLocation();
       }
-      return locations
-    }, [mapLocations, externalLocationFromProp, externalLocationState])
+    }, [externalLocation, acknowledgeExternalLocation]);
 
-    // Helper functions to extract coordinates
-    function extractCoordinatesFromResults(results: any[]): MapLocation[] {
-      const locations: MapLocation[] = []
-      let idCounter = 0
-      
-      results.forEach((result, index) => {
-        if (result.hotels?.length > 0) {
-          result.hotels.forEach((hotel: any) => {
-            if (hotel.latitude && hotel.longitude) {
-              locations.push({
-                id: `hotel-${hotel.id || idCounter++}`,
-                name: hotel.name,
-                latitude: parseFloat(hotel.latitude),
-                longitude: parseFloat(hotel.longitude),
-                description: hotel.address,
-                type: 'hotel'
-              })
-            }
-          })
-        }
-        
-        if (result.flights?.length > 0) {
-          result.flights.forEach((flight: any) => {
-            if (flight.departureAirport?.latitude && flight.departureAirport?.longitude) {
-              locations.push({
-                id: `dep-${flight.departureAirport.id || idCounter++}`,
-                name: flight.departureAirport.name,
-                latitude: parseFloat(flight.departureAirport.latitude),
-                longitude: parseFloat(flight.departureAirport.longitude),
-                description: `${flight.departureAirport.code} - Departure`,
-                type: 'airport'
-              })
-            }
-            
-            if (flight.arrivalAirport?.latitude && flight.arrivalAirport?.longitude) {
-              locations.push({
-                id: `arr-${flight.arrivalAirport.id || idCounter++}`,
-                name: flight.arrivalAirport.name,
-                latitude: parseFloat(flight.arrivalAirport.latitude),
-                longitude: parseFloat(flight.arrivalAirport.longitude),
-                description: `${flight.arrivalAirport.code} - Arrival`,
-                type: 'airport'
-              })
-            }
-          })
-        }
-      })
-      
-      return locations
-    }
-
-    function extractCoordinatesFromExplore(exploreData: any[]): MapLocation[] {
-      const locations: MapLocation[] = []
-      let idCounter = 0
-      
-      // The exploreData is actually the results array from the API response
-      exploreData.forEach((item) => {
-        // Check if item has metadata with coordinates directly (new structure)
-        if (item.metadata?.latitude && item.metadata?.longitude) {
-          locations.push({
-            id: `explore-${item.id || idCounter++}`,
-            name: item.title || item.name,
-            latitude: parseFloat(item.metadata.latitude),
-            longitude: parseFloat(item.metadata.longitude),
-            description: item.subtitle || item.metadata?.highlights?.[0] || item.description,
-            type: 'destination'
-          })
-        }
-        // Legacy structure - check for destinations array
-        else if (item.destinations?.length > 0) {
-          item.destinations.forEach((dest: any) => {
-            if (dest.coordinates?.latitude && dest.coordinates?.longitude) {
-              locations.push({
-                id: `explore-${dest.id || idCounter++}`,
-                name: dest.name,
-                latitude: dest.coordinates.latitude,
-                longitude: dest.coordinates.longitude,
-                description: dest.metadata?.highlights?.[0] || dest.description,
-                type: 'destination'
-              })
-            }
-          })
-        }
-      })
-      
-      return locations
-    }
-
-  // Handle card click to navigate to location on map
-  const handleCardClick = (index: number) => {
-    const location = allLocations[index]
-    
-    if (location) {
-      // Switch to map tab if not already there
-      if (activeTab !== 'map') {
-        setActiveTab('map')
+    // Load default destinations on component mount, but only if no external results are provided
+    useEffect(() => {
+      if (activeTab === "explore" && results.length === 0) {
+        loadDefaultDestinations();
       }
-      
-      setSelectedLocationIndex(index)
-      setMapCenter([location.longitude, location.latitude])
-      setMapZoom(15)
-    }
-  }
+    }, [activeTab, results.length, loadDefaultDestinations]);
 
-  // Explore destinations handlers
-  const handleExploreSearch = async () => {
-    if (!exploreQuery.trim()) return
-    
-    setExploreLoading(true)
-    setExploreMessage("")
-    
-    try {
-      // Get user's country from location info
-      const userCountry = locationInfo?.country
-      const response = await aiChatService.exploreDestinations(exploreQuery, userCountry)
-      
-      setExploreMessage(response.message || "")
-      setExploreResults(response.results || [])
-    } catch (error) {
-      console.error("Explore search error:", error)
-      setExploreMessage("Xin lỗi, không thể tìm kiếm địa điểm lúc này.")
-      setExploreResults([])
-    } finally {
-      setExploreLoading(false)
-    }
-  }
+    // Resize handler
+    const handleMouseDown = useCallback((e: React.MouseEvent) => {
+      e.preventDefault();
+      setIsResizing(true);
+    }, []);
 
-  const handleTrendingClick = async () => {
-    setExploreLoading(true)
-    setExploreMessage("")
-    setExploreQuery("Trending destinations")
-    
-    try {
-      // Get user's country from location info
-      const userCountry = locationInfo?.country
-      const response = await aiChatService.getTrendingDestinations(userCountry)
-      
-      setExploreMessage(response.message || "")
-      setExploreResults(response.results || [])
-    } catch (error) {
-      console.error("Trending error:", error)
-      setExploreMessage("Xin lỗi, không thể tải địa điểm thịnh hành.")
-      setExploreResults([])
-    } finally {
-      setExploreLoading(false)
-    }
-  }
+    useEffect(() => {
+      const handleMouseMove = (e: MouseEvent) => {
+        if (!isResizing || !panelRef.current) return;
+        const containerRect = panelRef.current.getBoundingClientRect();
+        const newWidth = containerRect.right - e.clientX;
+        const clampedWidth = Math.max(MIN_WIDTH, Math.min(MAX_WIDTH, newWidth));
+        setPanelWidth(clampedWidth);
+        onWidthChange?.(clampedWidth);
+      };
+      const handleMouseUp = () => setIsResizing(false);
 
-  const handleSeasonalClick = async () => {
-    setExploreLoading(true)
-    setExploreMessage("")
-    setExploreQuery("Seasonal destinations")
-    
-    try {
-      // Determine current season based on month
-      const month = new Date().getMonth() + 1
-      let season = "summer"
-      if (month >= 3 && month <= 5) season = "spring"
-      else if (month >= 6 && month <= 8) season = "summer"
-      else if (month >= 9 && month <= 11) season = "fall"
-      else season = "winter"
-      
-      // Get user's country from location info
-      const userCountry = locationInfo?.country
-      const response = await aiChatService.getSeasonalDestinations(season, userCountry)
-      
-      setExploreMessage(response.message || "")
-      setExploreResults(response.results || [])
-    } catch (error) {
-      console.error("Seasonal error:", error)
-      setExploreMessage("Xin lỗi, không thể tải gợi ý theo mùa.")
-      setExploreResults([])
-    } finally {
-      setExploreLoading(false)
-    }
-  }
-
-  const handleExploreCardClick = (index: number) => {
-    const location = exploreResults[index]
-    if (location?.metadata?.latitude && location?.metadata?.longitude) {
-      setActiveTab('map')
-      setSelectedLocationIndex(index)
-      setMapCenter([location.metadata.longitude, location.metadata.latitude])
-      setMapZoom(15)
-    }
-  }
-
-  // Expose imperative handle for parent components
-  React.useImperativeHandle(ref, () => ({
-    showLocationOnMap: (location: { lat: number; lng: number; title: string; description?: string }) => {
-      console.log('🗺️ showLocationOnMap called with:', location)
-      
-      // Switch to map tab
-      setActiveTab('map')
-      setMapCenter([location.lng, location.lat])
-      setMapZoom(15)
-      
-      // Set external location state
-      setExternalLocationState({
-        id: `external-${Date.now()}`,
-        name: location.title,
-        latitude: location.lat,
-        longitude: location.lng,
-        description: location.description || '',
-        type: 'custom'
-      })
-    }
-  }))
-
-  // Handle external location prop changes
-  useEffect(() => {
-    if (externalLocation) {
-      // Switch to map tab
-      setActiveTab('map')
-      setMapCenter([externalLocation.lng, externalLocation.lat])
-      setMapZoom(15)
-      
-      // Set external location state for map
-      setExternalLocationState({
-        id: `external-${Date.now()}`,
-        name: externalLocation.title,
-        latitude: externalLocation.lat,
-        longitude: externalLocation.lng,
-        description: externalLocation.description || '',
-        type: 'custom'
-      })
-      
-      // Notify parent that location has been handled
-      onExternalLocationHandled?.()
-    }
-  }, [externalLocation, onExternalLocationHandled])
-
-  // Load default explore destinations on component mount
-  useEffect(() => {
-    const loadDefaultDestinations = async () => {
-      if (exploreResults.length > 0) return // Don't reload if we already have data
-      
-      setExploreLoading(true)
-      setExploreMessage("")
-      
-      try {
-        // Load default destinations for Vietnam (cached)
-        const response = await aiChatService.getDefaultDestinations()
-        
-        console.log("🎯 Default destinations response:", response)
-        setExploreMessage(response.message || "Gợi ý điểm đến cho bạn")
-        setExploreResults(response.results || [])
-        console.log("📍 Set exploreResults:", response.results || [])
-      } catch (error) {
-        console.error("Default destinations error:", error)
-        setExploreMessage("Chào mừng! Sử dụng tìm kiếm hoặc nút Thịnh hành để khám phá điểm đến.")
-        setExploreResults([])
-      } finally {
-        setExploreLoading(false)
+      if (isResizing) {
+        document.addEventListener('mousemove', handleMouseMove);
+        document.addEventListener('mouseup', handleMouseUp);
+        document.body.style.cursor = 'ew-resize';
+        document.body.style.userSelect = 'none';
       }
-    }
 
-    // Only load on mount and when we're on explore tab
-    if (activeTab === "explore") {
-      loadDefaultDestinations()
-    }
-  }, [activeTab]) // Dependencies: tab change only
+      return () => {
+        document.removeEventListener('mousemove', handleMouseMove);
+        document.removeEventListener('mouseup', handleMouseUp);
+        document.body.style.cursor = '';
+        document.body.style.userSelect = '';
+      };
+    }, [isResizing, onWidthChange]);
 
-  // Handle resize
-  const handleMouseDown = useCallback((e: React.MouseEvent) => {
-    e.preventDefault()
-    setIsResizing(true)
-  }, [])
+    const tabs = [
+      { id: "explore" as const, label: "Khám phá", icon: Compass },
+      { id: "map" as const, label: "Bản đồ", icon: MapIcon },
+    ];
 
-  useEffect(() => {
-    const handleMouseMove = (e: MouseEvent) => {
-      if (!isResizing || !panelRef.current) return
-      
-      const containerRect = panelRef.current.getBoundingClientRect()
-      const newWidth = containerRect.right - e.clientX
-      
-      // Clamp width between MIN and MAX
-      const clampedWidth = Math.max(MIN_WIDTH, Math.min(MAX_WIDTH, newWidth))
-      setPanelWidth(clampedWidth)
-      onWidthChange?.(clampedWidth)
-    }
-
-    const handleMouseUp = () => {
-      setIsResizing(false)
-    }
-
-    if (isResizing) {
-      document.addEventListener('mousemove', handleMouseMove)
-      document.addEventListener('mouseup', handleMouseUp)
-      document.body.style.cursor = 'ew-resize'
-      document.body.style.userSelect = 'none'
-    }
-
-    return () => {
-      document.removeEventListener('mousemove', handleMouseMove)
-      document.removeEventListener('mouseup', handleMouseUp)
-      document.body.style.cursor = ''
-      document.body.style.userSelect = ''
-    }
-  }, [isResizing, onWidthChange])
-
-  const tabs = [
-    { id: "explore" as const, label: "Khám phá", icon: Compass },
-    { id: "map" as const, label: "Bản đồ", icon: MapIcon },
-  ]
-
-  return (
-    <div 
-      ref={panelRef}
-      className={cn(
-        "flex flex-col h-full bg-white relative transition-all",
-        !isExpanded && "w-0 overflow-hidden",
-        isExpanded && !isResizing && "duration-300",
-        className
-      )}
-      style={isExpanded && panelWidth > 0 ? { width: `${panelWidth}px` } : undefined}
-    >
-      {/* Resize Handle */}
-      {isExpanded && (
-        <div
-          onMouseDown={handleMouseDown}
-          className={cn(
-            "absolute left-0 top-0 bottom-0 w-1 cursor-ew-resize z-40 hover:bg-blue-500 transition-colors",
-            isResizing && "bg-blue-500"
-          )}
-          style={{ marginLeft: '-2px' }}
-        />
-      )}
-      {/* Expand/Collapse Button */}
-      <button
-        onClick={() => {
-          setIsExpanded(!isExpanded)
-          if (!isExpanded) {
-            // Reset to default width when expanding
-            setPanelWidth(0)
-          }
-        }}
+    return (
+      <div 
+        ref={panelRef}
         className={cn(
-          "absolute top-1/2 -translate-y-1/2 z-50 bg-white border border-gray-300 rounded-l-lg shadow-md hover:shadow-lg transition-all duration-200 hover:bg-gray-50",
-          isExpanded ? "-left-8 border-r-0" : "-left-8"
+          "flex flex-col h-full bg-white relative transition-all",
+          !isExpanded && "w-0 overflow-hidden",
+          isExpanded && !isResizing && "duration-300",
+          className
         )}
-        style={{ width: '32px', height: '64px' }}
-        aria-label={isExpanded ? "Thu gọn panel" : "Mở rộng panel"}
+        style={isExpanded && panelWidth > 0 ? { width: `${panelWidth}px` } : undefined}
       >
-        <div className="flex items-center justify-center h-full">
-          {isExpanded ? (
-            <svg 
-              xmlns="http://www.w3.org/2000/svg" 
-              width="20" 
-              height="20" 
-              viewBox="0 0 24 24" 
-              fill="none" 
-              stroke="currentColor" 
-              strokeWidth="2" 
-              strokeLinecap="round" 
-              strokeLinejoin="round"
-              className="text-gray-600"
-            >
-              <polyline points="9 18 15 12 9 6"></polyline>
-            </svg>
-          ) : (
-            <svg 
-              xmlns="http://www.w3.org/2000/svg" 
-              width="20" 
-              height="20" 
-              viewBox="0 0 24 24" 
-              fill="none" 
-              stroke="currentColor" 
-              strokeWidth="2" 
-              strokeLinecap="round" 
-              strokeLinejoin="round"
-              className="text-gray-600"
-            >
-              <polyline points="15 18 9 12 15 6"></polyline>
-            </svg>
-          )}
-        </div>
-      </button>
+        {/* Panel Resize Handle */}
+        <div 
+          className="absolute left-0 top-0 h-full w-1 cursor-ew-resize hover:bg-blue-500 transition-colors z-10"
+          onMouseDown={handleMouseDown}
+        />
 
-      {/* Tab Navigation */}
-      <div className="flex items-center border-b bg-white px-4 py-2">
-        <div className="flex bg-gray-100 rounded-lg p-1">
-          {tabs.map((tab) => {
-            const Icon = tab.icon
-            return (
-              <button
-                key={tab.id}
-                onClick={() => setActiveTab(tab.id)}
-                className={cn(
-                  "flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-all duration-200",
-                  activeTab === tab.id
-                    ? "bg-white text-gray-900 shadow-sm"
-                    : "text-gray-600 hover:text-gray-900"
-                )}
-              >
-                <Icon className="h-4 w-4" />
-                {tab.label}
-              </button>
-            )
-          })}
-        </div>
-      </div>
-
-      {/* Tab Content */}
-      <div className="flex-1 overflow-hidden">
-        {activeTab === "explore" && (
-          <div className="h-full flex flex-col">
-            {/* Explore Search Bar */}
-            <div className="p-4 border-b border-gray-200 bg-gray-50">
-              <div className="flex gap-2 mb-3">
-                <Input
-                  placeholder="Tìm kiếm điểm đến... (VD: bãi biển đẹp ở Việt Nam)"
-                  value={exploreQuery}
-                  onChange={(e) => setExploreQuery(e.target.value)}
-                  onKeyDown={(e) => e.key === 'Enter' && handleExploreSearch()}
-                  disabled={exploreLoading}
-                  className="flex-1"
-                />
-                <Button 
-                  onClick={handleExploreSearch}
-                  disabled={exploreLoading || !exploreQuery.trim()}
-                  size="icon"
+        {/* Header */}
+        <div className="flex items-center justify-between p-4 border-b">
+          <div className="flex items-center space-x-2">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setIsExpanded(false)}
+              className="p-2"
+            >
+              <MapPin className="h-4 w-4" />
+            </Button>
+          </div>
+          
+          <div className="flex space-x-1">
+            {tabs.map((tab) => {
+              const Icon = tab.icon;
+              return (
+                <Button
+                  key={tab.id}
+                  variant={activeTab === tab.id ? "default" : "ghost"}
+                  size="sm"
+                  className="flex items-center space-x-1"
+                  onClick={() => setActiveTab(tab.id)}
                 >
+                  <Icon className="h-4 w-4" />
+                  <span>{tab.label}</span>
+                </Button>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Explore Tab Content */}
+        {activeTab === "explore" && (
+          <div className="flex-1 flex flex-col overflow-hidden">
+            {/* Search Bar */}
+            <div className="p-4 border-b">
+              <div className="flex items-center space-x-2">
+                <div className="flex-1 relative">
+                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                  <Input
+                    value={exploreQuery}
+                    onChange={(e) => setExploreQuery(e.target.value)}
+                    placeholder="Tìm kiếm điểm đến..."
+                    className="pl-10 pr-4 py-2"
+                    onKeyPress={(e) => e.key === 'Enter' && handleExploreSearch()}
+                  />
+                </div>
+                <Button onClick={handleExploreSearch} disabled={exploreLoading}>
                   {exploreLoading ? (
                     <Loader2 className="h-4 w-4 animate-spin" />
                   ) : (
@@ -526,15 +288,14 @@ export const RecommendPanel = React.forwardRef<RecommendPanelRef, RecommendPanel
                 </Button>
               </div>
               
-              <div className="flex gap-2">
+              <div className="mt-3 flex space-x-2">
                 <Button
                   variant="outline"
                   size="sm"
                   onClick={handleTrendingClick}
                   disabled={exploreLoading}
-                  className="flex-1"
                 >
-                  <TrendingUp className="h-3 w-3 mr-1" />
+                  <TrendingUp className="h-4 w-4 mr-1" />
                   Thịnh hành
                 </Button>
                 <Button
@@ -542,228 +303,223 @@ export const RecommendPanel = React.forwardRef<RecommendPanelRef, RecommendPanel
                   size="sm"
                   onClick={handleSeasonalClick}
                   disabled={exploreLoading}
-                  className="flex-1"
                 >
-                  <Calendar className="h-3 w-3 mr-1" />
-                  Theo mùa
+                  <Calendar className="h-4 w-4 mr-1" />
+                  Mùa này
                 </Button>
               </div>
             </div>
 
-            {/* Explore Results */}
+            {/* Results */}
             <div className="flex-1 overflow-y-auto p-4">
               {exploreLoading ? (
                 <div className="flex items-center justify-center h-full">
-                  <div className="text-center">
-                    <Loader2 className="h-8 w-8 mx-auto mb-2 animate-spin text-blue-600" />
-                    <p className="text-sm text-gray-600">Đang tìm kiếm điểm đến...</p>
-                  </div>
+                  <Loader2 className="h-8 w-8 animate-spin text-blue-500" />
                 </div>
-              ) : exploreResults.length === 0 && !exploreMessage ? (
-                <div className="flex items-center justify-center h-full text-gray-500">
-                  <div className="text-center">
-                    <Compass className="h-12 w-12 mx-auto mb-3 text-gray-400" />
-                    <p className="text-sm">Khám phá điểm đến mới</p>
-                    <p className="text-xs text-gray-400 mt-1">
-                      Tìm kiếm hoặc chọn Thịnh hành / Theo mùa
-                    </p>
-                  </div>
-                </div>
-              ) : (
-                <div className="space-y-3">
-                  {exploreMessage && (
-                    <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-3">
-                      <p className="text-sm text-blue-900">{exploreMessage}</p>
-                    </div>
-                  )}
-                  
-                  {/* Debug info */}
-                  {process.env.NODE_ENV === 'development' && (
-                    <div className="text-xs text-gray-500 p-2 bg-gray-100 rounded">
-                      Debug: {exploreResults.length} results found
-                    </div>
-                  )}
-                  
-                  {exploreResults.map((result, index) => {
-                    console.log("🏷️ Rendering explore result:", index, result)
-                    const hasLocation = !!(result.metadata?.latitude && result.metadata?.longitude)
-                    // Extract image URL from multiple possible sources
-                    const imageUrl = result.imageUrl || 
-                                   result.metadata?.image_url || 
-                                   result.metadata?.imageUrl || 
-                                   result.metadata?.image || 
-                                   result.metadata?.thumbnail
-                    
-                    console.log("🖼️ Image URL found:", imageUrl)
+              ) : exploreResults.length > 0 ? (
+                <div className="grid grid-cols-1 gap-4">
+                  {exploreResults.map((item, index) => {
+                    // Extract metadata for proper display
+                    const metadata = (item.metadata || {}) as Record<string, any>;
+                    const imageUrl = metadata.imageUrl || item.image || item.imageUrl;
+                    const highlights = metadata.highlights || [];
+                    const bestTime = metadata.bestTime || metadata.best_time;
+                    const estimatedCost = metadata.estimatedCost || metadata.estimated_cost;
                     
                     return (
                       <Card 
                         key={index} 
-                        className={cn(
-                          "overflow-hidden transition-all duration-200",
-                          hasLocation && "cursor-pointer hover:shadow-md hover:border-blue-300"
-                        )}
-                        onClick={() => hasLocation && handleExploreCardClick(index)}
+                        className="p-4 cursor-pointer hover:shadow-md transition-shadow"
+                        onClick={() => handleExploreCardClick(index)}
                       >
-                        {imageUrl && (
-                          <div className="w-full h-40 overflow-hidden">
-                            <Image 
-                              src={imageUrl} 
-                              alt={result.title}
-                              width={400}
-                              height={160}
-                              className="w-full h-full object-cover hover:scale-105 transition-transform duration-300"
-                              onError={(e) => {
-                                // Hide image if it fails to load
-                                e.currentTarget.style.display = 'none'
-                              }}
-                            />
-                          </div>
-                        )}
-                        <div className="p-4">
-                          <div className="flex items-start gap-3">
-                            <div className="flex-1">
-                              <div className="flex items-start justify-between mb-2">
-                                <h3 className="font-semibold text-base text-gray-900">{result.title}</h3>
-                                {hasLocation && (
-                                  <MapPin className="h-4 w-4 text-blue-600 shrink-0 ml-2" />
-                                )}
-                              </div>
-                              {result.subtitle && (
-                                <p className="text-sm text-gray-600 mb-2">{result.subtitle}</p>
+                        <div className="flex flex-col items-start space-y-3">
+                          {imageUrl && (
+                            <div className="w-full h-32 rounded-md overflow-hidden flex-shrink-0">
+                              <Image
+                                src={imageUrl} 
+                                alt={item.title}
+                                width={300}
+                                height={128}
+                                className="w-full h-full object-cover"
+                                onError={(e) => {
+                                  // Hide image if it fails to load
+                                  (e.target as HTMLImageElement).style.display = 'none';
+                                }}
+                              />
+                            </div>
+                          )}
+                          <div className="w-full">
+                            <div className="flex items-start justify-between mb-1">
+                              <h3 className="font-semibold">{item.title}</h3>
+                              {/* Show map pin if coordinates exist */}
+                              {metadata.latitude && metadata.longitude && (
+                                <MapPin className="h-4 w-4 text-blue-600" />
                               )}
-                            {result.metadata?.highlights && Array.isArray(result.metadata.highlights) && (
+                            </div>
+                            {item.subtitle && (
+                              <p className="text-sm text-gray-600 mb-2">{item.subtitle}</p>
+                            )}
+                            {highlights.length > 0 && (
                               <div className="flex flex-wrap gap-1 mt-2">
-                                {result.metadata.highlights.map((highlight: string, i: number) => (
+                                {highlights.map((highlight: string, i: number) => (
                                   <span key={i} className="inline-block px-2 py-1 bg-gray-100 text-gray-700 text-xs rounded">
                                     {highlight}
                                   </span>
                                 ))}
                               </div>
                             )}
-                            {result.metadata?.best_time && (
-                              <p className="text-xs text-gray-500 mt-2">
-                                <Calendar className="h-3 w-3 inline mr-1" />
-                                Thời gian tốt nhất: {result.metadata.best_time}
-                              </p>
-                            )}
-                            {result.metadata?.estimated_cost && (
-                              <p className="text-xs text-gray-500 mt-1">
-                                💰 Chi phí ước tính: {result.metadata.estimated_cost}
-                              </p>
-                            )}
+                            <div className="flex flex-wrap gap-2 mt-2">
+                              {bestTime && (
+                                <div className="flex items-center text-xs text-gray-500">
+                                  <Calendar className="h-3 w-3 mr-1" />
+                                  <span>{bestTime}</span>
+                                </div>
+                              )}
+                              {estimatedCost && (
+                                <div className="text-xs text-gray-500">
+                                  💰 {estimatedCost}
+                                </div>
+                              )}
                             </div>
                           </div>
                         </div>
                       </Card>
-                    )
+                    );
                   })}
+                </div>
+              ) : results.length > 0 && exploreResults.length === 0 && !exploreLoading ? (
+                // Display results passed from parent component
+                <div className="grid grid-cols-1 gap-4">
+                  {results.map((result, index) => {
+                    // Handle both explore result structure and generic result structure
+                    const metadata = (result.metadata || {}) as Record<string, any>;
+                    const hasLocation = !!(
+                      result.latitude && result.longitude ||
+                      (metadata.latitude && metadata.longitude) ||
+                      (metadata.coordinates)
+                    );
+                    
+                    // Extract metadata values for proper display
+                    const imageUrl = metadata.imageUrl || result.imageUrl || result.image;
+                    const highlights = metadata.highlights || result.highlights || [];
+                    const bestTime = metadata.bestTime || metadata.best_time;
+                    const estimatedCost = metadata.estimatedCost || metadata.estimated_cost;
+                    
+                    return (
+                      <Card 
+                        key={index} 
+                        className="p-4 cursor-pointer hover:shadow-md transition-shadow"
+                        onClick={() => {
+                          if (hasLocation) {
+                            // Get coordinates for the result
+                            let lat, lng;
+                            if (result.latitude && result.longitude) {
+                              lat = result.latitude;
+                              lng = result.longitude;
+                            } else if (metadata.latitude && metadata.longitude) {
+                              lat = metadata.latitude;
+                              lng = metadata.longitude;
+                            } else if (metadata.coordinates) {
+                              lat = metadata.coordinates.latitude;
+                              lng = metadata.coordinates.longitude;
+                            }
+                            
+                            if (lat && lng) {
+                              setActiveTab('map');
+                              setMapCenter([lng, lat]);
+                              setMapZoom(15);
+                            }
+                          }
+                        }}
+                      >
+                        <div className="flex items-start space-x-3">
+                          {imageUrl && (
+                            <div className="w-full h-32 rounded-md overflow-hidden flex-shrink-0">
+                              <Image
+                                src={imageUrl}
+                                width={300}
+                                height={128}
+                                className="w-full h-full object-cover"
+                                onError={(e) => {
+                                  // Hide image if it fails to load
+                                  (e.target as HTMLImageElement).style.display = 'none';
+                                }}
+                              />
+                            </div>
+                          )}
+                          <div className="flex-1">
+                            <div className="flex items-start justify-between mb-1">
+                              <h3 className="font-semibold">{result.title || result.name || 'Location'}</h3>
+                              {hasLocation && (
+                                <MapPin className="h-4 w-4 text-blue-600" />
+                              )}
+                            </div>
+                            <p className="text-sm text-gray-600 mb-2">{result.subtitle || result.description}</p>
+                            {highlights.length > 0 && (
+                              <div className="flex flex-wrap gap-1 mt-1">
+                                {highlights.map((highlight: string, i: number) => (
+                                  <span key={i} className="inline-block px-2 py-1 bg-gray-100 text-gray-700 text-xs rounded">
+                                    {highlight}
+                                  </span>
+                                ))}
+                              </div>
+                            )}
+                            <div className="flex flex-wrap gap-2 mt-2">
+                              {bestTime && (
+                                <div className="flex items-center text-xs text-gray-500">
+                                  <Calendar className="h-3 w-3 mr-1" />
+                                  <span>{bestTime}</span>
+                                </div>
+                              )}
+                              {estimatedCost && (
+                                <div className="text-xs text-gray-500">
+                                  💰 {estimatedCost}
+                                </div>
+                              )}
+                              {metadata.category && (
+                                <span className="inline-block px-2 py-1 bg-blue-50 text-blue-700 text-xs rounded">
+                                  {metadata.category}
+                                </span>
+                              )}
+                              {hasLocation && (
+                                <span className="inline-block px-2 py-1 bg-green-50 text-green-700 text-xs rounded font-medium">
+                                  Hiển thị trên bản đồ
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      </Card>
+                    );
+                  })}
+                </div>
+              ) : (
+                <div className="flex flex-col items-center justify-center h-full text-center text-gray-500 p-8">
+                  <Compass className="h-12 w-12 mb-4 text-gray-300" />
+                  <h3 className="text-lg font-medium mb-2">{exploreMessage || "Khám phá điểm đến mới"}</h3>
+                  <p className="text-sm">Sử dụng thanh tìm kiếm hoặc các nút gợi ý để bắt đầu khám phá</p>
                 </div>
               )}
             </div>
           </div>
         )}
 
-        {/* AI Chat Results (from parent) */}
-        {activeTab === "explore" && results.length > 0 && exploreResults.length === 0 && !exploreLoading && (
-          <div className="h-full overflow-y-auto p-4">
-            {results.length === 0 ? (
-              <div className="flex items-center justify-center h-full text-gray-500">
-                <div className="text-center">
-                  <Compass className="h-12 w-12 mx-auto mb-3 text-gray-400" />
-                  <p className="text-sm">Chưa có kết quả để hiển thị</p>
-                  <p className="text-xs text-gray-400 mt-1">
-                    Hãy chat với AI để khám phá địa điểm thú vị
-                  </p>
-                </div>
-              </div>
-            ) : (
-              <div className="space-y-3">
-                {results.map((result, index) => {
-                  const hasLocation = !!(
-                    result.metadata?.coordinates || 
-                    (result.latitude && result.longitude) ||
-                    result.metadata?.location
-                  )
-                  const isSelected = index === selectedLocationIndex
-                  
-                  return (
-                    <Card 
-                      key={index} 
-                      className={cn(
-                        "p-4 transition-all duration-200",
-                        hasLocation && "cursor-pointer hover:shadow-md hover:border-blue-300",
-                        isSelected && hasLocation && "border-blue-500 shadow-md bg-blue-50/50"
-                      )}
-                      onClick={() => hasLocation && handleCardClick(index)}
-                    >
-                      <div className="flex items-start gap-3">
-                        {result.imageUrl && (
-                          <Image
-                            src={result.imageUrl}
-                            alt={result.title}
-                            className="w-20 h-20 rounded-lg object-cover shrink-0"
-                          />
-                        )}
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-start justify-between gap-2 mb-1">
-                            <h3 className="font-semibold text-sm text-gray-900 truncate flex-1">
-                              {result.title}
-                            </h3>
-                            {hasLocation && (
-                              <MapPin className={cn(
-                                "h-4 w-4 shrink-0",
-                                isSelected ? "text-blue-600" : "text-gray-400"
-                              )} />
-                            )}
-                          </div>
-                          {result.subtitle && (
-                            <p className="text-xs text-gray-600 mb-2">{result.subtitle}</p>
-                          )}
-                          {result.description && (
-                            <p className="text-xs text-gray-500 line-clamp-2">{result.description}</p>
-                          )}
-                          <div className="mt-2 flex flex-wrap gap-2 items-center">
-                            {result.metadata?.category && (
-                              <span className="inline-block px-2 py-1 bg-blue-50 text-blue-700 text-xs rounded">
-                                {result.metadata.category}
-                              </span>
-                            )}
-                            {hasLocation && isSelected && (
-                              <span className="inline-block px-2 py-1 bg-green-50 text-green-700 text-xs rounded font-medium">
-                                Hiển thị trên bản đồ
-                              </span>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                    </Card>
-                  )
-                })}
-              </div>
-            )}
-          </div>
-        )}
-
+        {/* Map Tab Content */}
         {activeTab === "map" && (
-          <div className="h-full w-full relative">
-            {/* MapboxMap component */}
+          <div className="flex-1 relative">
             <MapboxMap
-              className="h-full w-full"
               locations={allLocations}
-              center={mapCenter}
+              journeys={journeys}
+              center={mapCenter as [number, number]}
               zoom={mapZoom}
-              showControls={true}
-              height="100%"
-              onLocationClick={(location) => {
-                console.log('Map location clicked:', location)
-              }}
+              style={mapStyle}
+              className="w-full h-full"
             />
           </div>
         )}
       </div>
-    </div>
-  )
-})
+    );
+  }
+);
 
-RecommendPanel.displayName = 'RecommendPanel'
+RecommendPanel.displayName = 'RecommendPanel';

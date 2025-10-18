@@ -25,6 +25,59 @@ interface City {
   type: string
 }
 
+interface FlightSearchResult {
+  id: string;
+  airline: string;
+  flightNumber: string;
+  origin: string;
+  destination: string;
+  departureTime: string;
+  arrivalTime: string;
+  departureDateTime?: string;
+  arrivalDateTime?: string;
+  currency: string;
+  seatClass: string;
+  logo: string;
+  scheduleId?: string;
+  fareId?: string;
+  departure: {
+    time: string;
+    airport: string;
+    city: string;
+  };
+  arrival: {
+    time: string;
+    airport: string;
+    city: string;
+  };
+  duration: string;
+  stops: string;
+  price: number;
+  class: string;
+  rating: number;
+  raw: any; // Keep raw as any for now
+}
+
+interface ApiFlight {
+  flightId: string;
+  airline: string;
+  flightNumber: string;
+  origin: string;
+  destination: string;
+  departureTime: string;
+  arrivalTime: string;
+  departureDateTime?: string;
+  arrivalDateTime?: string;
+  currency?: string;
+  seatClass?: string;
+  airlineLogo?: string;
+  scheduleId?: string;
+  fareId?: string;
+  duration?: string;
+  stops?: number;
+  price: number;
+}
+
 interface FlightSearchTabProps {
   onBookingStart?: () => void
 }
@@ -64,11 +117,11 @@ export function FlightSearchTab({ onBookingStart }: FlightSearchTabProps = {}) {
   const [hasSearched, setHasSearched] = useState(false)
 
   // Results
-  const [flightResults, setFlightResults] = useState<any[]>([])
+  const [flightResults, setFlightResults] = useState<FlightSearchResult[]>([])
   const [initialData, setInitialData] = useState<InitialFlightData | null>(null)
 
   // Modals
-  const [selectedFlightForModal, setSelectedFlightForModal] = useState<any | null>(null)
+  const [selectedFlightForModal, setSelectedFlightForModal] = useState<FlightSearchResult | null>(null)
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [isOriginModalOpen, setIsOriginModalOpen] = useState(false)
   const [isDestinationModalOpen, setIsDestinationModalOpen] = useState(false)
@@ -91,9 +144,29 @@ export function FlightSearchTab({ onBookingStart }: FlightSearchTabProps = {}) {
 
     if (date && time) {
       const trimmed = time.trim()
-      const normalized = trimmed.length === 5 ? `${trimmed}:00` : trimmed
-      const composed = `${date}T${normalized}`
+      const hasMeridiem = /\b(AM|PM)\b/i.test(trimmed)
+
+      const normalized = (() => {
+        if (hasMeridiem) {
+          return trimmed
+        }
+
+        if (/^\d{1,2}:\d{2}(?::\d{2})?$/.test(trimmed)) {
+          return trimmed.length === 5 ? `${trimmed}:00` : trimmed
+        }
+
+        return trimmed
+      })()
+
+      const composed = `${date} ${normalized}`
       const parsed = new Date(composed)
+      if (!Number.isNaN(parsed.getTime())) {
+        return parsed.toISOString()
+      }
+    }
+
+    if (time) {
+      const parsed = new Date(`1970-01-01 ${time.trim()}`)
       if (!Number.isNaN(parsed.getTime())) {
         return parsed.toISOString()
       }
@@ -113,7 +186,7 @@ export function FlightSearchTab({ onBookingStart }: FlightSearchTabProps = {}) {
     return fallback || '--:--'
   }
 
-  const mapFlightToUi = (flight: any, searchDate?: string) => {
+  const mapFlightToUi = (flight: ApiFlight, searchDate?: string): FlightSearchResult => {
     const departureDateTime = resolveDateTime(flight.departureDateTime, searchDate, flight.departureTime)
     const arrivalDateTime = resolveDateTime(flight.arrivalDateTime, searchDate, flight.arrivalTime)
 
@@ -129,7 +202,7 @@ export function FlightSearchTab({ onBookingStart }: FlightSearchTabProps = {}) {
       arrivalDateTime,
       currency: flight.currency || 'VND',
       seatClass: flight.seatClass || 'ECONOMY',
-      logo: flight.airlineLogo || '/airplane-generic.png',
+      logo: flight.airlineLogo || '/airplane-generic.png', // Use airlineLogo from backend
       scheduleId: flight.scheduleId,
       fareId: flight.fareId,
       departure: {
@@ -159,7 +232,7 @@ export function FlightSearchTab({ onBookingStart }: FlightSearchTabProps = {}) {
     searchSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
   }
 
-  const handleViewDetails = (flight: any) => {
+  const handleViewDetails = (flight: FlightSearchResult) => {
     setSelectedFlightForModal(flight)
     setIsModalOpen(true)
   }
@@ -177,7 +250,7 @@ export function FlightSearchTab({ onBookingStart }: FlightSearchTabProps = {}) {
     setDestination(city)
   }
 
-  const startFlightBooking = (flight: any, options: { allowWithoutSearch?: boolean } = {}) => {
+  const startFlightBooking = (flight: FlightSearchResult, options: { allowWithoutSearch?: boolean } = {}) => {
     if (!hasSearched && !options.allowWithoutSearch) {
       scrollToSearch()
       return
@@ -205,14 +278,19 @@ export function FlightSearchTab({ onBookingStart }: FlightSearchTabProps = {}) {
     const normalizedSeatClass = (flightData.seatClass || flight?.seatClass || flight?.class || 'ECONOMY').toString().toUpperCase()
     const ticketPrice = Number(flightData.price ?? flight?.price ?? 0)
 
+    // Use a functional approach to ensure all state updates are processed together
     resetBooking()
     setBookingType('flight')
     setSelectedFlight({
-      id: flightId,
+      flightId: flightId,
       flightNumber: flightData.flightNumber,
       airline: flightData.airline,
       origin: flightData.origin,
       destination: flightData.destination,
+      originLatitude: flightData.originLatitude,
+      originLongitude: flightData.originLongitude,
+      destinationLatitude: flightData.destinationLatitude,
+      destinationLongitude: flightData.destinationLongitude,
       departureTime: departureDateTime || flightData.departureTime,
       arrivalTime: arrivalDateTime || flightData.arrivalTime,
       duration: flightData.duration,
@@ -231,12 +309,15 @@ export function FlightSearchTab({ onBookingStart }: FlightSearchTabProps = {}) {
     })
     setStep('passengers')
     
-    // Use callback if provided (for modal), otherwise navigate to booking page
-    if (onBookingStart) {
-      onBookingStart()
-    } else {
-      router.push('/bookings')
-    }
+    // Ensure all context updates are flushed before proceeding
+    setTimeout(() => {
+      // Use callback if provided (for modal), otherwise navigate to booking page
+      if (onBookingStart) {
+        onBookingStart()
+      } else {
+        router.push('/bookings')
+      }
+    }, 0)
   }
 
   const handleModalBookFlight = (details: FlightDetails) => {
@@ -250,6 +331,10 @@ export function FlightSearchTab({ onBookingStart }: FlightSearchTabProps = {}) {
         airline: details.airline,
         origin: details.origin,
         destination: details.destination,
+        originLatitude: details.originLatitude,
+        originLongitude: details.originLongitude,
+        destinationLatitude: details.destinationLatitude,
+        destinationLongitude: details.destinationLongitude,
         departureDateTime: departureIso || details.departureTime,
         arrivalDateTime: arrivalIso || details.arrivalTime,
         duration: details.duration,
@@ -306,7 +391,7 @@ export function FlightSearchTab({ onBookingStart }: FlightSearchTabProps = {}) {
       })
       setInitialData(res as InitialFlightData)
       
-      const ui = (res.flights || []).map((f: any) => mapFlightToUi(f))
+      const ui = (res.flights || []).map((f: ApiFlight) => mapFlightToUi(f))
       setFlightResults(ui)
       setHasMore(Boolean(res.hasMore))
     } catch (e: any) {
@@ -352,7 +437,7 @@ export function FlightSearchTab({ onBookingStart }: FlightSearchTabProps = {}) {
         page: usePage,
         limit,
       })
-      const ui = (res.flights || []).map((f: any) => mapFlightToUi(f, departDate))
+      const ui = (res.flights || []).map((f: ApiFlight) => mapFlightToUi(f, departDate))
       setFlightResults(ui)
       setHasMore(Boolean(res.hasMore))
       setPage(usePage)
@@ -715,15 +800,19 @@ export function FlightSearchTab({ onBookingStart }: FlightSearchTabProps = {}) {
                     destination: flight.destination || flight.arrival.city,
                     departureTime: flight.departureTime,
                     arrivalTime: flight.arrivalTime,
+                    departureDateTime: flight.departureDateTime,
+                    arrivalDateTime: flight.arrivalDateTime,
                     duration: flight.duration,
                     stops: flight.stops,
                     price: flight.price,
                     currency: flight.currency,
                     seatClass: flight.seatClass,
+                    class: flight.class,
                     logo: flight.logo,
                     scheduleId: flight.raw?.scheduleId,
                     fareId: flight.raw?.fareId,
                     rating: flight.rating,
+                    raw: flight.raw,
                   }
 
                   return (

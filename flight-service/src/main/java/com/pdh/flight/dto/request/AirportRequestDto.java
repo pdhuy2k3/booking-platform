@@ -43,4 +43,7 @@ public class AirportRequestDto {
     
     // Media public IDs for airport images
     private List<String> mediaPublicIds;
+    
+    // Featured media URL - the primary media URL to display
+    private String featuredMediaUrl;
 }

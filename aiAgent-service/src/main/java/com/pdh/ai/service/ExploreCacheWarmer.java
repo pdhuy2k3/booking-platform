@@ -24,7 +24,9 @@ public class ExploreCacheWarmer implements ApplicationRunner {
         logger.info("🚀 [CACHE-WARMER] Starting explore cache warming...");
         
         // Warm up caches asynchronously to not block application startup
-        CompletableFuture.runAsync(this::warmupCaches)
+        // Thread.sleep(10_000); // Delay to allow other services to initialize
+        CompletableFuture
+        .runAsync(this::warmupCaches)
             .whenComplete((result, throwable) -> {
                 if (throwable != null) {
                     logger.error("❌ [CACHE-WARMER] Error during cache warming: {}", throwable.getMessage(), throwable);

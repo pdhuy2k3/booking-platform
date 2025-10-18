@@ -1,18 +1,17 @@
-// ==================== TEXT CHAT TYPES (WebSocket) ====================
+// ==================== TEXT CHAT TYPES (REST API) ====================
 
 export interface ChatMessageRequest {
-  userId: string;
   conversationId?: string;
   message: string;
   timestamp?: number;
-  mode?: 'stream' | 'sync'; // Processing mode selection
+  // Note: userId is automatically extracted from JWT token on backend
 }
 
 export type ChatResponseType = 'PROCESSING' | 'RESPONSE' | 'ERROR';
 
 export interface ChatMessageResponse {
   type: ChatResponseType;
-  userId: string;
+  userId: string; // Populated by backend from JWT
   conversationId: string;
   userMessage: string;
   aiResponse?: string;
@@ -29,18 +28,20 @@ export interface ChatMessageResponse {
 export interface ChatRequest {
   message: string;
   conversationId?: string;
-  userId?: string; // Optional - backend automatically extracts from JWT token if not provided
+  // Note: userId is automatically extracted from JWT token on backend
 }
 
 export interface ChatResponse {
   userMessage: string;
   aiResponse: string;
   conversationId: string;
-  userId: string; // Populated by backend from JWT token
+  userId?: string; // Optional - populated by backend from JWT token
   timestamp: string;
   error?: string;
   results?: ChatStructuredResult[];
   nextRequestSuggestions?: string[];
+  requiresConfirmation?: boolean; // Whether this response requires user confirmation
+  confirmationContext?: ConfirmationContext; // Context for confirmation flow
 }
 
 export interface ChatMessage {
@@ -50,6 +51,8 @@ export interface ChatMessage {
   timestamp: Date;
   results?: ChatStructuredResult[];
   suggestions?: string[];
+  requiresConfirmation?: boolean; // Whether this message requires confirmation
+  confirmationContext?: ConfirmationContext; // Context for confirmation UI
 }
 
 export interface ChatHistoryMessage {
@@ -68,12 +71,13 @@ export interface ChatHistoryResponse {
 export interface ChatConversationSummary {
   id: string;
   title: string;
+  createdAt?: string;
   lastUpdated?: string;
 }
 
 export interface ChatContext {
   conversationId?: string;
-  userId?: string; // Optional - backend automatically extracts from JWT token
+  // Note: userId is automatically extracted from JWT token on backend
   previousMessages?: ChatMessage[];
   userPreferences?: {
     language?: string;
@@ -90,6 +94,29 @@ export interface ChatStructuredResult {
   imageUrl?: string;
   ids?: Record<string, string>; // Map of identifiers (flightId, scheduleId, fareId, hotelId, roomTypeId, etc.)
   metadata?: Record<string, unknown>;
+}
+
+export interface StructuredChatPayload {
+  message: string;
+  results: ChatStructuredResult[];
+  nextRequestSuggestions?: string[];
+  next_request_suggestions?: string[];
+  requiresConfirmation?: boolean;
+  confirmationContext?: ConfirmationContext;
+}
+
+/**
+ * Confirmation context for operations requiring user approval (booking, payment).
+ */
+export interface ConfirmationContext {
+  /** Type of operation: 'create_booking', 'process_payment', 'cancel_booking' */
+  operation: string;
+  /** Human-readable summary of what will happen if user confirms */
+  summary: string;
+  /** Data needed to execute the operation (bookingDetails, paymentDetails, etc.) */
+  pendingData: Record<string, unknown>;
+  /** Conversation ID to resume after confirmation */
+  conversationId?: string;
 }
 
 // ==================== VOICE CHAT TYPES ====================
@@ -127,47 +154,4 @@ export interface AudioRecorderState {
   audioUrl: string | null;
   duration: number; // in milliseconds
   error: string | null;
-}
-
-// ==================== EXPLORE TYPES ====================
-
-/**
- * Explore API response structure
- * Matches backend ExploreResponse.java
- */
-export interface ExploreResponse {
-  /** Natural language introduction message */
-  message: string;
-  /** Array of destination recommendations */
-  results: ExploreDestination[];
-}
-
-export interface ExploreDestination {
-  /** Always 'info' for destination cards */
-  type: string;
-  /** Destination name (e.g., 'Đà Nẵng', 'Hạ Long Bay') */
-  title: string;
-  /** Brief compelling description of the destination */
-  subtitle: string;
-  /** Detailed destination information */
-  metadata: DestinationMetadata;
-}
-
-export interface DestinationMetadata {
-  /** Full location string (e.g., 'Đà Nẵng, Việt Nam') */
-  location: string;
-  /** Latitude coordinate (decimal degrees) */
-  latitude: number;
-  /** Longitude coordinate (decimal degrees) */
-  longitude: number;
-  /** URL to destination image from Brave image search */
-  image_url: string;
-  /** Alternative field name for image URL (for compatibility) */
-  imageUrl?: string;
-  /** Array of key attractions or features */
-  highlights: string[];
-  /** Best time to visit (e.g., 'Tháng 3-8', 'April to October') */
-  best_time: string;
-  /** Estimated daily cost range (e.g., '2-5 triệu VND/ngày') */
-  estimated_cost: string;
 }

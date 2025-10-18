@@ -2,8 +2,7 @@
 
 import React, { useState, useEffect } from 'react'
 import { useStripe, useElements, PaymentElement } from '@stripe/react-stripe-js'
-import type { StripeElementsUpdateOptions } from '@stripe/stripe-js'
-import { useForm } from 'react-hook-form'
+import { useForm, useWatch } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { Button } from '@/components/ui/button'
@@ -18,6 +17,7 @@ import { StripePaymentFormData } from '../type/stripe'
 import { getStripeErrorMessage } from '../config/stripe'
 import { useAuth } from '@/contexts/auth-context'
 import { formatCurrency } from '@/lib/currency'
+import type { PaymentMethodResponse } from '@/modules/payment/service/payment-method'
 
 // Form validation schema
 const paymentFormSchema = z.object({
@@ -43,28 +43,38 @@ interface StripePaymentFormProps {
   bookingId: string
   sagaId?: string
   amount: number
+  chargeAmount?: number
+  feeAmount?: number
+  metadata?: Record<string, number | string>
   currency?: string
   description?: string
   onSuccess?: (paymentIntent: any) => void
   onError?: (error: string) => void
   onCancel?: () => void
   className?: string
+  savedPaymentMethod?: PaymentMethodResponse
 }
 
 export const StripePaymentForm: React.FC<StripePaymentFormProps> = ({
   bookingId,
   sagaId,
   amount,
+  chargeAmount,
+  feeAmount,
+  metadata,
   currency = 'vnd',
   description,
   onSuccess,
   onError,
   onCancel,
   className,
+  savedPaymentMethod,
 }) => {
+  const amountToCharge = chargeAmount ?? amount
   const stripe = useStripe()
   const elements = useElements()
   const { user } = useAuth()
+  const isUsingSavedMethod = Boolean(savedPaymentMethod?.stripePaymentMethodId)
   
   const [isProcessing, setIsProcessing] = useState(false)
   const [paymentStatus, setPaymentStatus] = useState<'idle' | 'processing' | 'succeeded' | 'failed'>('idle')
@@ -79,10 +89,11 @@ export const StripePaymentForm: React.FC<StripePaymentFormProps> = ({
     handleSubmit,
     formState: { errors },
     reset,
+    control,
   } = useForm<PaymentFormData>({
     resolver: zodResolver(paymentFormSchema),
     defaultValues: {
-      amount,
+      amount: amountToCharge,
       currency,
       customerEmail: '',
       customerName: '',
@@ -94,10 +105,16 @@ export const StripePaymentForm: React.FC<StripePaymentFormProps> = ({
         postalCode: '',
         country: 'US',
       },
-      savePaymentMethod: false,
+      savePaymentMethod: true,
       setAsDefault: false,
     },
   })
+
+  const savePaymentMethodValue = useWatch({
+    control,
+    name: 'savePaymentMethod',
+  });
+
 
   useEffect(() => {
     if (!user) {
@@ -106,7 +123,7 @@ export const StripePaymentForm: React.FC<StripePaymentFormProps> = ({
 
     const fullName = user.fullName?.trim() || [user.firstName, user.lastName].filter(Boolean).join(' ').trim()
     reset({
-      amount,
+      amount: amountToCharge,
       currency,
       customerEmail: user.email || '',
       customerName: fullName || '',
@@ -118,15 +135,17 @@ export const StripePaymentForm: React.FC<StripePaymentFormProps> = ({
         postalCode: user.address?.postalCode || '',
         country: (user.address?.country || 'VN').toUpperCase(),
       },
-      savePaymentMethod: false,
+      savePaymentMethod: true,
       setAsDefault: false,
     })
-  }, [user, amount, currency, reset])
+  }, [user, amountToCharge, currency, reset])
 
   const handlePaymentSubmit = async (data: PaymentFormData) => {
     if (!stripe || !elements) {
-      setErrorMessage('Payment system not ready. Please try again.')
-      return
+      if (!stripe || (!isUsingSavedMethod && !elements)) {
+        setErrorMessage('Payment system not ready. Please try again.')
+        return
+      }
     }
 
     setIsProcessing(true)
@@ -134,14 +153,16 @@ export const StripePaymentForm: React.FC<StripePaymentFormProps> = ({
     setErrorMessage(null)
 
     try {
-      const submission = await elements.submit()
-      if (submission && submission.error) {
-        const message = submission.error.message || 'Unable to process payment details.'
-        setErrorMessage(message)
-        setPaymentStatus('failed')
-        onError?.(message)
-        setIsProcessing(false)
-        return
+      if (!isUsingSavedMethod) {
+        const submission = await elements!.submit()
+        if (submission && submission.error) {
+          const message = submission.error.message || 'Unable to process payment details.'
+          setErrorMessage(message)
+          setPaymentStatus('failed')
+          onError?.(message)
+          setIsProcessing(false)
+          return
+        }
       }
 
       let activeClientSecret = clientSecret
@@ -149,6 +170,19 @@ export const StripePaymentForm: React.FC<StripePaymentFormProps> = ({
       let activeTransactionId = transactionId
 
       if (!activeClientSecret) {
+        const metadataPayload: Record<string, string> = {
+          ...(metadata
+            ? Object.entries(metadata).reduce<Record<string, string>>((acc, [key, value]) => {
+                acc[key] = String(value)
+                return acc
+              }, {})
+            : {}),
+        }
+        metadataPayload.baseAmount = String(amount)
+        if (typeof feeAmount !== 'undefined') {
+          metadataPayload.feeAmount = String(feeAmount)
+        }
+
         const createdIntent = await paymentService.createIntent({
           bookingId,
           sagaId,
@@ -159,6 +193,12 @@ export const StripePaymentForm: React.FC<StripePaymentFormProps> = ({
           customerName: data.customerName,
           description: description || '',
           billingAddress: data.billingAddress,
+          paymentMethodId: savedPaymentMethod?.stripePaymentMethodId,
+          customerId: savedPaymentMethod?.stripeCustomerId || undefined,
+          confirmPayment: isUsingSavedMethod,
+          metadata: metadataPayload,
+          savePaymentMethod: data.savePaymentMethod,
+          setAsDefault: data.setAsDefault,
         })
 
         activeClientSecret = createdIntent.clientSecret ?? null
@@ -169,7 +209,7 @@ export const StripePaymentForm: React.FC<StripePaymentFormProps> = ({
         setPaymentIntentId(activePaymentIntentId)
         setTransactionId(activeTransactionId)
 
-        if (elements && activeClientSecret) {
+        if (!isUsingSavedMethod && elements && activeClientSecret) {
           const updateOptions: any = {
             clientSecret: activeClientSecret,
           }
@@ -181,15 +221,28 @@ export const StripePaymentForm: React.FC<StripePaymentFormProps> = ({
         throw new Error('Unable to initialize payment intent. Please try again.')
       }
 
-      // Confirm payment with Stripe
-      const { error, paymentIntent } = await stripe.confirmPayment({
-        elements,
-        clientSecret: activeClientSecret,
-        confirmParams: {
+      let error: any = null
+      let paymentIntent: any = null
+
+      if (isUsingSavedMethod && savedPaymentMethod?.stripePaymentMethodId) {
+        const confirmation = await stripe.confirmCardPayment(activeClientSecret, {
+          payment_method: savedPaymentMethod.stripePaymentMethodId,
           return_url: `${window.location.origin}/payment/result`,
-        },
-        redirect: 'if_required',
-      })
+        })
+        error = confirmation.error
+        paymentIntent = confirmation.paymentIntent
+      } else {
+        const confirmation = await stripe.confirmPayment({
+          elements: elements!,
+          clientSecret: activeClientSecret,
+          confirmParams: {
+            return_url: `${window.location.origin}/payment/result`,
+          },
+          redirect: 'if_required',
+        })
+        error = confirmation.error
+        paymentIntent = confirmation.paymentIntent
+      }
 
       if (error) {
         console.error('Payment failed:', error)
@@ -428,35 +481,84 @@ export const StripePaymentForm: React.FC<StripePaymentFormProps> = ({
           </div>
 
           {/* Payment Element */}
-          <div className="space-y-4">
-            <h3 className="text-lg font-medium">Payment Method</h3>
-            <div className="border rounded-lg p-4">
-              <PaymentElement
-                options={{
-                  layout: {
-                    type: 'accordion',
-                    defaultCollapsed: false,
-                    radios: true,
-                    spacedAccordionItems: false
-                  },
-                  wallets: {
-                    applePay: 'auto',
-                    googlePay: 'auto',
-                  },
-                  fields: {
-                    billingDetails: {
-                      address: {
-                        country: 'auto',
+          {!isUsingSavedMethod ? (
+            <div className="space-y-4">
+              <h3 className="text-lg font-medium">Payment Method</h3>
+              <div className="border rounded-lg p-4">
+                <PaymentElement
+                  options={{
+                    layout: {
+                      type: 'accordion',
+                      defaultCollapsed: false,
+                      radios: true,
+                      spacedAccordionItems: false
+                    },
+                    wallets: {
+                      applePay: 'auto',
+                      googlePay: 'auto',
+                    },
+                    fields: {
+                      billingDetails: {
+                        address: {
+                          country: 'auto',
+                        }
                       }
                     }
-                  }
-                }}
-              />
+                  }}
+                />
+              </div>
+              <div className="space-y-4">
+                <div className="flex items-center space-x-2">
+                  <input
+                    type="checkbox"
+                    id="savePaymentMethod"
+                    {...register('savePaymentMethod')}
+                    className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                  />
+                  <Label htmlFor="savePaymentMethod" className="text-sm font-medium leading-none">
+                    Save this payment method for future use
+                  </Label>
+                </div>
+                {savePaymentMethodValue && (
+                  <div className="flex items-center space-x-2 pl-6">
+                    <input
+                      type="checkbox"
+                      id="setAsDefault"
+                      {...register('setAsDefault')}
+                      className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                    />
+                    <Label htmlFor="setAsDefault" className="text-sm font-medium leading-none">
+                      Set as default payment method
+                    </Label>
+                  </div>
+                )}
+              </div>
+              <p className="text-xs text-gray-500">
+                Apple Pay and Google Pay will appear automatically if available on your device.
+              </p>
             </div>
-            <p className="text-xs text-gray-500">
-              Apple Pay and Google Pay will appear automatically if available on your device.
-            </p>
-          </div>
+          ) : (
+            <div className="space-y-3">
+              <h3 className="text-lg font-medium">Selected Payment Method</h3>
+              <div className="border rounded-lg p-4 bg-slate-50">
+                <p className="text-sm text-muted-foreground mb-1">{savedPaymentMethod?.displayName}</p>
+                <p className="text-base font-medium">
+                  {savedPaymentMethod?.cardBrand
+                    ? `${savedPaymentMethod.cardBrand} •••• ${savedPaymentMethod.cardLastFour}`
+                    : savedPaymentMethod?.walletEmail ?? 'Saved payment method'}
+                </p>
+                {savedPaymentMethod?.cardExpiryMonth && savedPaymentMethod?.cardExpiryYear && (
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Expires {String(savedPaymentMethod.cardExpiryMonth).padStart(2, '0')}/
+                    {savedPaymentMethod.cardExpiryYear}
+                  </p>
+                )}
+              </div>
+              <p className="text-xs text-gray-500">
+                We will use your saved payment method to complete this transaction securely.
+              </p>
+            </div>
+          )}
 
           {/* Error Message */}
           {errorMessage && (
@@ -473,7 +575,12 @@ export const StripePaymentForm: React.FC<StripePaymentFormProps> = ({
           <div className="flex gap-4 pt-4">
             <Button
               type="submit"
-              disabled={!stripe || !elements || isProcessing || paymentStatus === 'succeeded'}
+              disabled={
+                !stripe ||
+                (!isUsingSavedMethod && !elements) ||
+                isProcessing ||
+                paymentStatus === 'succeeded'
+              }
               className="flex-1"
             >
               {isProcessing ? (
@@ -482,7 +589,7 @@ export const StripePaymentForm: React.FC<StripePaymentFormProps> = ({
                   Processing...
                 </>
               ) : (
-                `Thanh toán $${formatCurrency(amount)} ${currency.toUpperCase()}`
+                `Thanh toán $${formatCurrency(amountToCharge)} ${currency.toUpperCase()}`
               )}
             </Button>
             

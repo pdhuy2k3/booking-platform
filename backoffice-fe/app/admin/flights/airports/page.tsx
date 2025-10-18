@@ -67,7 +67,10 @@ export default function AdminAirports() {
         city: data.city.trim(),
         country: data.country.trim(),
         timezone: data.timezone?.trim() || undefined,
-        mediaPublicIds: data.mediaPublicIds
+        latitude: data.latitude ?? undefined,
+        longitude: data.longitude ?? undefined,
+        mediaPublicIds: data.mediaPublicIds,
+        featuredMediaUrl: data.featuredMediaUrl
       }
       
       await AirportService.createAirport(airportData)
@@ -103,7 +106,10 @@ export default function AdminAirports() {
         city: data.city.trim(),
         country: data.country.trim(),
         timezone: data.timezone?.trim() || undefined,
-        mediaPublicIds: data.mediaPublicIds
+        latitude: data.latitude ?? undefined,
+        longitude: data.longitude ?? undefined,
+        mediaPublicIds: data.mediaPublicIds,
+        featuredMediaUrl: data.featuredMediaUrl
       }
       
       await AirportService.updateAirport(editingAirport.airportId, airportData)
@@ -155,9 +161,22 @@ export default function AdminAirports() {
     }
   }
 
-  const openEditDialog = (airport: Airport) => {
-    setEditingAirport(airport)
-    setIsEditDialogOpen(true)
+  const openEditDialog = async (airport: Airport) => {
+    try {
+      setSubmitting(true)
+      const fullAirportDetails = await AirportService.getAirport(airport.airportId)
+      setEditingAirport(fullAirportDetails)
+      setIsEditDialogOpen(true)
+    } catch (error) {
+      console.error("Failed to fetch full airport details:", error)
+      toast({
+        title: "Lỗi",
+        description: "Không thể tải chi tiết sân bay để chỉnh sửa.",
+        variant: "destructive",
+      })
+    } finally {
+      setSubmitting(false)
+    }
   }
 
   const openDeleteDialog = (airport: Airport) => {

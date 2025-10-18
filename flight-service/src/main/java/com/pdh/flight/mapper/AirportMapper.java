@@ -1,6 +1,6 @@
 package com.pdh.flight.mapper;
 
-import com.pdh.flight.client.MediaServiceClient;
+
 import com.pdh.flight.constant.ImageTypes;
 import com.pdh.flight.dto.request.AirportRequestDto;
 import com.pdh.flight.dto.response.AirportDto;
@@ -24,7 +24,7 @@ import java.util.stream.Collectors;
 @Slf4j
 public class AirportMapper {
 
-    private final MediaServiceClient mediaServiceClient;
+
 
     /**
      * Convert Airport entity to AirportDto (basic response)
@@ -40,7 +40,10 @@ public class AirportMapper {
                 .iataCode(airport.getIataCode())
                 .city(airport.getCity())
                 .country(airport.getCountry())
+                .latitude(airport.getLatitude())
+                .longitude(airport.getLongitude())
                 .isActive(airport.getIsActive())
+                .featuredMediaUrl(airport.getFeaturedMediaUrl()) // Map the media URL directly
                 .createdAt(convertToLocalDateTime(airport.getCreatedAt()))
                 .createdBy(airport.getCreatedBy())
                 .updatedAt(convertToLocalDateTime(airport.getUpdatedAt()))
@@ -66,23 +69,10 @@ public class AirportMapper {
         dto.setActiveDepartureFlights(activeDepartureFlights);
         dto.setActiveArrivalFlights(activeArrivalFlights);
         
-        // Fetch and set media
-        try {
-            List<Map<String, Object>> mediaList = mediaServiceClient.getMediaByEntity(
-                    ImageTypes.ENTITY_TYPE_AIRPORT, 
-                    airport.getAirportId()
-            );
-            
-            List<String> imagePublicIds = mediaList.stream()
-                    .map(media -> (String) media.get("publicId"))
-                    .filter(Objects::nonNull)
-                    .collect(Collectors.toList());
-                    
-            dto.setImages(imagePublicIds);
-        } catch (Exception e) {
-            log.warn("Failed to fetch media for airport {}: {}", airport.getAirportId(), e.getMessage());
-            dto.setImages(Collections.emptyList());
-        }
+        // Media is now handled in the entity - we'll set it from the featured media URL
+        // In the future, if full media lists are needed, they should be loaded separately
+        // For now, we'll just return an empty list as the media handling has changed
+        dto.setImages(Collections.emptyList());
 
         return dto;
     }
@@ -108,39 +98,13 @@ public class AirportMapper {
             return Collections.emptyList();
         }
 
-        // Batch fetch media for all airports
-        List<Long> airportIds = airports.stream()
-                .map(Airport::getAirportId)
-                .collect(Collectors.toList());
-
-        Map<Long, List<Map<String, Object>>> mediaMap = Collections.emptyMap();
-        try {
-            mediaMap = mediaServiceClient.getMediaForEntities(
-                    ImageTypes.ENTITY_TYPE_AIRPORT, 
-                    airportIds
-            );
-        } catch (Exception e) {
-            log.warn("Failed to batch fetch media for airports: {}", e.getMessage());
-        }
-
-        // Convert to DTOs with media
-        final Map<Long, List<Map<String, Object>>> finalMediaMap = mediaMap;
+        // Convert to DTOs - media is no longer fetched through the media service client
+        // In the future, if full media lists are needed, they should be loaded separately
         return airports.stream()
                 .map(airport -> {
                     AirportDto dto = toDto(airport);
-                    
-                    // Set media if available
-                    List<Map<String, Object>> airportMedia = finalMediaMap.get(airport.getAirportId());
-                    if (airportMedia != null) {
-                        List<String> imagePublicIds = airportMedia.stream()
-                                .map(media -> (String) media.get("publicId"))
-                                .filter(Objects::nonNull)
-                                .collect(Collectors.toList());
-                        dto.setImages(imagePublicIds);
-                    } else {
-                        dto.setImages(Collections.emptyList());
-                    }
-                    
+                    // Set empty list for now since media handling has changed
+                    dto.setImages(Collections.emptyList());
                     return dto;
                 })
                 .collect(Collectors.toList());
@@ -208,6 +172,10 @@ public class AirportMapper {
         if (requestDto.getLongitude() != null) {
             airport.setLongitude(requestDto.getLongitude());
         }
+        
+        if (requestDto.getFeaturedMediaUrl() != null) {
+            airport.setFeaturedMediaUrl(requestDto.getFeaturedMediaUrl());
+        }
     }
 
     /**
@@ -226,6 +194,7 @@ public class AirportMapper {
         airport.setLatitude(requestDto.getLatitude());
         airport.setLongitude(requestDto.getLongitude());
         airport.setIsActive(true);
+        airport.setFeaturedMediaUrl(requestDto.getFeaturedMediaUrl());
         
         return airport;
     }

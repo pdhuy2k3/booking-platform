@@ -125,7 +125,7 @@ export function PaymentMethodsTab() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       <Card className="bg-white border-gray-200">
         <CardHeader className="flex flex-row items-center justify-between">
           <div>
@@ -140,17 +140,17 @@ export function PaymentMethodsTab() {
             Add Payment Method
           </Button>
         </CardHeader>
-        <CardContent className="space-y-4">
+        <CardContent className="space-y-3">
           {isLoading ? (
-            <div className="text-center py-8">
-              <Loader2 className="h-8 w-8 animate-spin text-cyan-500 mx-auto mb-4" />
+            <div className="text-center py-6">
+              <Loader2 className="h-8 w-8 animate-spin text-cyan-500 mx-auto mb-3" />
               <p className="text-gray-600">Loading payment methods...</p>
             </div>
           ) : paymentMethods.length === 0 ? (
-            <div className="text-center py-8">
-              <CreditCard className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-              <h3 className="text-lg font-medium text-card-foreground mb-2">No Payment Methods</h3>
-              <p className="text-gray-400 mb-4">Add a payment method to make bookings easier</p>
+            <div className="text-center py-6">
+              <CreditCard className="h-12 w-12 text-gray-400 mx-auto mb-3" />
+              <h3 className="text-lg font-medium text-card-foreground mb-1">No Payment Methods</h3>
+              <p className="text-gray-400 mb-3">Add a payment method to make bookings easier</p>
               <Button 
                 className="bg-cyan-500 hover:bg-cyan-600"
                 onClick={() => setShowAddDialog(true)}
@@ -160,17 +160,17 @@ export function PaymentMethodsTab() {
               </Button>
             </div>
           ) : (
-            <div className="space-y-4">
+            <div className="space-y-3">
               {paymentMethods.map((method) => (
                 <div
                   key={method.methodId}
-                  className="flex items-center justify-between p-4 bg-white border border-gray-200 rounded-lg"
+                  className="flex items-center justify-between p-3 bg-white border border-gray-200 rounded-lg"
                 >
-                  <div className="flex items-center gap-4">
+                  <div className="flex items-center gap-3">
                     <div className="text-2xl">{getCardIcon(method.cardBrand)}</div>
                     <div className="flex-1">
                       {editingMethodId === method.methodId ? (
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-1">
                           <Input
                             value={editDisplayName}
                             onChange={(e) => setEditDisplayName(e.target.value)}
@@ -196,7 +196,7 @@ export function PaymentMethodsTab() {
                         </div>
                       ) : (
                         <>
-                          <div className="flex items-center gap-2">
+                          <div className="flex items-center gap-1">
                             <span className="text-gray-900 font-medium">
                               {method.displayName || `${method.cardBrand} •••• ${method.cardLastFour}`}
                             </span>
@@ -224,7 +224,7 @@ export function PaymentMethodsTab() {
                       )}
                     </div>
                   </div>
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-1">
                     {!method.isDefault && (
                       <Button
                         variant="outline"

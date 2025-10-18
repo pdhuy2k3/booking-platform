@@ -57,7 +57,7 @@ export default function AdminPayments() {
         size: pageSize,
       }
       const data = await PaymentService.getPayments(filters)
-      setPayments((data as any).data)
+      setPayments(data)
     } catch (error) {
       console.error("Failed to load payments:", error)
       toast({
@@ -74,7 +74,7 @@ export default function AdminPayments() {
     try {
       setStatsLoading(true)
       const data = await PaymentService.getPaymentStats()
-      setStats((data as any).data)
+      setStats(data)
     } catch (error) {
       console.error("Failed to load payment stats:", error)
     } finally {

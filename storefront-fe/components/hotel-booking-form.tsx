@@ -1,6 +1,6 @@
 "use client"
 
-import React, { useState } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -20,21 +20,38 @@ import {
   PopoverTrigger 
 } from "@/components/ui/popover"
 import { useDateFormatter } from "@/hooks/use-date-formatter"
+import { useToast } from "@/hooks/use-toast"
 import { CalendarIcon } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { HotelBookingDetails, GuestDetails } from '@/modules/booking/types'
 
+const parseDate = (dateString?: string): Date | undefined => {
+  if (!dateString) return undefined;
+  const date = new Date(dateString);
+  // Check if the date is valid. Invalid dates can result from parsing "undefined" or "null"
+  if (isNaN(date.getTime())) {
+    return undefined;
+  }
+  return date;
+};
+
 interface HotelBookingFormProps {
-  hotel: any
+  hotel: SelectedHotel
   onSubmit: (details: HotelBookingDetails) => void
   onCancel: () => void
 }
 
 export function HotelBookingForm({ hotel, onSubmit, onCancel }: HotelBookingFormProps) {
   const { formatDateOnly } = useDateFormatter()
+  const { toast } = useToast()
 
-  const [checkInDate, setCheckInDate] = useState<Date | undefined>(new Date())
-  const [checkOutDate, setCheckOutDate] = useState<Date | undefined>(new Date(Date.now() + 86400000)) // Next day
+  const [checkInDate, setCheckInDate] = useState<Date | undefined>(() => parseDate(hotel.checkInDate))
+  const [checkOutDate, setCheckOutDate] = useState<Date | undefined>(() => parseDate(hotel.checkOutDate))
+
+  useEffect(() => {
+    setCheckInDate(parseDate(hotel.checkInDate))
+    setCheckOutDate(parseDate(hotel.checkOutDate))
+  }, [hotel.checkInDate, hotel.checkOutDate])
   const [numberOfRooms, setNumberOfRooms] = useState<number>(1)
   const [numberOfGuests, setNumberOfGuests] = useState<number>(2)
   const [bedType, setBedType] = useState<string>('DOUBLE')
@@ -61,6 +78,99 @@ export function HotelBookingForm({ hotel, onSubmit, onCancel }: HotelBookingForm
       nationality: 'VN'
     }
   ])
+
+  // Calculate the number of nights between check-in and check-out dates
+  const calculateNights = () => {
+    if (!checkInDate || !checkOutDate) return 0;
+    const timeDiff = checkOutDate.getTime() - checkInDate.getTime();
+    return Math.ceil(timeDiff / (1000 * 3600 * 24));
+  };
+
+  const [roomPrice, setRoomPrice] = useState<number>(
+    hotel.pricePerNight ?? hotel.price ?? hotel.totalPrice ?? 0
+  );
+  const [isFetching, setIsFetching] = useState<boolean>(false);
+
+  const numberOfNights = Math.max(1, calculateNights());
+  const totalRoomPrice = roomPrice * numberOfNights * numberOfRooms;
+  const previousTotalRef = useRef<number>(totalRoomPrice);
+  const initializedPriceRef = useRef<boolean>(false);
+  const skipNextPriceToastRef = useRef<boolean>(false);
+
+  useEffect(() => {
+    setRoomPrice(hotel.pricePerNight ?? hotel.price ?? hotel.totalPrice ?? 0)
+  }, [hotel.pricePerNight, hotel.price, hotel.totalPrice])
+
+  useEffect(() => {
+    if (!initializedPriceRef.current) {
+      initializedPriceRef.current = true;
+      previousTotalRef.current = totalRoomPrice;
+      return;
+    }
+
+    if (skipNextPriceToastRef.current) {
+      skipNextPriceToastRef.current = false;
+      previousTotalRef.current = totalRoomPrice;
+      return;
+    }
+
+    if (previousTotalRef.current !== totalRoomPrice) {
+      toast({
+        title: "Thông báo thay đổi giá",
+        description: `Giá phòng đã thay đổi từ ${previousTotalRef.current.toLocaleString()} VND sang ${totalRoomPrice.toLocaleString()} VND.`,
+        duration: 3000,
+      });
+      previousTotalRef.current = totalRoomPrice;
+    }
+  }, [totalRoomPrice, toast]);
+
+  // Show toast when number of guests changes
+  useEffect(() => {
+    if (numberOfGuests !== 2) { // Only show toast if not the initial value
+      toast({
+        title: "Thông báo đặt phòng",
+        description: `Số lượng khách đã được cập nhật thành ${numberOfGuests}.`,
+        duration: 3000,
+      });
+    }
+  }, [numberOfGuests, toast]);
+
+  // Add the room type functionality
+  const [selectedRoomTypeId, setSelectedRoomTypeId] = useState<number>(Number(hotel.roomTypeId) || 1);
+  
+  // Show toast when room type changes and fetch updated price
+  useEffect(() => {
+    const initialRoomTypeId = hotel.roomTypeId || hotel.id || 1;
+    if (selectedRoomTypeId !== initialRoomTypeId) { // Only when not the initial value
+      setIsFetching(true);
+      
+      import('@/modules/hotel/service').then(module => {
+        module.hotelService.getRoomDetails(selectedRoomTypeId)
+        .then(updatedRoom => {
+          const newTotal = updatedRoom.price * numberOfNights * numberOfRooms;
+          skipNextPriceToastRef.current = true;
+          previousTotalRef.current = newTotal;
+          setRoomPrice(updatedRoom.price);
+          toast({
+            title: "Thông báo thay đổi giá",
+            description: `Giá phòng đã được cập nhật theo loại phòng đã chọn: ${newTotal.toLocaleString()} VND.`,
+            duration: 3000,
+          });
+        })
+        .catch(error => {
+          console.error("Error fetching updated room price:", error);
+          toast({
+            title: "Lỗi",
+            description: "Không thể cập nhật giá phòng, vui lòng thử lại.",
+            variant: "destructive",
+          });
+        })
+        .finally(() => {
+          setIsFetching(false);
+        });
+      });
+    }
+  }, [selectedRoomTypeId, numberOfNights, numberOfRooms, toast, hotel.roomTypeId, hotel.id]);
 
   const handleAddGuest = () => {
     if (guests.length < 10) { // Max 10 guests
@@ -114,27 +224,38 @@ export function HotelBookingForm({ hotel, onSubmit, onCancel }: HotelBookingForm
       return
     }
 
-    const numberOfNights = Math.ceil((checkOutDate.getTime() - checkInDate.getTime()) / (1000 * 60 * 60 * 24))
-    
+    const numberOfNights = Math.max(1, Math.ceil((checkOutDate.getTime() - checkInDate.getTime()) / (1000 * 60 * 60 * 24)))
+    const totalPrice = roomPrice * numberOfNights * numberOfRooms
+
+    const normalizeDate = (value: Date | undefined): string => {
+      if (!value) return ''
+      const year = value.getFullYear()
+      const month = String(value.getMonth() + 1).padStart(2, '0')
+      const day = String(value.getDate()).padStart(2, '0')
+      return `${year}-${month}-${day}`
+    }
+
     const bookingDetails: HotelBookingDetails = {
-      hotelId: hotel.id,
+      hotelId: hotel.id, // Correctly assign hotelId
       hotelName: hotel.name,
       hotelAddress: hotel.address,
       city: hotel.city,
       country: hotel.country,
+      hotelLatitude: hotel.hotelLatitude ?? hotel.latitude,
+      hotelLongitude: hotel.hotelLongitude ?? hotel.longitude,
       starRating: hotel.rating,
-      roomTypeId: hotel.roomTypeId,
+      roomTypeId: selectedRoomTypeId, // Use state, remove incorrect fallback
       roomId: hotel.roomId,
       roomType: hotel.roomType,
       roomName: hotel.roomName,
-      checkInDate: formatDateOnly(checkInDate.toISOString()),
-      checkOutDate: formatDateOnly(checkOutDate.toISOString()),
+      checkInDate: normalizeDate(checkInDate),
+      checkOutDate: normalizeDate(checkOutDate),
       numberOfNights,
       numberOfRooms,
       numberOfGuests,
       guests,
-      pricePerNight: hotel.price,
-      totalRoomPrice: hotel.price * numberOfNights * numberOfRooms,
+      pricePerNight: roomPrice,
+      totalRoomPrice: totalPrice,
       bedType,
       amenities: hotel.amenities,
       specialRequests
@@ -168,7 +289,13 @@ export function HotelBookingForm({ hotel, onSubmit, onCancel }: HotelBookingForm
                 <span className="font-medium">Room:</span> {hotel.roomName} ({hotel.roomType})
               </p>
               <p className="text-sm">
-                <span className="font-medium">Price:</span> {hotel.price.toLocaleString()} VND per night
+                <span className="font-medium">Giá mỗi đêm:</span> {roomPrice.toLocaleString()} VND
+              </p>
+              <p className="text-sm">
+                <span className="font-medium">Số đêm:</span> {numberOfNights}
+              </p>
+              <p className="text-sm">
+                <span className="font-medium">Tổng tạm tính:</span> {totalRoomPrice.toLocaleString()} VND
               </p>
             </div>
           </div>
@@ -277,6 +404,26 @@ export function HotelBookingForm({ hotel, onSubmit, onCancel }: HotelBookingForm
                   <SelectItem value="TWIN">Giường đơn đôi</SelectItem>
                   <SelectItem value="KING">Giường King</SelectItem>
                   <SelectItem value="QUEEN">Giường Queen</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            
+            <div>
+              <Label htmlFor="roomType">Loại phòng</Label>
+              <Select value={selectedRoomTypeId?.toString() || (hotel.roomTypeId?.toString() || hotel.id?.toString() || '1')} onValueChange={(value) => setSelectedRoomTypeId(Number(value))}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Chọn loại phòng" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={hotel.roomTypeId?.toString() || hotel.id?.toString() || '1'}>
+                    {hotel.roomType || 'Phòng hiện tại'}
+                  </SelectItem>
+                  {/* Add more room types if available */}
+                  {hotel.roomTypes && Array.isArray(hotel.roomTypes) && hotel.roomTypes.map((roomType: { id: number; name: string; price: number }) => (
+                    <SelectItem key={roomType.id} value={roomType.id?.toString()}>
+                      {roomType.name} - {roomType.price?.toLocaleString()} VND/đêm
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>

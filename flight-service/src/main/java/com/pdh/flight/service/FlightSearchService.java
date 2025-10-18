@@ -108,8 +108,15 @@ public class FlightSearchService {
                 LocalDate.now().atTime(LocalTime.MAX).atZone(ZoneId.of("UTC"));
             
             List<FlightSchedule> schedules = flightScheduleRepository
-                    .findByFlightIdInAndDepartureTimeBetween(flightIds, startTime, endTime);
+                    .findByFlightIdInAndDepartureTimeBetween(flightIds, startTime, endTime)
+                    .stream()
+                    .filter(schedule -> schedule != null && !schedule.isDeleted())
+                    .sorted(Comparator.comparing(FlightSchedule::getDepartureTime))
+                    .collect(Collectors.toList());
             
+            Map<Long, List<FlightSchedule>> schedulesByFlightId = schedules.stream()
+                    .collect(Collectors.groupingBy(FlightSchedule::getFlightId));
+
             // Get schedule IDs for fare lookup
             List<UUID> scheduleIds = schedules.stream()
                     .map(FlightSchedule::getScheduleId)
@@ -120,7 +127,12 @@ public class FlightSearchService {
             
             // Convert to search result DTOs
             List<FlightSearchResultDto> searchResults = flightPage.getContent().stream()
-                    .map(flight -> convertToSearchResult(flight, schedules, faresMap, passengers, fareClass))
+                    .map(flight -> convertToSearchResult(
+                            flight,
+                            schedulesByFlightId.getOrDefault(flight.getFlightId(), List.of()),
+                            faresMap,
+                            passengers,
+                            fareClass))
                     .filter(Objects::nonNull)
                     .collect(Collectors.toList());
             
@@ -136,49 +148,47 @@ public class FlightSearchService {
      * Convert Flight entity to FlightSearchResultDto with pricing
      */
     private FlightSearchResultDto convertToSearchResult(
-            Flight flight, List<FlightSchedule> schedules, 
+            Flight flight,
+            List<FlightSchedule> flightSchedules,
             Map<UUID, List<FlightFareDto>> faresMap,
-            int passengers, FareClass fareClass) {
-        
-        // Find matching schedule for this flight
-        FlightSchedule matchingSchedule = schedules.stream()
-                .filter(schedule -> schedule.getFlightId().equals(flight.getFlightId()))
+            int passengers,
+            FareClass fareClass) {
+
+        if (flightSchedules == null || flightSchedules.isEmpty()) {
+            return null;
+        }
+
+        FlightScheduleWithFare selected = flightSchedules.stream()
+                .sorted(Comparator.comparing(FlightSchedule::getDepartureTime))
+                .map(schedule -> {
+                    List<FlightFareDto> scheduleFares = faresMap.getOrDefault(schedule.getScheduleId(), List.of());
+                    FlightFareDto scheduleFare = selectFareForSchedule(scheduleFares, fareClass);
+                    if (scheduleFare == null || scheduleFare.getPrice() == null) {
+                        return null;
+                    }
+                    return new FlightScheduleWithFare(schedule, scheduleFare);
+                })
+                .filter(Objects::nonNull)
                 .findFirst()
                 .orElse(null);
-        
-        if (matchingSchedule == null) {
-            return null;
-        }
-        
-        // Get fares for this schedule
-        List<FlightFareDto> fares = faresMap.getOrDefault(matchingSchedule.getScheduleId(), new ArrayList<>());
 
-        if (fares.isEmpty()) {
+        if (selected == null) {
             return null;
         }
 
-        // Find fare for requested class or get the cheapest available
-        FlightFareDto selectedFare = fares.stream()
-                .filter(fare -> fareClass == null ||
-                        (fare.getFareClass() != null && fare.getFareClass().equals(fareClass.name())))
-                .min(Comparator.comparing(FlightFareDto::getPrice))
-                .orElse(null);
+        FlightSchedule matchingSchedule = selected.schedule();
+        FlightFareDto selectedFare = selected.fare();
 
-        if (selectedFare == null || selectedFare.getPrice() == null) {
-            return null;
-        }
-
-        BigDecimal price = selectedFare.getPrice().multiply(BigDecimal.valueOf(passengers));
-
+        BigDecimal totalPrice = selectedFare.getPrice().multiply(BigDecimal.valueOf(passengers));
         String resolvedSeatClass = selectedFare.getFareClass() != null
                 ? selectedFare.getFareClass()
                 : fareClass != null ? fareClass.name() : "ECONOMY";
 
-        // Build result DTO
         return FlightSearchResultDto.builder()
                 .flightId(flight.getFlightId().toString())
                 .airline(flight.getAirline() != null ? flight.getAirline().getName() : "Unknown")
                 .airlineCode(flight.getAirline() != null ? flight.getAirline().getIataCode() : "")
+                .airlineLogo(flight.getAirline() != null ? flight.getAirline().getFeaturedMediaUrl() : null) // Add airline logo URL
                 .flightNumber(flight.getFlightNumber())
                 .origin(flight.getDepartureAirport() != null ? flight.getDepartureAirport().getIataCode() : "")
                 .destination(flight.getArrivalAirport() != null ? flight.getArrivalAirport().getIataCode() : "")
@@ -194,17 +204,17 @@ public class FlightSearchService {
                 .arrivalDateTime(matchingSchedule.getArrivalTime())
                 .duration(formatDuration(calculateDuration(matchingSchedule)))
                 .durationMinutes(calculateDuration(matchingSchedule))
-                .price(price.doubleValue())
+                .price(totalPrice.doubleValue())
                 .currency("VND")
-                .formattedPrice(formatPrice(price))
+                .formattedPrice(formatPrice(totalPrice))
                 .seatClass(resolvedSeatClass)
                 .availableSeats(selectedFare.getAvailableSeats() != null ? selectedFare.getAvailableSeats() : 0)
                 .totalSeats(getTotalSeats(flight.getAircraft()))
                 .scheduleId(matchingSchedule.getScheduleId() != null ? matchingSchedule.getScheduleId().toString() : null)
-                .fareId(selectedFare != null && selectedFare.getFareId() != null ? selectedFare.getFareId().toString() : null)
+                .fareId(selectedFare.getFareId() != null ? selectedFare.getFareId().toString() : null)
                 .aircraft(flight.getAircraft() != null ? flight.getAircraft().getModel() : "Unknown")
                 .aircraftType(flight.getAircraftType())
-                .stops(0) // Direct flight
+                .stops(0)
                 .amenities(Arrays.asList("In-flight entertainment", "Meal service"))
                 .mealService("Complimentary meal")
                 .wifiAvailable(true)
@@ -218,6 +228,27 @@ public class FlightSearchService {
                         .additionalBaggagePrice(150000.0)
                         .build())
                 .build();
+    }
+
+    private FlightFareDto selectFareForSchedule(List<FlightFareDto> scheduleFares, FareClass requestedClass) {
+        if (scheduleFares == null || scheduleFares.isEmpty()) {
+            return null;
+        }
+
+        Comparator<FlightFareDto> byPrice = Comparator.comparing(FlightFareDto::getPrice, Comparator.nullsLast(Comparator.naturalOrder()));
+
+        if (requestedClass != null) {
+            Optional<FlightFareDto> exactMatch = scheduleFares.stream()
+                    .filter(fare -> fare.getFareClass() != null && fare.getFareClass().equalsIgnoreCase(requestedClass.name()))
+                    .min(byPrice);
+            if (exactMatch.isPresent()) {
+                return exactMatch.get();
+            }
+        }
+
+        return scheduleFares.stream()
+                .min(byPrice)
+                .orElse(null);
     }
     
     /**
@@ -267,4 +298,6 @@ public class FlightSearchService {
         }
         return 200; // Default capacity
     }
+
+    private record FlightScheduleWithFare(FlightSchedule schedule, FlightFareDto fare) {}
 }

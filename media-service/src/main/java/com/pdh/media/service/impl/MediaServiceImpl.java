@@ -85,6 +85,38 @@ public class MediaServiceImpl implements MediaService {
     }
 
     @Override
+    public MediaDto uploadMediaFromUrl(String url, String folder) {
+        try {
+            log.info("Uploading media from URL: {} to folder: {}", url, folder);
+            
+            // Upload to Cloudinary
+            Map<String, Object> uploadResult = cloudinaryService.uploadImageFromUrl(url, folder);
+            
+            // Extract Cloudinary response data
+            String publicId = (String) uploadResult.get("public_id");
+            String mediaUrl = (String) uploadResult.get("url");
+            String secureUrl = (String) uploadResult.get("secure_url");
+            
+            // Create and save Media entity
+            Media media = Media.builder()
+                    .publicId(publicId)
+                    .url(mediaUrl)
+                    .secureUrl(secureUrl)
+                    .mediaType("image")
+                    .isActive(true)
+                    .build();
+            
+            Media savedMedia = mediaRepository.save(media);
+            log.info("Media from URL saved with ID: {} and public ID: {}", savedMedia.getId(), savedMedia.getPublicId());
+            
+            return mediaMapper.toDto(savedMedia);
+        } catch (Exception e) {
+            log.error("Error uploading media from URL", e);
+            throw new RuntimeException("Failed to upload media from URL: " + e.getMessage(), e);
+        }
+    }
+
+    @Override
     @Transactional(readOnly = true)
     public Optional<MediaDto> getMediaById(Long id) {
         log.debug("Getting media by ID: {}", id);

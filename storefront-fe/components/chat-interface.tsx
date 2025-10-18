@@ -1,15 +1,15 @@
 "use client"
 
-import React, { useState, useRef, useEffect, forwardRef, useImperativeHandle } from "react"
-import { Send, Mic, MicOff, Plus, AlertCircle, Loader2 } from "lucide-react"
+import React, { useState, useRef, useEffect, forwardRef, useImperativeHandle, useCallback } from "react"
+import { Send, Plus, AlertCircle, Mic } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
 import { cn } from "@/lib/utils"
-import { useAiChat, useVoiceChat, useAudioRecorder } from "@/modules/ai"
+import { useAiChat } from "@/modules/ai"
 import { useAuth } from "@/contexts/auth-context"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { useDateFormatter } from "@/hooks/use-date-formatter"
 import { AiResponseRenderer } from "@/components/ai-response-renderer"
+import { useRouter, useSearchParams } from "next/navigation"
 
 interface ChatMessage {
   id: string
@@ -26,19 +26,24 @@ interface ChatInterfaceProps {
   onChatStart: () => void
   onItemSelect?: (item: any) => void
   conversationId?: string | null
+  onConversationChange?: (conversationId: string | null) => void
+  newChatTrigger?: number
   onFlightBook?: (flight: any) => void
   onHotelBook?: (hotel: any, room: any) => void
   onLocationClick?: (location: { lat: number; lng: number; title: string; description?: string }) => void
 }
 
 export const ChatInterface = forwardRef<any, ChatInterfaceProps>(function ChatInterface(
-  { onSearchResults, onStartBooking, onChatStart, onItemSelect, conversationId, onFlightBook, onHotelBook, onLocationClick },
+  { onSearchResults, onStartBooking, onChatStart, onItemSelect, conversationId, onConversationChange, newChatTrigger, onFlightBook, onHotelBook, onLocationClick },
   ref,
 ) {
   const [input, setInput] = useState("")
-  const [isVoiceMode, setIsVoiceMode] = useState(false)
+  const textareaRef = useRef<HTMLTextAreaElement | null>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
-  const inputRef = useRef<HTMLInputElement>(null)
+  const lastConversationRef = useRef<string | null>(conversationId ?? null)
+  const newChatRef = useRef<number>(newChatTrigger ?? 0)
+  const router = useRouter()
+  const searchParams = useSearchParams()
   
   const { formatDateTime } = useDateFormatter()
   const { user } = useAuth()
@@ -49,80 +54,19 @@ export const ChatInterface = forwardRef<any, ChatInterfaceProps>(function ChatIn
     isLoading, 
     error, 
     sendMessage, 
-    clearMessages,
+    startNewConversation,
     suggestions,
     getSuggestions,
-    mode,
-    setMode
+    conversationId: activeConversationId,
   } = useAiChat({
     conversationId: conversationId ?? undefined,
     loadHistoryOnMount: true,
-    context: user?.id ? { userId: user.id } : undefined,
+    // Note: userId is automatically extracted from JWT token on backend
+    context: {},
     onError: (errorMsg) => {
       console.error('Chat error:', errorMsg);
     }
   })
-
-  // Use voice chat hook
-  const {
-    isConnected: voiceConnected,
-    isProcessing: voiceProcessing,
-    currentStage: voiceStage,
-    transcription: voiceTranscription,
-    response: voiceResponse,
-    results: voiceResults,
-    suggestions: voiceSuggestions,
-    error: voiceError,
-    connect: connectVoice,
-    disconnect: disconnectVoice,
-    sendAudio,
-    clearState: clearVoiceState,
-  } = useVoiceChat({
-    userId: user?.id,
-    conversationId: conversationId ?? undefined,
-    autoConnect: false,
-    onTranscription: (text) => {
-      console.log('📝 Transcription received:', text);
-    },
-    onResponse: (message, results) => {
-      console.log('💬 Voice response received:', message);
-      if (results && results.length > 0) {
-        onSearchResults(results, 'voice');
-      }
-    },
-    onError: (error) => {
-      console.error('❌ Voice error:', error);
-    },
-  });
-
-  // Use audio recorder hook
-  const {
-    isRecording,
-    isPaused,
-    duration: recordingDuration,
-    error: recorderError,
-    startRecording,
-    stopRecording,
-    resetRecording,
-    isSupported: audioSupported,
-  } = useAudioRecorder({
-    maxDuration: 60000, // 60 seconds
-    onRecordingComplete: async (audioBlob, audioUrl) => {
-      console.log('🎤 Recording complete:', {
-        size: audioBlob.size,
-        type: audioBlob.type
-      });
-      
-      try {
-        await sendAudio(audioBlob, audioBlob.type || 'audio/webm', 'vi');
-      } catch (error) {
-        console.error('❌ Failed to send audio:', error);
-      }
-    },
-    onError: (error) => {
-      console.error('❌ Recorder error:', error);
-    },
-  });
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })
@@ -132,26 +76,17 @@ export const ChatInterface = forwardRef<any, ChatInterfaceProps>(function ChatIn
     scrollToBottom()
   }, [messages])
 
-  // Get current suggestions from last message, voice chat, or default
+  // Get current suggestions from last message or default
   const currentSuggestions = React.useMemo(() => {
-    // Priority 1: Voice suggestions (if in voice mode)
-    if (isVoiceMode && voiceSuggestions && voiceSuggestions.length > 0) {
-      console.log('💡 Using voice suggestions:', voiceSuggestions);
-      return voiceSuggestions;
-    }
-    
-    // Priority 2: Last assistant message suggestions
+    // Priority 1: Last assistant message suggestions
     const lastAssistantMessage = [...messages].reverse().find(m => !m.isUser);
-    console.log('💡 Last assistant message:', lastAssistantMessage);
     if (lastAssistantMessage?.suggestions && lastAssistantMessage.suggestions.length > 0) {
-      console.log('💡 Using message suggestions:', lastAssistantMessage.suggestions);
       return lastAssistantMessage.suggestions;
     }
     
-    // Priority 3: Default suggestions
-    console.log('💡 Using default suggestions:', suggestions);
+    // Priority 2: Default suggestions
     return suggestions;
-  }, [isVoiceMode, voiceSuggestions, messages, suggestions]);
+  }, [messages, suggestions]);
 
   useEffect(() => {
     // Load suggestions on component mount
@@ -166,6 +101,14 @@ export const ChatInterface = forwardRef<any, ChatInterfaceProps>(function ChatIn
     },
   }))
 
+  useEffect(() => {
+    if (textareaRef.current) {
+      const el = textareaRef.current
+      el.style.height = "auto"
+      el.style.height = `${Math.min(el.scrollHeight, 320)}px`
+    }
+  }, [input])
+
   const handleSubmit = async (e?: React.FormEvent, promptText?: string) => {
     e?.preventDefault()
 
@@ -178,12 +121,67 @@ export const ChatInterface = forwardRef<any, ChatInterfaceProps>(function ChatIn
     await sendMessage(messageContent)
   }
 
+  const handleComposerKeyDown = (event: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (event.key === "Enter" && !event.shiftKey) {
+      event.preventDefault()
+      void handleSubmit(undefined, undefined)
+    }
+  }
+
   const handleSuggestionClick = async (suggestion: string) => {
     if (isLoading) return
     
     onChatStart()
     await sendMessage(suggestion)
   }
+
+  const syncConversationQuery = useCallback((nextId: string | null) => {
+    const current = searchParams.get("conversationId")
+    if (current === nextId || (!current && !nextId)) {
+      return
+    }
+
+    const params = new URLSearchParams(searchParams.toString())
+    params.set("tab", "chat")
+    params.delete("searchTab")
+    params.delete("new")
+
+    if (nextId) {
+      params.set("conversationId", nextId)
+    } else {
+      params.delete("conversationId")
+    }
+
+    router.replace(`/?${params.toString()}`, { scroll: false })
+  }, [router, searchParams])
+
+  const handleComposerNewConversation = useCallback(() => {
+    startNewConversation()
+    onConversationChange?.(null)
+    syncConversationQuery(null)
+    void getSuggestions()
+  }, [getSuggestions, onConversationChange, startNewConversation, syncConversationQuery])
+
+  useEffect(() => {
+    if (activeConversationId && activeConversationId !== lastConversationRef.current) {
+      lastConversationRef.current = activeConversationId
+      onConversationChange?.(activeConversationId)
+      syncConversationQuery(activeConversationId)
+    }
+
+    if (!activeConversationId && lastConversationRef.current !== null) {
+      lastConversationRef.current = null
+      onConversationChange?.(null)
+      syncConversationQuery(null)
+    }
+  }, [activeConversationId, onConversationChange, syncConversationQuery])
+
+  useEffect(() => {
+    if (newChatTrigger === undefined) return
+    if (newChatTrigger === newChatRef.current) return
+    newChatRef.current = newChatTrigger
+    handleComposerNewConversation()
+  }, [handleComposerNewConversation, newChatTrigger])
 
   const formatMessageTimestamp = (value: Date | string) => {
     let date: Date | null = null
@@ -213,73 +211,6 @@ export const ChatInterface = forwardRef<any, ChatInterfaceProps>(function ChatIn
     return formatDateTime(date.toISOString())
   }
 
-  // Handle voice mode toggle
-  const handleVoiceModeToggle = () => {
-    if (!user?.id) {
-      alert('Bạn cần đăng nhập để sử dụng trò chuyện bằng giọng nói.');
-      return;
-    }
-
-    if (!audioSupported) {
-      alert('Trình duyệt của bạn không hỗ trợ ghi âm');
-      return;
-    }
-
-    setIsVoiceMode((prev) => {
-      const newMode = !prev;
-      if (newMode) {
-        connectVoice();
-      } else {
-        disconnectVoice();
-        if (isRecording) {
-          resetRecording();
-        }
-      }
-      return newMode;
-    });
-  };
-
-  // Handle voice recording
-  const handleVoiceRecord = async () => {
-    if (!user?.id) {
-      alert('Bạn cần đăng nhập để sử dụng trò chuyện bằng giọng nói.');
-      return;
-    }
-
-    if (isRecording) {
-      await stopRecording();
-    } else {
-      clearVoiceState();
-      await startRecording();
-    }
-  };
-
-  // Get voice status text
-  const getVoiceStatusText = (): string => {
-    if (isRecording) return 'Đang ghi âm...';
-    if (voiceProcessing) {
-      switch (voiceStage) {
-        case 'transcription':
-          return 'Đang nhận dạng giọng nói...';
-        case 'processing':
-          return 'Đang xử lý yêu cầu...';
-        case 'response':
-          return 'Đang tạo phản hồi...';
-        default:
-          return 'Đang xử lý...';
-      }
-    }
-    return '';
-  };
-
-  // Format duration (MM:SS)
-  const formatRecordingDuration = (ms: number): string => {
-    const totalSeconds = Math.floor(ms / 1000);
-    const minutes = Math.floor(totalSeconds / 60);
-    const seconds = totalSeconds % 60;
-    return `${minutes}:${seconds.toString().padStart(2, '0')}`;
-  };
-
   return (
     <div className="flex flex-col h-full bg-white">
       {/* Header with trip info */}
@@ -299,36 +230,12 @@ export const ChatInterface = forwardRef<any, ChatInterfaceProps>(function ChatIn
           </Alert>
         )}
 
-        {/* Voice Response Display */}
-        {voiceResponse && (
-          <div className="space-y-3">
-            {voiceTranscription && (
-              <div className="flex justify-end">
-                <div className="bg-blue-600 text-white rounded-2xl px-4 py-2">
-                  <p className="text-sm whitespace-pre-wrap">{voiceTranscription}</p>
-                </div>
-              </div>
-            )}
-
-            <div className="flex justify-start">
-              <div className="bg-gray-100 rounded-2xl px-4 py-3 w-full">
-                <AiResponseRenderer
-                  message={voiceResponse}
-                  results={voiceResults || []}
-                  onFlightBook={onFlightBook}
-                  onHotelBook={onHotelBook}
-                  onLocationClick={onLocationClick}
-                  canBook={true}
-                />
-              </div>
-            </div>
-          </div>
-        )}
-
-        {messages.map((message) => {
+        {messages.map((message, index) => {
           const formattedTimestamp = formatMessageTimestamp(message.timestamp)
           const isUserMessage = message.isUser
-          const messageSuggestions = Array.isArray(message.suggestions) ? message.suggestions : []
+
+          const isLastMessage = index === messages.length - 1
+          const isCurrentlyStreaming = isLastMessage && !isUserMessage && isLoading
 
           return (
             <div key={message.id} className={`flex ${isUserMessage ? "justify-end" : "justify-start"}`}>
@@ -353,7 +260,7 @@ export const ChatInterface = forwardRef<any, ChatInterfaceProps>(function ChatIn
                       canBook={true}
                     />
 
-                    {formattedTimestamp && (
+                    {formattedTimestamp && (!isCurrentlyStreaming || message.content) && (
                       <div className="mt-3 text-xs text-gray-500 text-left">
                         {formattedTimestamp}
                       </div>
@@ -365,203 +272,106 @@ export const ChatInterface = forwardRef<any, ChatInterfaceProps>(function ChatIn
           )
         })}
 
-        {isLoading && (
-          <div className="flex justify-start">
-            <div className="bg-gray-100 rounded-2xl px-4 py-3 text-sm text-gray-700">
-              <div className="flex items-center gap-2">
-                <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"></div>
-                <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: "0.1s" }}></div>
-                <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: "0.2s" }}></div>
-              </div>
-            </div>
-          </div>
-        )}
-
         <div ref={messagesEndRef} />
       </div>
 
       {/* Message Input */}
       <div className="p-4 border-t border-gray-200 bg-white">
-        {/* Voice Status Bar */}
-        {(isRecording || voiceProcessing || voiceTranscription || voiceError || recorderError) && (
-          <div className="mb-3 p-3 rounded-lg bg-gray-50 border border-gray-200">
-            {/* Recording Status */}
-            {isRecording && (
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <div className="w-3 h-3 bg-red-500 rounded-full animate-pulse" />
-                  <span className="text-sm font-medium text-gray-700">
-                    {getVoiceStatusText()}
-                  </span>
-                </div>
-                <span className="text-sm text-gray-500 font-mono">
-                  {formatRecordingDuration(recordingDuration)}
-                </span>
-              </div>
+        <form
+          onSubmit={handleSubmit}
+          className="group/composer w-full space-y-3"
+          style={{ viewTransitionName: "composer" }}
+        >
+          <div
+            className={cn(
+              "grid grid-cols-[auto_1fr_auto]",
+              "bg-token-bg-primary shadow-short rounded-[28px] overflow-hidden bg-white",
+              "border border-gray-200",
+              "[grid-template-areas:'leading_primary_trailing']",
+              "focus-within:ring-2 focus-within:ring-blue-500 focus-within:border-blue-500"
             )}
-
-            {/* Processing Status */}
-            {voiceProcessing && (
-              <div className="flex items-center gap-2">
-                <Loader2 className="w-4 h-4 animate-spin text-blue-600" />
-                <span className="text-sm font-medium text-gray-700">
-                  {getVoiceStatusText()}
-                </span>
-              </div>
-            )}
-
-            {/* Transcription Display */}
-            {voiceTranscription && !voiceProcessing && (
-              <div className="space-y-1">
-                <div className="text-xs text-gray-500">Đã nhận dạng:</div>
-                <div className="text-sm text-gray-900 italic">
-                  "{voiceTranscription}"
-                </div>
-              </div>
-            )}
-
-            {/* Error Display */}
-            {(voiceError || recorderError) && (
-              <Alert variant="destructive" className="py-2">
-                <AlertCircle className="h-4 w-4" />
-                <AlertDescription className="text-xs">
-                  {voiceError || recorderError}
-                </AlertDescription>
-              </Alert>
-            )}
-          </div>
-        )}
-
-        {/* Chat Mode Toggle - Temporarily Hidden */}
-        {false && (
-          <div className="flex items-center justify-between px-4 py-2 bg-gray-50 rounded-lg border mb-4">
-            <span className="text-sm font-medium text-gray-700">Chế độ chat:</span>
-            <div className="flex items-center gap-2">
-              <Button
-                type="button"
-                variant={mode === 'sync' ? 'default' : 'ghost'}
-                size="sm"
-                onClick={() => setMode('sync')}
-                className="text-xs"
-              >
-                Đồng bộ
-              </Button>
-              <Button
-                type="button"
-                variant={mode === 'stream' ? 'default' : 'ghost'}
-                size="sm"
-                onClick={() => setMode('stream')}
-                className="text-xs"
-              >
-                Streaming
-              </Button>
-            </div>
-          </div>
-        )}
-
-        {/* Suggestions */}
-        {currentSuggestions.length > 0 && (
-          <div className="mb-3 px-4 py-2 bg-gray-50 rounded-lg border">
-            <div className="text-xs text-gray-500 font-medium mb-2">Gợi ý:</div>
-            <div className="flex flex-wrap gap-2">
-              {currentSuggestions.map((suggestion, index) => (
-                <Button
-                  key={`suggestion-${index}`}
-                  variant="outline"
-                  size="sm"
-                  className="text-xs h-7 rounded-full hover:bg-blue-50 hover:border-blue-300"
-                  onClick={() => handleSuggestionClick(suggestion)}
-                  disabled={isLoading || isRecording || voiceProcessing}
-                >
-                  {suggestion}
-                </Button>
-              ))}
-            </div>
-          </div>
-        )}
-
-        <form onSubmit={handleSubmit} className="flex items-center gap-3">
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon"
-            className="h-10 w-10 rounded-full hover:bg-gray-100"
-            onClick={clearMessages}
-            title="Xóa cuộc trò chuyện"
           >
-            <Plus className="h-5 w-5 text-gray-600" />
-          </Button>
+            <div className="flex items-center justify-center px-2 py-1 [grid-area:leading]">
+              <button
+                type="button"
+                className="composer-btn flex h-10 w-10 items-center justify-center rounded-full text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-700"
+                onClick={handleComposerNewConversation}
+                title="Bắt đầu cuộc trò chuyện mới"
+              >
+                <Plus className="h-5 w-5" />
+              </button>
+            </div>
 
-          {!isVoiceMode ? (
-            // Text Input Mode
-            <div className="flex-1 relative">
-              <Input
-                ref={inputRef}
-                value={input}
-                onChange={(e) => setInput(e.target.value)}
-                placeholder="Hỏi về địa điểm du lịch, khách sạn, chuyến bay..."
-                className="w-full rounded-full border-gray-300 pr-28 h-12 text-sm"
-                disabled={isLoading}
-              />
-              <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-2">
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
+            <div className="-my-2 flex min-h-14 items-center px-2 py-2 [grid-area:primary]">
+              <div className="flex-1">
+                <textarea
+                  ref={(el) => {
+                    textareaRef.current = el
+                  }}
+                  value={input}
+                  onChange={(event) => {
+                    setInput(event.target.value)
+                    event.target.style.height = "auto"
+                    event.target.style.height = `${Math.min(event.target.scrollHeight, 320)}px`
+                  }}
+                  onKeyDown={handleComposerKeyDown}
+                  placeholder="Hỏi về địa điểm du lịch, khách sạn, chuyến bay..."
+                  rows={1}
+                  disabled={isLoading}
                   className={cn(
-                    "h-8 w-8 rounded-full",
-                    audioSupported ? "hover:bg-gray-100" : "opacity-50 cursor-not-allowed"
+                    "w-full resize-none border-0 bg-transparent text-sm text-gray-800 placeholder:text-gray-400",
+                    "focus-visible:outline-none focus-visible:ring-0",
+                    "max-h-[320px] leading-6"
                   )}
-                  onClick={handleVoiceModeToggle}
-                  disabled={isLoading || !audioSupported}
-                  title={audioSupported ? "Chuyển sang chế độ voice" : "Trình duyệt không hỗ trợ"}
-                >
-                  <Mic className="h-4 w-4 text-gray-600" />
-                </Button>
-                <Button
-                  type="submit"
-                  variant="ghost"
-                  size="icon"
-                  className="h-8 w-8 rounded-full hover:bg-gray-100"
-                  disabled={isLoading || !input.trim()}
-                >
-                  <Send className="h-4 w-4 text-gray-600" />
-                </Button>
+                />
               </div>
             </div>
-          ) : (
-            // Voice Input Mode
-            <div className="flex-1 flex items-center justify-center gap-4">
-              <Button
-                type="button"
-                variant={isRecording ? "destructive" : "default"}
-                size="lg"
-                className={cn(
-                  "h-14 w-14 rounded-full transition-all",
-                  isRecording && "animate-pulse"
-                )}
-                onClick={handleVoiceRecord}
-                disabled={voiceProcessing || !voiceConnected}
-              >
-                <Mic className="h-6 w-6" />
-              </Button>
-              
+
+            <div className="flex items-center gap-1 pr-3 [grid-area:trailing]">
               <Button
                 type="button"
                 variant="ghost"
                 size="icon"
-                className="h-8 w-8 rounded-full hover:bg-gray-100"
-                onClick={handleVoiceModeToggle}
-                title="Chuyển về chế độ text"
+                className="composer-btn h-9 w-9 rounded-full text-gray-500 hover:text-gray-700 hover:bg-gray-100"
+                disabled
+                title="Voice input (coming soon)"
               >
-                <MicOff className="h-4 w-4 text-gray-600" />
+                <Mic className="h-4 w-4" />
               </Button>
+              <Button
+                type="submit"
+                variant="ghost"
+                size="icon"
+                className={cn(
+                  "composer-btn ml-1 flex h-9 w-9 items-center justify-center rounded-full",
+                  !input.trim() || isLoading
+                    ? "text-gray-400"
+                    : "bg-blue-500 text-white hover:bg-blue-600"
+                )}
+                disabled={isLoading || !input.trim()}
+              >
+                <Send className="h-4 w-4" />
+              </Button>
+            </div>
+          </div>
 
-              {!voiceConnected && (
-                <span className="text-xs text-orange-600">
-                  Đang kết nối...
-                </span>
-              )}
+          {currentSuggestions.length > 0 && (
+            <div className="grid [grid-area:footer]">
+              <div className="flex flex-wrap items-center gap-2 rounded-lg border border-gray-200 bg-gray-50 px-4 py-2">
+                <span className="text-xs font-medium text-gray-500">Gợi ý:</span>
+                {currentSuggestions.map((suggestion, index) => (
+                  <Button
+                    key={`suggestion-${index}`}
+                    variant="secondary"
+                    size="sm"
+                    className="h-7 rounded-full bg-white text-xs text-gray-600 hover:bg-blue-50 hover:text-blue-600"
+                    onClick={() => handleSuggestionClick(suggestion)}
+                    disabled={isLoading}
+                  >
+                    {suggestion}
+                  </Button>
+                ))}
+              </div>
             </div>
           )}
         </form>

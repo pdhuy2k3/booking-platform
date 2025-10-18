@@ -8,6 +8,9 @@ import PaymentSummary from './PaymentSummary'
 import { Button } from '@/components/ui/button'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { ArrowLeft, CreditCard, Wallet } from 'lucide-react'
+import { Alert, AlertDescription } from '@/components/ui/alert'
+import { bookingService } from '@/modules/booking/service'
+import type { PaymentMethodResponse } from '../service/payment-method'
 
 interface PaymentPageProps {
   bookingId: string
@@ -33,20 +36,47 @@ export const PaymentPage: React.FC<PaymentPageProps> = ({
   className,
 }) => {
   const [selectedMethodId, setSelectedMethodId] = useState<string | undefined>(undefined)
+  const [selectedMethod, setSelectedMethod] = useState<PaymentMethodResponse | null>(null)
   const [activeTab, setActiveTab] = useState<'new' | 'saved'>('new')
   const [showPaymentForm, setShowPaymentForm] = useState(false)
+  const [isInitiatingPayment, setIsInitiatingPayment] = useState(false)
+  const [initError, setInitError] = useState<string | null>(null)
 
-  const handleSelectMethod = (methodId: string | null) => {
-    setSelectedMethodId(methodId || undefined)
-    if (methodId) {
+  const handleSelectMethod = (method: PaymentMethodResponse | null) => {
+    setSelectedMethod(method)
+    setSelectedMethodId(method?.methodId)
+    if (method) {
       setActiveTab('saved')
     }
   }
 
-  const handleAddNewMethod = () => {
-    setActiveTab('new')
-    setSelectedMethodId(undefined)
-    setShowPaymentForm(true)
+  const initiatePayment = async (paymentMethodId?: string) => {
+    try {
+      setInitError(null)
+      setIsInitiatingPayment(true)
+      await bookingService.requestPaymentInitiation(
+        bookingId,
+        paymentMethodId ? { paymentMethodId } : undefined
+      )
+    } catch (error: any) {
+      const message = error?.message || 'Unable to prepare payment. Please try again.'
+      setInitError(message)
+      throw error
+    } finally {
+      setIsInitiatingPayment(false)
+    }
+  }
+
+  const handleAddNewMethod = async () => {
+    try {
+      await initiatePayment()
+      setActiveTab('new')
+      setSelectedMethodId(undefined)
+      setSelectedMethod(null)
+      setShowPaymentForm(true)
+    } catch {
+      // error handled via initError state
+    }
   }
 
   const handlePaymentSuccess = (paymentIntent: any) => {
@@ -76,6 +106,10 @@ export const PaymentPage: React.FC<PaymentPageProps> = ({
 
   const fees = calculateFees(amount)
   const totalAmount = amount + fees
+  const paymentMetadata = {
+    baseAmount: amount,
+    feeAmount: fees,
+  }
 
   if (showPaymentForm) {
     return (
@@ -91,14 +125,18 @@ export const PaymentPage: React.FC<PaymentPageProps> = ({
           </Button>
         </div>
 
-        <StripeProvider amount={amount} currency={currency}>
+        <StripeProvider amount={totalAmount} currency={currency}>
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             <StripePaymentForm
               bookingId={bookingId}
               sagaId={sagaId}
               amount={amount}
+              chargeAmount={totalAmount}
+              feeAmount={fees}
+              metadata={paymentMetadata}
               currency={currency}
               description={description}
+              savedPaymentMethod={selectedMethod ?? undefined}
               onSuccess={handlePaymentSuccess}
               onError={handlePaymentError}
               onCancel={handleBack}
@@ -148,7 +186,7 @@ export const PaymentPage: React.FC<PaymentPageProps> = ({
               <PaymentMethodSelector
                 selectedMethodId={selectedMethodId}
                 onSelectMethod={handleSelectMethod}
-                onAddNewMethod={handleAddNewMethod}
+                onAddNewMethod={() => { void handleAddNewMethod(); }}
               />
               
               {selectedMethodId && (
@@ -160,10 +198,19 @@ export const PaymentPage: React.FC<PaymentPageProps> = ({
                   </div>
                   
                   <Button
-                    onClick={() => setShowPaymentForm(true)}
+                    disabled={!selectedMethodId || isInitiatingPayment}
+                    onClick={async () => {
+                      if (!selectedMethodId) return
+                      try {
+                        await initiatePayment(selectedMethodId)
+                        setShowPaymentForm(true)
+                      } catch {
+                        // handled via initError
+                      }
+                    }}
                     className="w-full"
                   >
-                    Continue with Selected Method
+                    {isInitiatingPayment ? 'Preparing payment...' : 'Continue with Selected Method'}
                   </Button>
                 </div>
               )}
@@ -176,12 +223,21 @@ export const PaymentPage: React.FC<PaymentPageProps> = ({
                 <p className="text-gray-600 mb-4">
                   Enter your payment details securely
                 </p>
-                <Button onClick={handleAddNewMethod}>
-                  Add Payment Method
+                <Button
+                  onClick={() => { void handleAddNewMethod(); }}
+                  disabled={isInitiatingPayment}
+                >
+                  {isInitiatingPayment ? 'Preparing payment...' : 'Add Payment Method'}
                 </Button>
               </div>
             </TabsContent>
           </Tabs>
+
+          {initError && (
+            <Alert variant="destructive">
+              <AlertDescription>{initError}</AlertDescription>
+            </Alert>
+          )}
         </div>
         
         <PaymentSummary

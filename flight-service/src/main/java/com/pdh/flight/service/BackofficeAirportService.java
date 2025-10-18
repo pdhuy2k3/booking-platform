@@ -33,7 +33,6 @@ public class BackofficeAirportService {
     private final AirportRepository airportRepository;
     private final FlightRepository flightRepository;
     private final AirportMapper airportMapper;
-    private final MediaServiceClient mediaServiceClient;
 
     /**
      * Get all airports with pagination and filtering
@@ -113,15 +112,11 @@ public class BackofficeAirportService {
         Airport airport = airportMapper.toEntity(requestDto);
         Airport savedAirport = airportRepository.save(airport);
 
-        // Associate media if provided
-        if (requestDto.getMediaPublicIds() != null && !requestDto.getMediaPublicIds().isEmpty()) {
-            try {
-                mediaServiceClient.associateMediaWithEntity("AIRPORT", savedAirport.getAirportId(), requestDto.getMediaPublicIds());
-                log.info("Associated {} media items with airport ID: {}", requestDto.getMediaPublicIds().size(), savedAirport.getAirportId());
-            } catch (Exception e) {
-                log.error("Failed to associate media with airport ID: {}. Error: {}", savedAirport.getAirportId(), e.getMessage());
-                // Continue without failing the airport creation
-            }
+        // Set featured media URL if provided
+        if (requestDto.getFeaturedMediaUrl() != null && !requestDto.getFeaturedMediaUrl().isEmpty()) {
+            savedAirport.setFeaturedMediaUrl(requestDto.getFeaturedMediaUrl());
+            savedAirport = airportRepository.save(savedAirport); // Save the updated airport with featured media URL
+            log.info("Set featured media URL for airport ID: {}", savedAirport.getAirportId());
         }
 
         AirportDto response = airportMapper.toDto(savedAirport);
@@ -152,15 +147,11 @@ public class BackofficeAirportService {
         airportMapper.updateEntityFromRequest(airport, requestDto);
         Airport updatedAirport = airportRepository.save(airport);
 
-        // Associate media if provided
-        if (requestDto.getMediaPublicIds() != null && !requestDto.getMediaPublicIds().isEmpty()) {
-            try {
-                mediaServiceClient.associateMediaWithEntity("AIRPORT", updatedAirport.getAirportId(), requestDto.getMediaPublicIds());
-                log.info("Associated {} media items with airport ID: {}", requestDto.getMediaPublicIds().size(), updatedAirport.getAirportId());
-            } catch (Exception e) {
-                log.error("Failed to associate media with airport ID: {}. Error: {}", updatedAirport.getAirportId(), e.getMessage());
-                // Continue without failing the airport update
-            }
+        // Update featured media URL if provided
+        if (requestDto.getFeaturedMediaUrl() != null) {
+            updatedAirport.setFeaturedMediaUrl(requestDto.getFeaturedMediaUrl());
+            updatedAirport = airportRepository.save(updatedAirport); // Save the updated airport with featured media URL
+            log.info("Updated featured media URL for airport ID: {}", updatedAirport.getAirportId());
         }
 
         AirportDto response = airportMapper.toDto(updatedAirport);

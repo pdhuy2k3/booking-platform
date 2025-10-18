@@ -81,8 +81,7 @@ public class OpenApiConfig {
     private List<Server> createServers() {
         return Arrays.asList(
                 new Server().url("http://localhost:8080").description("Local Development Server"),
-                new Server().url("https://api.bookingsmart.dev").description("Development Server"),
-                new Server().url("https://api.bookingsmart.com").description("Production Server")
+                new Server().url("https://api-bookingsmart.huypd.dev").description("Production Server")
         );
     }
 

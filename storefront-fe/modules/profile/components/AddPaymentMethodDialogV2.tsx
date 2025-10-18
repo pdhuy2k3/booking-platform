@@ -148,40 +148,40 @@ export function AddPaymentMethodDialogV2({ open, onOpenChange, onSuccess }: AddP
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[550px]">
+      <DialogContent className="sm:max-w-[550px] max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Add Payment Method</DialogTitle>
+          <DialogTitle>Thêm phương thức thanh toán</DialogTitle>
           <DialogDescription>
-            Add a new payment method to your account. Supports cards, Apple Pay, and Google Pay.
+            Thêm phương thức thanh toán mới vào tài khoản của bạn. Hỗ trợ thẻ, Apple Pay và Google Pay.
           </DialogDescription>
         </DialogHeader>
 
         <Alert>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1">
             <CreditCard className="h-4 w-4" />
             <Smartphone className="h-4 w-4" />
           </div>
           <AlertDescription>
-            <strong>Apple Pay & Google Pay:</strong> Available when using Safari/Chrome on supported devices.
+            <strong>Apple Pay & Google Pay:</strong> Khả dụng khi sử dụng Safari/Chrome trên các thiết bị được hỗ trợ.
             <br />
-            <strong>Test Card:</strong> 4242 4242 4242 4242, any future expiry, any CVC.
+            <strong>Thẻ thử nghiệm:</strong> 4242 4242 4242 4242, ngày hết hạn bất kỳ trong tương lai, CVC bất kỳ.
           </AlertDescription>
         </Alert>
 
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div className="space-y-2">
-            <Label htmlFor="displayName">Display Name *</Label>
+        <form onSubmit={handleSubmit} className="space-y-3">
+          <div className="space-y-1">
+            <Label htmlFor="displayName">Tên hiển thị *</Label>
             <Input
               id="displayName"
-              placeholder="My Credit Card"
+              placeholder="Thẻ tín dụng của tôi"
               value={displayName}
               onChange={(e) => setDisplayName(e.target.value)}
               required
             />
           </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="cardHolderName">Cardholder Name</Label>
+          <div className="space-y-1">
+            <Label htmlFor="cardHolderName">Tên chủ thẻ</Label>
             <Input
               id="cardHolderName"
               placeholder="John Doe"
@@ -190,8 +190,8 @@ export function AddPaymentMethodDialogV2({ open, onOpenChange, onSuccess }: AddP
             />
           </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="cardHolderEmail">Cardholder Email</Label>
+          <div className="space-y-1">
+            <Label htmlFor="cardHolderEmail">Email chủ thẻ</Label>
             <Input
               id="cardHolderEmail"
               type="email"
@@ -201,9 +201,9 @@ export function AddPaymentMethodDialogV2({ open, onOpenChange, onSuccess }: AddP
             />
           </div>
 
-          <div className="space-y-2">
-            <Label>Payment Details *</Label>
-            <div className="border rounded-md p-3 bg-white">
+          <div className="space-y-1">
+            <Label>Chi tiết thanh toán *</Label>
+            <div className="border rounded-md p-2 bg-white">
               <PaymentElement
                 options={{
                   layout: {
@@ -227,7 +227,7 @@ export function AddPaymentMethodDialogV2({ open, onOpenChange, onSuccess }: AddP
               />
             </div>
             <p className="text-xs text-gray-500">
-              Choose your payment method. Apple Pay and Google Pay will appear automatically if available on your device.
+              Chọn phương thức thanh toán của bạn. Apple Pay và Google Pay sẽ tự động xuất hiện nếu có sẵn trên thiết bị của bạn.
             </p>
           </div>
 
@@ -240,18 +240,18 @@ export function AddPaymentMethodDialogV2({ open, onOpenChange, onSuccess }: AddP
               className="rounded border-gray-300"
             />
             <Label htmlFor="setAsDefault" className="cursor-pointer font-normal">
-              Set as default payment method
+              Đặt làm phương thức thanh toán mặc định
             </Label>
           </div>
 
-          <div className="flex justify-end gap-2 pt-4">
+          <div className="flex justify-end gap-2 pt-2">
             <Button
               type="button"
               variant="outline"
               onClick={handleCancel}
               disabled={isProcessing}
             >
-              Cancel
+              Hủy
             </Button>
             <Button
               type="submit"
@@ -261,10 +261,10 @@ export function AddPaymentMethodDialogV2({ open, onOpenChange, onSuccess }: AddP
               {isProcessing ? (
                 <>
                   <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                  Processing...
+                  Đang xử lý...
                 </>
               ) : (
-                'Add Payment Method'
+                'Thêm phương thức thanh toán'
               )}
             </Button>
           </div>

@@ -71,12 +71,10 @@ public class StripePaymentStrategy implements PaymentStrategy {
             // Check if this is an off-session payment with stored payment method
             boolean isOffSession = additionalData != null && 
                                    Boolean.TRUE.equals(additionalData.get("offSession"));
-            
-            // Check if payment method has stored Stripe payment method ID
-            boolean hasStoredPaymentMethod = paymentMethod.getProviderData() != null && 
-                                             !paymentMethod.getProviderData().isEmpty() &&
-                                             paymentMethod.getProviderData().startsWith("pm_");
-            
+
+            String storedPaymentMethodId = resolvePaymentMethodId(paymentMethod, additionalData);
+            boolean hasStoredPaymentMethod = storedPaymentMethodId != null && !storedPaymentMethodId.isEmpty();
+
             if (isOffSession || hasStoredPaymentMethod) {
                 // Server-side off-session payment with stored payment method
                 log.info("Processing off-session payment with stored payment method for payment: {}", 
@@ -312,8 +310,8 @@ public class StripePaymentStrategy implements PaymentStrategy {
 
         long amountInMinorUnits = toStripeAmount(payment.getAmount(), currency);
 
-        // Get stored Stripe payment method ID from providerData
-        String stripePaymentMethodId = paymentMethod.getProviderData();
+        // Get stored Stripe payment method ID
+        String stripePaymentMethodId = resolvePaymentMethodId(paymentMethod, additionalData);
         if (stripePaymentMethodId == null || stripePaymentMethodId.isEmpty()) {
             throw new IllegalStateException("Payment method does not have Stripe payment method ID stored");
         }
@@ -343,16 +341,13 @@ public class StripePaymentStrategy implements PaymentStrategy {
         paramsBuilder.putAllMetadata(metadata);
 
         // Add customer email if available
-        if (additionalData != null) {
-            if (additionalData.containsKey("customer_email")) {
-                paramsBuilder.setReceiptEmail((String) additionalData.get("customer_email"));
-            }
-            
-            // Extract customer ID from providerData if available
-            String customerId = extractCustomerId(paymentMethod.getProviderData());
-            if (customerId != null) {
-                paramsBuilder.setCustomer(customerId);
-            }
+        if (additionalData != null && additionalData.containsKey("customer_email")) {
+            paramsBuilder.setReceiptEmail((String) additionalData.get("customer_email"));
+        }
+
+        String customerId = resolveCustomerId(paymentMethod, additionalData);
+        if (customerId != null) {
+            paramsBuilder.setCustomer(customerId);
         }
 
         log.info("Creating off-session payment intent for payment {} with stored payment method {}", 
@@ -380,18 +375,112 @@ public class StripePaymentStrategy implements PaymentStrategy {
     }
 
     /**
+     * Resolve the Stripe customer ID using additional tool data or stored provider metadata.
+     */
+    private String resolveCustomerId(PaymentMethod paymentMethod, Map<String, Object> additionalData) {
+        if (additionalData != null) {
+            Object provided = additionalData.get("stripeCustomerId");
+            if (provided instanceof String providedCustomer) {
+                String trimmed = providedCustomer.trim();
+                if (!trimmed.isEmpty()) {
+                    return trimmed;
+                }
+            }
+        }
+        return extractCustomerId(paymentMethod.getProviderData());
+    }
+
+    /**
+     * Resolve the Stripe payment method ID using tool overrides, tokens, or provider metadata.
+     */
+    private String resolvePaymentMethodId(PaymentMethod paymentMethod, Map<String, Object> additionalData) {
+        if (additionalData != null) {
+            Object provided = additionalData.get("stripePaymentMethodId");
+            if (provided instanceof String providedId) {
+                String sanitized = sanitizePaymentMethodId(providedId);
+                if (sanitized != null) {
+                    return sanitized;
+                }
+            }
+        }
+
+        if (paymentMethod.getToken() != null) {
+            String sanitizedToken = sanitizePaymentMethodId(paymentMethod.getToken());
+            if (sanitizedToken != null) {
+                return sanitizedToken;
+            }
+        }
+
+        if (paymentMethod.getProviderData() != null) {
+            String sanitizedProviderData = sanitizePaymentMethodId(paymentMethod.getProviderData());
+            if (sanitizedProviderData != null) {
+                return sanitizedProviderData;
+            }
+        }
+
+        return null;
+    }
+
+    private String sanitizePaymentMethodId(String rawValue) {
+        if (rawValue == null) {
+            return null;
+        }
+
+        String trimmed = rawValue.trim();
+        if (trimmed.isEmpty()) {
+            return null;
+        }
+
+        if (trimmed.startsWith("pm_")) {
+            int separatorIndex = findSeparatorIndex(trimmed);
+            return separatorIndex > 0 ? trimmed.substring(0, separatorIndex) : trimmed;
+        }
+
+        String[] segments = trimmed.split("[;,\\s]");
+        for (String segment : segments) {
+            String candidate = segment.trim();
+            if (candidate.startsWith("pm_")) {
+                return candidate;
+            }
+        }
+
+        return null;
+    }
+
+    private int findSeparatorIndex(String value) {
+        int end = value.length();
+        int semicolon = value.indexOf(';');
+        if (semicolon > 0 && semicolon < end) {
+            end = semicolon;
+        }
+        int comma = value.indexOf(',');
+        if (comma > 0 && comma < end) {
+            end = comma;
+        }
+        int space = value.indexOf(' ');
+        if (space > 0 && space < end) {
+            end = space;
+        }
+        return end;
+    }
+
+    /**
      * Extract Stripe customer ID from providerData string
      * ProviderData format: "pm_abc123;customerId=cus_xyz789" or just "pm_abc123"
      */
     private String extractCustomerId(String providerData) {
-        if (providerData == null || !providerData.contains("customerId=")) {
+        if (providerData == null || providerData.isBlank()) {
             return null;
         }
-        
-        String[] parts = providerData.split(";");
+
+        String[] parts = providerData.split("[;,]");
         for (String part : parts) {
-            if (part.startsWith("customerId=")) {
-                return part.substring("customerId=".length());
+            String value = part.trim();
+            if (value.startsWith("customerId=")) {
+                return value.substring("customerId=".length()).trim();
+            }
+            if (value.startsWith("stripeCustomerId=")) {
+                return value.substring("stripeCustomerId=".length()).trim();
             }
         }
         return null;
@@ -440,8 +529,28 @@ public class StripePaymentStrategy implements PaymentStrategy {
         }
         paramsBuilder.putAllMetadata(metadata);
 
-        if (request.getCustomerId() != null && !request.getCustomerId().isBlank()) {
-            paramsBuilder.setCustomer(request.getCustomerId());
+        // Handle customer information - ensure we have a customer ID if possible to prevent payment method reuse issues
+        String customerId = request.getCustomerId();
+        if (customerId == null || customerId.isBlank()) {
+            // If no customer ID is provided, try to get from additional data or create one
+            String customerEmail = request.getCustomerEmail();
+            if (customerEmail == null && additionalData != null) {
+                customerEmail = (String) additionalData.get("customer_email");
+            }
+
+            if (customerEmail != null) {
+                customerId = getOrCreateCustomer(customerEmail,
+                    request.getCustomerName() != null ? request.getCustomerName() :
+                    additionalData != null ? (String) additionalData.get("customer_name") : null);
+            }
+        }
+
+        // Always attach customer and set setup_future_usage if a customer is available.
+        // This ensures consistency with the frontend Elements provider.
+        // The decision to actually save the payment method in our DB is handled separately after payment success.
+        if (customerId != null && !customerId.isBlank()) {
+            paramsBuilder.setCustomer(customerId);
+            paramsBuilder.setSetupFutureUsage(PaymentIntentCreateParams.SetupFutureUsage.ON_SESSION);
         }
 
         if (additionalData != null) {
@@ -678,6 +787,43 @@ public class StripePaymentStrategy implements PaymentStrategy {
             case AFTERPAY -> "afterpay_clearpay";
             case CASH_ON_DELIVERY, GIFT_CARD, OTHER -> "card";
         };
+    }
+
+    /**
+     * Helper method to get or create a Stripe customer based on email
+     */
+    private String getOrCreateCustomer(String email, String name) {
+        try {
+            // Try to find customer by email first
+            com.stripe.model.Customer retrievedCustomer = com.stripe.model.Customer.list(
+                com.stripe.param.CustomerListParams.builder()
+                    .setEmail(email)
+                    .setLimit(1L)
+                    .build()
+            ).getData().stream().findFirst().orElse(null);
+            
+            if (retrievedCustomer != null) {
+                return retrievedCustomer.getId();
+            }
+            
+            // Create a new customer if not found
+            com.stripe.param.CustomerCreateParams.Builder customerParamsBuilder = com.stripe.param.CustomerCreateParams.builder()
+                .setEmail(email);
+
+            if (name != null && !name.isBlank()) {
+                customerParamsBuilder.setName(name);
+            }
+            
+            com.stripe.model.Customer newCustomer = com.stripe.model.Customer.create(
+                customerParamsBuilder.build()
+            );
+            
+            return newCustomer.getId();
+            
+        } catch (StripeException e) {
+            log.warn("Failed to get or create customer for email: {}", email, e);
+            return null; // Return null if customer creation fails
+        }
     }
 
     /**

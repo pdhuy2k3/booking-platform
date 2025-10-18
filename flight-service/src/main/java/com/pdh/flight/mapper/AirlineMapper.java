@@ -1,6 +1,6 @@
 package com.pdh.flight.mapper;
 
-import com.pdh.flight.client.MediaServiceClient;
+
 import com.pdh.flight.constant.ImageTypes;
 import com.pdh.flight.dto.request.AirlineRequestDto;
 import com.pdh.flight.dto.response.AirlineDto;
@@ -24,7 +24,7 @@ import java.time.ZonedDateTime;
 @Slf4j
 public class AirlineMapper {
 
-    private final MediaServiceClient mediaServiceClient;
+
 
     /**
      * Convert Airline entity to AirlineDto (basic response)
@@ -39,6 +39,7 @@ public class AirlineMapper {
                 .name(airline.getName())
                 .iataCode(airline.getIataCode())
                 .isActive(airline.getIsActive())
+                .featuredMediaUrl(airline.getFeaturedMediaUrl()) // Map the media URL directly
                 .createdAt(convertToLocalDateTime(airline.getCreatedAt()))
                 .createdBy(airline.getCreatedBy())
                 .updatedAt(convertToLocalDateTime(airline.getUpdatedAt()))
@@ -61,23 +62,10 @@ public class AirlineMapper {
         dto.setTotalFlights(totalFlights);
         dto.setActiveFlights(activeFlights);
         
-        // Fetch and set media
-        try {
-            List<Map<String, Object>> mediaList = mediaServiceClient.getMediaByEntity(
-                    ImageTypes.ENTITY_TYPE_AIRLINE, 
-                    airline.getAirlineId()
-            );
-            
-            List<String> imagePublicIds = mediaList.stream()
-                    .map(media -> (String) media.get("publicId"))
-                    .filter(Objects::nonNull)
-                    .collect(Collectors.toList());
-                    
-            dto.setImages(imagePublicIds);
-        } catch (Exception e) {
-            log.warn("Failed to fetch media for airline {}: {}", airline.getAirlineId(), e.getMessage());
-            dto.setImages(Collections.emptyList());
-        }
+        // Media is now handled in the entity - we'll set it from the featured media URL
+        // In the future, if full media lists are needed, they should be loaded separately
+        // For now, we'll just return an empty list as the media handling has changed
+        dto.setImages(Collections.emptyList());
 
         return dto;
     }
@@ -103,39 +91,13 @@ public class AirlineMapper {
             return Collections.emptyList();
         }
 
-        // Batch fetch media for all airlines
-        List<Long> airlineIds = airlines.stream()
-                .map(Airline::getAirlineId)
-                .collect(Collectors.toList());
-
-        Map<Long, List<Map<String, Object>>> mediaMap = Collections.emptyMap();
-        try {
-            mediaMap = mediaServiceClient.getMediaForEntities(
-                    ImageTypes.ENTITY_TYPE_AIRLINE, 
-                    airlineIds
-            );
-        } catch (Exception e) {
-            log.warn("Failed to batch fetch media for airlines: {}", e.getMessage());
-        }
-
-        // Convert to DTOs with media
-        final Map<Long, List<Map<String, Object>>> finalMediaMap = mediaMap;
+        // Convert to DTOs - media is no longer fetched through the media service client
+        // In the future, if full media lists are needed, they should be loaded separately
         return airlines.stream()
                 .map(airline -> {
                     AirlineDto dto = toDto(airline);
-                    
-                    // Set media if available
-                    List<Map<String, Object>> airlineMedia = finalMediaMap.get(airline.getAirlineId());
-                    if (airlineMedia != null) {
-                        List<String> imagePublicIds = airlineMedia.stream()
-                                .map(media -> (String) media.get("publicId"))
-                                .filter(Objects::nonNull)
-                                .collect(Collectors.toList());
-                        dto.setImages(imagePublicIds);
-                    } else {
-                        dto.setImages(Collections.emptyList());
-                    }
-                    
+                    // Set empty list for now since media handling has changed
+                    dto.setImages(Collections.emptyList());
                     return dto;
                 })
                 .collect(Collectors.toList());
@@ -156,6 +118,10 @@ public class AirlineMapper {
         if (StringUtils.hasText(requestDto.getCode())) {
             airline.setIataCode(requestDto.getCode().toUpperCase());
         }
+        
+        if (requestDto.getFeaturedMediaUrl() != null) {
+            airline.setFeaturedMediaUrl(requestDto.getFeaturedMediaUrl());
+        }
     }
 
     /**
@@ -170,6 +136,7 @@ public class AirlineMapper {
         airline.setName(requestDto.getName());
         airline.setIataCode(requestDto.getCode().toUpperCase());
         airline.setIsActive(true);
+        airline.setFeaturedMediaUrl(requestDto.getFeaturedMediaUrl());
         
         return airline;
     }

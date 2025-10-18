@@ -38,6 +38,9 @@ public class Flight extends AbstractAuditEntity {
     @Column(name = "base_price", precision = 10, scale = 2)
     private BigDecimal basePrice;
 
+    @Column(name = "featured_media_url", length = 500)
+    private String featuredMediaUrl;
+
     // Reference entities with proper JPA mapping
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "airline_id", nullable = false)

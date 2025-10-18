@@ -1,6 +1,8 @@
 package com.pdh.hotel.client;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import com.pdh.common.utils.AuthenticationUtils;
+
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.cloud.client.discovery.DiscoveryClient;
 import org.springframework.cloud.client.loadbalancer.LoadBalanced;
@@ -35,15 +37,17 @@ public class MediaServiceClient {
     public List<Long> convertPublicIdsToMediaIds(List<String> publicIds) {
         try {
             log.info("Converting {} public IDs to media IDs", publicIds.size());
-            
+
             Map<String, List<String>> requestBody = Map.of("publicIds", publicIds);
-            
+
             ResponseEntity<JsonNode> response = restClient.post()
                     .uri(MEDIA_SERVICE_URL + MANAGEMENT_BASE_PATH + "/convert-public-ids")
                     .body(requestBody)
+                    .headers(h -> h.setBearerAuth(AuthenticationUtils.extractJwt()))
+
                     .retrieve()
                     .toEntity(JsonNode.class);
-            
+
             JsonNode responseBody = response.getBody();
             if (responseBody != null && responseBody.has("data")) {
                 JsonNode dataNode = responseBody.get("data");
@@ -53,7 +57,7 @@ public class MediaServiceClient {
                             .toList();
                 }
             }
-            
+
             log.warn("Failed to convert public IDs to media IDs, returning empty list");
             return List.of();
         } catch (Exception e) {
@@ -68,13 +72,15 @@ public class MediaServiceClient {
     public List<JsonNode> getMediaByIds(List<Long> mediaIds) {
         try {
             log.info("Getting media details for {} media IDs", mediaIds.size());
-            
+
             ResponseEntity<JsonNode> response = restClient.post()
                     .uri(MEDIA_SERVICE_URL + MANAGEMENT_BASE_PATH + "/convert-media-ids")
                     .body(mediaIds)
+                    .headers(h -> h.setBearerAuth(AuthenticationUtils.extractJwt()))
+
                     .retrieve()
                     .toEntity(JsonNode.class);
-            
+
             JsonNode responseBody = response.getBody();
             if (responseBody != null && responseBody.has("data")) {
                 JsonNode dataNode = responseBody.get("data");
@@ -82,7 +88,7 @@ public class MediaServiceClient {
                     return dataNode.findValues("data");
                 }
             }
-            
+
             log.warn("Failed to get media details, returning empty list");
             return List.of();
         } catch (Exception e) {

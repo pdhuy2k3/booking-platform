@@ -20,6 +20,9 @@ interface HotelFormData {
   city: string
   country: string
   starRating: number
+  latitude?: number
+  longitude?: number
+  media?: MediaResponse[]
 }
 
 const initialHotelForm: HotelFormData = {
@@ -29,6 +32,8 @@ const initialHotelForm: HotelFormData = {
   city: "",
   country: "Việt Nam",
   starRating: 3,
+  latitude: undefined,
+  longitude: undefined,
 }
 
 export default function AdminHotels() {

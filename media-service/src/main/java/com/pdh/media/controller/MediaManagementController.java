@@ -65,6 +65,36 @@ public class MediaManagementController {
         }
     }
 
+    @PostMapping(value = "/upload-url")
+    @Operation(summary = "Upload media from URL", description = "Upload media from a public URL and save metadata to database")
+    @ApiResponses(value = {
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "Media uploaded successfully"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400", description = "Invalid URL"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "500", description = "Upload failed")
+    })
+    public ResponseEntity<ApiResponse<MediaDto>> uploadMediaFromUrl(
+            @Parameter(description = "Public URL of media to upload", required = true)
+            @RequestParam("url") String url,
+            
+            @Parameter(description = "Folder path in Cloudinary")
+            @RequestParam(value = "folder", required = false) String folder
+    ) {
+        try {
+            if (url == null || url.isEmpty()) {
+                return ResponseEntity.badRequest()
+                        .body(ApiResponse.error("URL is required", "EMPTY_URL"));
+            }
+
+            MediaDto mediaDto = mediaService.uploadMediaFromUrl(url, folder);
+            return ResponseEntity.ok(ApiResponse.success(mediaDto));
+
+        } catch (Exception e) {
+            log.error("Error uploading media from URL", e);
+            return ResponseEntity.internalServerError()
+                    .body(ApiResponse.error("Upload failed: " + e.getMessage(), "UPLOAD_FAILED"));
+        }
+    }
+    
     @PostMapping(value = "/upload/multiple", consumes = {"multipart/form-data"})
     @Operation(summary = "Upload multiple media files", description = "Upload multiple media files and save metadata to database")
     public ResponseEntity<ApiResponse<List<MediaDto>>> uploadMultipleMedia(

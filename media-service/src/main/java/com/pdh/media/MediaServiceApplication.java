@@ -6,7 +6,7 @@ import org.springframework.boot.autoconfigure.domain.EntityScan;
 import org.springframework.cloud.client.discovery.EnableDiscoveryClient;
 import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
 
-@SpringBootApplication(scanBasePackages = { "com.pdh.media", "com.pdh.common" })
+@SpringBootApplication(scanBasePackages = { "com.pdh.media", "com.pdh.common.config", "com.pdh.common.model" })
 @EnableJpaRepositories(basePackages = {"com.pdh.media"})
 @EntityScan(basePackages = {"com.pdh.media"})
 @EnableDiscoveryClient

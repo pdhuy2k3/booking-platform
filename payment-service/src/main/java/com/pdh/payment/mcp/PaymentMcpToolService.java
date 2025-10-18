@@ -1,12 +1,11 @@
 package com.pdh.payment.mcp;
 
-import com.pdh.payment.dto.PaymentProcessRequest;
-import com.pdh.payment.dto.PaymentRequest;
 import com.pdh.payment.model.Payment;
 import com.pdh.payment.model.PaymentMethod;
 import com.pdh.payment.model.PaymentTransaction;
 import com.pdh.payment.model.enums.PaymentMethodType;
 import com.pdh.payment.model.enums.PaymentProvider;
+import com.pdh.payment.model.enums.PaymentStatus;
 import com.pdh.payment.repository.PaymentMethodRepository;
 import com.pdh.payment.service.PaymentService;
 import lombok.RequiredArgsConstructor;
@@ -20,14 +19,11 @@ import java.util.*;
 import java.util.stream.Collectors;
 
 /**
- * Payment MCP Tool Service - Simplified for Recording Only
- * 
- * This service ONLY records payment outcomes in our database.
- * Actual payment processing is handled by Stripe MCP Server in AI Agent Service.
- * 
- * Flow:
- * 1. AI Agent → Stripe MCP Server (process payment)
- * 2. AI Agent → This Service (record result in database)
+ * Payment MCP Tool Service
+ *
+ * Exposes AI tools for retrieving stored payment methods and executing Stripe
+ * payments via the internal payment service. All successful or failed payment
+ * attempts are persisted in BookingSmart for reconciliation and booking flows.
  */
 @Service
 @RequiredArgsConstructor
@@ -37,17 +33,21 @@ public class PaymentMcpToolService {
     private final PaymentService paymentService;
     private final PaymentMethodRepository paymentMethodRepository;
 
+    private static final String STRIPE_PAYMENT_METHOD_PREFIX = "pm_";
+    private static final String STRIPE_CUSTOMER_ID_PREFIX = "customerId=";
+    private static final String STRIPE_CUSTOMER_ALT_PREFIX = "stripeCustomerId=";
+
     /**
      * Get payment methods stored in our database with Stripe payment method IDs
-     * AI Agent will use these IDs with Stripe MCP Server for actual charging
+     * AI Agent uses these IDs with the payment MCP tools for secure charging
      */
     @Tool(
         name = "get_user_stored_payment_methods",
         description = "Get payment methods stored in BookingSmart database. Returns Stripe payment method IDs " +
-                "(pm_xxx) that can be used with Stripe MCP Server for charging. " +
-                "Each method includes: methodId (our DB ID), stripePaymentMethodId (use with Stripe), " +
+                "(pm_xxx) that are required by the payment MCP `process_payment` tool. " +
+                "Each method includes: methodId (our DB ID), stripePaymentMethodId (use for charging), " +
                 "stripeCustomerId (if available), displayName, card details, and isDefault flag. " +
-                "IMPORTANT: Use the stripePaymentMethodId field with Stripe MCP tools, not our methodId."
+                "IMPORTANT: Use the stripePaymentMethodId with process_payment, not our methodId."
     )
     public Map<String, Object> getUserStoredPaymentMethods(
             @ToolParam(description = "User ID to get payment methods for (UUID format)", required = true)
@@ -90,21 +90,13 @@ public class PaymentMcpToolService {
                                 pm.getCardExpiryMonth(), pm.getCardExpiryYear()));
                     }
                     
-                    // CRITICAL: Extract Stripe payment method ID from providerData
-                    // This is what AI Agent needs to use with Stripe MCP Server
-                    if (pm.getProviderData() != null && !pm.getProviderData().isEmpty()) {
-                        String[] parts = pm.getProviderData().split(";");
-                        String stripePaymentMethodId = parts[0].trim();
-                        methodMap.put("stripePaymentMethodId", stripePaymentMethodId); // pm_xxx - Use with Stripe MCP
-                        
-                        // Extract Stripe customer ID if available
-                        for (String part : parts) {
-                            if (part.contains("customerId=")) {
-                                String customerId = part.split("=")[1].trim();
-                                methodMap.put("stripeCustomerId", customerId); // cus_xxx
-                                break;
-                            }
-                        }
+                    // Extract Stripe data from provider metadata
+                    StripeProviderDetails stripeDetails = extractStripeProviderDetails(pm);
+                    if (stripeDetails.hasPaymentMethodId()) {
+                        methodMap.put("stripePaymentMethodId", stripeDetails.getPaymentMethodId());
+                    }
+                    if (stripeDetails.hasCustomerId()) {
+                        methodMap.put("stripeCustomerId", stripeDetails.getCustomerId());
                     }
                     
                     // Bank details if available
@@ -144,17 +136,174 @@ public class PaymentMcpToolService {
         }
     }
 
+    private Map<String, Object> buildPaymentResponse(PaymentTransaction transaction, Payment payment, PaymentMethod paymentMethod) {
+        Map<String, Object> response = new LinkedHashMap<>();
+
+        PaymentStatus status = transaction.getStatus();
+        boolean success = status != null && status.isSuccessful();
+        boolean processing = status != null && status.isInProgress();
+
+        response.put("success", success);
+        response.put("processing", processing);
+        response.put("bookingId", payment.getBookingId().toString());
+        response.put("transactionId", transaction.getTransactionId().toString());
+        response.put("paymentReference", payment.getPaymentReference());
+        response.put("status", status != null ? status.toString() : PaymentStatus.ERROR.toString());
+        response.put("statusDescription", status != null ? status.getDescription() : "Unknown payment status");
+        response.put("amount", transaction.getAmount());
+        response.put("currency", transaction.getCurrency());
+        response.put("provider", transaction.getProvider().toString());
+
+        if (transaction.getGatewayTransactionId() != null) {
+            response.put("stripePaymentIntentId", transaction.getGatewayTransactionId());
+        }
+        if (transaction.getGatewayStatus() != null) {
+            response.put("stripeStatus", transaction.getGatewayStatus());
+        }
+
+        Map<String, Object> methodInfo = new LinkedHashMap<>();
+        methodInfo.put("type", paymentMethod.getMethodType().toString());
+        methodInfo.put("displayName", paymentMethod.getDisplayName());
+        if (paymentMethod.getCardBrand() != null) {
+            methodInfo.put("brand", paymentMethod.getCardBrand());
+        }
+        if (paymentMethod.getCardLastFour() != null) {
+            methodInfo.put("lastFour", paymentMethod.getCardLastFour());
+        }
+        methodInfo.put("isDefault", paymentMethod.getIsDefault());
+        response.put("paymentMethod", methodInfo);
+
+        if (transaction.getFailureReason() != null) {
+            response.put("failureReason", transaction.getFailureReason());
+        }
+        if (transaction.getFailureCode() != null) {
+            response.put("failureCode", transaction.getFailureCode());
+        }
+
+        String message;
+        String nextStep;
+
+        if (success) {
+            message = "Payment processed successfully.";
+            nextStep = "Payment complete. Proceed to confirm booking status with the user.";
+        } else if (processing) {
+            message = "Payment is processing with Stripe. Please re-check payment status shortly.";
+            nextStep = "Use get_booking_payment_status to monitor this booking and inform the user once it completes.";
+        } else {
+            message = "Payment failed. " + (transaction.getFailureReason() != null
+                    ? transaction.getFailureReason()
+                    : "Please select a different payment method or retry.");
+            nextStep = "Ask the user to confirm another payment method or retry the payment.";
+        }
+
+        response.put("message", message);
+        response.put("nextStep", nextStep);
+
+        return response;
+    }
+
+    private StripeProviderDetails extractStripeProviderDetails(PaymentMethod paymentMethod) {
+        String rawProviderData = paymentMethod.getProviderData() != null
+                ? paymentMethod.getProviderData().trim()
+                : "";
+        String paymentMethodId = null;
+        String customerId = null;
+
+        if (paymentMethod.getToken() != null && paymentMethod.getToken().trim().startsWith(STRIPE_PAYMENT_METHOD_PREFIX)) {
+            paymentMethodId = paymentMethod.getToken().trim();
+        }
+
+        if (!rawProviderData.isEmpty()) {
+            String[] segments = rawProviderData.split("[;,]");
+            for (String segment : segments) {
+                String value = segment.trim();
+                if (value.isEmpty()) {
+                    continue;
+                }
+                if (value.startsWith(STRIPE_PAYMENT_METHOD_PREFIX)) {
+                    paymentMethodId = value;
+                } else if (value.startsWith(STRIPE_CUSTOMER_ID_PREFIX)) {
+                    customerId = value.substring(STRIPE_CUSTOMER_ID_PREFIX.length()).trim();
+                } else if (value.startsWith(STRIPE_CUSTOMER_ALT_PREFIX)) {
+                    customerId = value.substring(STRIPE_CUSTOMER_ALT_PREFIX.length()).trim();
+                }
+            }
+
+            if (paymentMethodId == null && rawProviderData.startsWith(STRIPE_PAYMENT_METHOD_PREFIX)) {
+                paymentMethodId = rawProviderData;
+            }
+        }
+
+        return new StripeProviderDetails(paymentMethodId, customerId);
+    }
+
+    private static final class StripeProviderDetails {
+        private final String paymentMethodId;
+        private final String customerId;
+
+        private StripeProviderDetails(String paymentMethodId, String customerId) {
+            this.paymentMethodId = paymentMethodId;
+            this.customerId = customerId;
+        }
+
+        private boolean hasPaymentMethodId() {
+            return paymentMethodId != null && !paymentMethodId.isBlank();
+        }
+
+        private boolean hasCustomerId() {
+            return customerId != null && !customerId.isBlank();
+        }
+
+        private String getPaymentMethodId() {
+            return paymentMethodId;
+        }
+
+        private String getCustomerId() {
+            return customerId;
+        }
+    }
+
     /**
-     * Record successful payment from Stripe in our database
-     * Call this AFTER successfully charging via Stripe MCP Server
+     * Process payment via Stripe and record the outcome.
+     */
+    @Tool(
+        name = "process_payment",
+        description = "Process a Stripe payment using a stored payment method in BookingSmart. " +
+                "Requires bookingId, userId, amount, currency, and paymentMethodId. " +
+                "Automatically creates the Stripe PaymentIntent, confirms it off-session, and records " +
+                "the resulting transaction for the booking. Returns transaction details and next steps."
+    )
+    public Map<String, Object> processPayment(
+            @ToolParam(description = "Booking ID to process payment for (UUID format)", required = true)
+            String bookingId,
+            
+            @ToolParam(description = "User ID making the payment (UUID format)", required = true)
+            String userId,
+            
+            @ToolParam(description = "Payment amount (decimal number)", required = true)
+            BigDecimal amount,
+            
+            @ToolParam(description = "Currency code (e.g., 'USD', 'VND', 'EUR')", required = true)
+            String currency,
+            
+            @ToolParam(description = "Payment method ID to use (UUID format). Get from get_user_stored_payment_methods tool.", required = true)
+            String paymentMethodId,
+            
+            @ToolParam(description = "Description or reference for the payment", required = false)
+            String description,
+            
+            @ToolParam(description = "Saga ID from booking creation for correlation", required = false)
+            String sagaId
+    ) {
+        return executeStripePayment(bookingId, userId, amount, currency, paymentMethodId, description, sagaId, "process_payment");
+    }
+
+    /**
+     * Legacy alias retained for backward compatibility. Prefer using process_payment.
      */
     @Tool(
         name = "record_successful_payment",
-        description = "Record a successful Stripe payment in BookingSmart database. " +
-                "Call this ONLY AFTER successfully processing payment via Stripe MCP Server. " +
-                "Required: stripePaymentIntentId (from Stripe PaymentIntent), bookingId, userId, amount, currency. " +
-                "Optional: stripePaymentMethodId, stripeCustomerId for linking. " +
-                "This creates payment record in our database for audit and booking confirmation."
+        description = "Legacy alias for process_payment. Performs the same Stripe charge and recording flow. Prefer using process_payment."
     )
     public Map<String, Object> recordSuccessfulPayment(
             @ToolParam(description = "Booking ID to process payment for (UUID format)", required = true)
@@ -169,7 +318,7 @@ public class PaymentMcpToolService {
             @ToolParam(description = "Currency code (e.g., 'USD', 'VND', 'EUR')", required = true)
             String currency,
             
-            @ToolParam(description = "Payment method ID to use (UUID format). Get from get_user_payment_methods tool.", required = true)
+            @ToolParam(description = "Payment method ID to use (UUID format). Get from get_user_stored_payment_methods tool.", required = true)
             String paymentMethodId,
             
             @ToolParam(description = "Description or reference for the payment", required = false)
@@ -178,76 +327,95 @@ public class PaymentMcpToolService {
             @ToolParam(description = "Saga ID from booking creation for correlation", required = false)
             String sagaId
     ) {
-        try {
-            log.info("AI Tool: Processing payment - bookingId={}, amount={} {}, paymentMethodId={}", 
-                    bookingId, amount, currency, paymentMethodId);
+        return executeStripePayment(bookingId, userId, amount, currency, paymentMethodId, description, sagaId, "record_successful_payment");
+    }
 
-            // Get payment method
+    private Map<String, Object> executeStripePayment(
+            String bookingId,
+            String userId,
+            BigDecimal amount,
+            String currency,
+            String paymentMethodId,
+            String description,
+            String sagaId,
+            String toolName
+    ) {
+        try {
+            if (amount == null || amount.compareTo(BigDecimal.ZERO) <= 0) {
+                return createErrorResponse("Amount must be greater than zero.");
+            }
+
+            if (currency == null || currency.trim().isEmpty()) {
+                return createErrorResponse("Currency is required.");
+            }
+
+            UUID bookingUuid = UUID.fromString(bookingId);
+            UUID userUuid = UUID.fromString(userId);
             UUID methodUuid = UUID.fromString(paymentMethodId);
+
             Optional<PaymentMethod> methodOpt = paymentMethodRepository.findById(methodUuid);
-            
             if (methodOpt.isEmpty()) {
-                return createErrorResponse("Payment method not found. Please use get_user_payment_methods to get valid payment method ID.");
+                return createErrorResponse("Payment method not found. Please use get_user_stored_payment_methods to select a valid payment method.");
             }
 
             PaymentMethod paymentMethod = methodOpt.get();
-            
-            // Verify payment method belongs to user
-            if (!paymentMethod.getUserId().toString().equals(userId)) {
+
+            if (!paymentMethod.getUserId().equals(userUuid)) {
                 return createErrorResponse("Payment method does not belong to this user.");
             }
 
-            if (!paymentMethod.getIsActive()) {
+            if (!Boolean.TRUE.equals(paymentMethod.getIsActive())) {
                 return createErrorResponse("Payment method is not active. Please select another payment method.");
             }
 
-            // Create payment entity
+            if (paymentMethod.getProvider() != PaymentProvider.STRIPE) {
+                return createErrorResponse("Payment method provider is not Stripe. Choose a Stripe-backed payment method.");
+            }
+
+            StripeProviderDetails stripeDetails = extractStripeProviderDetails(paymentMethod);
+            if (!stripeDetails.hasPaymentMethodId()) {
+                return createErrorResponse("Stored payment method is missing a Stripe payment method ID. Ask the user to re-link their card.");
+            }
+
+            paymentMethod.setToken(stripeDetails.getPaymentMethodId());
+
+            String normalizedCurrency = currency.trim().toUpperCase(Locale.ROOT);
+
             Payment payment = new Payment();
             payment.setPaymentReference(Payment.generatePaymentReference());
-            payment.setBookingId(UUID.fromString(bookingId));
-            payment.setUserId(UUID.fromString(userId));
+            payment.setBookingId(bookingUuid);
+            payment.setUserId(userUuid);
             payment.setAmount(amount);
-            payment.setCurrency(currency);
+            payment.setCurrency(normalizedCurrency);
             payment.setDescription(description != null ? description : "Payment for booking " + bookingId);
             payment.setMethodType(paymentMethod.getMethodType());
-            payment.setProvider(paymentMethod.getProvider());
-            if (sagaId != null) {
+            payment.setProvider(PaymentProvider.STRIPE);
+            if (sagaId != null && !sagaId.isBlank()) {
                 payment.setSagaId(sagaId);
             }
 
-            // Process payment with off-session flag for server-side processing
             Map<String, Object> additionalData = new HashMap<>();
             additionalData.put("paymentMethodId", paymentMethodId);
-            additionalData.put("offSession", true); // Mark as off-session for stored payment method charging
+            additionalData.put("offSession", true);
             additionalData.put("initiatedBy", "mcp_server");
-            
+            additionalData.put("toolName", toolName);
+            additionalData.put("stripePaymentMethodId", stripeDetails.getPaymentMethodId());
+            if (stripeDetails.hasCustomerId()) {
+                additionalData.put("stripeCustomerId", stripeDetails.getCustomerId());
+            }
+
+            log.info("AI Tool [{}]: Executing Stripe payment - bookingId={}, amount={} {}, paymentMethodId={}",
+                    toolName, bookingId, amount, normalizedCurrency, paymentMethodId);
+
             PaymentTransaction transaction = paymentService.processPayment(payment, paymentMethod, additionalData);
 
-            Map<String, Object> response = new LinkedHashMap<>();
-            response.put("success", true);
-            response.put("transactionId", transaction.getTransactionId().toString());
-            response.put("paymentReference", payment.getPaymentReference());
-            response.put("status", transaction.getStatus().toString());
-            response.put("amount", transaction.getAmount());
-            response.put("currency", transaction.getCurrency());
-            response.put("paymentMethod", Map.of(
-                "type", paymentMethod.getMethodType().toString(),
-                "displayName", paymentMethod.getDisplayName(),
-                "lastFour", paymentMethod.getCardLastFour() != null ? 
-                        paymentMethod.getCardLastFour() : "N/A"
-            ));
-            
-            if (transaction.getGatewayTransactionId() != null) {
-                response.put("gatewayTransactionId", transaction.getGatewayTransactionId());
-            }
-            
-            response.put("message", "Payment processed successfully");
-            response.put("nextStep", "Payment complete. Booking should be confirmed now. Check booking status.");
+            return buildPaymentResponse(transaction, payment, paymentMethod);
 
-            return response;
-
+        } catch (IllegalArgumentException invalidId) {
+            log.error("AI Tool [{}]: Invalid identifier while processing payment", toolName, invalidId);
+            return createErrorResponse("Invalid identifier: " + invalidId.getMessage());
         } catch (Exception e) {
-            log.error("AI Tool: Error processing payment", e);
+            log.error("AI Tool [{}]: Error processing payment", toolName, e);
             return createErrorResponse("Failed to process payment: " + e.getMessage());
         }
     }

@@ -10,6 +10,7 @@ interface AircraftCreateRequest {
   totalCapacity?: number;
   registrationNumber?: string;
   mediaPublicIds?: string[];
+  featuredMediaUrl?: string | null;
 }
 
 interface AircraftUpdateRequest {
@@ -21,6 +22,7 @@ interface AircraftUpdateRequest {
   totalCapacity?: number;
   registrationNumber?: string;
   mediaPublicIds?: string[];
+  featuredMediaUrl?: string | null;
 }
 
 interface AircraftListParams {

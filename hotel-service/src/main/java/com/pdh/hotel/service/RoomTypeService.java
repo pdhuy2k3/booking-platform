@@ -253,6 +253,8 @@ public class RoomTypeService {
             .id(roomType.getRoomTypeId())
             .hotelId(hotel.getHotelId())
             .hotelName(hotel.getName())
+            .hotelLatitude(toDouble(hotel.getLatitude()))
+            .hotelLongitude(toDouble(hotel.getLongitude()))
             .roomNumber(roomType.getName())
             .description(roomType.getDescription())
             .price(price)
@@ -273,5 +275,9 @@ public class RoomTypeService {
             .createdAt(roomType.getCreatedAt())
             .updatedAt(roomType.getUpdatedAt())
             .build();
+    }
+
+    private Double toDouble(BigDecimal value) {
+        return value != null ? value.doubleValue() : null;
     }
 }

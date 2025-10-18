@@ -14,7 +14,7 @@ export function BookingModal({ open, onOpenChange }: BookingModalProps) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent 
-        className="sm:max-w-[95vw] lg:max-w-[1400px] w-[95vw] h-[92vh] max-h-[92vh] overflow-hidden p-0 gap-0 flex flex-col"
+        className="sm:max-w-[98vw] lg:max-w-[98vw] w-[98vw] h-[95vh] max-h-[95vh] overflow-hidden p-0 gap-0 flex flex-col"
         onPointerDownOutside={(e) => e.preventDefault()}
       >
         <div className="absolute right-4 top-4 z-50">

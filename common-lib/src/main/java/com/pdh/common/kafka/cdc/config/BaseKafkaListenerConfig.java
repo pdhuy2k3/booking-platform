@@ -1,5 +1,7 @@
 package com.pdh.common.kafka.cdc.config;
 
+import org.apache.kafka.common.serialization.Deserializer;
+import org.apache.kafka.common.serialization.StringDeserializer;
 import org.springframework.boot.autoconfigure.kafka.KafkaProperties;
 import org.springframework.kafka.config.ConcurrentKafkaListenerContainerFactory;
 import org.springframework.kafka.core.ConsumerFactory;
@@ -43,12 +45,18 @@ public abstract class BaseKafkaListenerConfig<K, V> {
         Map<String, Object> props = new java.util.HashMap<>(kafkaProperties.buildConsumerProperties(null));
         props.put(JsonDeserializer.USE_TYPE_INFO_HEADERS, false);
         props.put(JsonDeserializer.TRUSTED_PACKAGES, "*");
-        props.put(JsonDeserializer.KEY_DEFAULT_TYPE, keyClazz);
         props.put(JsonDeserializer.VALUE_DEFAULT_TYPE, valueClazz);
-        // wrapper in case serialization/deserialization occur
-        var keyDeserialize = new ErrorHandlingDeserializer<>(getJsonDeserializer(keyClazz));
-        var valueDeserialize = new ErrorHandlingDeserializer<>(getJsonDeserializer(valueClazz));
-        return new DefaultKafkaConsumerFactory<>(props, keyDeserialize, valueDeserialize);
+
+        Deserializer<K> keyDelegate = String.class.equals(keyClazz)
+            ? (Deserializer<K>) new StringDeserializer()
+            : getJsonDeserializer(keyClazz);
+
+        Deserializer<V> valueDelegate = getJsonDeserializer(valueClazz);
+
+        var keyDeserializer = new ErrorHandlingDeserializer<>(keyDelegate);
+        var valueDeserializer = new ErrorHandlingDeserializer<>(valueDelegate);
+
+        return new DefaultKafkaConsumerFactory<>(props, keyDeserializer, valueDeserializer);
     }
 
     private static <T> JsonDeserializer<T> getJsonDeserializer(Class<T> clazz) {
