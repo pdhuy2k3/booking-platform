@@ -36,6 +36,7 @@ export interface HotelBookingDetails {
   starRating?: number;
   roomTypeId?: string;
   roomId?: string;
+  roomAvailabilityId?: string;
   roomType: string;
   roomName: string;
   checkInDate: string; // YYYY-MM-DD

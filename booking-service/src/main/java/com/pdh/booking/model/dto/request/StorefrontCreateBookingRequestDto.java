@@ -6,11 +6,10 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
+import jakarta.validation.Valid;
 import jakarta.validation.constraints.DecimalMin;
-import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
-import jakarta.validation.Valid;
 
 /**
  * DTO for creating a new booking from Storefront
@@ -45,13 +44,21 @@ public class StorefrontCreateBookingRequestDto {
     private String currency = "VND";
     
     /**
-     * Product details payload (flexible based on BookingType)
-     * - For FLIGHT: FlightBookingDetailsDto
-     * - For HOTEL: HotelBookingDetailsDto
-     * - For COMBO: ComboBookingDetailsDto (contains both flight and hotel)
+     * Selected flight payload (required for FLIGHT and COMBO bookings)
      */
     @Valid
-    private Object productDetails;
+    private StorefrontFlightSelectionRequestDto flightSelection;
+
+    /**
+     * Selected hotel payload (required for HOTEL and COMBO bookings)
+     */
+    @Valid
+    private StorefrontHotelSelectionRequestDto hotelSelection;
+
+    /**
+     * Optional combo discount amount when booking both flight and hotel
+     */
+    private Double comboDiscount;
 
     /**
      * Additional notes or special requests

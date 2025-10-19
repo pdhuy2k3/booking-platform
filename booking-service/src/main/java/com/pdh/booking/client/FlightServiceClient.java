@@ -2,6 +2,7 @@ package com.pdh.booking.client;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.pdh.booking.client.dto.FlightFareDetailsClientResponse;
 import com.pdh.booking.model.dto.request.FlightBookingDetailsDto;
 import com.pdh.common.utils.AuthenticationUtils;
 import com.pdh.common.validation.ValidationResult;
@@ -10,6 +11,9 @@ import io.github.resilience4j.retry.annotation.Retry;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
+import org.springframework.web.util.UriComponentsBuilder;
+
+import java.net.URI;
 import java.time.LocalDateTime;
 
 /**
@@ -134,5 +138,73 @@ public class FlightServiceClient {
     public ValidationResult flightServiceFallback(Exception ex) {
         log.error("Flight service fallback triggered: {}", ex.getMessage());
         return ValidationResult.serviceUnavailable("Flight service temporarily unavailable: " + ex.getMessage());
+    }
+
+    /**
+     * Retrieve fare details for a specific flight selection.
+     */
+    @CircuitBreaker(name = "flight-service", fallbackMethod = "flightDetailsFallback")
+    @Retry(name = "flight-service")
+    public FlightFareDetailsClientResponse getFareDetails(
+            String flightId,
+            String seatClass,
+            String scheduleId,
+            String fareId) {
+        try {
+            String normalizedFlightId = normalizeFlightId(flightId);
+            UriComponentsBuilder builder = UriComponentsBuilder
+                .fromHttpUrl("http://flight-service/flights/storefront/" + normalizedFlightId + "/fare-details");
+
+            if (seatClass != null && !seatClass.isBlank()) {
+                builder.queryParam("seatClass", seatClass);
+            }
+            if (scheduleId != null && !scheduleId.isBlank()) {
+                builder.queryParam("scheduleId", scheduleId);
+            }
+            if (fareId != null && !fareId.isBlank()) {
+                builder.queryParam("fareId", fareId);
+            }
+
+            URI uri = builder.build(true).toUri();
+
+            return restClient.get()
+                .uri(uri)
+                .headers(h -> h.setBearerAuth(AuthenticationUtils.extractJwt()))
+                .retrieve()
+                .body(FlightFareDetailsClientResponse.class);
+        } catch (Exception e) {
+            log.error("Error retrieving fare details for flight {}", flightId, e);
+            throw new RuntimeException("Unable to retrieve flight fare details: " + e.getMessage(), e);
+        }
+    }
+
+    public FlightFareDetailsClientResponse flightDetailsFallback(String flightId,
+                                                                 String seatClass,
+                                                                 String scheduleId,
+                                                                 String fareId,
+                                                                 Exception ex) {
+        log.error("Flight fare details fallback triggered: {}", ex.getMessage());
+        throw new RuntimeException("Flight service temporarily unavailable: " + ex.getMessage(), ex);
+    }
+
+    private String normalizeFlightId(String flightId) {
+        if (flightId == null) {
+            throw new IllegalArgumentException("Flight ID cannot be null");
+        }
+        String trimmed = flightId.trim();
+        if (trimmed.isEmpty()) {
+            throw new IllegalArgumentException("Flight ID cannot be blank");
+        }
+        if (trimmed.matches("\\d+")) {
+            return trimmed;
+        }
+        // Attempt to parse numeric string
+        try {
+            long numeric = Long.parseLong(trimmed);
+            return Long.toString(numeric);
+        } catch (NumberFormatException ex) {
+            log.warn("Flight ID {} is not numeric; using raw value", flightId);
+            return trimmed;
+        }
     }
 }

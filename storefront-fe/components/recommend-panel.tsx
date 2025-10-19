@@ -26,7 +26,7 @@ export interface RecommendPanelRef {
 export const RecommendPanel = React.forwardRef<RecommendPanelRef, RecommendPanelProps>(
   ({ results = [], className, onWidthChange }, ref) => {
     const {
-      externalLocation,
+      externalLocations,
       acknowledgeExternalLocation,
       mapStyle,
       journeys
@@ -66,13 +66,13 @@ export const RecommendPanel = React.forwardRef<RecommendPanelRef, RecommendPanel
       return null;
     };
 
-    const getCoordinatesFromMetadata = (metadata?: Record<string, unknown>) => {
+    const getCoordinatesFromMetadata = useCallback((metadata?: Record<string, unknown>) => {
       if (!metadata) return null;
       const latitude = parseCoordinate(metadata['latitude'] ?? metadata['lat']);
       const longitude = parseCoordinate(metadata['longitude'] ?? metadata['lng']);
       if (latitude == null || longitude == null) return null;
       return { latitude, longitude };
-    };
+    }, []);
 
     // Convert results to MapLocation format
     const mapLocations = React.useMemo((): MapLocation[] => {
@@ -91,7 +91,7 @@ export const RecommendPanel = React.forwardRef<RecommendPanelRef, RecommendPanel
         }).filter(loc => loc.latitude !== 0 && loc.longitude !== 0);
       }
       return [];
-    }, [activeTab, exploreResults]);
+    }, [activeTab, exploreResults, getCoordinatesFromMetadata]);
 
     // Convert external results to MapLocation format
     const externalResultsLocations = React.useMemo((): MapLocation[] => {
@@ -133,20 +133,23 @@ export const RecommendPanel = React.forwardRef<RecommendPanelRef, RecommendPanel
       return [];
     }, [results]);
 
+    const contextLocations = React.useMemo((): MapLocation[] => {
+      if (!externalLocations.length) return [];
+      return externalLocations.map((location, index) => ({
+        id: location.id ?? `external-${index}`,
+        name: location.title,
+        latitude: location.lat,
+        longitude: location.lng,
+        description: location.description || '',
+        type: location.type || 'custom',
+        price: location.price,
+        image: location.image,
+      })).filter(loc => Number.isFinite(loc.latitude) && Number.isFinite(loc.longitude));
+    }, [externalLocations]);
+
     const allLocations = React.useMemo(() => {
-      const locations = [...mapLocations, ...externalResultsLocations];
-      if (externalLocation) {
-        locations.push({
-          id: `external-${Date.now()}`,
-          name: externalLocation.title,
-          latitude: externalLocation.lat,
-          longitude: externalLocation.lng,
-          description: externalLocation.description || '',
-          type: (externalLocation as any).type || 'custom'
-        });
-      }
-      return locations;
-    }, [mapLocations, externalResultsLocations, externalLocation]);
+      return [...mapLocations, ...externalResultsLocations, ...contextLocations];
+    }, [mapLocations, externalResultsLocations, contextLocations]);
 
     const handleExploreCardClick = (index: number) => {
       const location = exploreResults[index];
@@ -162,13 +165,20 @@ export const RecommendPanel = React.forwardRef<RecommendPanelRef, RecommendPanel
 
     // Handle external location prop changes
     useEffect(() => {
-      if (externalLocation) {
-        setActiveTab('map');
-        setMapCenter([externalLocation.lng, externalLocation.lat]);
-        setMapZoom(15);
-        acknowledgeExternalLocation();
-      }
-    }, [externalLocation, acknowledgeExternalLocation]);
+      if (!externalLocations.length) return;
+
+      const latestFocused = [...externalLocations]
+        .reverse()
+        .find(location => location.focus !== false && Number.isFinite(location.lat) && Number.isFinite(location.lng));
+
+      if (!latestFocused) return;
+
+      setActiveTab('map');
+      setMapCenter([latestFocused.lng, latestFocused.lat]);
+      const targetZoom = latestFocused.type === 'airport' ? 6 : 13;
+      setMapZoom(targetZoom);
+      acknowledgeExternalLocation();
+    }, [externalLocations, acknowledgeExternalLocation]);
 
     // Load default destinations on component mount, but only if no external results are provided
     useEffect(() => {
@@ -437,6 +447,7 @@ export const RecommendPanel = React.forwardRef<RecommendPanelRef, RecommendPanel
                             <div className="w-full h-32 rounded-md overflow-hidden flex-shrink-0">
                               <Image
                                 src={imageUrl}
+                                alt={result.title || result.name || 'Destination preview'}
                                 width={300}
                                 height={128}
                                 className="w-full h-full object-cover"

@@ -12,6 +12,8 @@ import com.pdh.booking.mapper.BookingDtoMapper;
 import com.pdh.booking.model.Booking;
 import com.pdh.booking.service.BookingCqrsService;
 import com.pdh.booking.service.BookingService;
+import com.pdh.booking.service.ProductDetailsService;
+import com.pdh.booking.service.StorefrontProductDetailsAssembler;
 import com.pdh.booking.saga.BookingSagaOrchestrator;
 import com.pdh.booking.model.enums.BookingStatus;
 import com.pdh.common.config.OpenApiResponses;
@@ -60,6 +62,8 @@ public class BookingController {
     private final ObjectMapper objectMapper;
     private final BookingService bookingService;
     private final BookingSagaOrchestrator bookingSagaOrchestrator;
+    private final StorefrontProductDetailsAssembler storefrontProductDetailsAssembler;
+    private final ProductDetailsService productDetailsService;
     @Value("${booking.validation.bypass:true}")
     private boolean bypassValidation;
 
@@ -270,12 +274,15 @@ public class BookingController {
         try {
             log.info("Creating storefront booking with type: {} ", request.getBookingType());
 
+            Object productDetails = storefrontProductDetailsAssembler.buildProductDetails(request);
+            String productDetailsJson = productDetailsService.convertToJson(request.getBookingType(), productDetails);
+
             CreateBookingCommand command = CreateBookingCommand.builder()
                     .userId(AuthenticationUtils.getCurrentUserIdFromContext())
                     .bookingType(request.getBookingType())
                     .totalAmount(BigDecimal.valueOf(request.getTotalAmount()))
                     .currency(request.getCurrency())
-                    .productDetailsJson(objectMapper.writeValueAsString(request.getProductDetails()))
+                    .productDetailsJson(productDetailsJson)
                     .notes(request.getNotes())
                     .bookingSource("STOREFRONT")
                     .sagaId(UUID.randomUUID().toString())

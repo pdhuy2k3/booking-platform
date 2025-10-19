@@ -1,7 +1,7 @@
 "use client"
 
 import React, { createContext, useContext, useReducer, useEffect, useCallback, useRef } from 'react'
-import { bookingService, type StorefrontBookingRequest, type StorefrontBookingResponse, type BookingStatusResponse } from '@/modules/booking/service'
+import { bookingService, type StorefrontBookingRequest, type StorefrontBookingResponse, type BookingStatusResponse, type StorefrontFlightSelection, type StorefrontHotelSelection } from '@/modules/booking/service'
 import { useToast } from '@/hooks/use-toast'
 import type { BookingHistoryItemDto, FlightBookingDetails, HotelBookingDetails, ComboBookingDetails } from '@/modules/booking/types'
 import type { SelectedFlight, SelectedHotel } from '@/types'
@@ -26,6 +26,8 @@ interface BookingState {
   selectedFlight: SelectedFlight | null
   selectedHotel: SelectedHotel | null
   bookingStatus: BookingStatusResponse | null
+  flightDetails: FlightBookingDetails | null
+  hotelDetails: HotelBookingDetails | null
 }
 
 interface BookingContextType extends BookingState {
@@ -39,6 +41,8 @@ interface BookingContextType extends BookingState {
   setStep: (step: BookingStep) => void
   setSelectedFlight: (flight: SelectedFlight | null) => void
   setSelectedHotel: (hotel: SelectedHotel | null) => void
+  setFlightDetails: (details: FlightBookingDetails | null) => void
+  setHotelDetails: (details: HotelBookingDetails | null) => void
   refreshBookingStatus: () => Promise<void>
   cancelInFlightBooking: () => Promise<void>
   resumeBooking: (payload: ResumeBookingPayload) => Promise<void>
@@ -55,7 +59,9 @@ const initialState: BookingState = {
   error: null,
   selectedFlight: null,
   selectedHotel: null,
-  bookingStatus: null
+  bookingStatus: null,
+  flightDetails: null,
+  hotelDetails: null
 }
 
 // Actions
@@ -70,6 +76,8 @@ type BookingAction =
   | { type: 'SET_STATUS_POLLING'; payload: boolean }
   | { type: 'SET_SELECTED_FLIGHT'; payload: SelectedFlight | null }
   | { type: 'SET_SELECTED_HOTEL'; payload: SelectedHotel | null }
+  | { type: 'SET_FLIGHT_DETAILS'; payload: FlightBookingDetails | null }
+  | { type: 'SET_HOTEL_DETAILS'; payload: HotelBookingDetails | null }
   | { type: 'RESET_BOOKING' }
 
 // Reducer
@@ -129,6 +137,16 @@ function bookingReducer(state: BookingState, action: BookingAction): BookingStat
         ...state,
         selectedHotel: action.payload
       }
+    case 'SET_FLIGHT_DETAILS':
+      return {
+        ...state,
+        flightDetails: action.payload
+      }
+    case 'SET_HOTEL_DETAILS':
+      return {
+        ...state,
+        hotelDetails: action.payload
+      }
     case 'RESET_BOOKING':
       return initialState
     default:
@@ -180,6 +198,16 @@ export function BookingProvider({ children }: { children: React.ReactNode }) {
   const setSelectedHotel = useCallback((hotel: SelectedHotel | null) => {
     if (!mountedRef.current) return
     dispatch({ type: 'SET_SELECTED_HOTEL', payload: hotel })
+  }, [])
+
+  const setFlightDetails = useCallback((details: FlightBookingDetails | null) => {
+    if (!mountedRef.current) return
+    dispatch({ type: 'SET_FLIGHT_DETAILS', payload: details })
+  }, [])
+
+  const setHotelDetails = useCallback((details: HotelBookingDetails | null) => {
+    if (!mountedRef.current) return
+    dispatch({ type: 'SET_HOTEL_DETAILS', payload: details })
   }, [])
 
   const nextStep = useCallback(() => {
@@ -280,11 +308,34 @@ export function BookingProvider({ children }: { children: React.ReactNode }) {
   const createBooking = useCallback(async () => {
     // Check if component is still mounted before proceeding
     if (!mountedRef.current) return
-    
-    if (!state.bookingData.bookingType || !state.bookingData.productDetails) {
+
+    const bookingType = state.bookingData.bookingType
+    const flightSelection = state.bookingData.flightSelection
+    const hotelSelection = state.bookingData.hotelSelection
+
+    const missingFlight = (bookingType === 'FLIGHT' || bookingType === 'COMBO') && !flightSelection
+    const missingHotel = (bookingType === 'HOTEL' || bookingType === 'COMBO') && !hotelSelection
+
+    if (!bookingType || missingFlight || missingHotel) {
       dispatch({ type: 'SET_ERROR', payload: 'Missing required booking information' })
       return
     }
+
+    const derivedTotal = (() => {
+      if (bookingType === 'FLIGHT') {
+        return flightSelection?.totalFlightPrice ?? 0
+      }
+      if (bookingType === 'HOTEL') {
+        return hotelSelection?.totalRoomPrice ?? 0
+      }
+      if (bookingType === 'COMBO') {
+        const flightTotal = flightSelection?.totalFlightPrice ?? 0
+        const hotelTotal = hotelSelection?.totalRoomPrice ?? 0
+        const discount = state.bookingData.comboDiscount ?? 0
+        return Math.max(flightTotal + hotelTotal - discount, 0)
+      }
+      return 0
+    })()
 
     enhancedStopStatusPolling()
     dispatch({ type: 'SET_LOADING', payload: true })
@@ -292,11 +343,22 @@ export function BookingProvider({ children }: { children: React.ReactNode }) {
 
     try {
       const request: StorefrontBookingRequest = {
-        bookingType: state.bookingData.bookingType,
-        totalAmount: state.bookingData.totalAmount || 0,
+        bookingType,
+        totalAmount: state.bookingData.totalAmount && state.bookingData.totalAmount > 0
+          ? state.bookingData.totalAmount
+          : derivedTotal,
         currency: state.bookingData.currency || 'VND',
-        productDetails: state.bookingData.productDetails,
-        notes: state.bookingData.notes
+        notes: state.bookingData.notes,
+      }
+
+      if (bookingType === 'FLIGHT' || bookingType === 'COMBO') {
+        request.flightSelection = flightSelection
+      }
+      if (bookingType === 'HOTEL' || bookingType === 'COMBO') {
+        request.hotelSelection = hotelSelection
+      }
+      if (bookingType === 'COMBO' && typeof state.bookingData.comboDiscount === 'number') {
+        request.comboDiscount = state.bookingData.comboDiscount
       }
 
       const response = await bookingService.create(request)
@@ -398,18 +460,70 @@ export function BookingProvider({ children }: { children: React.ReactNode }) {
         : 'hotel'
 
     setBookingType(contextType)
+
+    const flightDetails = booking.bookingType === 'COMBO'
+      ? (parsedDetails as ComboBookingDetails | null)?.flightDetails ?? null
+      : booking.bookingType === 'FLIGHT'
+        ? (parsedDetails as FlightBookingDetails | null)
+        : null
+
+    const hotelDetails = booking.bookingType === 'COMBO'
+      ? (parsedDetails as ComboBookingDetails | null)?.hotelDetails ?? null
+      : booking.bookingType === 'HOTEL'
+        ? (parsedDetails as HotelBookingDetails | null)
+        : null
+
+    const flightSelection = flightDetails ? {
+      flightId: String(flightDetails.flightId),
+      scheduleId: flightDetails.scheduleId ?? undefined,
+      fareId: flightDetails.fareId ?? undefined,
+      seatClass: flightDetails.seatClass,
+      departureDateTime: flightDetails.departureDateTime,
+      arrivalDateTime: flightDetails.arrivalDateTime,
+      passengerCount: flightDetails.passengerCount,
+      passengers: flightDetails.passengers,
+      selectedSeats: flightDetails.selectedSeats,
+      additionalServices: flightDetails.additionalServices,
+      specialRequests: flightDetails.specialRequests,
+      pricePerPassenger: flightDetails.pricePerPassenger,
+      totalFlightPrice: flightDetails.totalFlightPrice,
+    } as StorefrontFlightSelection : undefined
+
+    const hotelSelection = hotelDetails ? {
+      hotelId: hotelDetails.hotelId,
+      roomTypeId: String(hotelDetails.roomTypeId ?? ''),
+      roomId: hotelDetails.roomId ?? undefined,
+      roomAvailabilityId: (hotelDetails as any).roomAvailabilityId ?? undefined,
+      checkInDate: hotelDetails.checkInDate,
+      checkOutDate: hotelDetails.checkOutDate,
+      numberOfNights: hotelDetails.numberOfNights,
+      numberOfRooms: hotelDetails.numberOfRooms,
+      numberOfGuests: hotelDetails.numberOfGuests,
+      guests: hotelDetails.guests,
+      pricePerNight: hotelDetails.pricePerNight,
+      totalRoomPrice: hotelDetails.totalRoomPrice,
+      bedType: hotelDetails.bedType,
+      amenities: hotelDetails.amenities,
+      additionalServices: hotelDetails.additionalServices,
+      specialRequests: hotelDetails.specialRequests,
+      cancellationPolicy: hotelDetails.cancellationPolicy,
+    } as StorefrontHotelSelection : undefined
+
     updateBookingData({
       bookingType: booking.bookingType,
       totalAmount,
       currency,
-      productDetails: parsedDetails ?? undefined,
+      flightSelection,
+      hotelSelection,
+      comboDiscount: booking.bookingType === 'COMBO'
+        ? (parsedDetails as ComboBookingDetails | null)?.comboDiscount ?? undefined
+        : undefined,
     })
 
-    if (booking.bookingType === 'FLIGHT' || booking.bookingType === 'COMBO') {
-      const flightDetails = booking.bookingType === 'COMBO'
-        ? (parsedDetails as ComboBookingDetails | null)?.flightDetails
-        : (parsedDetails as FlightBookingDetails | null)
+    setFlightDetails(flightDetails ?? null)
+    setHotelDetails(hotelDetails ?? null)
 
+    if (booking.bookingType === 'FLIGHT' || booking.bookingType === 'COMBO') {
       if (flightDetails) {
         setSelectedFlight({
           flightId: flightDetails.flightId,
@@ -438,10 +552,6 @@ export function BookingProvider({ children }: { children: React.ReactNode }) {
     }
 
     if (booking.bookingType === 'HOTEL' || booking.bookingType === 'COMBO') {
-      const hotelDetails = booking.bookingType === 'COMBO'
-        ? (parsedDetails as ComboBookingDetails | null)?.hotelDetails
-        : (parsedDetails as HotelBookingDetails | null)
-
       if (hotelDetails) {
         setSelectedHotel({
           id: hotelDetails.hotelId,
@@ -509,6 +619,8 @@ export function BookingProvider({ children }: { children: React.ReactNode }) {
     setStep,
     setSelectedFlight,
     setSelectedHotel,
+    setFlightDetails,
+    setHotelDetails,
     refreshBookingStatus,
     cancelInFlightBooking,
     resumeBooking,

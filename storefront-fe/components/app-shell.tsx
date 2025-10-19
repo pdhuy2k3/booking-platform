@@ -10,11 +10,7 @@ interface AppShellProps {
 }
 
 export function AppShell({ children }: AppShellProps) {
-  const {
-    results,
-    externalLocation,
-    acknowledgeExternalLocation,
-  } = useRecommendPanel()
+  const { results } = useRecommendPanel()
 
   return (
     <div className="flex h-full bg-background text-foreground">
@@ -34,8 +30,6 @@ export function AppShell({ children }: AppShellProps) {
         <aside className="hidden md:flex h-full border-l border-border flex-col overflow-hidden shrink-0 bg-background md:w-[320px]">
           <RecommendPanel
             results={results}
-            externalLocation={externalLocation}
-            onExternalLocationHandled={acknowledgeExternalLocation}
             className="w-full"
           />
         </aside>

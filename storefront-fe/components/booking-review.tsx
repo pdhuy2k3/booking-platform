@@ -5,9 +5,8 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { useDateFormatter } from "@/hooks/use-date-formatter"
 import {
-  FlightBookingDetails, 
-  HotelBookingDetails, 
-  ComboBookingDetails 
+  FlightBookingDetails,
+  HotelBookingDetails
 } from '@/modules/booking/types'
 import { formatCurrency } from '@/lib/currency'
 
@@ -15,20 +14,20 @@ interface BookingReviewProps {
   bookingType: 'FLIGHT' | 'HOTEL' | 'COMBO'
   flightDetails?: FlightBookingDetails
   hotelDetails?: HotelBookingDetails
-  comboDetails?: ComboBookingDetails
+  comboDiscount?: number
   onConfirm: () => void
   onEdit: () => void
   onCancel: () => void
 }
 
-export function BookingReview({ 
-  bookingType, 
-  flightDetails, 
-  hotelDetails, 
-  comboDetails, 
-  onConfirm, 
-  onEdit, 
-  onCancel 
+export function BookingReview({
+  bookingType,
+  flightDetails,
+  hotelDetails,
+  comboDiscount,
+  onConfirm,
+  onEdit,
+  onCancel
 }: BookingReviewProps) {
   const { formatDateTime, formatDateOnly } = useDateFormatter()
 
@@ -119,18 +118,17 @@ export function BookingReview({
   )
 
   const calculateTotalAmount = () => {
-    let total = 0
     if (bookingType === 'FLIGHT' && flightDetails) {
-      total = flightDetails.totalFlightPrice
-    } else if (bookingType === 'HOTEL' && hotelDetails) {
-      total = hotelDetails.totalRoomPrice
-    } else if (bookingType === 'COMBO' && comboDetails) {
-      total = comboDetails.flightDetails.totalFlightPrice + comboDetails.hotelDetails.totalRoomPrice
-      if (comboDetails.comboDiscount) {
-        total -= comboDetails.comboDiscount
-      }
+      return flightDetails.totalFlightPrice
     }
-    return total
+    if (bookingType === 'HOTEL' && hotelDetails) {
+      return hotelDetails.totalRoomPrice
+    }
+    if (bookingType === 'COMBO' && flightDetails && hotelDetails) {
+      const discount = comboDiscount ?? 0
+      return Math.max(flightDetails.totalFlightPrice + hotelDetails.totalRoomPrice - discount, 0)
+    }
+    return 0
   }
 
   const totalAmount = calculateTotalAmount()
@@ -143,14 +141,14 @@ export function BookingReview({
       <CardContent className="space-y-6">
         {bookingType === 'FLIGHT' && flightDetails && renderFlightDetails(flightDetails)}
         {bookingType === 'HOTEL' && hotelDetails && renderHotelDetails(hotelDetails)}
-        {bookingType === 'COMBO' && comboDetails && (
+        {bookingType === 'COMBO' && flightDetails && hotelDetails && (
           <>
-            {renderFlightDetails(comboDetails.flightDetails)}
-            {renderHotelDetails(comboDetails.hotelDetails)}
-            {comboDetails.comboDiscount && (
+            {renderFlightDetails(flightDetails)}
+            {renderHotelDetails(hotelDetails)}
+            {comboDiscount && comboDiscount > 0 && (
               <div className="border-t pt-4">
                 <p className="text-right">
-                  <span className="font-medium">Giảm giá gói:</span> -{formatCurrency(comboDetails.comboDiscount, 'VND')}
+                  <span className="font-medium">Giảm giá gói:</span> -{formatCurrency(comboDiscount, 'VND')}
                 </p>
               </div>
             )}

@@ -26,6 +26,7 @@ import { useDateFormatter } from "@/hooks/use-date-formatter"
 import { useRouter } from "next/navigation"
 import { useToast } from "@/hooks/use-toast"
 import { useRecommendPanel } from "@/contexts/recommend-panel-context"
+import { mapboxService } from "@/modules/mapbox/services/mapboxClientService"
 
 const RESUME_STORAGE_KEY = "bookingResumePayload"
 const PROCESSING_STATUSES = new Set(["PENDING", "VALIDATION_PENDING", "PAYMENT_PENDING"])
@@ -259,7 +260,7 @@ export function BookingHistoryTab() {
   const [detailMap, setDetailMap] = useState<Record<string, BookingDetailState>>({})
   const router = useRouter()
   const { toast } = useToast()
-  const { showLocation, showJourney, setMapStyle } = useRecommendPanel()
+  const { showLocation, showLocations, showJourney, setMapStyle } = useRecommendPanel()
   const [now, setNow] = useState(() => Date.now())
 
   useEffect(() => {
@@ -345,30 +346,52 @@ export function BookingHistoryTab() {
     }
 
     setMapStyle('mapbox://styles/phamduyhuy/cmgnvl0ec00ud01se98ju3a80');
+    const originLabel = booking.originAirportCode || booking.originCity || '';
+    const destinationLabel = booking.destinationAirportCode || booking.destinationCity || '';
+    const markerLabel = booking.bookingReference
+      ?? (originLabel && destinationLabel ? `${originLabel} → ${destinationLabel}` : 'Hành trình');
+
+    const pathCoordinates = mapboxService.generateFlightPath(
+      { latitude: originLat, longitude: originLng },
+      { latitude: destLat, longitude: destLng }
+    );
+
+    const resolvedCoordinates = pathCoordinates.length > 1
+      ? pathCoordinates
+      : [[originLng, originLat], [destLng, destLat]] as [number, number][];
+
     showJourney({
       id: booking.bookingId,
       origin: { latitude: originLat, longitude: originLng },
       destination: { latitude: destLat, longitude: destLng },
-      color: '#ef4444' // Red color for flights
+      color: '#ef4444',
+      travelMode: 'flight',
+      animate: true,
+      markerLabel,
+      pathCoordinates: resolvedCoordinates,
+      durationMs: Math.max(8000, resolvedCoordinates.length * 22)
     });
 
-    // Explicitly show markers for origin and destination
-    showLocation({
-      lat: originLat,
-      lng: originLng,
-      title: `Khởi hành: ${booking.originAirportCode}`,
-      description: booking.productSummary ?? undefined,
-      type: 'airport'
-    });
-    showLocation({
-      lat: destLat,
-      lng: destLng,
-      title: `Đến: ${booking.destinationAirportCode}`,
-      description: booking.productSummary ?? undefined,
-      type: 'airport'
-    });
+    showLocations([
+      {
+        id: `${booking.bookingId}-origin`,
+        lat: originLat,
+        lng: originLng,
+        title: originLabel ? `Khởi hành: ${originLabel}` : `Khởi hành • ${booking.bookingReference}`,
+        description: booking.productSummary ?? undefined,
+        type: 'airport'
+      },
+      {
+        id: `${booking.bookingId}-destination`,
+        lat: destLat,
+        lng: destLng,
+        title: destinationLabel ? `Đến: ${destinationLabel}` : `Đến • ${booking.bookingReference}`,
+        description: booking.productSummary ?? undefined,
+        type: 'airport'
+      }
+    ], { preserveJourneys: true });
 
-  }, [showJourney, showLocation, toast, setMapStyle]);
+  }, [showJourney, showLocations, toast, setMapStyle]);
 
   const handleContinueBooking = useCallback((booking: BookingHistoryItemDto) => {
     try {

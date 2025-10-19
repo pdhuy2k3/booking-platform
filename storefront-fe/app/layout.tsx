@@ -2,7 +2,6 @@ import type React from "react"
 import type { Metadata } from "next"
 import { GeistSans } from "geist/font/sans"
 import { GeistMono } from "geist/font/mono"
-import { Analytics } from "@vercel/analytics/next"
 import "@/styles/globals.css"
 import { AuthProvider } from "@/contexts/auth-context"
 import { PreferencesProvider } from "@/contexts/preferences-context"
@@ -42,7 +41,6 @@ export default function RootLayout({
           </AuthProvider>
         </ThemeProvider>
         <Toaster />
-        <Analytics />
       </body>
     </html>
   )

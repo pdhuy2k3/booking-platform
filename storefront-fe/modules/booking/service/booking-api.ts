@@ -1,20 +1,56 @@
 import { apiClient } from '@/lib/api-client';
-import { 
-  FlightBookingDetails, 
-  HotelBookingDetails, 
-  ComboBookingDetails,
-  BookingResponse,
-  BookingStatusResponse,
-  CreateBookingRequest,
-  BookingHistoryResponseDto
+import {
+  BookingHistoryResponseDto,
+  GuestDetails,
+  PassengerDetails,
+  FlightService,
+  HotelService,
 } from '../types';
+
+export interface StorefrontFlightSelection {
+  flightId: string;
+  scheduleId?: string | null;
+  fareId?: string | null;
+  seatClass?: string | null;
+  departureDateTime?: string | null;
+  arrivalDateTime?: string | null;
+  passengerCount: number;
+  passengers: PassengerDetails[];
+  selectedSeats?: string[];
+  additionalServices?: FlightService[];
+  specialRequests?: string | null;
+  pricePerPassenger?: number | null;
+  totalFlightPrice: number;
+}
+
+export interface StorefrontHotelSelection {
+  hotelId: string;
+  roomTypeId: string;
+  roomId?: string | null;
+  roomAvailabilityId?: string | null;
+  checkInDate: string;
+  checkOutDate: string;
+  numberOfNights: number;
+  numberOfRooms: number;
+  numberOfGuests: number;
+  guests: GuestDetails[];
+  pricePerNight: number;
+  totalRoomPrice: number;
+  bedType?: string | null;
+  amenities?: string[];
+  additionalServices?: HotelService[];
+  specialRequests?: string | null;
+  cancellationPolicy?: string | null;
+}
 
 // Type definitions for booking API
 export interface StorefrontBookingRequest {
   bookingType: 'FLIGHT' | 'HOTEL' | 'COMBO';
   totalAmount: number;
   currency?: string;
-  productDetails: FlightBookingDetails | HotelBookingDetails | ComboBookingDetails;
+  flightSelection?: StorefrontFlightSelection;
+  hotelSelection?: StorefrontHotelSelection;
+  comboDiscount?: number;
   notes?: string;
 }
 

@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState, useRef } from "react"
+import { useCallback, useEffect, useState, useRef } from "react"
 import { useRouter } from "next/navigation"
 import { HotelCardSkeleton } from "@/modules/hotel/component/HotelCardSkeleton"
 import { HotelCard } from "@/components/cards"
@@ -195,7 +195,9 @@ export function HotelSearchTab({ onBookingStart }: HotelSearchTabProps = {}) {
       bookingType: 'HOTEL',
       totalAmount: 0,
       currency: hotel.currency || 'VND',
-      productDetails: undefined,
+      flightSelection: undefined,
+      hotelSelection: undefined,
+      comboDiscount: undefined,
     })
     setStep('passengers')
     handleCloseModal()
@@ -208,11 +210,11 @@ export function HotelSearchTab({ onBookingStart }: HotelSearchTabProps = {}) {
     }
   }
 
-  async function loadInitialData() {
-    if (isLoadingInitialData.current || loading) {
+  const loadInitialData = useCallback(async () => {
+    if (isLoadingInitialData.current) {
       return
     }
-    
+
     isLoadingInitialData.current = true
     setLoading(true)
     setError(null)
@@ -248,7 +250,7 @@ export function HotelSearchTab({ onBookingStart }: HotelSearchTabProps = {}) {
       setLoading(false)
       isLoadingInitialData.current = false
     }
-  }
+  }, [limit])
 
   async function handleSearch(nextPage?: number) {
     if (!destination.trim() || !checkInDate || !checkOutDate) {
@@ -336,7 +338,7 @@ export function HotelSearchTab({ onBookingStart }: HotelSearchTabProps = {}) {
     if (results.length === 0 && !loading && !initialData) {
       void loadInitialData()
     }
-  }, [])
+  }, [results.length, loading, initialData, loadInitialData])
 
   // Handle scroll for search form collapse
   useEffect(() => {

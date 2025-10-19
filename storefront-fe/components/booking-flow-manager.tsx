@@ -9,11 +9,11 @@ import { HotelBookingForm } from '@/components/hotel-booking-form'
 import { BookingReview } from '@/components/booking-review'
 import { BookingConfirmation } from '@/components/booking-confirmation'
 import { BookingPaymentStep } from '@/components/booking-payment-step'
-import { 
-  FlightBookingDetails, 
-  HotelBookingDetails, 
-  ComboBookingDetails 
+import {
+  FlightBookingDetails,
+  HotelBookingDetails
 } from '@/modules/booking/types'
+import type { StorefrontFlightSelection, StorefrontHotelSelection } from '@/modules/booking/service'
 
 interface BookingFlowManagerProps {
   onBookingComplete: () => void
@@ -21,22 +21,26 @@ interface BookingFlowManagerProps {
 }
 
 export function BookingFlowManager({ onBookingComplete, showSelection = true }: BookingFlowManagerProps) {
-  const { 
-    step, 
-    bookingType, 
-    bookingData, 
+  const {
+    step,
+    bookingType,
+    bookingData,
     bookingResponse,
     selectedFlight,
     selectedHotel,
-    updateBookingData, 
-    nextStep, 
-    prevStep, 
+    flightDetails,
+    hotelDetails,
+    updateBookingData,
+    nextStep,
+    prevStep,
     createBooking,
     resetBooking,
     setBookingType,
     setStep,
     setSelectedFlight,
     setSelectedHotel,
+    setFlightDetails,
+    setHotelDetails,
     cancelInFlightBooking,
   } = useBooking()
   const [comboStage, setComboStage] = useState<'flight' | 'hotel'>('flight')
@@ -54,34 +58,45 @@ export function BookingFlowManager({ onBookingComplete, showSelection = true }: 
       bookingType: (type === 'both' ? 'COMBO' : type.toUpperCase()) as 'FLIGHT' | 'HOTEL' | 'COMBO',
       totalAmount: 0,
       currency: 'VND',
-      productDetails: undefined,
+      flightSelection: undefined,
+      hotelSelection: undefined,
+      comboDiscount: undefined,
     })
+    setFlightDetails(null)
+    setHotelDetails(null)
     setStep('passengers')
   }
 
   const handleFlightBookingSubmit = (details: FlightBookingDetails) => {
-    let totalAmount = details.totalFlightPrice
-    let productDetails: FlightBookingDetails | ComboBookingDetails
+    const flightSelectionPayload = {
+      flightId: String(details.flightId),
+      scheduleId: details.scheduleId ?? undefined,
+      fareId: details.fareId ?? undefined,
+      seatClass: details.seatClass,
+      departureDateTime: details.departureDateTime,
+      arrivalDateTime: details.arrivalDateTime,
+      passengerCount: details.passengerCount,
+      passengers: details.passengers,
+      selectedSeats: details.selectedSeats,
+      additionalServices: details.additionalServices,
+      specialRequests: details.specialRequests,
+      pricePerPassenger: details.pricePerPassenger,
+      totalFlightPrice: details.totalFlightPrice,
+    } satisfies StorefrontFlightSelection
 
-    if (bookingType === 'both') {
-      const existingCombo = (bookingData.productDetails as ComboBookingDetails) || { flightDetails: undefined, hotelDetails: undefined }
-      const hotelDetails = existingCombo.hotelDetails
-      const hotelTotal = hotelDetails?.totalRoomPrice ?? 0
-      totalAmount = details.totalFlightPrice + hotelTotal
-      productDetails = {
-        ...existingCombo,
-        flightDetails: details,
-      }
-    }
-    else {
-      productDetails = details
-    }
+    const hotelTotal = bookingData.hotelSelection?.totalRoomPrice ?? 0
+    const comboDiscount = bookingData.comboDiscount ?? 0
+    const totalAmount = bookingType === 'both'
+      ? Math.max(details.totalFlightPrice + hotelTotal - comboDiscount, 0)
+      : details.totalFlightPrice
 
     updateBookingData({
-      productDetails: productDetails,
+      flightSelection: flightSelectionPayload,
       totalAmount,
       currency: selectedFlight?.currency || bookingData.currency || 'VND',
     })
+
+    setFlightDetails(details)
 
     setSelectedFlight({
       flightId: details.flightId,
@@ -111,28 +126,39 @@ export function BookingFlowManager({ onBookingComplete, showSelection = true }: 
   }
 
   const handleHotelBookingSubmit = (details: HotelBookingDetails) => {
-    let totalAmount = details.totalRoomPrice
-    let productDetails: HotelBookingDetails | ComboBookingDetails
+    const hotelSelectionPayload = {
+      hotelId: details.hotelId,
+      roomTypeId: String(details.roomTypeId ?? ''),
+      roomId: details.roomId ?? undefined,
+      roomAvailabilityId: (details as any).roomAvailabilityId ?? undefined,
+      checkInDate: details.checkInDate,
+      checkOutDate: details.checkOutDate,
+      numberOfNights: details.numberOfNights,
+      numberOfRooms: details.numberOfRooms,
+      numberOfGuests: details.numberOfGuests,
+      guests: details.guests,
+      pricePerNight: details.pricePerNight,
+      totalRoomPrice: details.totalRoomPrice,
+      bedType: details.bedType,
+      amenities: details.amenities,
+      additionalServices: details.additionalServices,
+      specialRequests: details.specialRequests,
+      cancellationPolicy: details.cancellationPolicy,
+    } satisfies StorefrontHotelSelection
 
-    if (bookingType === 'both') {
-      const existingCombo = (bookingData.productDetails as ComboBookingDetails) || { flightDetails: undefined, hotelDetails: undefined }
-      const flightDetails = existingCombo.flightDetails
-      const flightTotal = flightDetails?.totalFlightPrice ?? 0
-      totalAmount = flightTotal + details.totalRoomPrice
-      productDetails = {
-        ...existingCombo,
-        hotelDetails: details,
-      }
-    }
-    else {
-      productDetails = details
-    }
+    const flightTotal = bookingData.flightSelection?.totalFlightPrice ?? 0
+    const comboDiscount = bookingData.comboDiscount ?? 0
+    const totalAmount = bookingType === 'both'
+      ? Math.max(flightTotal + details.totalRoomPrice - comboDiscount, 0)
+      : details.totalRoomPrice
 
     updateBookingData({
-      productDetails: productDetails,
+      hotelSelection: hotelSelectionPayload,
       totalAmount,
       currency: selectedHotel?.currency || bookingData.currency || 'VND',
     })
+
+    setHotelDetails(details)
 
     setSelectedHotel({
       id: details.hotelId,
@@ -208,10 +234,28 @@ export function BookingFlowManager({ onBookingComplete, showSelection = true }: 
     }
   }, [step])
 
-  const comboDetails = bookingData.bookingType === 'COMBO'
-    ? (bookingData.productDetails as ComboBookingDetails | undefined)
+  const hasFlightDetails = Boolean(flightDetails)
+
+  const reviewBookingType = bookingData.bookingType
+    ?? (bookingType === 'both'
+      ? 'COMBO'
+      : bookingType === 'flight'
+        ? 'FLIGHT'
+        : bookingType === 'hotel'
+          ? 'HOTEL'
+          : 'FLIGHT')
+
+  const reviewFlightDetails = reviewBookingType === 'FLIGHT' || reviewBookingType === 'COMBO'
+    ? flightDetails ?? undefined
     : undefined
-  const hasFlightDetails = Boolean(comboDetails?.flightDetails)
+
+  const reviewHotelDetails = reviewBookingType === 'HOTEL' || reviewBookingType === 'COMBO'
+    ? hotelDetails ?? undefined
+    : undefined
+
+  const reviewComboDiscount = reviewBookingType === 'COMBO'
+    ? bookingData.comboDiscount
+    : undefined
 
   return (
     <div className="container mx-auto py-8">
@@ -310,26 +354,10 @@ export function BookingFlowManager({ onBookingComplete, showSelection = true }: 
 
       {step === 'review' && (
         <BookingReview
-          bookingType={bookingData.bookingType}
-          flightDetails={
-            bookingData.bookingType === 'FLIGHT' 
-              ? bookingData.productDetails as FlightBookingDetails
-              : bookingData.bookingType === 'COMBO'
-              ? (bookingData.productDetails as ComboBookingDetails).flightDetails
-              : undefined
-          }
-          hotelDetails={
-            bookingData.bookingType === 'HOTEL' 
-              ? bookingData.productDetails as HotelBookingDetails
-              : bookingData.bookingType === 'COMBO'
-              ? (bookingData.productDetails as ComboBookingDetails).hotelDetails
-              : undefined
-          }
-          comboDetails={
-            bookingData.bookingType === 'COMBO' 
-              ? bookingData.productDetails as ComboBookingDetails
-              : undefined
-          }
+          bookingType={reviewBookingType}
+          flightDetails={reviewFlightDetails}
+          hotelDetails={reviewHotelDetails}
+          comboDiscount={reviewComboDiscount}
           onConfirm={handleConfirmBooking}
           onEdit={handleEditDetails}
           onCancel={prevStep}

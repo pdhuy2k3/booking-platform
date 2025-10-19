@@ -81,6 +81,11 @@ public class HotelBookingDetailsDto {
     private String roomId;
     
     /**
+     * Room availability identifier snapshot (optional)
+     */
+    private String roomAvailabilityId;
+    
+    /**
      * Room type (Standard, Deluxe, Suite, etc.)
      */
     @NotBlank(message = "Room type is required")

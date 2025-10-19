@@ -2,6 +2,7 @@ package com.pdh.booking.client;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.pdh.booking.client.dto.HotelDetailsClientResponse;
 import com.pdh.booking.model.dto.request.HotelBookingDetailsDto;
 import com.pdh.common.utils.AuthenticationUtils;
 import com.pdh.common.validation.ValidationResult;
@@ -11,7 +12,9 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
+import org.springframework.web.util.UriComponentsBuilder;
 
+import java.net.URI;
 import java.time.LocalDate;
 
 /**
@@ -138,5 +141,66 @@ public class HotelServiceClient {
     public ValidationResult hotelServiceFallback(Exception ex) {
         log.error("Hotel service fallback triggered: {}", ex.getMessage());
         return ValidationResult.serviceUnavailable("Hotel service temporarily unavailable: " + ex.getMessage());
+    }
+
+    /**
+     * Retrieve hotel storefront details.
+     */
+    @CircuitBreaker(name = "hotel-service", fallbackMethod = "hotelDetailsFallback")
+    @Retry(name = "hotel-service")
+    public HotelDetailsClientResponse getHotelDetails(String hotelId,
+                                                      LocalDate checkInDate,
+                                                      LocalDate checkOutDate) {
+        try {
+            String normalizedHotelId = normalizeHotelId(hotelId);
+            UriComponentsBuilder builder = UriComponentsBuilder
+                .fromHttpUrl("http://hotel-service/hotels/storefront/" + normalizedHotelId);
+
+            if (checkInDate != null) {
+                builder.queryParam("checkInDate", checkInDate);
+            }
+            if (checkOutDate != null) {
+                builder.queryParam("checkOutDate", checkOutDate);
+            }
+
+            URI uri = builder.build(true).toUri();
+
+            return restClient.get()
+                .uri(uri)
+                .headers(h -> h.setBearerAuth(AuthenticationUtils.extractJwt()))
+                .retrieve()
+                .body(HotelDetailsClientResponse.class);
+        } catch (Exception e) {
+            log.error("Error retrieving hotel details for hotel: {}", hotelId, e);
+            throw new RuntimeException("Unable to retrieve hotel details: " + e.getMessage(), e);
+        }
+    }
+
+    public HotelDetailsClientResponse hotelDetailsFallback(String hotelId,
+                                                           LocalDate checkInDate,
+                                                           LocalDate checkOutDate,
+                                                           Exception ex) {
+        log.error("Hotel details fallback triggered: {}", ex.getMessage());
+        throw new RuntimeException("Hotel service temporarily unavailable: " + ex.getMessage(), ex);
+    }
+
+    private String normalizeHotelId(String hotelId) {
+        if (hotelId == null) {
+            throw new IllegalArgumentException("Hotel ID cannot be null");
+        }
+        String trimmed = hotelId.trim();
+        if (trimmed.isEmpty()) {
+            throw new IllegalArgumentException("Hotel ID cannot be blank");
+        }
+        if (trimmed.matches("\\d+")) {
+            return trimmed;
+        }
+        try {
+            long numeric = Long.parseLong(trimmed);
+            return Long.toString(numeric);
+        } catch (NumberFormatException ex) {
+            log.warn("Hotel ID {} is not numeric; using raw value", hotelId);
+            return trimmed;
+        }
     }
 }
