@@ -8,6 +8,7 @@ import com.pdh.booking.model.dto.response.StorefrontBookingResponseDto;
 import com.pdh.booking.model.enums.BookingStatus;
 import com.pdh.booking.model.enums.BookingType;
 import com.pdh.booking.service.BookingCqrsService;
+import com.pdh.common.utils.AuthenticationUtils;
 import com.pdh.booking.mapper.BookingDtoMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -50,7 +51,7 @@ public class BookingMcpToolService {
                 "The booking will be in PENDING status initially and needs payment to be confirmed."
     )
     public Map<String, Object> createBooking(
-            @ToolParam(description = "Booking type: either 'FLIGHT' or 'HOTEL'", required = true)
+            @ToolParam(description = "Booking type: either 'FLIGHT' or 'HOTEL' or 'COMBO'", required = true)
             String bookingType,
             
             @ToolParam(description = "The ID of the flight or hotel to book (UUID format)", required = true)
@@ -62,8 +63,6 @@ public class BookingMcpToolService {
             @ToolParam(description = "Currency code (e.g., 'USD', 'VND', 'EUR')", required = true)
             String currency,
             
-            @ToolParam(description = "User ID who is making the booking (UUID format)", required = true)
-            String userId,
             
             @ToolParam(description = "Any special requests or notes from the customer", required = false)
             String specialRequests,
@@ -92,7 +91,7 @@ public class BookingMcpToolService {
 
             // Execute booking command directly
             CreateBookingCommand command = CreateBookingCommand.builder()
-                .userId(UUID.fromString(userId))
+                .userId(AuthenticationUtils.getCurrentUserIdFromContext())
                 .bookingType(type)
                 .totalAmount(totalAmount)
                 .currency(currency)

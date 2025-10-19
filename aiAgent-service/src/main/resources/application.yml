@@ -261,13 +261,16 @@ spring:
             token-uri: ${KEYCLOAK_HOST}/realms/BookingSmart/protocol/openid-connect/token
 
   ai:
-  
+    retry:
+      exclude-on-http-codes: 429
+      on-client-errors: true
+
     model:
       embedding: ollama
       
     vectorstore:
       elasticsearch:
-      #dimensions must match the embedding model output dimension embeddinggemma:300m
+
         dimensions: 768
         similarity: cosine
         initialize-schema: true     
@@ -277,14 +280,7 @@ spring:
         options:
           model: nomic-embed-text:latest
 
-    openai:
-      base-url: https://openrouter.ai/api/v1
-      api-key: ${GEMINI_API_KEY}
-      chat:
-        options:
-          model: qwen/qwen3-235b-a22b:free
-          temperature: 0.0
-          parallel-tool-calls: true
+
           
     mistralai:
       api-key: ${MISTRAL_API_KEY}
@@ -297,6 +293,7 @@ spring:
             
         
     mcp:
+
       client:
         enabled: true
         version: 1.0.0
@@ -305,6 +302,7 @@ spring:
         name: bookingsmart
         root-change-notification: true
         toolcallback.enabled: true
+        
         sse:
           connections:
             hotel-mcp-server:
@@ -319,7 +317,7 @@ spring:
             payment-mcp-server:
               url: http://payment-service
               sse-endpoint: /payments/sse
-
+        
         stdio:
           connections:
             openweather:
@@ -341,9 +339,12 @@ spring:
                 - --rm
                 - -e
                 - MAPBOX_ACCESS_TOKEN
+                - -e
+                - MCP_DISABLE_LOGGING
                 - mcp/mapbox
               env:
                 MAPBOX_ACCESS_TOKEN: ${MAPBOX_ACCESS_TOKEN}
+                MCP_DISABLE_LOGGING: false
             brave:
               command: docker
               args:
@@ -360,6 +361,7 @@ spring:
                 BRAVE_MCP_DISABLED_TOOLS: brave_news_search brave_web_search brave_summarizer	
         initialized: true
   
+
 
 app:
   flight-service:

@@ -8,6 +8,8 @@ import lombok.NoArgsConstructor;
 import java.time.LocalDateTime;
 import java.util.List;
 
+import com.pdh.ai.model.dto.StructuredChatPayload.ConfirmationContext;
+
 /**
  * DTO for chat responses sent via WebSocket.
  * 
@@ -47,6 +49,11 @@ public class ChatMessageResponse {
     private String userId;
     
     /**
+     * Client generated identifier carried through the stream.
+     */
+    private String requestId;
+
+    /**
      * Conversation ID for context tracking.
      */
     private String conversationId;
@@ -65,11 +72,26 @@ public class ChatMessageResponse {
      * Structured results from the AI (flights, hotels, etc.).
      */
     private List<StructuredResultItem> results;
+
+    /**
+     * Suggested follow-up prompts (if available).
+     */
+    private List<String> nextRequestSuggestions;
     
     /**
      * Current status message (e.g., "Processing...", "Complete").
      */
     private String status;
+
+    /**
+     * Whether the response requires explicit confirmation.
+     */
+    private Boolean requiresConfirmation;
+
+    /**
+     * Context payload needed when confirmation is required.
+     */
+    private ConfirmationContext confirmationContext;
     
     /**
      * Error message if type is ERROR.

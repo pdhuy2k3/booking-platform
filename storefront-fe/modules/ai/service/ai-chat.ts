@@ -1,15 +1,40 @@
 import { apiClient } from '@/lib/api-client';
-import { 
-  ChatResponse, 
-  ChatContext, 
+import {
+  ChatResponse,
+  ChatContext,
   ChatHistoryResponse,
   ChatMessageRequest,
   StructuredChatPayload,
-  ChatConversationSummary
+  ChatConversationSummary,
+  ChatMessageResponse,
 } from '../types';
 
 class AiChatService {
   private baseUrl = '/ai';
+
+  private generateRequestId(): string {
+    if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+      return crypto.randomUUID();
+    }
+    return `ws-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+  }
+
+  private getWebSocketUrl(): string {
+    if (typeof window === 'undefined') {
+      throw new Error('WebSocket chat requires a browser environment');
+    }
+
+    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    const host = window.location.host;
+    return `${protocol}//${host}/api/ai/ws/chat`;
+  }
+
+  private normalizeTimestamp(value?: string): string {
+    if (!value) {
+      return new Date().toISOString();
+    }
+    return value;
+  }
 
   private generateConversationId(): string {
     if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
@@ -37,6 +62,86 @@ class AiChatService {
     };
   }
 
+  async streamPrompt(
+    message: string,
+    options: {
+      conversationId?: string;
+      onEvent?: (event: ChatMessageResponse) => void;
+    } = {}
+  ): Promise<ChatMessageResponse> {
+    const trimmed = message.trim();
+    if (!trimmed) {
+      throw new Error('Message cannot be empty');
+    }
+
+    const requestId = this.generateRequestId();
+    const conversationId = options.conversationId ?? this.generateConversationId();
+    const wsUrl = this.getWebSocketUrl();
+
+    return new Promise<ChatMessageResponse>((resolve, reject) => {
+      let settled = false;
+      const socket = new WebSocket(wsUrl);
+
+      const cleanup = () => {
+        if (socket.readyState === WebSocket.OPEN || socket.readyState === WebSocket.CONNECTING) {
+          socket.close();
+        }
+      };
+
+      socket.onopen = () => {
+        const payload = {
+          type: 'prompt',
+          requestId,
+          conversationId,
+          message: trimmed,
+          timestamp: Date.now(),
+        };
+        socket.send(JSON.stringify(payload));
+      };
+
+      socket.onmessage = (event) => {
+        try {
+          const data: ChatMessageResponse = JSON.parse(event.data);
+          if (data.status === 'keepalive') {
+            return;
+          }
+          data.requestId = data.requestId ?? requestId;
+          data.conversationId = data.conversationId ?? conversationId;
+          data.timestamp = this.normalizeTimestamp(data.timestamp);
+
+          options.onEvent?.(data);
+
+          if (data.type === 'ERROR') {
+            settled = true;
+            cleanup();
+            reject(new Error(data.error || 'AI assistant encountered an error'));
+          } else if (data.type === 'RESPONSE') {
+            settled = true;
+            cleanup();
+            resolve(data);
+          }
+        } catch (err) {
+          console.error('Failed to parse AI chat stream payload', err);
+        }
+      };
+
+      socket.onerror = () => {
+        if (!settled) {
+          settled = true;
+          cleanup();
+          reject(new Error('WebSocket connection error'));
+        }
+      };
+
+      socket.onclose = () => {
+        if (!settled) {
+          settled = true;
+          reject(new Error('WebSocket connection closed before completion'));
+        }
+      };
+    });
+  }
+
   /**
    * Send a message to the AI chatbot (Synchronous - waits for complete response)
    * Uses REST API with Agentic Workflow Orchestration (Routing + Parallelization + Evaluation)
@@ -47,21 +152,22 @@ class AiChatService {
     context?: ChatContext
   ): Promise<ChatResponse> {
     try {
-      const request: ChatMessageRequest = {
-        message: message.trim(),
+      const response = await this.streamPrompt(message, {
         conversationId: context?.conversationId,
-        // userId is extracted from JWT token on backend - no need to send
-      };
-
-      const payload = await apiClient.post<StructuredChatPayload>(
-        `${this.baseUrl}/chat/message`,
-        request
-      );
-
-      return this.mapPayloadToChatResponse(payload, {
-        userMessage: message,
-        conversationId: request.conversationId
       });
+
+      return {
+        userMessage: message,
+        aiResponse: response.aiResponse ?? '',
+        conversationId: response.conversationId,
+        requestId: response.requestId,
+        userId: response.userId,
+        timestamp: this.normalizeTimestamp(response.timestamp),
+        results: response.results ?? [],
+        nextRequestSuggestions: response.nextRequestSuggestions ?? response.next_request_suggestions,
+        requiresConfirmation: response.requiresConfirmation,
+        confirmationContext: response.confirmationContext,
+      };
     } catch (error: any) {
       console.error('AI Chat Service Error:', error);
       

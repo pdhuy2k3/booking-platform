@@ -27,26 +27,12 @@ export function Sidebar() {
   const activeConversationId = searchParams.get("conversationId");
 
   useEffect(() => {
-    if (!isLoading && isAuthenticated) {
-      // Always refresh conversations when component mounts or user authenticates
-      if (chatConversations.length === 0) {
-        refreshChatConversations().catch((error) => {
-          console.error("Unable to refresh conversations:", error);
-        });
-      } else {
-        // Check if we're in a new chat scenario and the conversation may not be in the list yet
-        const isNewChat = searchParams.get("new") === "1";
-        const hasActiveConversationInList = chatConversations.some(conv => conv.id === activeConversationId);
-        
-        if (isNewChat || (activeConversationId && !hasActiveConversationInList)) {
-          // Refresh to make sure we have the latest conversation list
-          refreshChatConversations().catch((error) => {
-            console.error("Unable to refresh conversations:", error);
-          });
-        }
-      }
+    if (!isLoading && isAuthenticated && chatConversations.length === 0) {
+      refreshChatConversations().catch((error) => {
+        console.error("Unable to refresh conversations:", error);
+      });
     }
-  }, [isLoading, isAuthenticated, chatConversations.length, refreshChatConversations, searchParams, activeConversationId, chatConversations]);
+  }, [isLoading, isAuthenticated, chatConversations.length, refreshChatConversations]);
 
   const handleNavigateTab = useCallback(
     (tab: "chat" | "search", options?: { conversationId?: string; newChat?: boolean }) => {

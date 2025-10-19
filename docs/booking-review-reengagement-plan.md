@@ -18,6 +18,7 @@ Improve the booking review experience so customers can quickly:
 3. **AI chat lacks deep links from booking context**  
    - `chat-interface.tsx` and `ai-response-renderer.tsx` render conversations, but there is no simple way to push a “new request” using booking data.
    - Hooks like `useAiChat.ts` expect manual prompt crafting; we need a helper that seeds the context automatically.
+   - AI responses currently flow over HTTP; Cloudflare cuts the connection at 100 seconds, so long orchestrations fail even when the backend finishes.
 
 ## Target UX
 1. **Persist search filters**  
@@ -34,6 +35,7 @@ Improve the booking review experience so customers can quickly:
 3. **AI quick prompt**  
    - Build a helper (e.g., `buildAiPromptFromBooking(booking)`) that constructs a concise prompt summarizing destination, dates, party size, and desired action (e.g., “Find a return flight from HAN to SGN on July 10 for 2 adults”).
    - Extend `useAiChat.ts` with a function `startNewConversation(initialPrompt)` that posts the prompt immediately and surfaces results in `chat-interface.tsx`.
+   - Rather than POSTing via HTTP, have `startNewConversation` open a WebSocket connection to the BFF and stream tokens in real time.
    - Use a Next.js context provider (or existing AI chat provider) to trigger that request when the user chooses “Continue with AI” from the review.
 
 ## Implementation Plan
@@ -68,12 +70,19 @@ Improve the booking review experience so customers can quickly:
   - `storefront-fe/modules/ai/hooks/useAiChat.ts`  
   - `storefront-fe/modules/ai/service/ai-chat.ts`
 - **Steps**:  
-  1. Extend `useAiChat` with `startWithPrompt(prompt, metadata?)` that creates a new thread and posts the prompt to the AI API (`ai-chat.ts`).
-  2. Expose a context/provider that allows any component (booking review) to trigger `startWithPrompt`.
-  3. Build helper `buildAiPromptFromBooking(bookingContext, actionType)` to craft natural language prompts.
-  4. From the review modal, wire “Ask AI” buttons to trigger the provider and show chat results.
+  1. Extend `useAiChat` with `startWithPrompt(prompt, metadata?)` that opens the authenticated WebSocket (`/api/ai/ws`) via the BFF.
+  2. Update `ai-chat.ts` to wrap WebSocket creation, manage connection lifecycle (connect, message handlers, reconnect), and expose a hook-friendly API (`sendPrompt`, `abort`, `status`).
+  3. Expose a context/provider that allows any component (booking review) to trigger `startWithPrompt`.
+  4. Build helper `buildAiPromptFromBooking(bookingContext, actionType)` to craft natural language prompts.
+  5. From the review modal, wire “Ask AI” buttons to trigger the provider and stream partial responses into `chat-interface.tsx`.
 
-### 4. Navigation & State Management
+### 4. WebSocket UX & Resilience
+- Surface loading/streaming state in the chat UI; render incremental tokens as they arrive.
+- Send lightweight heartbeats from the client when idle so the tunnel stays warm; handle keepalive frames from the server.
+- Add error banners when the socket closes unexpectedly and offer a retry button that replays the last prompt.
+- Log `requestId` and socket events for debugging (tie into the plan from `WEBSOCKET_SECURITY.md`).
+
+### 5. Navigation & State Management
 - Use Next.js router for navigation; ensure search pages have `useEffect` to hydrate forms when query params change.
 - For combos or round trips, update the booking context to expect multiple itineraries (some of this is already handled by the new combo flow).
 - Consider storing `searchIntent` in context so if a user cancels mid-search we can restore the prior state.
@@ -82,11 +91,12 @@ Improve the booking review experience so customers can quickly:
 1. Unit tests for serialization helpers (query param builder).
 2. Cypress/Playwright flows:
    - Search for a hotel → booking review → “Book another flight” → redirected to flights with expected params.
-   - Confirm AI prompt invocation opens chat with seeded context.
+   - Confirm AI prompt invocation opens chat with seeded context, streams tokens over WebSocket, and survives >100s interactions.
 3. QA scenarios:
    - Ensure query params do not leak sensitive data.
    - Validate behaviour with partial combos (only hotel, only flight).
    - Confirm search forms correctly read defaults from URL and context.
+   - Simulate network toggles to verify the WebSocket reconnect path.
 
 ## Rollout Considerations
 - Initial release can focus on preserving search state and direct navigation. AI quick prompt can be toggled via feature flag if needed.

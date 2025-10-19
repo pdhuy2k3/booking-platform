@@ -352,7 +352,7 @@ export const ChatInterface = forwardRef<any, ChatInterfaceProps>(function ChatIn
               >
                 <Send className="h-4 w-4" />
               </Button>
-            </div>
+          </div>
           </div>
 
           {currentSuggestions.length > 0 && (
