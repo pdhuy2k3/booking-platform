@@ -23,6 +23,7 @@ import {
   AlertTriangle,
 } from "lucide-react"
 import { useDateFormatter } from "@/hooks/use-date-formatter"
+import { useCurrencyFormatter } from "@/hooks/use-currency-formatter"
 import { useRouter } from "next/navigation"
 import { useToast } from "@/hooks/use-toast"
 import { useRecommendPanel } from "@/contexts/recommend-panel-context"
@@ -59,23 +60,7 @@ const getBookingIcon = (type?: string) => {
   }
 }
 
-function formatCurrency(amount?: number | string | null, currency?: string | null) {
-  if (amount == null) return "—"
-  const numeric = typeof amount === "string" ? Number(amount) : amount
-  if (!Number.isFinite(numeric)) return amount?.toString() ?? "—"
-  const resolvedCurrency = currency ? currency.toUpperCase() : "VND"
-  try {
-    return new Intl.NumberFormat(undefined, {
-      style: "currency",
-      currency: resolvedCurrency,
-      currencyDisplay: "symbol",
-      maximumFractionDigits: 2,
-      minimumFractionDigits: 0,
-    }).format(numeric)
-  } catch {
-    return `${numeric.toFixed(2)} ${resolvedCurrency}`
-  }
-}
+
 
 const normalizeIsoDateTime = (value?: string | null) => {
   if (!value) return null
@@ -83,32 +68,6 @@ const normalizeIsoDateTime = (value?: string | null) => {
     return `${value}Z`
   }
   return value
-}
-
-function formatDateTime(timestamp?: string | null) {
-  const normalized = normalizeIsoDateTime(timestamp)
-  if (!normalized) return "—"
-  const date = new Date(normalized)
-  if (Number.isNaN(date.getTime())) return timestamp || "—"
-  return date.toLocaleString(undefined, {
-    year: "numeric",
-    month: "short",
-    day: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  })
-}
-
-function formatDateOnly(timestamp?: string | null) {
-  const normalized = normalizeIsoDateTime(timestamp)
-  if (!normalized) return "—"
-  const date = new Date(normalized)
-  if (Number.isNaN(date.getTime())) return timestamp || "—"
-  return date.toLocaleDateString(undefined, {
-    year: "numeric",
-    month: "long",
-    day: "numeric",
-  })
 }
 
 const ensureSeatClass = (value?: string | null) => {
@@ -126,6 +85,17 @@ const parseProductDetails = (json?: string | null) => {
   }
   }
 
+  type BookingDetailState = {
+    flight?: FlightFareDetails
+    hotel?: RoomDetails
+    fallbackFlight?: any
+    fallbackHotel?: any
+  }
+
+export function BookingHistoryTab() {
+  const { formatDateTime, formatDateOnly } = useDateFormatter()
+  const { formatCurrency: formatCurrencyWithUserPreference } = useCurrencyFormatter()
+  
   const renderStatusBadge = (status?: string | null) => {
     if (!status) return null
     const meta = STATUS_BADGE_MAP[status] ?? {
@@ -188,7 +158,7 @@ const parseProductDetails = (json?: string | null) => {
           </div>
           <div>
             <span className="text-xs uppercase text-gray-500">Giá vé</span>
-            <p>{formatCurrency(price ?? priceRaw, currency)}</p>
+            <p>{formatCurrencyWithUserPreference(price ?? priceRaw, currency)}</p>
             {availableSeats != null && Number.isFinite(availableSeats) && (
               <p className="text-xs text-gray-500">Số ghế trống: {availableSeats}</p>
             )}
@@ -222,7 +192,7 @@ const parseProductDetails = (json?: string | null) => {
           </div>
           <div>
             <span className="text-xs uppercase text-gray-500">Giá</span>
-            <p>{formatCurrency(price ?? priceRaw, currency)}</p>
+            <p>{formatCurrencyWithUserPreference(price ?? priceRaw, currency)}</p>
           </div>
           <div>
             <span className="text-xs uppercase text-gray-500">Sức chứa</span>
@@ -240,15 +210,6 @@ const parseProductDetails = (json?: string | null) => {
 
   const renderFallbackFlightDetails = (fallback: any) => renderFlightDetails(undefined, fallback)
   const renderFallbackHotelDetails = (fallback: any) => renderHotelDetails(undefined, fallback)
-
-type BookingDetailState = {
-  flight?: FlightFareDetails
-  hotel?: RoomDetails
-  fallbackFlight?: any
-  fallbackHotel?: any
-}
-
-export function BookingHistoryTab() {
   const [items, setItems] = useState<BookingHistoryItemDto[]>([])
   const [page, setPage] = useState(0)
   const [hasNext, setHasNext] = useState(false)
@@ -614,7 +575,7 @@ export function BookingHistoryTab() {
                         </div>
                         <div className="flex flex-col items-start gap-1 text-sm md:items-end">
                           <span className="text-gray-900 font-semibold text-base">
-                            {formatCurrency(booking.totalAmount, booking.currency)}
+                            {formatCurrencyWithUserPreference(booking.totalAmount, booking.currency)}
                           </span>
                           <div className="flex gap-1">
                             <Button

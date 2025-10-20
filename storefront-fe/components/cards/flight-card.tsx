@@ -6,7 +6,7 @@ import { Clock, Plane } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { formatCurrency } from "@/lib/currency";
+import { useCurrencyFormatter } from "@/hooks/use-currency-formatter";
 import { useDateFormatter } from "@/hooks/use-date-formatter";
 
 interface FlightCardProps {
@@ -22,7 +22,7 @@ interface FlightCardProps {
     arrivalDateTime?: string;
     duration?: string;
     stops?: string | number;
-    price: string;
+    price: number | string; // Allow both number and string
     currency?: string;
     seatClass?: string;
     class?: string;
@@ -60,6 +60,7 @@ export const FlightCard = ({
   className = "",
 }: FlightCardProps) => {
   const { formatTimeOnly } = useDateFormatter();
+  const { formatCurrency } = useCurrencyFormatter();
   const [imageError, setImageError] = useState(false);
 
   const getDisplayTime = (time: string) => {
@@ -251,7 +252,7 @@ export const FlightCard = ({
                 className="bg-blue-600 hover:bg-blue-700 text-white flex flex-col items-center text-xs sm:text-sm px-4 py-2"
               >
                 <span className="font-semibold">
-                  {flight.price}
+                  {formatCurrency(flight.price, flight.currency || 'VND')}
                 </span>
               </Button>
             )}

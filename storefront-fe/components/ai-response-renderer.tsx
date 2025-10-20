@@ -662,9 +662,24 @@ function optionalNumber(value: unknown): number | undefined {
 function parsePriceToNumber(value: unknown): number | undefined {
   if (typeof value === 'number') return value
   if (typeof value === 'string') {
-    const cleaned = value.replace(/[^0-9.]/g, '')
-    const num = parseFloat(cleaned)
-    return isNaN(num) ? undefined : num
+    // Handle Vietnamese price formats like "1.334.933 VND" or "Gia la 1.334.933 VND"
+    // Extract the numeric part by removing currency symbols and text
+    const numericPart = value
+      .replace(/[^0-9.,\s]/g, ' ') // Keep only digits, periods, commas, and spaces
+      .replace(/\s+/g, ' ') // Normalize spaces
+      .trim()
+      .split(/\s+/) // Split by spaces
+      .find(part => /[0-9]/.test(part)) // Find the part with digits
+    
+    if (numericPart) {
+      // For Vietnamese format: 1.334.933 (period as thousand separator)
+      const cleaned = numericPart
+        .replace(/\./g, '') // Remove thousand separators (periods)
+        .replace(/,/, '.') // Replace comma with period for decimal
+      
+      const num = parseFloat(cleaned)
+      return isNaN(num) ? undefined : num
+    }
   }
   return undefined
 }

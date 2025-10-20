@@ -45,7 +45,7 @@ export const ChatInterface = forwardRef<any, ChatInterfaceProps>(function ChatIn
   const router = useRouter()
   const searchParams = useSearchParams()
   
-  const { formatDateTime } = useDateFormatter()
+  const { formatRelative, formatDateTime } = useDateFormatter()
   const { user } = useAuth()
 
   // Use the AI chat hook for text messages
@@ -207,8 +207,8 @@ export const ChatInterface = forwardRef<any, ChatInterfaceProps>(function ChatIn
       return null
     }
 
-    // Use timezone-aware formatter
-    return formatDateTime(date.toISOString())
+    // Use formatRelative for chat bubbles (e.g., "2 hours ago", "yesterday")
+    return formatRelative(date.toISOString())
   }
 
   return (

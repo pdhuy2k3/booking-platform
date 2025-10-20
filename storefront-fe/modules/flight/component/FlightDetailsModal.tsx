@@ -27,9 +27,16 @@ const formatSeatClass = (seatClass?: string) => {
 
 const formatTimeLabel = (value?: string) => {
   if (!value) return "Chưa có"
-  const date = new Date(value)
-  if (!Number.isNaN(date.getTime())) {
-    return date.toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" })
+  try {
+    const date = new Date(value)
+    if (!Number.isNaN(date.getTime())) {
+      // Format as HH:mm using date-fns
+      const hours = String(date.getHours()).padStart(2, '0')
+      const minutes = String(date.getMinutes()).padStart(2, '0')
+      return `${hours}:${minutes}`
+    }
+  } catch {
+    // If there's an error parsing, return the original value
   }
   return value
 }
@@ -62,7 +69,7 @@ export default function FlightDetailsModal({
   const [flight, setFlight] = useState<FlightDetails | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const { timezone, language } = useDateFormatter()
+  const { formatDateTime, formatDateOnly, formatTimeOnly, timezone, language } = useDateFormatter()
 
   // Fetch flight details when modal opens and flightId is provided
   useEffect(() => {
@@ -193,7 +200,7 @@ export default function FlightDetailsModal({
                     <div className="text-center">
                       <div className="text-3xl font-bold text-foreground">{formatTimeLabel(departureDateValue)}</div>
                       <div className="text-lg font-medium text-muted-foreground">{flight.origin}</div>
-                      <div className="text-sm text-muted-foreground">{formatBookingDateTime(departureDateValue, { locale: language, timeZone: timezone })}</div>
+                      <div className="text-sm text-muted-foreground">{formatDateTime(departureDateValue)}</div>
                     </div>
 
                     <div className="flex flex-col items-center px-8">
@@ -210,7 +217,7 @@ export default function FlightDetailsModal({
                     <div className="text-center">
                       <div className="text-3xl font-bold text-foreground">{formatTimeLabel(arrivalDateValue)}</div>
                       <div className="text-lg font-medium text-muted-foreground">{flight.destination}</div>
-                      <div className="text-sm text-muted-foreground">{formatBookingDateTime(arrivalDateValue, { locale: language, timeZone: timezone })}</div>
+                      <div className="text-sm text-muted-foreground">{formatDateTime(arrivalDateValue)}</div>
                     </div>
                   </div>
 

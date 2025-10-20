@@ -10,6 +10,7 @@ import { Separator } from "@/components/ui/separator"
 import { hotelService } from "../service"
 import type { HotelDetails } from "../type"
 import { formatPrice } from "@/lib/currency"
+import { useDateFormatter } from "@/hooks/use-date-formatter"
 
 interface HotelDetailsModalProps {
   hotelId: string | null
@@ -36,6 +37,7 @@ export default function HotelDetailsModal({
   guestCount,
   roomCount,
 }: HotelDetailsModalProps) {
+  const { formatDateOnly } = useDateFormatter()
   const [selectedRoom, setSelectedRoom] = useState("standard")
   const [hotel, setHotel] = useState<HotelDetails | null>(null)
   const [loading, setLoading] = useState(false)
@@ -154,8 +156,8 @@ export default function HotelDetailsModal({
   const nights = parsedCheckIn && parsedCheckOut && !Number.isNaN(parsedCheckIn.valueOf()) && !Number.isNaN(parsedCheckOut.valueOf()) && parsedCheckOut > parsedCheckIn
     ? Math.max(1, Math.round((parsedCheckOut.getTime() - parsedCheckIn.getTime()) / (1000 * 60 * 60 * 24)))
     : 1
-  const formattedCheckIn = parsedCheckIn ? parsedCheckIn.toLocaleDateString('vi-VN', { day: 'numeric', month: 'short', year: 'numeric' }) : 'Chưa chọn'
-  const formattedCheckOut = parsedCheckOut ? parsedCheckOut.toLocaleDateString('vi-VN', { day: 'numeric', month: 'short', year: 'numeric' }) : 'Chưa chọn'
+  const formattedCheckIn = checkInDate ? formatDateOnly(checkInDate) : 'Chưa chọn'
+  const formattedCheckOut = checkOutDate ? formatDateOnly(checkOutDate) : 'Chưa chọn'
   const effectiveGuestCount = guestCount && guestCount > 0 ? guestCount : 2
   const effectiveRoomCount = roomCount && roomCount > 0 ? roomCount : 1
   const totalPrice = Number(selectedRoomData.price ?? 0) * nights * effectiveRoomCount

@@ -7,11 +7,11 @@ import { format, parseISO } from 'date-fns'
 import { formatInTimeZone, toZonedTime, fromZonedTime } from 'date-fns-tz'
 
 // Default timezone for the application (Vietnam)
-export const DEFAULT_TIMEZONE = 'Asia/Ho_Chi_Minh'
+export const DEFAULT_TIMEZONE = 'Asia/Saigon'
 
 // Supported timezones
 export const SUPPORTED_TIMEZONES = [
-  'Asia/Ho_Chi_Minh',
+  'Asia/Saigon',
   'Asia/Bangkok',
   'Asia/Singapore',
   'Asia/Tokyo',
@@ -40,7 +40,7 @@ export function detectUserTimezone(): string {
 
     // Map common timezones to our supported ones
     const timezoneMap: Record<string, string> = {
-      'Asia/Saigon': 'Asia/Ho_Chi_Minh',
+      'Asia/Ho_Chi_Minh': 'Asia/Saigon',
       'Asia/Phnom_Penh': 'Asia/Bangkok',
       'Asia/Vientiane': 'Asia/Bangkok',
       'Asia/Rangoon': 'Asia/Bangkok',
@@ -118,7 +118,7 @@ export function localToUtc(
  */
 export function formatUtcToLocal(
   utcDate: string | Date,
-  formatStr: string = 'PPP p',
+  formatStr: string = 'dd/MM/yyyy HH:mm:ss',
   timezone?: string
 ): string {
   const tz = timezone || detectUserTimezone()
@@ -141,7 +141,7 @@ export function formatUtcToLocal(
  */
 export function formatWithTimezone(
   date: string | Date,
-  formatStr: string = 'PPP p',
+  formatStr: string = 'dd/MM/yyyy HH:mm:ss',
   timezone?: string
 ): string {
   const tz = timezone || detectUserTimezone()
@@ -186,7 +186,7 @@ export function isToday(date: string | Date, timezone?: string): boolean {
  */
 export function getTimezoneDisplayName(timezone: string): string {
   const names: Record<string, string> = {
-    'Asia/Ho_Chi_Minh': 'Vietnam (GMT+7)',
+    'Asia/Saigon': 'Vietnam (GMT+7)',
     'Asia/Bangkok': 'Bangkok (GMT+7)',
     'Asia/Singapore': 'Singapore (GMT+8)',
     'Asia/Tokyo': 'Tokyo (GMT+9)',

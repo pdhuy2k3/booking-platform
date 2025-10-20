@@ -45,7 +45,7 @@ interface FlightBookingFormProps {
 
 export function FlightBookingForm({ flight, onSubmit, onCancel }: FlightBookingFormProps) {
   const { toast } = useToast();
-  const { timezone, language } = useDateFormatter()
+  const { formatDateTime, formatDateOnly, formatTimeOnly, timezone, language } = useDateFormatter()
   const [passengerCount, setPassengerCount] = useState<number>(1)
   const [seatClass, setSeatClass] = useState<string>('ECONOMY')
   const [specialRequests, setSpecialRequests] = useState<string>('')
@@ -255,10 +255,10 @@ export function FlightBookingForm({ flight, onSubmit, onCancel }: FlightBookingF
             </div>
             <div>
               <p className="text-sm">
-                <span className="font-medium">Khởi hành:</span> {formatBookingDateTime(departureDisplaySource, { locale: language, timeZone: timezone })}
+                <span className="font-medium">Khởi hành:</span> {formatDateTime(departureDisplaySource)}
               </p>
               <p className="text-sm">
-                <span className="font-medium">Hạ cánh:</span> {formatBookingDateTime(arrivalDisplaySource, { locale: language, timeZone: timezone })}
+                <span className="font-medium">Hạ cánh:</span> {formatDateTime(arrivalDisplaySource)}
               </p>
             </div>
           </div>
