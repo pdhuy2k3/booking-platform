@@ -95,5 +95,29 @@ public class StorefrontFlightSelectionRequestDto {
     @NotNull(message = "Total flight price is required")
     @Min(value = 0, message = "Total flight price must be positive")
     private Double totalFlightPrice;
-}
 
+    /**
+     * Optional airline logo URL captured on storefront.
+     */
+    private String airlineLogo;
+
+    /**
+     * Display name for origin airport from storefront selection.
+     */
+    private String originAirportName;
+
+    /**
+     * Display name for destination airport from storefront selection.
+     */
+    private String destinationAirportName;
+
+    /**
+     * Optional origin airport image URL for UI display.
+     */
+    private String originAirportImage;
+
+    /**
+     * Optional destination airport image URL for UI display.
+     */
+    private String destinationAirportImage;
+}

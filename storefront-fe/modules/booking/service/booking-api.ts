@@ -21,6 +21,11 @@ export interface StorefrontFlightSelection {
   specialRequests?: string | null;
   pricePerPassenger?: number | null;
   totalFlightPrice: number;
+  airlineLogo?: string | null;
+  originAirportName?: string | null;
+  destinationAirportName?: string | null;
+  originAirportImage?: string | null;
+  destinationAirportImage?: string | null;
 }
 
 export interface StorefrontHotelSelection {
@@ -41,6 +46,9 @@ export interface StorefrontHotelSelection {
   additionalServices?: HotelService[];
   specialRequests?: string | null;
   cancellationPolicy?: string | null;
+  hotelImage?: string | null;
+  roomImage?: string | null;
+  roomImages?: string[] | null;
 }
 
 // Type definitions for booking API

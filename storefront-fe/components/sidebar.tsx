@@ -4,11 +4,12 @@ import { useEffect, useCallback, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { cn } from "@/lib/utils";
-import { MessageCircle, Search, Info, LogOut, UserRound, User, BarChart3, History } from "lucide-react";
+import { MessageCircle, Search, Info, LogOut, UserRound, User, BarChart3, History, CalendarRange } from "lucide-react";
 import Image from "next/image";
 import { useAuth } from "@/contexts/auth-context";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { SimpleThemeToggle } from "@/components/theme-toggle";
+import { BookingModal } from "@/components/booking-modal";
 
 export function Sidebar() {
   const router = useRouter();
@@ -59,6 +60,8 @@ export function Sidebar() {
     [router, searchParams],
   );
 
+  const [isBookingModalOpen, setBookingModalOpen] = useState(false);
+
   const navItems = [
     { label: "Chat", icon: MessageCircle, tab: "chat" as const },
     { label: "Search", icon: Search, tab: "search" as const },
@@ -94,7 +97,7 @@ export function Sidebar() {
         </Link>
       </div>
 
-      <nav className={cn("flex flex-col gap-2 items-stretch")}>
+      <nav className={cn("flex flex-col gap-2 items-stretch")}> 
         {navItems.map((item) => {
           const Icon = item.icon;
           const isActive = activeTab === item.tab;
@@ -116,6 +119,17 @@ export function Sidebar() {
           );
         })}
       </nav>
+
+      <button
+        type="button"
+        onClick={() => setBookingModalOpen(true)}
+        className={cn(
+          "flex h-10 items-center rounded-full border border-dashed border-primary/60 bg-primary/5 px-3 text-sm font-medium text-primary transition-colors hover:bg-primary/10" 
+        )}
+      >
+        <CalendarRange className="mr-2 h-4 w-4" />
+        Xem đặt chỗ
+      </button>
 
       <div className={cn("flex-1 w-full overflow-y-auto mt-2 space-y-2 px-1")}>
         {isAuthenticated && (
@@ -156,7 +170,7 @@ export function Sidebar() {
         )}
       </div>
 
-      <div className={cn("flex flex-col gap-2 items-stretch")}>
+      <div className={cn("flex flex-col gap-2 items-stretch")}> 
         {isLoading ? (
           <div className="h-10 w-10 animate-pulse rounded-full bg-secondary" />
         ) : isAuthenticated && user ? (
@@ -259,6 +273,8 @@ export function Sidebar() {
         </div>
 
       </div>
+
+      <BookingModal open={isBookingModalOpen} onOpenChange={setBookingModalOpen} />
     </nav>
   );
 }

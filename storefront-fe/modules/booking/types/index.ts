@@ -23,6 +23,11 @@ export interface FlightBookingDetails {
   returnFlight?: ReturnFlightDetails;
   additionalServices?: FlightService[];
   specialRequests?: string;
+  airlineLogo?: string;
+  originAirportName?: string;
+  destinationAirportName?: string;
+  originAirportImage?: string;
+  destinationAirportImage?: string;
 }
 
 export interface HotelBookingDetails {
@@ -35,7 +40,6 @@ export interface HotelBookingDetails {
   hotelLongitude?: number;
   starRating?: number;
   roomTypeId?: string;
-  roomId?: string;
   roomAvailabilityId?: string;
   roomType: string;
   roomName: string;
@@ -52,6 +56,9 @@ export interface HotelBookingDetails {
   additionalServices?: HotelService[];
   specialRequests?: string;
   cancellationPolicy?: string;
+  hotelImage?: string;
+  roomImage?: string;
+  roomImages?: string[];
 }
 
 export interface ComboBookingDetails {
@@ -198,6 +205,14 @@ export interface BookingHistoryItemDto {
   destinationLongitude?: number | null;
   hotelLatitude?: number | null;
   hotelLongitude?: number | null;
+  originAirportCode?: string | null;
+  originCity?: string | null;
+  destinationAirportCode?: string | null;
+  destinationCity?: string | null;
+  airlineLogo?: string | null;
+  hotelImage?: string | null;
+  roomImage?: string | null;
+  roomImages?: string[] | null;
   reservationLockedAt?: string | null;
   reservationExpiresAt?: string | null;
 }

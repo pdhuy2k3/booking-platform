@@ -169,9 +169,24 @@ public class HotelBookingDetailsDto {
      * Special requests or notes
      */
     private String specialRequests;
-    
+
     /**
      * Cancellation policy
      */
     private String cancellationPolicy;
+
+    /**
+     * Primary hotel image URL for presentation.
+     */
+    private String hotelImage;
+
+    /**
+     * Primary room image URL.
+     */
+    private String roomImage;
+
+    /**
+     * Collection of room images for galleries.
+     */
+    private List<String> roomImages;
 }

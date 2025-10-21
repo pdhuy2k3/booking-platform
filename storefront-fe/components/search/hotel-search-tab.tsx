@@ -44,6 +44,8 @@ export function HotelSearchTab({ onBookingStart }: HotelSearchTabProps = {}) {
     setSelectedHotel,
     updateBookingData,
     setStep,
+    selectedFlight,
+    setHotelDetails,
   } = useBooking()
   
   // Filter states
@@ -163,9 +165,31 @@ export function HotelSearchTab({ onBookingStart }: HotelSearchTabProps = {}) {
       ? Math.max(1, Math.round((new Date(checkOutDate).getTime() - new Date(checkInDate).getTime()) / (1000 * 60 * 60 * 24)))
       : undefined
     const totalPrice = price * (roomCount ?? 1) * (nights ?? 1)
+    const hasFlightSelection = Boolean(selectedFlight)
 
-    resetBooking()
-    setBookingType('hotel')
+    if (hasFlightSelection) {
+      setBookingType('both')
+      setHotelDetails(null)
+      updateBookingData({
+        bookingType: 'COMBO',
+        totalAmount: 0,
+        currency: hotel.currency || 'VND',
+        hotelSelection: undefined,
+      })
+    } else {
+      resetBooking()
+      setBookingType('hotel')
+      setHotelDetails(null)
+      updateBookingData({
+        bookingType: 'HOTEL',
+        totalAmount: 0,
+        currency: hotel.currency || 'VND',
+        flightSelection: undefined,
+        hotelSelection: undefined,
+        comboDiscount: undefined,
+      })
+    }
+
     setSelectedHotel({
       id: hotelId,
       name: hotel.name,
@@ -185,19 +209,13 @@ export function HotelSearchTab({ onBookingStart }: HotelSearchTabProps = {}) {
       currency: hotel.currency || 'VND',
       amenities,
       image: room.image || hotel.primaryImage || hotel.images?.[0],
+      images: hotel.images,
+      roomImages: room.image ? [room.image] : hotel.images,
       checkInDate: checkInDate || undefined,
       checkOutDate: checkOutDate || undefined,
       guests: guestCount,
       rooms: roomCount,
       nights,
-    })
-    updateBookingData({
-      bookingType: 'HOTEL',
-      totalAmount: 0,
-      currency: hotel.currency || 'VND',
-      flightSelection: undefined,
-      hotelSelection: undefined,
-      comboDiscount: undefined,
     })
     setStep('passengers')
     handleCloseModal()

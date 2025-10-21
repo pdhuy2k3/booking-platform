@@ -82,6 +82,11 @@ export function BookingFlowManager({ onBookingComplete, showSelection = true }: 
       specialRequests: details.specialRequests,
       pricePerPassenger: details.pricePerPassenger,
       totalFlightPrice: details.totalFlightPrice,
+      airlineLogo: details.airlineLogo,
+      originAirportName: details.originAirportName,
+      destinationAirportName: details.destinationAirportName,
+      originAirportImage: details.originAirportImage,
+      destinationAirportImage: details.destinationAirportImage,
     } satisfies StorefrontFlightSelection
 
     const hotelTotal = bookingData.hotelSelection?.totalRoomPrice ?? 0
@@ -114,9 +119,14 @@ export function BookingFlowManager({ onBookingComplete, showSelection = true }: 
       price: details.totalFlightPrice,
       currency: selectedFlight?.currency || bookingData.currency || 'VND',
       seatClass: details.seatClass || selectedFlight?.seatClass,
-      logo: selectedFlight?.logo,
+      logo: details.airlineLogo ?? selectedFlight?.logo,
+      airlineLogo: details.airlineLogo ?? selectedFlight?.airlineLogo,
       scheduleId: details.scheduleId || selectedFlight?.scheduleId,
       fareId: details.fareId || selectedFlight?.fareId,
+      originAirportName: details.originAirportName ?? selectedFlight?.originAirportName ?? details.originAirport,
+      destinationAirportName: details.destinationAirportName ?? selectedFlight?.destinationAirportName ?? details.destinationAirport,
+      originAirportImage: details.originAirportImage ?? selectedFlight?.originAirportImage,
+      destinationAirportImage: details.destinationAirportImage ?? selectedFlight?.destinationAirportImage,
     })
     if (bookingType === 'both') {
       setComboStage('hotel')
@@ -129,7 +139,6 @@ export function BookingFlowManager({ onBookingComplete, showSelection = true }: 
     const hotelSelectionPayload = {
       hotelId: details.hotelId,
       roomTypeId: String(details.roomTypeId ?? ''),
-      roomId: details.roomId ?? undefined,
       roomAvailabilityId: (details as any).roomAvailabilityId ?? undefined,
       checkInDate: details.checkInDate,
       checkOutDate: details.checkOutDate,
@@ -144,6 +153,9 @@ export function BookingFlowManager({ onBookingComplete, showSelection = true }: 
       additionalServices: details.additionalServices,
       specialRequests: details.specialRequests,
       cancellationPolicy: details.cancellationPolicy,
+      hotelImage: details.hotelImage,
+      roomImage: details.roomImage,
+      roomImages: details.roomImages,
     } satisfies StorefrontHotelSelection
 
     const flightTotal = bookingData.flightSelection?.totalFlightPrice ?? 0
@@ -170,7 +182,6 @@ export function BookingFlowManager({ onBookingComplete, showSelection = true }: 
       hotelLongitude: details.hotelLongitude ?? selectedHotel?.hotelLongitude,
       rating: selectedHotel?.rating,
       roomTypeId: String(details.roomTypeId ?? selectedHotel?.roomTypeId ?? ''),
-      roomId: details.roomId ?? selectedHotel?.roomId ?? '',
       roomType: details.roomType,
       roomName: details.roomName,
       price: details.pricePerNight,
@@ -178,7 +189,9 @@ export function BookingFlowManager({ onBookingComplete, showSelection = true }: 
       totalPrice: details.totalRoomPrice,
       currency: selectedHotel?.currency || bookingData.currency || 'VND',
       amenities: selectedHotel?.amenities || [],
-      image: selectedHotel?.image,
+      image: details.hotelImage ?? selectedHotel?.image,
+      images: selectedHotel?.images ?? (details.hotelImage ? [details.hotelImage] : undefined),
+      roomImages: details.roomImages ?? selectedHotel?.roomImages ?? (details.roomImage ? [details.roomImage] : undefined),
       checkInDate: details.checkInDate,
       checkOutDate: details.checkOutDate,
       guests: details.numberOfGuests,

@@ -92,6 +92,8 @@ export function FlightSearchTab({ onBookingStart }: FlightSearchTabProps = {}) {
     updateBookingData,
     setSelectedFlight,
     setStep,
+    selectedHotel,
+    setFlightDetails,
   } = useBooking()
   
   // Search form state
@@ -277,11 +279,7 @@ export function FlightSearchTab({ onBookingStart }: FlightSearchTabProps = {}) {
     const airlineLogo = flight?.logo || flightData.airlineLogo
     const normalizedSeatClass = (flightData.seatClass || flight?.seatClass || flight?.class || 'ECONOMY').toString().toUpperCase()
     const ticketPrice = Number(flightData.price ?? flight?.price ?? 0)
-
-    // Use a functional approach to ensure all state updates are processed together
-    resetBooking()
-    setBookingType('flight')
-    setSelectedFlight({
+    const flightPayload = {
       flightId: flightId,
       flightNumber: flightData.flightNumber,
       airline: flightData.airline,
@@ -300,15 +298,33 @@ export function FlightSearchTab({ onBookingStart }: FlightSearchTabProps = {}) {
       logo: airlineLogo,
       scheduleId: flightData.scheduleId,
       fareId: flightData.fareId,
-    })
-    updateBookingData({
-      bookingType: 'FLIGHT',
-      totalAmount: 0,
-      currency: flightData.currency || 'VND',
-      flightSelection: undefined,
-      hotelSelection: undefined,
-      comboDiscount: undefined,
-    })
+    }
+    const hasHotelSelection = Boolean(selectedHotel)
+
+    if (hasHotelSelection) {
+      setBookingType('both')
+      setFlightDetails(null)
+      updateBookingData({
+        bookingType: 'COMBO',
+        totalAmount: 0,
+        currency: flightData.currency || 'VND',
+        flightSelection: undefined,
+      })
+    } else {
+      resetBooking()
+      setBookingType('flight')
+      setFlightDetails(null)
+      updateBookingData({
+        bookingType: 'FLIGHT',
+        totalAmount: 0,
+        currency: flightData.currency || 'VND',
+        flightSelection: undefined,
+        hotelSelection: undefined,
+        comboDiscount: undefined,
+      })
+    }
+
+    setSelectedFlight(flightPayload)
     setStep('passengers')
     
     // Ensure all context updates are flushed before proceeding

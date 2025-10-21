@@ -121,6 +121,11 @@ export interface SelectedFlight {
   currency: string
   seatClass?: string
   logo?: string
+  airlineLogo?: string
+  originAirportName?: string
+  destinationAirportName?: string
+  originAirportImage?: string
+  destinationAirportImage?: string
   scheduleId?: string
   fareId?: string
 }
@@ -143,6 +148,8 @@ export interface SelectedHotel {
   currency: string
   amenities: string[]
   image?: string
+  images?: string[]
+  roomImages?: string[]
   checkInDate?: string
   checkOutDate?: string
   guests?: number

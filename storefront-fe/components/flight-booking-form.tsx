@@ -68,16 +68,13 @@ export function FlightBookingForm({ flight, onSubmit, onCancel }: FlightBookingF
   const [currentTotal, setCurrentTotal] = useState<number>(flight.price);
   const [isFetching, setIsFetching] = useState<boolean>(false);
   const departureDisplaySource = pickDateTimeValue(
-    flight.departureDateTime,
-    flight.raw?.departureDateTime,
     flight.departureTime,
-    flight.raw?.departureTime,
+   
+    flight.departureTime,
   )
   const arrivalDisplaySource = pickDateTimeValue(
-    flight.arrivalDateTime,
-    flight.raw?.arrivalDateTime,
     flight.arrivalTime,
-    flight.raw?.arrivalTime,
+    flight.arrivalTime,
   )
 
   // Show toast when passenger count changes
@@ -99,7 +96,7 @@ export function FlightBookingForm({ flight, onSubmit, onCancel }: FlightBookingF
       // Fetch updated price based on selected seat class
       import('@/modules/flight/service').then(module => {
         module.flightService.getFareDetails(
-          flight.id.toString(), 
+          flight.flightId, 
           { 
             seatClass: seatClass,
             scheduleId: flight.scheduleId,
@@ -202,16 +199,10 @@ export function FlightBookingForm({ flight, onSubmit, onCancel }: FlightBookingF
     }
 
     const departureDateValue = pickDateTimeValue(
-      flight.departureDateTime,
-      flight.raw?.departureDateTime,
       flight.departureTime,
-      flight.raw?.departureTime,
     )
     const arrivalDateValue = pickDateTimeValue(
-      flight.arrivalDateTime,
-      flight.raw?.arrivalDateTime,
       flight.arrivalTime,
-      flight.raw?.arrivalTime,
     )
 
     const bookingDetails: FlightBookingDetails = {
@@ -232,7 +223,10 @@ export function FlightBookingForm({ flight, onSubmit, onCancel }: FlightBookingF
       passengerCount,
       passengers,
       pricePerPassenger: currentTotal / passengerCount, // Calculate price per passenger based on current total
-      totalFlightPrice: currentTotal // Use the dynamically calculated total
+      totalFlightPrice: currentTotal, // Use the dynamically calculated total
+      airlineLogo: flight.logo,
+      originAirportName: flight.origin,
+      destinationAirportName: flight.destination
     }
 
     onSubmit(bookingDetails)
@@ -466,7 +460,7 @@ export function FlightBookingForm({ flight, onSubmit, onCancel }: FlightBookingF
               Hủy
             </Button>
             <Button type="submit">
-              Tiếp tục xem lại
+              Tiếp tục
             </Button>
           </div>
         </form>

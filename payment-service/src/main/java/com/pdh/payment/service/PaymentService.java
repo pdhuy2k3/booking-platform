@@ -25,6 +25,7 @@ import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -260,6 +261,8 @@ public class PaymentService {
         }
 
         PaymentTransaction transaction = transactionOpt.get();
+        PaymentStatus previousStatus = transaction.getStatus();
+
         PaymentTransaction updatedTransaction = paymentContext.verifyPaymentStatus(transaction);
 
         // Save updated transaction
@@ -275,7 +278,7 @@ public class PaymentService {
         }
 
         // Publish status update event if status changed
-        if (!transaction.getStatus().equals(savedTransaction.getStatus())) {
+        if (!Objects.equals(previousStatus, savedTransaction.getStatus())) {
             if (savedTransaction.getStatus().isSuccessful()) {
                 publishPaymentEvent(savedTransaction.getPayment(), savedTransaction, "PaymentProcessed");
             } else if (savedTransaction.getStatus() == PaymentStatus.FAILED) {

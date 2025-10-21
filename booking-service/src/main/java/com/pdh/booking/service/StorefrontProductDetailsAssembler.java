@@ -103,6 +103,11 @@ public class StorefrontProductDetailsAssembler {
             .selectedSeats(selection.getSelectedSeats())
             .pricePerPassenger(pricePerPassenger)
             .totalFlightPrice(totalFlightPrice)
+            .airlineLogo(firstNonBlank(selection.getAirlineLogo(), fareDetails.getAirlineLogo()))
+            .originAirportName(firstNonBlank(selection.getOriginAirportName(), fareDetails.getOriginAirport()))
+            .destinationAirportName(firstNonBlank(selection.getDestinationAirportName(), fareDetails.getDestinationAirport()))
+            .originAirportImage(firstNonBlank(selection.getOriginAirportImage()))
+            .destinationAirportImage(firstNonBlank(selection.getDestinationAirportImage()))
             .additionalServices(selection.getAdditionalServices())
             .specialRequests(selection.getSpecialRequests())
             .build();
@@ -163,6 +168,9 @@ public class StorefrontProductDetailsAssembler {
             .additionalServices(selection.getAdditionalServices())
             .specialRequests(selection.getSpecialRequests())
             .cancellationPolicy(selection.getCancellationPolicy())
+            .hotelImage(firstNonBlank(selection.getHotelImage(), hotelDetails.getPrimaryImage(), firstImage(hotelDetails.getImages())))
+            .roomImage(firstNonBlank(selection.getRoomImage(), roomType != null ? roomType.getImage() : null))
+            .roomImages(resolveRoomImages(selection.getRoomImages(), roomType, hotelDetails))
             .build();
     }
 
@@ -279,5 +287,34 @@ public class StorefrontProductDetailsAssembler {
             return null;
         }
         return value.toString();
+    }
+
+    private List<String> resolveRoomImages(List<String> requested,
+                                           HotelDetailsClientResponse.RoomType roomType,
+                                           HotelDetailsClientResponse hotelDetails) {
+        if (requested != null && !requested.isEmpty()) {
+            return requested;
+        }
+        if (roomType != null && StringUtils.isNotBlank(roomType.getImage())) {
+            return List.of(roomType.getImage());
+        }
+        if (hotelDetails.getImages() != null && !hotelDetails.getImages().isEmpty()) {
+            return hotelDetails.getImages();
+        }
+        if (StringUtils.isNotBlank(hotelDetails.getPrimaryImage())) {
+            return List.of(hotelDetails.getPrimaryImage());
+        }
+        return List.of();
+    }
+
+    private String firstImage(List<String> images) {
+        if (images == null) {
+            return null;
+        }
+        return images.stream()
+            .filter(StringUtils::isNotBlank)
+            .findFirst()
+            .map(String::trim)
+            .orElse(null);
     }
 }

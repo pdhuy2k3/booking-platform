@@ -2,6 +2,7 @@
 
 import type { JSX } from "react"
 import { useCallback, useEffect, useMemo, useState } from "react"
+import Image from "next/image"
 import { bookingService, type BookingHistoryItemDto, type BookingHistoryResponseDto } from "@/modules/booking/service"
 import { flightService } from "@/modules/flight/service"
 import { hotelService } from "@/modules/hotel/service"
@@ -28,6 +29,7 @@ import { useRouter } from "next/navigation"
 import { useToast } from "@/hooks/use-toast"
 import { useRecommendPanel } from "@/contexts/recommend-panel-context"
 import { mapboxService } from "@/modules/mapbox/services/mapboxClientService"
+import { env } from "@/env.mjs"
 
 const RESUME_STORAGE_KEY = "bookingResumePayload"
 const PROCESSING_STATUSES = new Set(["PENDING", "VALIDATION_PENDING", "PAYMENT_PENDING"])
@@ -121,47 +123,104 @@ export function BookingHistoryTab() {
     const seatClass = flight?.seatClass ?? ensureSeatClass(source?.seatClass)
     const priceRaw = flight?.price ?? source?.pricePerPassenger ?? source?.totalFlightPrice
     const price = priceRaw != null ? Number(priceRaw) : undefined
-    const currency = flight?.currency ?? source?.currency ?? "VND"
+    const currency = flight?.currency ?? source?.currency ?? 'VND'
     const airline = flight?.airline ?? source?.airline
     const flightNumber = flight?.flightNumber ?? source?.flightNumber
-    
-    // Handle both FlightFareDetails and API response structure
     const origin = flight?.originAirport ?? source?.originAirport ?? source?.origin
     const destination = flight?.destinationAirport ?? source?.destinationAirport ?? source?.destination
+    const originLabel = source?.originAirportName ?? origin
+    const destinationLabel = source?.destinationAirportName ?? destination
     const availableSeatsRaw = flight?.availableSeats ?? source?.availableSeats
     const availableSeats = availableSeatsRaw != null ? Number(availableSeatsRaw) : null
+    const airlineLogo = flight?.airlineLogo ?? source?.airlineLogo ?? fallback?.logo ?? '/airplane-generic.png'
+
+    const originLatitude = resolveNumber(flight?.originLatitude ?? source?.originLatitude)
+    const originLongitude = resolveNumber(flight?.originLongitude ?? source?.originLongitude)
+    const destinationLatitude = resolveNumber(flight?.destinationLatitude ?? source?.destinationLatitude)
+    const destinationLongitude = resolveNumber(flight?.destinationLongitude ?? source?.destinationLongitude)
+
+    const originPreview = source?.originAirportImage ?? buildStaticMapUrl(originLatitude, originLongitude)
+    const destinationPreview = source?.destinationAirportImage ?? buildStaticMapUrl(destinationLatitude, destinationLongitude)
 
     return (
-      <div className="space-y-2 rounded-lg border border-gray-300/30 bg-gray-100 p-4">
-        <h4 className="font-semibold text-gray-700">Chi tiết chuyến bay</h4>
-        <div className="grid gap-2 text-sm text-gray-600 md:grid-cols-2">
-          <div>
-            <span className="text-xs uppercase text-gray-500">Chuyến bay</span>
-            <p className="font-medium">{flightNumber || 'N/A'}</p>
-            {airline && <p className="text-xs text-gray-500">{airline}</p>}
+      <div className="overflow-hidden rounded-lg border border-gray-200 bg-white/80 shadow-sm">
+        <div className="flex flex-col gap-4 p-4">
+          <div className="flex items-start justify-between gap-4">
+            <div className="flex items-center gap-3">
+              <div className="relative h-16 w-16 overflow-hidden rounded-full border border-gray-200 bg-white">
+                <Image
+                  src={airlineLogo || '/airplane-generic.png'}
+                  alt={airline || 'Airline'}
+                  fill
+                  className="object-contain p-2"
+                  unoptimized
+                />
+              </div>
+              <div>
+                <p className="text-xs uppercase text-gray-500">Chuyến bay</p>
+                <p className="text-lg font-semibold text-gray-900">{airline || 'Không xác định'}</p>
+                {flightNumber && <p className="text-sm text-gray-500">{flightNumber}</p>}
+              </div>
+            </div>
+            <div className="text-right">
+              <p className="text-xs uppercase text-gray-500">Giá vé</p>
+              <p className="text-base font-semibold text-gray-900">
+                {formatCurrencyWithUserPreference(price ?? priceRaw, currency)}
+              </p>
+              {availableSeats != null && Number.isFinite(availableSeats) && (
+                <p className="text-xs text-gray-500">Số ghế trống: {availableSeats}</p>
+              )}
+            </div>
           </div>
-          <div>
-            <span className="text-xs uppercase text-gray-500">Hành trình</span>
-            <p className="font-medium">{origin || '—'} → {destination || '—'}</p>
+
+          <div className="grid gap-4 md:grid-cols-2">
+            <div className="overflow-hidden rounded-lg border border-gray-200 bg-white">
+              {originPreview ? (
+                <div className="relative h-32 w-full">
+                  <Image src={originPreview} alt={`Bản đồ ${originLabel || 'khởi hành'}`} fill className="object-cover" unoptimized />
+                </div>
+              ) : (
+                <div className="flex h-32 w-full items-center justify-center bg-gray-100 text-gray-400">
+                  <MapPin className="h-8 w-8" />
+                </div>
+              )}
+              <div className="p-3">
+                <p className="text-xs uppercase text-gray-500">Khởi hành</p>
+                <p className="font-medium text-gray-900">{originLabel || '—'}</p>
+                <p className="text-sm text-gray-500">{formatDateTime(departure)}</p>
+              </div>
+            </div>
+            <div className="overflow-hidden rounded-lg border border-gray-200 bg-white">
+              {destinationPreview ? (
+                <div className="relative h-32 w-full">
+                  <Image src={destinationPreview} alt={`Bản đồ ${destinationLabel || 'điểm đến'}`} fill className="object-cover" unoptimized />
+                </div>
+              ) : (
+                <div className="flex h-32 w-full items-center justify-center bg-gray-100 text-gray-400">
+                  <MapPin className="h-8 w-8" />
+                </div>
+              )}
+              <div className="p-3">
+                <p className="text-xs uppercase text-gray-500">Điểm đến</p>
+                <p className="font-medium text-gray-900">{destinationLabel || '—'}</p>
+                <p className="text-sm text-gray-500">{formatDateTime(arrival)}</p>
+              </div>
+            </div>
           </div>
-          <div>
-            <span className="text-xs uppercase text-gray-500">Khởi hành</span>
-          <p>{formatDateTime(departure)}</p>
-          </div>
-          <div>
-            <span className="text-xs uppercase text-gray-500">Đến</span>
-          <p>{formatDateTime(arrival)}</p>
-          </div>
-          <div>
-            <span className="text-xs uppercase text-gray-500">Hạng ghế</span>
-            <p>{seatClass}</p>
-          </div>
-          <div>
-            <span className="text-xs uppercase text-gray-500">Giá vé</span>
-            <p>{formatCurrencyWithUserPreference(price ?? priceRaw, currency)}</p>
-            {availableSeats != null && Number.isFinite(availableSeats) && (
-              <p className="text-xs text-gray-500">Số ghế trống: {availableSeats}</p>
-            )}
+
+          <div className="grid gap-3 text-sm text-gray-600 md:grid-cols-3">
+            <div>
+              <span className="text-xs uppercase text-gray-500">Hành trình</span>
+              <p className="font-medium text-gray-900">{origin || '—'} → {destination || '—'}</p>
+            </div>
+            <div>
+              <span className="text-xs uppercase text-gray-500">Hạng ghế</span>
+              <p className="font-medium text-gray-900">{seatClass}</p>
+            </div>
+            <div>
+              <span className="text-xs uppercase text-gray-500">Ngày bay</span>
+              <p className="font-medium text-gray-900">{formatDateOnly(departure)}</p>
+            </div>
           </div>
         </div>
       </div>
@@ -172,38 +231,103 @@ export function BookingHistoryTab() {
     const source = hotel ?? fallback
     if (!source) return null
 
-    const title = hotel?.roomType?.name ?? source?.roomName ?? source?.roomType
+    const roomTitle = hotel?.roomType?.name ?? source?.roomName ?? source?.roomType
     const description = hotel?.description ?? source?.description
     const priceRaw = hotel?.price ?? source?.pricePerNight ?? source?.totalRoomPrice
     const price = priceRaw != null ? Number(priceRaw) : undefined
-    const currency = source?.currency ?? "VND"
+    const currency = source?.currency ?? 'VND'
     const capacity = hotel?.maxOccupancy ?? source?.numberOfGuests
     const bedType = hotel?.bedType ?? source?.bedType
     const roomNumber = hotel?.roomNumber ?? source?.roomId
+    const hotelName = source?.hotelName ?? fallback?.hotelName
+    const address = source?.hotelAddress ?? [source?.city, source?.country].filter(Boolean).join(', ')
+
+    const primaryHotelImage = source?.hotelImage
+      ?? hotel?.primaryImage?.url
+      ?? (Array.isArray(hotel?.media) ? hotel.media.find((item) => item?.url)?.url : undefined)
+      ?? source?.image
+      ?? (Array.isArray(source?.images) ? source.images.find(Boolean) : undefined)
+
+    const roomImageCandidates: string[] = []
+    if (hotel?.primaryImage?.url) {
+      roomImageCandidates.push(hotel.primaryImage.url)
+    }
+    if (Array.isArray(hotel?.media)) {
+      hotel.media.forEach((item) => {
+        if (item?.url) {
+          roomImageCandidates.push(item.url)
+        }
+      })
+    }
+    if (Array.isArray(source?.roomImages)) {
+      source.roomImages.forEach((img: string) => {
+        if (img) {
+          roomImageCandidates.push(img)
+        }
+      })
+    }
+    if (source?.roomImage) {
+      roomImageCandidates.push(source.roomImage)
+    }
+
+    const roomImages = Array.from(new Set(roomImageCandidates.filter(Boolean)))
+    const primaryRoomImage = roomImages[0] ?? primaryHotelImage
 
     return (
-      <div className="space-y-2 rounded-lg border border-gray-300/30 bg-gray-100 p-4">
-        <h4 className="font-semibold text-gray-700">Chi tiết phòng</h4>
-        <div className="grid gap-2 text-sm text-gray-600 md:grid-cols-2">
-          <div>
-            <span className="text-xs uppercase text-gray-500">Phòng</span>
-            <p className="font-medium">{title || 'Phòng'}</p>
-            {roomNumber && <p className="text-xs text-gray-500">Mã phòng: {roomNumber}</p>}
+      <div className="overflow-hidden rounded-lg border border-gray-200 bg-white/80 shadow-sm">
+        {primaryHotelImage && (
+          <div className="relative h-40 w-full">
+            <Image src={primaryHotelImage} alt={hotelName || 'Khách sạn'} fill className="object-cover" unoptimized />
           </div>
-          <div>
-            <span className="text-xs uppercase text-gray-500">Giá</span>
-            <p>{formatCurrencyWithUserPreference(price ?? priceRaw, currency)}</p>
+        )}
+        <div className="flex flex-col gap-4 p-4">
+          <div className="flex flex-col gap-1">
+            <p className="text-xs uppercase text-gray-500">Khách sạn</p>
+            <p className="text-lg font-semibold text-gray-900">{hotelName || 'Thông tin khách sạn'}</p>
+            {address && <p className="text-sm text-gray-500">{address}</p>}
           </div>
-          <div>
-            <span className="text-xs uppercase text-gray-500">Sức chứa</span>
-            <p>{capacity ? `${capacity} khách` : '—'}</p>
+
+          {primaryRoomImage && (
+            <div>
+              <p className="text-xs uppercase text-gray-500">Phòng đã đặt</p>
+              <div className="relative mt-2 h-32 w-full overflow-hidden rounded-lg border border-gray-200">
+                <Image src={primaryRoomImage} alt={roomTitle || 'Phòng'} fill className="object-cover" unoptimized />
+              </div>
+            </div>
+          )}
+
+          {roomImages.length > 1 && (
+            <div className="flex gap-2 overflow-x-auto">
+              {roomImages.slice(0, 5).map((imageUrl, index) => (
+                <div key={`${imageUrl}-${index}`} className="relative h-20 w-28 shrink-0 overflow-hidden rounded-md border border-gray-200">
+                  <Image src={imageUrl} alt={`Ảnh phòng ${index + 1}`} fill className="object-cover" unoptimized />
+                </div>
+              ))}
+            </div>
+          )}
+
+          <div className="grid gap-3 text-sm text-gray-600 md:grid-cols-2">
+            <div>
+              <span className="text-xs uppercase text-gray-500">Phòng</span>
+              <p className="font-medium text-gray-900">{roomTitle || 'Phòng'}</p>
+              {roomNumber && <p className="text-xs text-gray-500">Mã phòng: {roomNumber}</p>}
+            </div>
+            <div>
+              <span className="text-xs uppercase text-gray-500">Giá</span>
+              <p className="font-medium text-gray-900">{formatCurrencyWithUserPreference(price ?? priceRaw, currency)}</p>
+            </div>
+            <div>
+              <span className="text-xs uppercase text-gray-500">Sức chứa</span>
+              <p className="font-medium text-gray-900">{capacity ? `${capacity} khách` : '—'}</p>
+            </div>
+            <div>
+              <span className="text-xs uppercase text-gray-500">Loại giường</span>
+              <p className="font-medium text-gray-900">{bedType || '—'}</p>
+            </div>
           </div>
-          <div>
-            <span className="text-xs uppercase text-gray-500">Loại giường</span>
-            <p>{bedType || '—'}</p>
-          </div>
+
+          {description && <p className="text-sm text-gray-600/80">{description}</p>}
         </div>
-        {description && <p className="text-sm text-gray-600/80">{description}</p>}
       </div>
     )
   }

@@ -26,6 +26,8 @@ public class HotelDetailsClientResponse {
     private Double pricePerNight;
     private String currency;
     private List<String> amenities;
+    private String primaryImage;
+    private List<String> images;
     private List<RoomType> roomTypes;
 
     @JsonIgnoreProperties(ignoreUnknown = true)
@@ -52,4 +54,3 @@ public class HotelDetailsClientResponse {
         private Integer remaining;
     }
 }
-

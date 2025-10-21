@@ -487,6 +487,11 @@ export function BookingProvider({ children }: { children: React.ReactNode }) {
       specialRequests: flightDetails.specialRequests,
       pricePerPassenger: flightDetails.pricePerPassenger,
       totalFlightPrice: flightDetails.totalFlightPrice,
+      airlineLogo: flightDetails.airlineLogo,
+      originAirportName: flightDetails.originAirportName,
+      destinationAirportName: flightDetails.destinationAirportName,
+      originAirportImage: flightDetails.originAirportImage,
+      destinationAirportImage: flightDetails.destinationAirportImage,
     } as StorefrontFlightSelection : undefined
 
     const hotelSelection = hotelDetails ? {
@@ -507,6 +512,9 @@ export function BookingProvider({ children }: { children: React.ReactNode }) {
       additionalServices: hotelDetails.additionalServices,
       specialRequests: hotelDetails.specialRequests,
       cancellationPolicy: hotelDetails.cancellationPolicy,
+      hotelImage: hotelDetails.hotelImage,
+      roomImage: hotelDetails.roomImage,
+      roomImages: hotelDetails.roomImages,
     } as StorefrontHotelSelection : undefined
 
     updateBookingData({
@@ -543,6 +551,12 @@ export function BookingProvider({ children }: { children: React.ReactNode }) {
           seatClass: flightDetails.seatClass,
           scheduleId: flightDetails.scheduleId,
           fareId: flightDetails.fareId,
+          logo: flightDetails.airlineLogo,
+          airlineLogo: flightDetails.airlineLogo,
+          originAirportName: flightDetails.originAirportName ?? flightDetails.originAirport,
+          destinationAirportName: flightDetails.destinationAirportName ?? flightDetails.destinationAirport,
+          originAirportImage: flightDetails.originAirportImage,
+          destinationAirportImage: flightDetails.destinationAirportImage,
         })
       } else {
         setSelectedFlight(null)
@@ -570,7 +584,9 @@ export function BookingProvider({ children }: { children: React.ReactNode }) {
           totalPrice: hotelDetails.totalRoomPrice,
           currency,
           amenities: hotelDetails.amenities ?? [],
-          image: undefined,
+          image: hotelDetails.hotelImage,
+          images: hotelDetails.roomImages ?? (hotelDetails.hotelImage ? [hotelDetails.hotelImage] : undefined),
+          roomImages: hotelDetails.roomImages,
           checkInDate: hotelDetails.checkInDate,
           checkOutDate: hotelDetails.checkOutDate,
           guests: hotelDetails.numberOfGuests,

@@ -40,6 +40,7 @@ function mapFareToFlightDetails(fareDetails: FlightFareDetails, flightId: number
     originLongitude: fareDetails.originLongitude,
     destinationLatitude: fareDetails.destinationLatitude,
     destinationLongitude: fareDetails.destinationLongitude,
+    airlineLogo: fareDetails.airlineLogo,
   };
 }
 

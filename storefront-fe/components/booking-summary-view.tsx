@@ -14,7 +14,7 @@ import { toast } from '@/hooks/use-toast'
 import { ToastAction } from '@/components/ui/toast'
 import { format } from 'date-fns'
 import { formatCurrency, formatPrice } from '@/lib/currency'
-import { Plane, Building2, Clock, MapPin, Users, Calendar as CalendarIcon, RefreshCcw, ArrowRight } from 'lucide-react'
+import { Plane, Building2, Clock, MapPin, Users, Calendar as CalendarIcon, RefreshCcw, ArrowRight, PlusCircle } from 'lucide-react'
 
 const parseDateValue = (value?: string) => {
   if (!value) return null
@@ -151,6 +151,11 @@ export function BookingSummaryView() {
     if (bookingData.bookingType !== upper) {
       updateBookingData({ bookingType: upper as 'FLIGHT' | 'HOTEL' | 'COMBO' })
     }
+  }
+
+  const switchToCombo = () => {
+    setBookingType('both')
+    updateBookingData({ bookingType: 'COMBO' })
   }
 
   const handleProceed = () => {
@@ -405,6 +410,64 @@ export function BookingSummaryView() {
     )
   }
 
+  const renderAddHotelPrompt = () => {
+    if (!selectedFlight || selectedHotel) return null
+    return (
+      <Card className="border-dashed border-primary/40 bg-primary/5">
+        <CardContent className="flex flex-col gap-3 py-6 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-start gap-3">
+            <div className="mt-1 flex h-10 w-10 items-center justify-center rounded-full bg-primary/10 text-primary">
+              <PlusCircle className="h-5 w-5" />
+            </div>
+            <div>
+              <p className="text-sm font-semibold">Thêm khách sạn cho hành trình của bạn</p>
+              <p className="text-sm text-muted-foreground">
+                Đặt phòng khách sạn để hoàn thiện chuyến đi và nhận ưu đãi combo.
+              </p>
+            </div>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <Button onClick={() => router.push('/?tab=search&searchTab=hotels')}>
+              Tìm khách sạn
+            </Button>
+            <Button variant="ghost" onClick={switchToCombo}>
+              Đổi sang gói combo
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+    )
+  }
+
+  const renderAddFlightPrompt = () => {
+    if (!selectedHotel || selectedFlight) return null
+    return (
+      <Card className="border-dashed border-primary/40 bg-primary/5">
+        <CardContent className="flex flex-col gap-3 py-6 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-start gap-3">
+            <div className="mt-1 flex h-10 w-10 items-center justify-center rounded-full bg-primary/10 text-primary">
+              <PlusCircle className="h-5 w-5" />
+            </div>
+            <div>
+              <p className="text-sm font-semibold">Thêm chuyến bay cho lịch trình</p>
+              <p className="text-sm text-muted-foreground">
+                Kết hợp chuyến bay với khách sạn để tối ưu chi phí và thời gian di chuyển.
+              </p>
+            </div>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <Button onClick={() => router.push('/?tab=search&searchTab=flights')}>
+              Tìm chuyến bay
+            </Button>
+            <Button variant="ghost" onClick={switchToCombo}>
+              Đổi sang gói combo
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+    )
+  }
+
   const renderEmptyState = () => (
     <Card className="border-dashed">
       <CardContent className="flex flex-col items-center justify-center gap-4 py-12 text-center">
@@ -448,7 +511,9 @@ export function BookingSummaryView() {
         {selectedFlight || selectedHotel ? (
           <div className="space-y-4 flex-1 min-h-0 overflow-y-auto pb-4">
             {renderFlightCard()}
+            {renderAddHotelPrompt()}
             {renderHotelCard()}
+            {renderAddFlightPrompt()}
             {totalEstimated && (
               <Card>
                 <CardContent className="flex flex-col gap-4 p-6 sm:flex-row sm:items-center sm:justify-between">

@@ -24,6 +24,7 @@ import { useToast } from "@/hooks/use-toast"
 import { CalendarIcon } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { HotelBookingDetails, GuestDetails } from '@/modules/booking/types'
+import { SelectedHotel } from '@/types'
 
 const parseDate = (dateString?: string): Date | undefined => {
   if (!dateString) return undefined;
@@ -258,7 +259,10 @@ export function HotelBookingForm({ hotel, onSubmit, onCancel }: HotelBookingForm
       totalRoomPrice: totalPrice,
       bedType,
       amenities: hotel.amenities,
-      specialRequests
+      specialRequests,
+      hotelImage: hotel.image,
+      roomImage: hotel.roomImages?.[0] || hotel.image,
+      roomImages: hotel.roomImages ?? (hotel.images ? [...hotel.images] : undefined)
     }
 
     onSubmit(bookingDetails)
@@ -585,7 +589,7 @@ export function HotelBookingForm({ hotel, onSubmit, onCancel }: HotelBookingForm
               Hủy
             </Button>
             <Button type="submit">
-              Tiếp tục đến trang xem xét
+              Tiếp tục
             </Button>
           </div>
         </form>

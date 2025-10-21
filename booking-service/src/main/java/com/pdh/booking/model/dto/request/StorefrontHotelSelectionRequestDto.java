@@ -124,5 +124,19 @@ public class StorefrontHotelSelectionRequestDto {
      * Specific cancellation policy snapshot selected on storefront.
      */
     private String cancellationPolicy;
-}
 
+    /**
+     * Optional primary hotel image URL captured at selection time.
+     */
+    private String hotelImage;
+
+    /**
+     * Optional primary room image URL captured at selection time.
+     */
+    private String roomImage;
+
+    /**
+     * Optional gallery of room images captured at selection time.
+     */
+    private List<String> roomImages;
+}

@@ -2,16 +2,12 @@
 
 import React, { Suspense } from "react"
 import { Sidebar } from "@/components/sidebar"
-import { RecommendPanel } from "@/components/recommend-panel"
-import { useRecommendPanel } from "@/contexts/recommend-panel-context"
 
 interface AppShellProps {
   children: React.ReactNode
 }
 
 export function AppShell({ children }: AppShellProps) {
-  const { results } = useRecommendPanel()
-
   return (
     <div className="flex h-full bg-background text-foreground">
       <Suspense
@@ -27,12 +23,6 @@ export function AppShell({ children }: AppShellProps) {
         <div className="flex flex-1 min-w-0 h-full">
           {children}
         </div>
-        <aside className="hidden md:flex h-full border-l border-border flex-col overflow-hidden shrink-0 bg-background md:w-[320px]">
-          <RecommendPanel
-            results={results}
-            className="w-full"
-          />
-        </aside>
       </div>
     </div>
   )
