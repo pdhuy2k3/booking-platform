@@ -16,11 +16,7 @@ import java.util.Set;
 import java.util.UUID;
 
 @Entity
-@Table(name = "flight_schedules",
-       uniqueConstraints = {
-           @UniqueConstraint(name = "uk_flight_schedule_time", 
-                           columnNames = {"flight_id", "departure_time", "arrival_time"})
-       })
+@Table(name = "flight_schedules")
 @Data
 @EqualsAndHashCode(callSuper = false)
 @NoArgsConstructor

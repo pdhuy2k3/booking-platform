@@ -45,8 +45,19 @@ export function BookingFlowManager({ onBookingComplete, showSelection = true }: 
   } = useBooking()
   const [comboStage, setComboStage] = useState<'flight' | 'hotel'>('flight')
   
-  const activeFlight = useMemo(() => (bookingType === 'hotel' ? null : selectedFlight), [bookingType, selectedFlight])
-  const activeHotel = useMemo(() => (bookingType === 'flight' ? null : selectedHotel), [bookingType, selectedHotel])
+  const activeFlight = useMemo(() => {
+    if (bookingType === 'hotel') {
+      return null
+    }
+    return selectedFlight
+  }, [bookingType, selectedFlight])
+
+  const activeHotel = useMemo(() => {
+    if (bookingType === 'flight') {
+      return null
+    }
+    return selectedHotel
+  }, [bookingType, selectedHotel])
 
   const handleStartBooking = (type: 'flight' | 'hotel' | 'both') => {
     resetBooking()
@@ -241,6 +252,19 @@ export function BookingFlowManager({ onBookingComplete, showSelection = true }: 
     }
   }, [bookingType])
 
+  // Update combo stage when active items change
+  useEffect(() => {
+    // If we're in a 'both' booking but one item is missing, 
+    // adjust the combo stage accordingly
+    if (bookingType === 'both') {
+      if (!activeFlight && activeHotel) {
+        setComboStage('hotel')
+      } else if (activeFlight && !activeHotel) {
+        setComboStage('flight')
+      }
+    }
+  }, [bookingType, activeFlight, activeHotel])
+
   useEffect(() => {
     if (step === 'selection') {
       setComboStage('flight')
@@ -257,6 +281,12 @@ export function BookingFlowManager({ onBookingComplete, showSelection = true }: 
         : bookingType === 'hotel'
           ? 'HOTEL'
           : 'FLIGHT')
+          
+  // Determine if we still have both items for review purposes
+  const hasBothItems = Boolean(flightDetails && hotelDetails)
+  const adjustedReviewBookingType = hasBothItems ? 'COMBO' : 
+    (flightDetails ? 'FLIGHT' : 
+    (hotelDetails ? 'HOTEL' : reviewBookingType))
 
   const reviewFlightDetails = reviewBookingType === 'FLIGHT' || reviewBookingType === 'COMBO'
     ? flightDetails ?? undefined
@@ -327,12 +357,13 @@ export function BookingFlowManager({ onBookingComplete, showSelection = true }: 
             <Button
               variant={comboStage === 'flight' ? 'default' : 'outline'}
               onClick={() => setComboStage('flight')}
+              disabled={!activeFlight} // Disable if no flight is selected
             >
               1. Thông tin chuyến bay
             </Button>
             <Button
               variant={comboStage === 'hotel' ? 'default' : 'outline'}
-              disabled={!hasFlightDetails}
+              disabled={!activeHotel || !hasFlightDetails} // Disable if no hotel selected or no flight details
               onClick={() => setComboStage('hotel')}
             >
               2. Thông tin khách sạn
@@ -348,7 +379,7 @@ export function BookingFlowManager({ onBookingComplete, showSelection = true }: 
               />
             ) : (
               <div className="rounded-lg border border-dashed border-muted-foreground/40 bg-muted/10 p-6 text-center text-sm text-muted-foreground">
-                Không có dữ liệu chuyến bay. Quay lại bước trước để chọn chuyến bay.
+                Không có dữ liệu chuyến bay. Vui lòng quay lại trang trước để chọn chuyến bay.
               </div>
             )
           ) : activeHotel ? (
@@ -359,15 +390,66 @@ export function BookingFlowManager({ onBookingComplete, showSelection = true }: 
             />
           ) : (
             <div className="rounded-lg border border-dashed border-muted-foreground/40 bg-muted/10 p-6 text-center text-sm text-muted-foreground">
-              Không có dữ liệu khách sạn. Quay lại bước trước để chọn khách sạn.
+              Không có dữ liệu khách sạn. Vui lòng quay lại trang trước để chọn khách sạn.
             </div>
           )}
         </div>
       )}
+      
+      {/* Fallback UI - if booking type was 'both' but has been changed to 'flight' or 'hotel' due to item removal */}
+      {step === 'passengers' && bookingType !== 'both' && (
+        <>
+          {bookingType === 'flight' && (
+            <>
+              {activeFlight ? (
+                <FlightBookingForm 
+                  flight={activeFlight} 
+                  onSubmit={handleFlightBookingSubmit}
+                  onCancel={prevStep}
+                />
+              ) : (
+                <div className="rounded-lg border border-dashed border-muted-foreground/40 bg-muted/20 p-8 text-center space-y-4">
+                  <h3 className="text-lg font-semibold">Không tìm thấy thông tin chuyến bay</h3>
+                  <p className="text-muted-foreground">
+                    Vui lòng quay lại bước trước để chọn chuyến bay hoặc mở lại gợi ý và chọn lại.
+                  </p>
+                  <div className="flex justify-center gap-3">
+                    <Button variant="outline" onClick={prevStep}>Quay lại</Button>
+                    <Button onClick={resetBooking}>Bắt đầu lại</Button>
+                  </div>
+                </div>
+              )}
+            </>
+          )}
+          
+          {bookingType === 'hotel' && (
+            <>
+              {activeHotel ? (
+                <HotelBookingForm 
+                  hotel={activeHotel} 
+                  onSubmit={handleHotelBookingSubmit}
+                  onCancel={prevStep}
+                />
+              ) : (
+                <div className="rounded-lg border border-dashed border-muted-foreground/40 bg-muted/20 p-8 text-center space-y-4">
+                  <h3 className="text-lg font-semibold">Không tìm thấy thông tin khách sạn</h3>
+                  <p className="text-muted-foreground">
+                    Vui lòng quay lại bước trước để chọn khách sạn phù hợp hoặc mở lại đề xuất để tiếp tục.
+                  </p>
+                  <div className="flex justify-center gap-3">
+                    <Button variant="outline" onClick={prevStep}>Quay lại</Button>
+                    <Button onClick={resetBooking}>Bắt đầu lại</Button>
+                  </div>
+                </div>
+              )}
+            </>
+          )}
+        </>
+      )}
 
       {step === 'review' && (
         <BookingReview
-          bookingType={reviewBookingType}
+          bookingType={adjustedReviewBookingType}
           flightDetails={reviewFlightDetails}
           hotelDetails={reviewHotelDetails}
           comboDiscount={reviewComboDiscount}

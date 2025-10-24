@@ -124,9 +124,11 @@ export function BookingReview({
     if (bookingType === 'HOTEL' && hotelDetails) {
       return hotelDetails.totalRoomPrice
     }
-    if (bookingType === 'COMBO' && flightDetails && hotelDetails) {
+    if (bookingType === 'COMBO') {
+      const flightAmount = flightDetails?.totalFlightPrice ?? 0
+      const hotelAmount = hotelDetails?.totalRoomPrice ?? 0
       const discount = comboDiscount ?? 0
-      return Math.max(flightDetails.totalFlightPrice + hotelDetails.totalRoomPrice - discount, 0)
+      return Math.max(flightAmount + hotelAmount - discount, 0)
     }
     return 0
   }
@@ -141,11 +143,11 @@ export function BookingReview({
       <CardContent className="space-y-6">
         {bookingType === 'FLIGHT' && flightDetails && renderFlightDetails(flightDetails)}
         {bookingType === 'HOTEL' && hotelDetails && renderHotelDetails(hotelDetails)}
-        {bookingType === 'COMBO' && flightDetails && hotelDetails && (
+        {bookingType === 'COMBO' && (
           <>
-            {renderFlightDetails(flightDetails)}
-            {renderHotelDetails(hotelDetails)}
-            {comboDiscount && comboDiscount > 0 && (
+            {flightDetails && renderFlightDetails(flightDetails)}
+            {hotelDetails && renderHotelDetails(hotelDetails)}
+            {comboDiscount && comboDiscount > 0 && (flightDetails || hotelDetails) && (
               <div className="border-t pt-4">
                 <p className="text-right">
                   <span className="font-medium">Giảm giá gói:</span> -{formatCurrency(comboDiscount, 'VND')}

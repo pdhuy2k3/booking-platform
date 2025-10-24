@@ -2,16 +2,19 @@
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Plane } from "lucide-react"
-import type { Flight } from "@/types/api"
+import type { Flight, PaginatedResponse } from "@/types/api"
 
 interface FlightStatsProps {
-  flights: Flight[]
+  flights: PaginatedResponse<Flight> | null
+  statistics: any | null
+  loadingStatistics: boolean
 }
 
-export function FlightStats({ flights }: FlightStatsProps) {
-  const totalFlights = flights?.length || 0
-  const activeFlights = flights?.filter(f => f.status === 'ACTIVE').length || 0
-  const cancelledFlights = flights?.filter(f => f.status === 'CANCELLED').length || 0
+export function FlightStats({ flights, statistics, loadingStatistics }: FlightStatsProps) {
+  // Use statistics data if available, otherwise fall back to paginated data
+  const totalFlights = statistics?.totalFlights ?? flights?.totalElements ?? 0
+  const activeFlights = statistics?.activeFlights ?? 0
+  const cancelledFlights = statistics?.cancelledFlights ?? 0
 
   return (
     <>
@@ -21,8 +24,10 @@ export function FlightStats({ flights }: FlightStatsProps) {
           <Plane className="h-4 w-4 text-muted-foreground" />
         </CardHeader>
         <CardContent>
-          <div className="text-2xl font-bold">{totalFlights}</div>
-          <p className="text-xs text-muted-foreground">Tất cả chuyến bay</p>
+          <div className="text-2xl font-bold">{totalFlights.toLocaleString()}</div>
+          <p className="text-xs text-muted-foreground">
+            {loadingStatistics ? "Đang tải..." : "Tất cả chuyến bay"}
+          </p>
         </CardContent>
       </Card>
 
@@ -32,8 +37,10 @@ export function FlightStats({ flights }: FlightStatsProps) {
           <Plane className="h-4 w-4 text-muted-foreground" />
         </CardHeader>
         <CardContent>
-          <div className="text-2xl font-bold">{activeFlights}</div>
-          <p className="text-xs text-muted-foreground">Đang hoạt động</p>
+          <div className="text-2xl font-bold">{activeFlights.toLocaleString()}</div>
+          <p className="text-xs text-muted-foreground">
+            {loadingStatistics ? "Đang tải..." : "Đang hoạt động"}
+          </p>
         </CardContent>
       </Card>
 
@@ -43,8 +50,10 @@ export function FlightStats({ flights }: FlightStatsProps) {
           <Plane className="h-4 w-4 text-muted-foreground" />
         </CardHeader>
         <CardContent>
-          <div className="text-2xl font-bold">{cancelledFlights}</div>
-          <p className="text-xs text-muted-foreground">Đã hủy</p>
+          <div className="text-2xl font-bold">{cancelledFlights.toLocaleString()}</div>
+          <p className="text-xs text-muted-foreground">
+            {loadingStatistics ? "Đang tải..." : "Đã hủy"}
+          </p>
         </CardContent>
       </Card>
 
@@ -57,7 +66,9 @@ export function FlightStats({ flights }: FlightStatsProps) {
           <div className="text-2xl font-bold">
             {totalFlights > 0 ? Math.round((activeFlights / totalFlights) * 100) : 0}%
           </div>
-          <p className="text-xs text-muted-foreground">Chuyến bay hoạt động</p>
+          <p className="text-xs text-muted-foreground">
+            {loadingStatistics ? "Đang tải..." : "Chuyến bay hoạt động"}
+          </p>
         </CardContent>
       </Card>
     </>

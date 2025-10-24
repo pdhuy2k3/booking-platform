@@ -1,25 +1,11 @@
 // Payment method management service
 import { apiClient } from '@/lib/api-client'
 
-export interface PaymentMethodType {
-  CREDIT_CARD: string
-  DEBIT_CARD: string
-  BANK_TRANSFER: string
-  DIGITAL_WALLET: string
-}
-
-export interface PaymentProvider {
-  STRIPE: string
-  VIETQR: string
-  MOMO: string
-  ZALOPAY: string
-}
-
 export interface PaymentMethodResponse {
   methodId: string
   displayName: string
-  methodType: keyof PaymentMethodType
-  provider: keyof PaymentProvider
+  methodType: string
+  provider: string
   isDefault: boolean
   isActive: boolean
   isVerified: boolean
@@ -37,8 +23,8 @@ export interface PaymentMethodResponse {
 }
 
 export interface AddPaymentMethodRequest {
-  methodType: keyof PaymentMethodType
-  provider: keyof PaymentProvider
+  methodType: string
+  provider: string
   displayName: string
   cardLastFour?: string
   cardBrand?: string

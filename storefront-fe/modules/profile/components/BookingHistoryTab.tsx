@@ -5,7 +5,6 @@ import { useCallback, useEffect, useMemo, useState } from "react"
 import Image from "next/image"
 import { bookingService, type BookingHistoryItemDto, type BookingHistoryResponseDto } from "@/modules/booking/service"
 import { flightService } from "@/modules/flight/service"
-import { hotelService } from "@/modules/hotel/service"
 import type { FlightFareDetails } from "@/modules/flight/type"
 import type { RoomDetails } from "@/modules/hotel/type"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -33,6 +32,7 @@ import { env } from "@/env.mjs"
 
 const RESUME_STORAGE_KEY = "bookingResumePayload"
 const PROCESSING_STATUSES = new Set(["PENDING", "VALIDATION_PENDING", "PAYMENT_PENDING"])
+const DEFAULT_MAPBOX_STYLE = 'mapbox://styles/mapbox/streets-v12'
 
 const PAGE_SIZE = 10
 
@@ -77,6 +77,26 @@ const ensureSeatClass = (value?: string | null) => {
   return value.toUpperCase()
 }
 
+const resolveNumber = (value?: number | string | null): number | undefined => {
+  if (value == null) return undefined
+  const numeric = typeof value === 'string' ? Number(value) : value
+  return Number.isFinite(numeric) ? numeric : undefined
+}
+
+const buildStaticMapUrl = (lat?: number | string | null, lng?: number | string | null) => {
+  const latitude = resolveNumber(lat)
+  const longitude = resolveNumber(lng)
+  const token = env.NEXT_PUBLIC_MAPBOX_ACCESS_TOKEN
+
+  if (!token || latitude === undefined || longitude === undefined) {
+    return undefined
+  }
+
+  const style = 'mapbox/streets-v12'
+  const markerColor = '1967D2'
+  return `https://api.mapbox.com/styles/v1/${style}/static/pin-s+${markerColor}(${longitude},${latitude})/${longitude},${latitude},10,0/600x360@2x?access_token=${token}`
+}
+
 const parseProductDetails = (json?: string | null) => {
   if (!json) return null
   try {
@@ -97,7 +117,7 @@ const parseProductDetails = (json?: string | null) => {
 export function BookingHistoryTab() {
   const { formatDateTime, formatDateOnly } = useDateFormatter()
   const { formatCurrency: formatCurrencyWithUserPreference } = useCurrencyFormatter()
-  
+
   const renderStatusBadge = (status?: string | null) => {
     if (!status) return null
     const meta = STATUS_BADGE_MAP[status] ?? {
@@ -118,8 +138,12 @@ export function BookingHistoryTab() {
     const source = flight ?? fallback
     if (!source) return null
 
-    const departure = flight?.departureTime ?? source?.departureDateTime
-    const arrival = flight?.arrivalTime ?? source?.arrivalDateTime
+    const departureRaw = flight?.departureTime ?? source?.departureDateTime
+    const arrivalRaw = flight?.arrivalTime ?? source?.arrivalDateTime
+    const normalizedDeparture = normalizeIsoDateTime(departureRaw)
+    const normalizedArrival = normalizeIsoDateTime(arrivalRaw)
+    const departure = normalizedDeparture ?? departureRaw
+    const arrival = normalizedArrival ?? arrivalRaw
     const seatClass = flight?.seatClass ?? ensureSeatClass(source?.seatClass)
     const priceRaw = flight?.price ?? source?.pricePerPassenger ?? source?.totalFlightPrice
     const price = priceRaw != null ? Number(priceRaw) : undefined
@@ -345,7 +369,7 @@ export function BookingHistoryTab() {
   const [detailMap, setDetailMap] = useState<Record<string, BookingDetailState>>({})
   const router = useRouter()
   const { toast } = useToast()
-  const { showLocation, showLocations, showJourney, setMapStyle } = useRecommendPanel()
+  const { showLocation, showLocations, showJourney, setMapStyle, mapStyle } = useRecommendPanel()
   const [now, setNow] = useState(() => Date.now())
 
   useEffect(() => {
@@ -365,7 +389,14 @@ export function BookingHistoryTab() {
     return `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`
   }, [now])
 
+  const ensureDefaultMapStyle = useCallback(() => {
+    if (mapStyle !== DEFAULT_MAPBOX_STYLE) {
+      setMapStyle(DEFAULT_MAPBOX_STYLE)
+    }
+  }, [mapStyle, setMapStyle])
+
   const handleShowFlightLocation = useCallback((booking: BookingHistoryItemDto, target: 'origin' | 'destination') => {
+    ensureDefaultMapStyle()
     const latValue = target === 'origin' ? booking.originLatitude : booking.destinationLatitude
     const lngValue = target === 'origin' ? booking.originLongitude : booking.destinationLongitude
 
@@ -388,9 +419,10 @@ export function BookingHistoryTab() {
       description: booking.productSummary ?? undefined,
       type: 'airport'
     });
-  }, [showLocation, toast])
+  }, [showLocation, toast, ensureDefaultMapStyle])
 
   const handleShowHotelLocation = useCallback((booking: BookingHistoryItemDto) => {
+    ensureDefaultMapStyle()
     const latValue = booking.hotelLatitude
     const lngValue = booking.hotelLongitude
     const lat = typeof latValue === 'string' ? Number(latValue) : latValue
@@ -405,7 +437,6 @@ export function BookingHistoryTab() {
       return;
     }
 
-    setMapStyle('mapbox://styles/phamduyhuy/cmgnvqn9e00tl01s69xu41j43');
     showLocation({
       lat: lat as number,
       lng: lng as number,
@@ -413,7 +444,7 @@ export function BookingHistoryTab() {
       description: booking.productSummary ?? undefined,
       type: 'hotel'
     });
-  }, [showLocation, toast, setMapStyle]);
+  }, [showLocation, toast, ensureDefaultMapStyle]);
 
   const handleShowFlightJourney = useCallback((booking: BookingHistoryItemDto) => {
     const originLat = typeof booking.originLatitude === 'string' ? Number(booking.originLatitude) : booking.originLatitude;
@@ -430,7 +461,7 @@ export function BookingHistoryTab() {
       return;
     }
 
-    setMapStyle('mapbox://styles/phamduyhuy/cmgnvl0ec00ud01se98ju3a80');
+    ensureDefaultMapStyle()
     const originLabel = booking.originAirportCode || booking.originCity || '';
     const destinationLabel = booking.destinationAirportCode || booking.destinationCity || '';
     const markerLabel = booking.bookingReference
@@ -476,7 +507,7 @@ export function BookingHistoryTab() {
       }
     ], { preserveJourneys: true });
 
-  }, [showJourney, showLocations, toast, setMapStyle]);
+  }, [showJourney, showLocations, toast, ensureDefaultMapStyle]);
 
   const handleContinueBooking = useCallback((booking: BookingHistoryItemDto) => {
     try {
@@ -588,12 +619,7 @@ export function BookingHistoryTab() {
         }
       }
 
-      if (booking.bookingType === 'HOTEL' || booking.bookingType === 'COMBO') {
-        const hotelInfo = booking.bookingType === 'COMBO' ? product?.hotelDetails : product
-        if (hotelInfo?.roomId) {
-          detail.hotel = await hotelService.getRoomDetails(hotelInfo.roomId)
-        }
-      }
+      // For hotel bookings we rely on the stored booking payload. Additional API calls can be added here when richer endpoints exist.
 
       setDetailMap((prev) => ({ ...prev, [bookingId]: detail }))
     } catch (err: any) {

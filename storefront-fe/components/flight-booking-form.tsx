@@ -1,6 +1,6 @@
 "use client"
 
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -24,7 +24,13 @@ import { cn } from "@/lib/utils"
 import { FlightBookingDetails, PassengerDetails } from '@/modules/booking/types'
 import { useToast } from "@/hooks/use-toast"
 import { useDateFormatter } from "@/hooks/use-date-formatter"
-import { formatBookingDateTime } from '@/lib/date-format'
+
+const SEAT_CLASS_LABELS: Record<string, string> = {
+  ECONOMY: 'Phổ thông',
+  PREMIUM_ECONOMY: 'Phổ thông cao cấp',
+  BUSINESS: 'Thương gia',
+  FIRST: 'Hạng nhất',
+}
 
 const pickDateTimeValue = (...values: (string | null | undefined)[]): string | undefined => {
   for (const value of values) {
@@ -44,10 +50,19 @@ interface FlightBookingFormProps {
 }
 
 export function FlightBookingForm({ flight, onSubmit, onCancel }: FlightBookingFormProps) {
+  if (!flight) {
+    return (
+      <div className="rounded-lg border border-dashed border-muted-foreground/40 bg-muted/10 p-6 text-center text-sm text-muted-foreground">
+        Không có thông tin chuyến bay. Vui lòng quay lại trang trước để chọn chuyến bay.
+      </div>
+    )
+  }
+  
   const { toast } = useToast();
-  const { formatDateTime, formatDateOnly, formatTimeOnly, timezone, language } = useDateFormatter()
+  const { formatDateTime } = useDateFormatter()
+  const initialSeatClass = (flight.seatClass || 'ECONOMY').toUpperCase()
   const [passengerCount, setPassengerCount] = useState<number>(1)
-  const [seatClass, setSeatClass] = useState<string>('ECONOMY')
+  const [seatClass, setSeatClass] = useState<string>(initialSeatClass)
   const [specialRequests, setSpecialRequests] = useState<string>('')
   const [passengers, setPassengers] = useState<PassengerDetails[]>([
     {
@@ -64,9 +79,12 @@ export function FlightBookingForm({ flight, onSubmit, onCancel }: FlightBookingF
   ])
 
   // Calculate initial total price
-  const [initialTotalPrice, setInitialTotalPrice] = useState<number>(flight.price || 0);
-  const [currentTotal, setCurrentTotal] = useState<number>(flight.price);
+  const [pricePerPassenger, setPricePerPassenger] = useState<number>(Number(flight.price) || 0);
   const [isFetching, setIsFetching] = useState<boolean>(false);
+  const previousSeatClassRef = useRef<string>(initialSeatClass)
+  const lastRequestedSeatClassRef = useRef<string>(initialSeatClass)
+  const firstLoadSeatClassRef = useRef<boolean>(true)
+  const pricePerPassengerRef = useRef<number>(Number(flight.price) || 0)
   const departureDisplaySource = pickDateTimeValue(
     flight.departureTime,
    
@@ -79,54 +97,114 @@ export function FlightBookingForm({ flight, onSubmit, onCancel }: FlightBookingF
 
   // Show toast when passenger count changes
   useEffect(() => {
+    pricePerPassengerRef.current = pricePerPassenger
+  }, [pricePerPassenger])
+
+  // Show toast when passenger count changes
+  useEffect(() => {
     if (passengerCount !== 1) { // Only show toast if not the initial value
       toast({
         title: "Thông báo thay đổi giá",
-        description: `Giá vé đã thay đổi từ ${initialTotalPrice.toLocaleString()} VND sang ${(flight.price * passengerCount).toLocaleString()} VND do thay đổi số hành khách.`,
+        description: `Số lượng hành khách đã được cập nhật thành ${passengerCount}. Tổng tạm tính mới là ${(pricePerPassenger * passengerCount).toLocaleString()} VND.`,
         duration: 3000,
       });
     }
-  }, [passengerCount, initialTotalPrice, flight.price, toast]);
+  }, [passengerCount, pricePerPassenger, toast]);
 
-  // Show toast when seat class changes and fetch updated price
+  // Keep states in sync when the selected flight changes
   useEffect(() => {
-    if (seatClass !== 'ECONOMY') { // Only when not the initial value
-      setIsFetching(true);
-      
-      // Fetch updated price based on selected seat class
-      import('@/modules/flight/service').then(module => {
-        module.flightService.getFareDetails(
-          flight.flightId, 
-          { 
-            seatClass: seatClass,
-            scheduleId: flight.scheduleId,
-            fareId: flight.fareId
-          }
-        )
-        .then(updatedFlight => {
-          setCurrentTotal(updatedFlight.price);
-          toast({
-            title: "Thông báo thay đổi giá",
-            description: `Giá vé đã cập nhật theo hạng ghế: ${seatClass}. Mới: ${(updatedFlight.price * passengerCount).toLocaleString()} VND.`,
-            duration: 3000,
-          });
-        })
-        .catch(error => {
-          console.error("Error fetching updated flight price:", error);
-          toast({
-            title: "Lỗi",
-            description: "Không thể cập nhật giá vé, vui lòng thử lại.",
-            variant: "destructive",
-          });
-        })
-        .finally(() => {
-          setIsFetching(false);
-        });
-      });
+    const normalizedSeatClass = (flight.seatClass || 'ECONOMY').toUpperCase()
+    previousSeatClassRef.current = normalizedSeatClass
+    lastRequestedSeatClassRef.current = normalizedSeatClass
+    firstLoadSeatClassRef.current = true
+    setSeatClass(normalizedSeatClass)
+    const basePrice = Number(flight.price) || 0
+    setPricePerPassenger(basePrice)
+    pricePerPassengerRef.current = basePrice
+}, [flight.flightId, flight.seatClass, flight.price])
+
+  // Fetch updated fare details when the seat class changes
+  useEffect(() => {
+    if (firstLoadSeatClassRef.current) {
+      firstLoadSeatClassRef.current = false
+      return
     }
-  }, [seatClass, flight, passengerCount, toast]);
 
+    let isCancelled = false
+    const requestedSeatClass = seatClass
+    lastRequestedSeatClassRef.current = requestedSeatClass
+    setIsFetching(true)
 
+    const fetchUpdatedFare = async () => {
+      try {
+        const flightModule = await import('@/modules/flight/service')
+        const normalizedInitialSeatClass = (flight.seatClass || 'ECONOMY').toUpperCase()
+        const params: { seatClass?: string; scheduleId?: string; fareId?: string } = {
+          seatClass: requestedSeatClass,
+        }
+        if (flight.scheduleId) {
+          params.scheduleId = flight.scheduleId
+        }
+        if (requestedSeatClass === normalizedInitialSeatClass && flight.fareId) {
+          params.fareId = flight.fareId
+        }
+
+        const updatedFlight = await flightModule.flightService.getFareDetails(flight.flightId, params)
+        if (isCancelled || lastRequestedSeatClassRef.current !== requestedSeatClass) {
+          return
+        }
+
+        const newPricePerPassenger = Number(updatedFlight.price ?? 0)
+        if (!Number.isFinite(newPricePerPassenger)) {
+          throw new Error('INVALID_PRICE')
+        }
+
+        const previousPrice = pricePerPassengerRef.current
+        setPricePerPassenger(newPricePerPassenger)
+        pricePerPassengerRef.current = newPricePerPassenger
+        previousSeatClassRef.current = requestedSeatClass
+
+        if (Math.abs(newPricePerPassenger - previousPrice) > 0.009) {
+        const label = SEAT_CLASS_LABELS[requestedSeatClass] ?? requestedSeatClass
+          toast({
+            title: "Cập nhật giá vé",
+            description: `Giá vé hạng ${label} hiện tại là ${(newPricePerPassenger * passengerCount).toLocaleString()} VND.`,
+            duration: 3000,
+          })
+        }
+      } catch (error: any) {
+        if (isCancelled || lastRequestedSeatClassRef.current !== requestedSeatClass) {
+          return
+        }
+
+        console.error("Error fetching updated flight price:", error);
+        const label = SEAT_CLASS_LABELS[requestedSeatClass] ?? requestedSeatClass
+        toast({
+          title: "Không tìm thấy hạng ghế",
+          description: `Hạng ghế ${label} hiện không khả dụng cho chuyến bay này.`,
+          variant: "destructive",
+        })
+
+        const fallbackSeatClass = previousSeatClassRef.current || (flight.seatClass || 'ECONOMY').toUpperCase()
+        if (fallbackSeatClass !== requestedSeatClass) {
+          firstLoadSeatClassRef.current = true
+          setSeatClass(fallbackSeatClass)
+        }
+      } finally {
+        if (!isCancelled) {
+          setIsFetching(false)
+        }
+      }
+    }
+
+    void fetchUpdatedFare()
+
+    return () => {
+      isCancelled = true
+    }
+  }, [seatClass, flight.flightId, flight.scheduleId, flight.fareId, flight.seatClass, passengerCount, toast])
+
+  const totalAmount = useMemo(() => pricePerPassenger * passengerCount, [pricePerPassenger, passengerCount])
 
   const handleAddPassenger = () => {
     if (passengers.length < 9) { // Max 9 passengers
@@ -222,8 +300,8 @@ export function FlightBookingForm({ flight, onSubmit, onCancel }: FlightBookingF
       fareId: flight.fareId,
       passengerCount,
       passengers,
-      pricePerPassenger: currentTotal / passengerCount, // Calculate price per passenger based on current total
-      totalFlightPrice: currentTotal, // Use the dynamically calculated total
+      pricePerPassenger: pricePerPassenger,
+      totalFlightPrice: totalAmount,
       airlineLogo: flight.logo,
       originAirportName: flight.origin,
       destinationAirportName: flight.destination
@@ -280,7 +358,17 @@ export function FlightBookingForm({ flight, onSubmit, onCancel }: FlightBookingF
 
             <div>
               <Label htmlFor="seatClass">Hạng ghế</Label>
-              <Select value={seatClass} onValueChange={setSeatClass}>
+              <Select
+                value={seatClass}
+                onValueChange={(value) => {
+                  const normalized = value.toUpperCase()
+                  if (normalized === seatClass) return
+                  previousSeatClassRef.current = seatClass
+                  firstLoadSeatClassRef.current = false
+                  setSeatClass(normalized)
+                }}
+                disabled={isFetching}
+              >
                 <SelectTrigger>
                   <SelectValue placeholder="Chọn hạng ghế" />
                 </SelectTrigger>

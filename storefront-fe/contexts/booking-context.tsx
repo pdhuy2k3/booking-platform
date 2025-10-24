@@ -64,6 +64,71 @@ const initialState: BookingState = {
   hotelDetails: null
 }
 
+const BOOKING_STORAGE_KEY = 'storefront-booking-state-v1'
+const allowedSteps: BookingStep[] = ['selection', 'passengers', 'review', 'payment', 'confirmation', 'error']
+const allowedBookingTypes: BookingType[] = ['flight', 'hotel', 'both']
+
+type PersistedBookingState = Pick<
+  BookingState,
+  | 'step'
+  | 'bookingType'
+  | 'bookingData'
+  | 'selectedFlight'
+  | 'selectedHotel'
+  | 'bookingResponse'
+  | 'bookingStatus'
+  | 'flightDetails'
+  | 'hotelDetails'
+>
+
+function loadPersistedState(baseState: BookingState): BookingState {
+  if (typeof window === 'undefined') {
+    return baseState
+  }
+
+  try {
+    const stored = window.sessionStorage.getItem(BOOKING_STORAGE_KEY)
+    if (!stored) {
+      return baseState
+    }
+
+    const parsed = JSON.parse(stored) as Partial<PersistedBookingState> | null
+    if (!parsed || typeof parsed !== 'object') {
+      return baseState
+    }
+
+    const step = parsed.step && allowedSteps.includes(parsed.step as BookingStep)
+      ? (parsed.step as BookingStep)
+      : baseState.step
+
+    const bookingType = parsed.bookingType && allowedBookingTypes.includes(parsed.bookingType as BookingType)
+      ? (parsed.bookingType as BookingType)
+      : null
+
+    return {
+      ...baseState,
+      step,
+      bookingType,
+      bookingData: {
+        ...baseState.bookingData,
+        ...(parsed.bookingData ?? {}),
+      },
+      selectedFlight: parsed.selectedFlight ?? null,
+      selectedHotel: parsed.selectedHotel ?? null,
+      bookingResponse: parsed.bookingResponse ?? null,
+      bookingStatus: parsed.bookingStatus ?? null,
+      flightDetails: parsed.flightDetails ?? null,
+      hotelDetails: parsed.hotelDetails ?? null,
+      isLoading: false,
+      isStatusPolling: false,
+      error: null,
+    }
+  } catch (error) {
+    console.warn('Failed to load booking state from sessionStorage', error)
+    return baseState
+  }
+}
+
 // Actions
 type BookingAction =
   | { type: 'SET_BOOKING_TYPE'; payload: BookingType }
@@ -159,10 +224,41 @@ const BookingContext = createContext<BookingContextType | undefined>(undefined)
 
 // Provider
 export function BookingProvider({ children }: { children: React.ReactNode }) {
-  const [state, dispatch] = useReducer(bookingReducer, initialState)
+  const [state, dispatch] = useReducer(bookingReducer, initialState, loadPersistedState)
   const { toast } = useToast()
   const statusPollingRef = useRef<NodeJS.Timeout | null>(null)
   const mountedRef = useRef(true)
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+
+    try {
+      const persistable: PersistedBookingState = {
+        step: state.step,
+        bookingType: state.bookingType,
+        bookingData: state.bookingData,
+        selectedFlight: state.selectedFlight,
+        selectedHotel: state.selectedHotel,
+        bookingResponse: state.bookingResponse,
+        bookingStatus: state.bookingStatus,
+        flightDetails: state.flightDetails,
+        hotelDetails: state.hotelDetails,
+      }
+      window.sessionStorage.setItem(BOOKING_STORAGE_KEY, JSON.stringify(persistable))
+    } catch (error) {
+      console.warn('Failed to persist booking state to sessionStorage', error)
+    }
+  }, [
+    state.step,
+    state.bookingType,
+    state.bookingData,
+    state.selectedFlight,
+    state.selectedHotel,
+    state.bookingResponse,
+    state.bookingStatus,
+    state.flightDetails,
+    state.hotelDetails,
+  ])
 
   // Set mounted ref to false on unmount
   useEffect(() => {
@@ -193,12 +289,46 @@ export function BookingProvider({ children }: { children: React.ReactNode }) {
   const setSelectedFlight = useCallback((flight: SelectedFlight | null) => {
     if (!mountedRef.current) return
     dispatch({ type: 'SET_SELECTED_FLIGHT', payload: flight })
-  }, [])
+    
+    // When flight is removed from a combo booking, update booking type to 'hotel' only
+    // if there's still a hotel but no flight
+    if (!flight && state.bookingType === 'both' && state.selectedHotel) {
+      dispatch({ type: 'SET_BOOKING_TYPE', payload: 'hotel' })
+      dispatch({ type: 'UPDATE_BOOKING_DATA', payload: { 
+        bookingType: 'HOTEL' as 'FLIGHT' | 'HOTEL' | 'COMBO',
+        flightSelection: undefined
+      }})
+    }
+    // When flight is added back to a hotel-only booking, update booking type to 'both'
+    else if (flight && state.bookingType === 'hotel' && state.selectedHotel) {
+      dispatch({ type: 'SET_BOOKING_TYPE', payload: 'both' })
+      dispatch({ type: 'UPDATE_BOOKING_DATA', payload: { 
+        bookingType: 'COMBO' as 'FLIGHT' | 'HOTEL' | 'COMBO'
+      }})
+    }
+  }, [state.bookingType, state.selectedHotel])
 
   const setSelectedHotel = useCallback((hotel: SelectedHotel | null) => {
     if (!mountedRef.current) return
     dispatch({ type: 'SET_SELECTED_HOTEL', payload: hotel })
-  }, [])
+    
+    // When hotel is removed from a combo booking, update booking type to 'flight' only
+    // if there's still a flight but no hotel
+    if (!hotel && state.bookingType === 'both' && state.selectedFlight) {
+      dispatch({ type: 'SET_BOOKING_TYPE', payload: 'flight' })
+      dispatch({ type: 'UPDATE_BOOKING_DATA', payload: { 
+        bookingType: 'FLIGHT' as 'FLIGHT' | 'HOTEL' | 'COMBO',
+        hotelSelection: undefined
+      }})
+    }
+    // When hotel is added back to a flight-only booking, update booking type to 'both'
+    else if (hotel && state.bookingType === 'flight' && state.selectedFlight) {
+      dispatch({ type: 'SET_BOOKING_TYPE', payload: 'both' })
+      dispatch({ type: 'UPDATE_BOOKING_DATA', payload: { 
+        bookingType: 'COMBO' as 'FLIGHT' | 'HOTEL' | 'COMBO'
+      }})
+    }
+  }, [state.bookingType, state.selectedFlight])
 
   const setFlightDetails = useCallback((details: FlightBookingDetails | null) => {
     if (!mountedRef.current) return

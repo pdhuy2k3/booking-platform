@@ -144,9 +144,9 @@ public class CloudinaryService {
     /**
      * Browse/search media in Cloudinary with folder filtering
      */
-    public Map<String, Object> browseMedia(String folder, String search, String resourceType, int page, int limit) throws IOException {
-        log.info("Browsing media - folder: {}, search: {}, resourceType: {}, page: {}, limit: {}", 
-                folder, search, resourceType, page, limit);
+    public Map<String, Object> browseMedia(String folder, String search, String resourceType, int page, int limit, String nextCursor) throws IOException {
+        log.info("Browsing media - folder: {}, search: {}, resourceType: {}, page: {}, limit: {}, nextCursor: {}", 
+                folder, search, resourceType, page, limit, nextCursor != null ? "present" : "null");
 
         // Build search parameters
         Map<String, Object> params = ObjectUtils.asMap(
@@ -172,26 +172,27 @@ public class CloudinaryService {
             params.put("expression", expression);
         }
 
-        // Calculate offset for pagination
-        if (page > 1) {
-            params.put("next_cursor", calculateCursor(page, limit));
+        // Use the provided cursor for pagination if available
+        if (nextCursor != null && !nextCursor.trim().isEmpty()) {
+            params.put("next_cursor", nextCursor);
         }
 
         try {
             Map<String, Object> searchResult;
             if (search != null && !search.trim().isEmpty()) {
-                // Use search API for complex queries
-                searchResult = cloudinary.search().expression((String) params.get("expression"))
-                        .maxResults((Integer) params.get("max_results"))
-                        .execute();
+                // Use search API for complex queries - handle cursor properly
+                com.cloudinary.Search searchApi = cloudinary.search().expression((String) params.get("expression"));
+                searchApi.maxResults((Integer) params.get("max_results"));
+                if (params.containsKey("next_cursor")) {
+                    searchApi.nextCursor((String) params.get("next_cursor"));
+                }
+                searchResult = searchApi.execute();
             } else {
                 // Use admin API for simple folder browsing
                 searchResult = cloudinary.api().resources(params);
             }
             
-            log.info("Browse result: {} resources found", 
-                    searchResult.get("resources") != null ? 
-                    ((java.util.List<?>) searchResult.get("resources")).size() : 0);
+            log.info("Browse result: {} resources found", searchResult.toString());
 
             return searchResult;
         } catch (Exception e) {
@@ -219,11 +220,9 @@ public class CloudinaryService {
     }
 
     /**
-     * Calculate cursor for pagination (simplified implementation)
+     * Overloaded method for backward compatibility that doesn't use cursor
      */
-    private String calculateCursor(int page, int limit) {
-        // This is a simplified cursor calculation
-        // In a real implementation, you'd store and retrieve actual cursors
-        return String.valueOf((page - 1) * limit);
+    public Map<String, Object> browseMedia(String folder, String search, String resourceType, int page, int limit) throws IOException {
+        return browseMedia(folder, search, resourceType, page, limit, null);
     }
 }

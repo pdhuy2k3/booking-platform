@@ -214,12 +214,19 @@ export const StripePaymentForm: React.FC<StripePaymentFormProps> = ({
           metadataPayload.feeAmount = String(feeAmount)
         }
 
+        const methodTypeForRequest = savedPaymentMethod?.methodType ?? 'CREDIT_CARD'
+        const shouldSavePaymentMethod = !isUsingSavedMethod && Boolean(data.savePaymentMethod)
+        const shouldSetDefault = shouldSavePaymentMethod && Boolean(data.setAsDefault)
+        metadataPayload.requested_payment_method_type = methodTypeForRequest
+        metadataPayload.save_payment_method = String(shouldSavePaymentMethod)
+        metadataPayload.set_as_default = String(shouldSetDefault)
+
         const createdIntent = await paymentService.createIntent({
           bookingId,
           sagaId,
           amount: data.amount,
           currency: data.currency,
-          paymentMethodType: 'CREDIT_CARD',
+          paymentMethodType: methodTypeForRequest,
           customerEmail: data.customerEmail,
           customerName: data.customerName,
           description: description || '',
@@ -228,8 +235,8 @@ export const StripePaymentForm: React.FC<StripePaymentFormProps> = ({
           customerId: savedPaymentMethod?.stripeCustomerId || undefined,
           confirmPayment: isUsingSavedMethod,
           metadata: metadataPayload,
-          savePaymentMethod: data.savePaymentMethod,
-          setAsDefault: data.setAsDefault,
+          savePaymentMethod: shouldSavePaymentMethod,
+          setAsDefault: shouldSetDefault,
         })
 
         activeClientSecret = createdIntent.clientSecret ?? null

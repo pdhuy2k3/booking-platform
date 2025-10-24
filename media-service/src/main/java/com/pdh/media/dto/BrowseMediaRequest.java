@@ -34,4 +34,7 @@ public class BrowseMediaRequest {
     
     @Schema(description = "Sort direction", example = "desc", allowableValues = {"asc", "desc"})
     private String sortDirection = "desc";
+    
+    @Schema(description = "Next cursor for pagination", example = "fe3f5d81d0178e7e142bf3804e14082464594940156178268713220505")
+    private String nextCursor;
 }

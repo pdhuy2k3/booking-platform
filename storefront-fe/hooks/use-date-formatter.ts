@@ -68,12 +68,12 @@ export function useDateFormatter() {
   }
 
   /**
-   * Format time only (HH:MM:SS)
+   * Format time only (HH:mm)
    */
   const formatTimeOnly = (dateInput: string | Date): string => {
     try {
       const date = parseUtcDateInput(dateInput)
-      return formatInTimeZone(date, timezone, 'HH:mm:ss', { locale })
+      return formatInTimeZone(date, timezone, 'HH:mm', { locale })
     } catch {
       return typeof dateInput === 'string' ? dateInput : ''
     }

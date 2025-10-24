@@ -57,28 +57,42 @@ export const PaymentMethodSelector: React.FC<PaymentMethodSelectorProps> = ({
     }
   }
 
-  const getCardIcon = (brand?: string) => {
-    switch (brand?.toLowerCase()) {
-      case 'visa':
-        return '💳'
-      case 'mastercard':
-        return '💳'
-      case 'amex':
-        return '💳'
-      case 'discover':
-        return '💳'
-      default:
-        return '💳'
+  const getMethodIcon = (method: PaymentMethodResponse) => {
+    const type = method.methodType?.toUpperCase() ?? ''
+    if (type.includes('APPLE')) return ''
+    if (type.includes('GOOGLE')) return '🅖'
+    if (type.includes('SAMSUNG')) return '🆂'
+    if (type.includes('MOMO')) return '💠'
+    if (type.includes('ZALO')) return '💬'
+    const brand = method.cardBrand?.toLowerCase()
+    if (brand?.includes('visa')) return '💳'
+    if (brand?.includes('mastercard')) return '💳'
+    if (brand?.includes('amex')) return '💳'
+    return '💳'
+  }
+
+  const formatPrimaryLabel = (method: PaymentMethodResponse) => {
+    if (method.cardLastFour) {
+      return `**** **** **** ${method.cardLastFour}`
     }
+    if (method.walletEmail) {
+      return method.walletEmail
+    }
+    return method.displayName || method.methodType || 'Payment Method'
   }
 
-  const formatCardNumber = (last4?: string) => {
-    return last4 ? `**** **** **** ${last4}` : '**** **** **** ****'
-  }
-
-  const formatExpiry = (month?: number, year?: number) => {
-    if (!month || !year) return '--/--'
-    return `${month.toString().padStart(2, '0')}/${year.toString().slice(-2)}`
+  const formatSecondaryLabel = (method: PaymentMethodResponse) => {
+    if (method.cardExpiryMonth && method.cardExpiryYear) {
+      return `Expires ${method.cardExpiryMonth.toString().padStart(2, '0')}/${method.cardExpiryYear
+        .toString()
+        .slice(-2)}`
+    }
+    if (method.methodType) {
+      return method.methodType
+        .replace(/_/g, ' ')
+        .replace(/\b\w/g, (char) => char.toUpperCase())
+    }
+    return ''
   }
 
   if (isLoading) {
@@ -149,16 +163,21 @@ export const PaymentMethodSelector: React.FC<PaymentMethodSelectorProps> = ({
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-3">
                     <div className="text-2xl">
-                      {getCardIcon(method.cardBrand)}
+                      {getMethodIcon(method)}
                     </div>
                     <div>
                       <div className="flex items-center gap-2">
                         <span className="font-medium">
-                      {formatCardNumber(method.cardLastFour)}
+                          {formatPrimaryLabel(method)}
                         </span>
-                        {method.cardBrand && (
+                        {method.cardBrand && method.cardLastFour && (
                           <Badge variant="secondary" className="text-xs">
                             {method.cardBrand.toUpperCase()}
+                          </Badge>
+                        )}
+                        {!method.cardLastFour && method.methodType && (
+                          <Badge variant="outline" className="text-xs">
+                            {method.methodType.replace(/_/g, ' ')}
                           </Badge>
                         )}
                         {method.isDefault && (
@@ -169,7 +188,7 @@ export const PaymentMethodSelector: React.FC<PaymentMethodSelectorProps> = ({
                         )}
                       </div>
                       <p className="text-sm text-gray-500">
-                        Expires {formatExpiry(method.cardExpiryMonth, method.cardExpiryYear)}
+                        {formatSecondaryLabel(method)}
                       </p>
                     </div>
                   </div>

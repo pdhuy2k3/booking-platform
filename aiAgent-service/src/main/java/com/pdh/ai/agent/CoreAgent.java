@@ -42,8 +42,7 @@ public class CoreAgent {
 
     // Messages
     private static final String ERROR_MESSAGE = "Xin lỗi, tôi gặp lỗi khi xử lý yêu cầu của bạn. Vui lòng thử lại.";
-    // private static final String MISSING_INFO_PREFIX = "Để tôi có thể giúp bạn tốt
-    // hơn, tôi cần thêm một số thông tin:\n\n";
+
     private static final String MODIFICATION_NOT_IMPLEMENTED = "Tính năng thay đổi đặt chỗ đang được phát triển. Vui lòng liên hệ bộ phận hỗ trợ để được trợ giúp.";
 
     private static final String SYSTEM_PROMPT = """
@@ -104,8 +103,7 @@ public class CoreAgent {
             - Call `create_booking` with: bookingType, serviceItemIds, totalAmount, currency, userId
             - Save returned sagaId and bookingId
             - Inform user: "Booking created."
-         
-            
+
             ## RESPONSE FORMAT
             Always return JSON with message and results array.
             
@@ -131,24 +129,19 @@ public class CoreAgent {
             
             ## ERROR HANDLING
             **Booking creation fails**: Show error, suggest alternatives
-            **Payment fails**: Record failure, show user-friendly error, suggest different payment method
             **Timeouts**: Use sagaId to check status, provide status check instructions
             
-            Help users plan trips with real data, inspiring visuals, and secure payment processing.
-
-
+            Help users plan trips with real data, inspiring visuals.
             """;
     private final ChatMemory chatMemory;
     private final MistralAiChatModel mistraModel;
     private final ChatClient chatClient;
 
     private static final String NDJSON_INSTRUCTION_TEMPLATE = """
-
             ALWAYS return each response as newline-delimited JSON (NDJSON).
             Emit one complete JSON object per line that fully conforms to the JSON schema below.
             Do NOT include markdown code fences, triple backticks, explanations, or any text outside of the JSON objects.
             End every JSON object with a newline character.
-
             JSON Schema:
             %s
             """;

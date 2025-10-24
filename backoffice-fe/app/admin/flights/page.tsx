@@ -36,10 +36,14 @@ import type { Flight } from "@/types/api"
 export default function AdminFlights() {
   const {
     flights,
+    flightStatistics,
     loading,
+    loadingStatistics,
     loadFlights,
     searchTerm,
     setSearchTerm,
+    currentPage,
+    onPageChange,
     airlines,
     airports,
     loadingFormData,
@@ -145,7 +149,13 @@ export default function AdminFlights() {
 
       {/* Stats Cards - Better responsive */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 lg:gap-6 mb-6">
-        {flights?.content && <FlightStats flights={flights.content} />}
+        {flights?.content && (
+          <FlightStats 
+            flights={flights} 
+            statistics={flightStatistics}
+            loadingStatistics={loadingStatistics}
+          />
+        )}
       </div>
 
       {/* Flights Table - Add horizontal scroll on mobile */}
@@ -188,7 +198,14 @@ export default function AdminFlights() {
                 {flights?.content && (
                   <FlightTable 
                     flights={flights.content}
+                    pagination={{
+                      currentPage: flights.number,
+                      totalPages: flights.totalPages,
+                      totalElements: flights.totalElements,
+                      size: flights.size
+                    }}
                     loading={loading}
+                    onPageChange={onPageChange}
                     onEdit={handleOpenEditDialog}
                     onView={(flight) => {
                       setSelectedFlight(flight)

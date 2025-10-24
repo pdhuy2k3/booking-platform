@@ -63,6 +63,8 @@ export interface CreatePaymentIntentPayload {
   paymentMethodId?: string
   customerId?: string
   confirmPayment?: boolean
+  savePaymentMethod?: boolean
+  setAsDefault?: boolean
 }
 
 export interface RefundRequest {

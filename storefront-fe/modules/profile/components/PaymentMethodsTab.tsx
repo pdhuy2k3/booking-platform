@@ -45,12 +45,18 @@ export function PaymentMethodsTab() {
     }
   }
 
-  const getCardIcon = (brand?: string) => {
-    const brandLower = brand?.toLowerCase() || ''
-    if (brandLower.includes('visa')) return "💳"
-    if (brandLower.includes('mastercard')) return "💳"
-    if (brandLower.includes('amex')) return "💳"
-    return "💳"
+  const getMethodIcon = (method: PaymentMethodResponse) => {
+    const type = method.methodType?.toUpperCase() ?? ''
+    if (type.includes('APPLE')) return ''
+    if (type.includes('GOOGLE')) return '🅖'
+    if (type.includes('SAMSUNG')) return '🆂'
+    if (type.includes('MOMO')) return '💠'
+    if (type.includes('ZALO')) return '💬'
+    const brand = method.cardBrand?.toLowerCase() || ''
+    if (brand.includes('visa')) return '💳'
+    if (brand.includes('mastercard')) return '💳'
+    if (brand.includes('amex')) return '💳'
+    return '💳'
   }
 
   const handleSetDefault = async (methodId: string) => {
@@ -121,7 +127,30 @@ export function PaymentMethodsTab() {
     if (method.cardExpiryMonth && method.cardExpiryYear) {
       return `${String(method.cardExpiryMonth).padStart(2, '0')}/${method.cardExpiryYear}`
     }
-    return 'N/A'
+    return null
+  }
+
+  const formatPrimaryText = (method: PaymentMethodResponse) => {
+    if (method.cardLastFour) {
+      return `**** **** **** ${method.cardLastFour}`
+    }
+    if (method.walletEmail) {
+      return method.walletEmail
+    }
+    return method.displayName || method.methodType || 'Payment Method'
+  }
+
+  const formatSecondaryText = (method: PaymentMethodResponse) => {
+    const expiry = formatExpiry(method)
+    if (expiry) {
+      return `Expires ${expiry}`
+    }
+    if (method.methodType) {
+      return method.methodType
+        .replace(/_/g, ' ')
+        .replace(/\b\w/g, (char) => char.toUpperCase())
+    }
+    return ''
   }
 
   return (
@@ -167,7 +196,7 @@ export function PaymentMethodsTab() {
                   className="flex items-center justify-between p-3 bg-white border border-gray-200 rounded-lg"
                 >
                   <div className="flex items-center gap-3">
-                    <div className="text-2xl">{getCardIcon(method.cardBrand)}</div>
+                    <div className="text-2xl">{getMethodIcon(method)}</div>
                     <div className="flex-1">
                       {editingMethodId === method.methodId ? (
                         <div className="flex items-center gap-1">
@@ -198,7 +227,7 @@ export function PaymentMethodsTab() {
                         <>
                           <div className="flex items-center gap-1">
                             <span className="text-gray-900 font-medium">
-                              {method.displayName || `${method.cardBrand} •••• ${method.cardLastFour}`}
+                              {formatPrimaryText(method)}
                             </span>
                             {method.isDefault && (
                               <Badge variant="secondary" className="bg-cyan-500/10 text-cyan-600">
@@ -216,9 +245,14 @@ export function PaymentMethodsTab() {
                                 Inactive
                               </Badge>
                             )}
+                            {!method.cardLastFour && method.methodType && (
+                              <Badge variant="outline" className="text-xs uppercase tracking-wide">
+                                {method.methodType.replace(/_/g, ' ')}
+                              </Badge>
+                            )}
                           </div>
                           <p className="text-gray-600 text-sm">
-                            {method.cardBrand} •••• {method.cardLastFour} • Expires {formatExpiry(method)}
+                            {formatSecondaryText(method) || 'Payment method details unavailable'}
                           </p>
                         </>
                       )}
