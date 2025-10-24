@@ -9,7 +9,6 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Button } from "@/components/ui/button"
 import { Search, MoreHorizontal, Eye, Edit, Trash2, Settings, Star } from "lucide-react"
 import type { Hotel, PaginatedResponse } from "@/types/api"
-import { mediaService } from "@/services/media-service"
 
 interface HotelTableProps {
   hotels: PaginatedResponse<Hotel> | null
@@ -18,6 +17,7 @@ interface HotelTableProps {
   cityFilter: string
   onSearchChange: (term: string) => void
   onCityFilterChange: (city: string) => void
+  onPageChange: (page: number) => void // New callback for pagination
   onViewHotel: (hotel: Hotel) => void
   onEditHotel: (hotel: Hotel) => void
   onDeleteHotel: (id: number) => void
@@ -32,6 +32,7 @@ export function HotelTable({
   cityFilter,
   onSearchChange,
   onCityFilterChange,
+  onPageChange,
   onViewHotel,
   onEditHotel,
   onDeleteHotel,
@@ -201,6 +202,90 @@ export function HotelTable({
             </TableBody>
           </Table>
         </div>
+        
+        {/* Pagination */}
+        {hotels && hotels.totalPages > 1 && (
+          <div className="flex items-center justify-between px-4 py-4 border-t">
+            <div className="text-sm text-gray-700">
+              Hiển thị {hotels.number * hotels.size + 1} -{" "}
+              {Math.min((hotels.number + 1) * hotels.size, hotels.totalElements)} của{" "}
+              {hotels.totalElements} kết quả
+            </div>
+            <div className="flex items-center space-x-2">
+              <button
+                onClick={() => onPageChange(hotels.number - 1)}
+                disabled={hotels.number === 0}
+                className={`px-3 py-1 rounded-md text-sm ${
+                  hotels.number === 0
+                    ? "bg-gray-100 text-gray-500 cursor-not-allowed" 
+                    : "bg-blue-600 text-white hover:bg-blue-700"
+                }`}
+              >
+                Trước
+              </button>
+              
+              <div className="flex space-x-1">
+                {(() => {
+                  // Calculate which page numbers to show
+                  const pageNumbers = [];
+                  const totalPages = hotels.totalPages;
+                  const currentPage = hotels.number;
+                  
+                  if (totalPages <= 5) {
+                    // Show all pages if total pages <= 5
+                    for (let i = 0; i < totalPages; i++) {
+                      pageNumbers.push(i);
+                    }
+                  } else {
+                    // Show up to 5 pages with current page centered when possible
+                    if (currentPage < 3) {
+                      // Near the beginning - show first 5 pages
+                      for (let i = 0; i < 5; i++) {
+                        pageNumbers.push(i);
+                      }
+                    } else if (currentPage >= totalPages - 3) {
+                      // Near the end - show last 5 pages
+                      for (let i = totalPages - 5; i < totalPages; i++) {
+                        pageNumbers.push(i);
+                      }
+                    } else {
+                      // In the middle - show 5 pages centered on current page
+                      for (let i = currentPage - 2; i <= currentPage + 2; i++) {
+                        pageNumbers.push(i);
+                      }
+                    }
+                  }
+                  
+                  return pageNumbers.map(pageNum => (
+                    <button
+                      key={pageNum}
+                      onClick={() => onPageChange(pageNum)}
+                      className={`px-3 py-1 rounded-md text-sm ${
+                        pageNum === currentPage
+                          ? "bg-blue-600 text-white"
+                          : "bg-gray-100 text-gray-900 hover:bg-gray-200"
+                      }`}
+                    >
+                      {pageNum + 1}
+                    </button>
+                  ));
+                })()}
+              </div>
+              
+              <button
+                onClick={() => onPageChange(hotels.number + 1)}
+                disabled={hotels.number === hotels.totalPages - 1}
+                className={`px-3 py-1 rounded-md text-sm ${
+                  hotels.number === hotels.totalPages - 1
+                    ? "bg-gray-100 text-gray-500 cursor-not-allowed" 
+                    : "bg-blue-600 text-white hover:bg-blue-700"
+                }`}
+              >
+                Sau
+              </button>
+            </div>
+          </div>
+        )}
       </CardContent>
     </Card>
   )

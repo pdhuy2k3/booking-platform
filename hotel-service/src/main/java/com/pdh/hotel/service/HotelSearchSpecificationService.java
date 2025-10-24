@@ -2,7 +2,7 @@ package com.pdh.hotel.service;
 
 import com.pdh.hotel.model.Hotel;
 import com.pdh.hotel.repository.HotelRepository;
-import com.pdh.hotel.specification.HotelSpecification;
+import com.pdh.hotel.repository.specification.HotelSpecification;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;

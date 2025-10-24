@@ -23,6 +23,11 @@ export interface FlightBookingDetails {
   returnFlight?: ReturnFlightDetails;
   additionalServices?: FlightService[];
   specialRequests?: string;
+  airlineLogo?: string;
+  originAirportName?: string;
+  destinationAirportName?: string;
+  originAirportImage?: string;
+  destinationAirportImage?: string;
 }
 
 export interface HotelBookingDetails {
@@ -35,7 +40,7 @@ export interface HotelBookingDetails {
   hotelLongitude?: number;
   starRating?: number;
   roomTypeId?: string;
-  roomId?: string;
+  roomAvailabilityId?: string;
   roomType: string;
   roomName: string;
   checkInDate: string; // YYYY-MM-DD
@@ -51,6 +56,9 @@ export interface HotelBookingDetails {
   additionalServices?: HotelService[];
   specialRequests?: string;
   cancellationPolicy?: string;
+  hotelImage?: string;
+  roomImage?: string;
+  roomImages?: string[];
 }
 
 export interface ComboBookingDetails {
@@ -143,6 +151,8 @@ export interface BookingResponse {
   bookingType: 'FLIGHT' | 'HOTEL' | 'COMBO';
   createdAt: string;
   updatedAt: string;
+  reservationLockedAt?: string | null;
+  reservationExpiresAt?: string | null;
 }
 
 export interface BookingStatusResponse {
@@ -152,6 +162,8 @@ export interface BookingStatusResponse {
   lastUpdated: string;
   message?: string;
   estimatedCompletion?: string;
+  reservationLockedAt?: string | null;
+  reservationExpiresAt?: string | null;
 }
 
 export interface BookingItem {
@@ -193,6 +205,14 @@ export interface BookingHistoryItemDto {
   destinationLongitude?: number | null;
   hotelLatitude?: number | null;
   hotelLongitude?: number | null;
+  originAirportCode?: string | null;
+  originCity?: string | null;
+  destinationAirportCode?: string | null;
+  destinationCity?: string | null;
+  airlineLogo?: string | null;
+  hotelImage?: string | null;
+  roomImage?: string | null;
+  roomImages?: string[] | null;
   reservationLockedAt?: string | null;
   reservationExpiresAt?: string | null;
 }

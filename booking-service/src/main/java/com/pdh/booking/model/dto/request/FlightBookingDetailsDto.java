@@ -129,19 +129,44 @@ public class FlightBookingDetailsDto {
     @NotNull(message = "Total flight price is required")
     @Min(value = 0, message = "Total flight price must be positive")
     private Double totalFlightPrice;
-    
+
     /**
      * Return flight details (for round trip)
      */
     private ReturnFlightDetailsDto returnFlight;
-    
+
     /**
      * Additional flight services (meals, baggage, etc.)
      */
     private List<FlightServiceDto> additionalServices;
-    
+
     /**
      * Special requests or notes
      */
     private String specialRequests;
+
+    /**
+     * Airline logo image URL (optional, for UI rendering).
+     */
+    private String airlineLogo;
+
+    /**
+     * Human-friendly origin airport name or label.
+     */
+    private String originAirportName;
+
+    /**
+     * Human-friendly destination airport name or label.
+     */
+    private String destinationAirportName;
+
+    /**
+     * Optional image representing the origin airport.
+     */
+    private String originAirportImage;
+
+    /**
+     * Optional image representing the destination airport.
+     */
+    private String destinationAirportImage;
 }

@@ -67,13 +67,16 @@ public class BrowseController {
             @Parameter(description = "Number of items per page") 
             @RequestParam(value = "limit", required = false, defaultValue = "20") int limit,
             
+            @Parameter(description = "Next cursor for pagination") 
+            @RequestParam(value = "next_cursor", required = false) String nextCursor,
+            
             @Parameter(description = "Sort direction") 
             @RequestParam(value = "sort_direction", required = false, defaultValue = "desc") String sortDirection
     ) {
         try {
             // Create request object
             BrowseMediaRequest request = new BrowseMediaRequest(
-                folder, search, resourceType, page, limit, sortDirection
+                folder, search, resourceType, page, limit, sortDirection, nextCursor
             );
 
             // Validate request parameters
@@ -92,7 +95,7 @@ public class BrowseController {
 
             // Get media from Cloudinary
             Map<String, Object> cloudinaryResult = cloudinaryService.browseMedia(
-                folder, search, resourceType, page, limit
+                folder, search, resourceType, page, limit, nextCursor
             );
 
             // Build response
@@ -143,7 +146,8 @@ public class BrowseController {
                 request.getSearch(), 
                 request.getResourceType(), 
                 request.getPage(), 
-                request.getLimit()
+                request.getLimit(),
+                request.getNextCursor()
             );
 
             // Build response

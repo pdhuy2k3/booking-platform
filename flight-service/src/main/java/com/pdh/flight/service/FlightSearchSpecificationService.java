@@ -2,7 +2,7 @@ package com.pdh.flight.service;
 
 import com.pdh.flight.model.Flight;
 import com.pdh.flight.repository.FlightRepository;
-import com.pdh.flight.specification.FlightSpecification;
+import com.pdh.flight.repository.specification.FlightSpecification;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;

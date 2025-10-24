@@ -7,8 +7,11 @@ import type { Flight, PaginatedResponse, Airline, Airport } from "@/types/api"
 
 export const useFlightData = () => {
   const [flights, setFlights] = useState<PaginatedResponse<Flight> | null>(null)
+  const [flightStatistics, setFlightStatistics] = useState<any>(null)
   const [loading, setLoading] = useState(true)
+  const [loadingStatistics, setLoadingStatistics] = useState(true)
   const [searchTerm, setSearchTerm] = useState("")
+  const [currentPage, setCurrentPage] = useState(0)
 
   // Form data for add/edit with infinite scroll support
   const [airlines, setAirlines] = useState<Airline[]>([])
@@ -29,14 +32,15 @@ export const useFlightData = () => {
 
   useEffect(() => {
     loadFlights()
-  }, [searchTerm])
+    loadFlightStatistics()
+  }, [searchTerm, currentPage])
 
   const loadFlights = async () => {
     try {
       setLoading(true)
       const data = await FlightService.getFlights({
         search: searchTerm || undefined,
-        page: 0,
+        page: currentPage,
         size: 20,
       })
       setFlights(data)
@@ -49,6 +53,23 @@ export const useFlightData = () => {
       })
     } finally {
       setLoading(false)
+    }
+  }
+
+  const loadFlightStatistics = async () => {
+    try {
+      setLoadingStatistics(true)
+      const stats = await FlightService.getFlightStatistics()
+      setFlightStatistics(stats)
+    } catch (error) {
+      console.error("Failed to load flight statistics:", error)
+      toast({
+        title: "Lỗi",
+        description: "Không thể tải thống kê chuyến bay. Vui lòng thử lại.",
+        variant: "destructive",
+      })
+    } finally {
+      setLoadingStatistics(false)
     }
   }
 
@@ -203,15 +224,25 @@ export const useFlightData = () => {
     }
   }
 
+  const onPageChange = (page: number) => {
+    setCurrentPage(page);
+  };
+
   return {
     // Flight data
     flights,
+    flightStatistics,
     loading,
+    loadingStatistics,
     loadFlights,
     
     // Search
     searchTerm,
     setSearchTerm,
+    
+    // Pagination
+    currentPage,
+    onPageChange,
     
     // Form data
     airlines,

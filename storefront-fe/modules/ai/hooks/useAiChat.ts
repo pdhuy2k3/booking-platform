@@ -121,6 +121,18 @@ const createConversationId = (): string => {
     return `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
 };
 
+const buildConversationTitle = (message: string): string => {
+    if (!message) {
+        return 'Cuộc trò chuyện';
+    }
+    const sanitized = message.replace(/\s+/g, ' ').trim();
+    if (!sanitized) {
+        return 'Cuộc trò chuyện';
+    }
+    const maxLength = 60;
+    return sanitized.length <= maxLength ? sanitized : `${sanitized.slice(0, maxLength)}...`;
+};
+
 const createInitialMessages = (): ChatMessage[] => [
     {
         id: '1',
@@ -150,7 +162,7 @@ export function useAiChat(options: UseAiChatOptions = {}): UseAiChatReturn {
     const [error, setError] = useState<string | null>(null);
     const [conversationId, setConversationId] = useState<string | null>(initialConversationId || null);
     const [suggestions, setSuggestions] = useState<string[]>([]);
-    const { user, refreshChatConversations } = useAuth();
+    const { user, refreshChatConversations, upsertChatConversation } = useAuth();
     const currentAssistantMessageIdRef = useRef<string | null>(null);
     const conversationIdRef = useRef(conversationId);
     const onErrorRef = useRef(onError);
@@ -212,7 +224,10 @@ export function useAiChat(options: UseAiChatOptions = {}): UseAiChatReturn {
             return;
         }
 
-        const effectiveConversationId = conversationId || context?.conversationId || createConversationId();
+        const baseConversationId = conversationId || context?.conversationId;
+        const isExistingConversation = Boolean(baseConversationId);
+        const effectiveConversationId = baseConversationId ?? createConversationId();
+        const conversationTitle = buildConversationTitle(trimmedMessage);
         const userMessageId = createMessageId('user');
         const assistantMessageId = createMessageId('assistant');
 
@@ -240,65 +255,108 @@ export function useAiChat(options: UseAiChatOptions = {}): UseAiChatReturn {
 
         if (!conversationId) {
             setConversationId(effectiveConversationId);
+
+            upsertChatConversation({
+                id: effectiveConversationId,
+                title: conversationTitle,
+                createdAt: new Date().toISOString(),
+                lastUpdated: new Date().toISOString(),
+            });
         }
 
         currentAssistantMessageIdRef.current = assistantMessageId;
 
         try {
-            // Call the synchronous sendMessage method instead of streamMessage
-            const response = await aiChatService.sendMessage(trimmedMessage, {
-                ...context,
-                conversationId: effectiveConversationId
+            const finalResponse = await aiChatService.streamPrompt(trimmedMessage, {
+                conversationId: effectiveConversationId,
+                onEvent: (event) => {
+                    if (event.status === 'keepalive') {
+                        return;
+                    }
+
+                    if (!conversationIdRef.current && event.conversationId) {
+                        setConversationId(event.conversationId);
+                    }
+
+                    setMessages(prev => {
+                        const next = [...prev];
+                        const idx = next.findIndex(msg => msg.id === assistantMessageId);
+                        if (idx === -1) {
+                            return next;
+                        }
+
+                        const existing = next[idx];
+                        const isProcessing = event.type === 'PROCESSING';
+                        const suggestionsField = event.nextRequestSuggestions ?? event.next_request_suggestions;
+                        const nextSuggestions = suggestionsField !== undefined
+                            ? [...suggestionsField]
+                            : existing.suggestions ?? [];
+
+                        const updatedContent = (() => {
+                            if (!event.aiResponse || !event.aiResponse.trim()) {
+                                return isProcessing ? existing.content : existing.content;
+                            }
+                            return event.aiResponse;
+                        })();
+
+                        next[idx] = {
+                            ...existing,
+                            content: updatedContent,
+                            results: event.results ?? existing.results ?? [],
+                            suggestions: nextSuggestions,
+                            requiresConfirmation: event.requiresConfirmation ?? existing.requiresConfirmation,
+                            confirmationContext: event.confirmationContext ?? existing.confirmationContext,
+                            timestamp: new Date(event.timestamp),
+                        };
+                        return next;
+                    });
+
+                    if (event.conversationId) {
+                        upsertChatConversation({
+                            id: event.conversationId,
+                            title: isExistingConversation ? '' : conversationTitle,
+                            lastUpdated: event.timestamp ?? new Date().toISOString(),
+                        });
+                    }
+                }
             });
 
-            // Check if the response contains an error
-            if (response.error) {
-                const errorMessage = response.error || 'Không thể gửi tin nhắn. Vui lòng thử lại.';
-                setError(errorMessage);
-                onError?.(errorMessage);
-
-                // Update the assistant message with the error
-                setMessages(prev => {
-                    const newMessages = [...prev];
-                    const messageIndex = newMessages.findIndex(msg => msg.id === assistantMessageId);
-
-                    if (messageIndex !== -1) {
-                        newMessages[messageIndex] = {
-                            ...newMessages[messageIndex],
-                            content: response.aiResponse || errorMessage,
-                            results: [],
-                            timestamp: new Date(response.timestamp || new Date()),
-                            suggestions: [],
-                        };
-                    }
-
-                    return newMessages;
-                });
-            } else {
-                // Update the assistant message with the complete response
-                setMessages(prev => {
-                    const newMessages = [...prev];
-                    const messageIndex = newMessages.findIndex(msg => msg.id === assistantMessageId);
-
-                    if (messageIndex !== -1) {
-                        newMessages[messageIndex] = {
-                            ...newMessages[messageIndex],
-                            content: response.aiResponse,
-                            results: response.results || [],
-                            suggestions: response.nextRequestSuggestions || [],
-                            timestamp: new Date(response.timestamp),
-                        };
-                    }
-
-                    return newMessages;
-                });
+            if (finalResponse.conversationId && finalResponse.conversationId !== conversationId) {
+                setConversationId(finalResponse.conversationId);
             }
 
-            const shouldRefreshConversations = !conversationId || effectiveConversationId !== conversationId;
+            const lastUpdatedIso = finalResponse.timestamp ?? new Date().toISOString();
 
-            if (effectiveConversationId !== conversationId) {
-                setConversationId(effectiveConversationId);
-            }
+            upsertChatConversation({
+                id: finalResponse.conversationId,
+                title: isExistingConversation ? '' : conversationTitle,
+                lastUpdated: lastUpdatedIso,
+                createdAt: isExistingConversation ? undefined : lastUpdatedIso,
+            });
+
+            setMessages(prev => {
+                const next = [...prev];
+                const idx = next.findIndex(msg => msg.id === assistantMessageId);
+                if (idx === -1) {
+                    return next;
+                }
+                const suggestionsField = finalResponse.nextRequestSuggestions ?? finalResponse.next_request_suggestions;
+                const nextSuggestions = suggestionsField !== undefined
+                    ? [...suggestionsField]
+                    : next[idx].suggestions ?? [];
+                next[idx] = {
+                    ...next[idx],
+                    content: finalResponse.aiResponse ?? next[idx].content,
+                    results: finalResponse.results ?? [],
+                    suggestions: nextSuggestions,
+                    requiresConfirmation: finalResponse.requiresConfirmation ?? false,
+                    confirmationContext: finalResponse.confirmationContext,
+                    timestamp: new Date(finalResponse.timestamp),
+                };
+                return next;
+            });
+
+            const shouldRefreshConversations = !conversationId || finalResponse.conversationId !== conversationId;
 
             if (shouldRefreshConversations) {
                 refreshChatConversations().catch((err) => {
@@ -309,7 +367,7 @@ export function useAiChat(options: UseAiChatOptions = {}): UseAiChatReturn {
             currentAssistantMessageIdRef.current = null;
 
         } catch (err: any) {
-            const errorMessage = 'Không thể gửi tin nhắn. Vui lòng thử lại.';
+            const errorMessage = err?.message || 'Không thể gửi tin nhắn. Vui lòng thử lại.';
             setError(errorMessage);
             onError?.(errorMessage);
 
@@ -335,7 +393,7 @@ export function useAiChat(options: UseAiChatOptions = {}): UseAiChatReturn {
         } finally {
             setIsLoading(false);
         }
-    }, [isLoading, conversationId, context, refreshChatConversations, onError]);
+    }, [isLoading, conversationId, context, refreshChatConversations, upsertChatConversation, onError]);
 
     const startNewConversation = useCallback(() => {
         setMessages(createInitialMessages());

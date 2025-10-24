@@ -1,11 +1,10 @@
 package com.pdh.ai;
 
-import org.springframework.boot.CommandLineRunner;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.cloud.client.discovery.EnableDiscoveryClient;
 import org.springframework.context.i18n.LocaleContextHolder;
-import org.springframework.scheduling.annotation.EnableAsync;
+
 
 
 
@@ -18,11 +17,6 @@ public class AiAgentServiceApplication {
         SpringApplication.run(AiAgentServiceApplication.class, args);
         LocaleContextHolder.setDefaultLocale(java.util.Locale.forLanguageTag("vi-VN"));
     }
-    // Using @EventListener with ApplicationReadyEvent approach in RagInitializationService instead
-    // public CommandLineRunner commandLineRunner(RagInitializationService ragInitializationService) {
-    //     return args -> {
-    //         ragInitializationService.initializeRagData();
-    //     };
-    // }
+
 
 }

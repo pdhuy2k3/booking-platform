@@ -95,8 +95,15 @@ spring:
           predicates:
             - Path=/api/ai/**
           filters:
-            - StripPrefix=1
+            - RewritePath=/api/ai/(?<segment>.*), /ai/${segment}
             - TokenRelay=
+        - id: aiagent-ws
+          uri: lb:ws://AIAGENT-SERVICE
+          predicates:
+            - Path=/api/ai/ws/**
+          filters:
+            - RewritePath=/api/ai/ws/(?<segment>.*), /ws/${segment}
+            - WebSocketTokenRelay
         # Administrative routes
         - id: eureka-web-start
           uri: lb://DISCOVERY-SERVICE
@@ -160,12 +167,12 @@ spring:
               predicates:
                 - Path=/**
             - id: aiagent-ws
-              uri: lb:ws://aiAgent-service
+              uri: lb:ws://AIAGENT-SERVICE
               predicates:
                 - Path=/api/ai/ws/**
               filters:
-                - RewritePath=/api/ai/ws/(?<segment>.*), /ws/${segment}
-                - TokenRelay=
+                - RewritePath=/api/ai/ws/(?<segment>.*), /ai/ws/${segment}
+                - WebSocketTokenRelay
           default-filters:
             - SaveSession
 

@@ -24,6 +24,7 @@ import { useToast } from "@/hooks/use-toast"
 import { CalendarIcon } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { HotelBookingDetails, GuestDetails } from '@/modules/booking/types'
+import { SelectedHotel } from '@/types'
 
 const parseDate = (dateString?: string): Date | undefined => {
   if (!dateString) return undefined;
@@ -35,6 +36,34 @@ const parseDate = (dateString?: string): Date | undefined => {
   return date;
 };
 
+const MAX_GUESTS = 10
+
+const buildGuest = (type: GuestDetails['guestType'], existing?: GuestDetails): GuestDetails => ({
+  guestType: type,
+  title: existing?.title ?? '',
+  firstName: existing?.firstName ?? '',
+  lastName: existing?.lastName ?? '',
+  dateOfBirth: existing?.dateOfBirth ?? '',
+  gender: existing?.gender === 'F' ? 'F' : 'M',
+  nationality: existing?.nationality ?? 'VN',
+  idNumber: existing?.idNumber,
+  email: type === 'PRIMARY' ? existing?.email ?? '' : existing?.email,
+  phoneNumber: type === 'PRIMARY' ? existing?.phoneNumber ?? '' : existing?.phoneNumber,
+  loyaltyNumber: existing?.loyaltyNumber,
+  specialRequests: existing?.specialRequests,
+})
+
+const buildGuestList = (count: number, existing?: GuestDetails[]): GuestDetails[] => {
+  const desired = Math.max(1, Math.min(MAX_GUESTS, count))
+  const source = existing ?? []
+  const primary = buildGuest('PRIMARY', source[0])
+  const additionals: GuestDetails[] = []
+  for (let i = 0; i < desired - 1; i += 1) {
+    additionals.push(buildGuest('ADDITIONAL', source[i + 1]))
+  }
+  return [primary, ...additionals]
+}
+
 interface HotelBookingFormProps {
   hotel: SelectedHotel
   onSubmit: (details: HotelBookingDetails) => void
@@ -42,6 +71,14 @@ interface HotelBookingFormProps {
 }
 
 export function HotelBookingForm({ hotel, onSubmit, onCancel }: HotelBookingFormProps) {
+  if (!hotel) {
+    return (
+      <div className="rounded-lg border border-dashed border-muted-foreground/40 bg-muted/10 p-6 text-center text-sm text-muted-foreground">
+        Không có thông tin khách sạn. Vui lòng quay lại trang trước để chọn khách sạn.
+      </div>
+    )
+  }
+  
   const { formatDateOnly } = useDateFormatter()
   const { toast } = useToast()
 
@@ -52,32 +89,14 @@ export function HotelBookingForm({ hotel, onSubmit, onCancel }: HotelBookingForm
     setCheckInDate(parseDate(hotel.checkInDate))
     setCheckOutDate(parseDate(hotel.checkOutDate))
   }, [hotel.checkInDate, hotel.checkOutDate])
-  const [numberOfRooms, setNumberOfRooms] = useState<number>(1)
-  const [numberOfGuests, setNumberOfGuests] = useState<number>(2)
+  const initialRoomCount = Math.max(1, hotel.rooms ?? 1)
+  const initialGuestCount = Math.max(1, hotel.guests ?? 1)
+
+  const [numberOfRooms, setNumberOfRooms] = useState<number>(initialRoomCount)
+  const [numberOfGuests, setNumberOfGuests] = useState<number>(initialGuestCount)
   const [bedType, setBedType] = useState<string>('DOUBLE')
   const [specialRequests, setSpecialRequests] = useState<string>('')
-  const [guests, setGuests] = useState<GuestDetails[]>([
-    {
-      guestType: 'PRIMARY',
-      title: '',
-      firstName: '',
-      lastName: '',
-      dateOfBirth: '',
-      gender: 'M',
-      nationality: 'VN',
-      email: '',
-      phoneNumber: ''
-    },
-    {
-      guestType: 'ADDITIONAL',
-      title: '',
-      firstName: '',
-      lastName: '',
-      dateOfBirth: '',
-      gender: 'M',
-      nationality: 'VN'
-    }
-  ])
+  const [guests, setGuests] = useState<GuestDetails[]>(() => buildGuestList(initialGuestCount))
 
   // Calculate the number of nights between check-in and check-out dates
   const calculateNights = () => {
@@ -96,10 +115,25 @@ export function HotelBookingForm({ hotel, onSubmit, onCancel }: HotelBookingForm
   const previousTotalRef = useRef<number>(totalRoomPrice);
   const initializedPriceRef = useRef<boolean>(false);
   const skipNextPriceToastRef = useRef<boolean>(false);
+  const skipNextGuestToastRef = useRef<boolean>(false);
+  const initialGuestCountRef = useRef<number>(initialGuestCount);
 
   useEffect(() => {
     setRoomPrice(hotel.pricePerNight ?? hotel.price ?? hotel.totalPrice ?? 0)
   }, [hotel.pricePerNight, hotel.price, hotel.totalPrice])
+
+  useEffect(() => {
+    setGuests((prev) => buildGuestList(numberOfGuests, prev))
+  }, [numberOfGuests])
+
+  useEffect(() => {
+    const nextRooms = Math.max(1, hotel.rooms ?? 1)
+    const nextGuests = Math.max(1, hotel.guests ?? 1)
+    initialGuestCountRef.current = nextGuests
+    setNumberOfRooms(nextRooms)
+    setNumberOfGuests(nextGuests)
+    setGuests((prev) => buildGuestList(nextGuests, prev))
+  }, [hotel.rooms, hotel.guests, hotel.id])
 
   useEffect(() => {
     if (!initializedPriceRef.current) {
@@ -126,13 +160,18 @@ export function HotelBookingForm({ hotel, onSubmit, onCancel }: HotelBookingForm
 
   // Show toast when number of guests changes
   useEffect(() => {
-    if (numberOfGuests !== 2) { // Only show toast if not the initial value
-      toast({
-        title: "Thông báo đặt phòng",
-        description: `Số lượng khách đã được cập nhật thành ${numberOfGuests}.`,
-        duration: 3000,
-      });
+    if (skipNextGuestToastRef.current) {
+      skipNextGuestToastRef.current = false
+      return
     }
+    if (numberOfGuests === initialGuestCountRef.current) {
+      return
+    }
+    toast({
+      title: "Thông báo đặt phòng",
+      description: `Số lượng khách đã được cập nhật thành ${numberOfGuests}.`,
+      duration: 3000,
+    });
   }, [numberOfGuests, toast]);
 
   // Add the room type functionality
@@ -173,29 +212,30 @@ export function HotelBookingForm({ hotel, onSubmit, onCancel }: HotelBookingForm
   }, [selectedRoomTypeId, numberOfNights, numberOfRooms, toast, hotel.roomTypeId, hotel.id]);
 
   const handleAddGuest = () => {
-    if (guests.length < 10) { // Max 10 guests
-      setGuests([
-        ...guests,
-        {
-          guestType: 'ADDITIONAL',
-          title: '',
-          firstName: '',
-          lastName: '',
-          dateOfBirth: '',
-          gender: 'M',
-          nationality: 'VN'
-        }
-      ])
-    }
+    setGuests((prev) => {
+      if (prev.length >= MAX_GUESTS) {
+        return prev
+      }
+      const next = [...prev, buildGuest('ADDITIONAL')]
+      setNumberOfGuests(next.length)
+      return next
+    })
   }
 
   const handleRemoveGuest = (index: number) => {
-    // Cannot remove the primary guest
-    if (guests.length > 1 && guests[index].guestType !== 'PRIMARY') {
-      const newGuests = [...guests]
-      newGuests.splice(index, 1)
-      setGuests(newGuests)
-    }
+    setGuests((prev) => {
+      if (prev.length <= 1) {
+        return prev
+      }
+      const target = prev[index]
+      if (!target || target.guestType === 'PRIMARY') {
+        return prev
+      }
+      const next = [...prev]
+      next.splice(index, 1)
+      setNumberOfGuests(next.length)
+      return next
+    })
   }
 
   const handleGuestChange = (index: number, field: keyof GuestDetails, value: string) => {
@@ -210,11 +250,32 @@ export function HotelBookingForm({ hotel, onSubmit, onCancel }: HotelBookingForm
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
     
-    // Validate required fields
-    const primaryGuest = guests.find(g => g.guestType === 'PRIMARY')
-    const isValid = primaryGuest && primaryGuest.firstName && primaryGuest.lastName && primaryGuest.dateOfBirth && primaryGuest.email
+    const sanitizedGuests = guests.map((guest) => ({
+      ...guest,
+      title: guest.title.trim(),
+      firstName: guest.firstName.trim(),
+      lastName: guest.lastName.trim(),
+      dateOfBirth: guest.dateOfBirth,
+      gender: guest.gender,
+      nationality: guest.nationality.trim().toUpperCase() || 'VN',
+      email: guest.guestType === 'PRIMARY'
+        ? (guest.email ?? '').trim()
+        : guest.email?.trim(),
+      phoneNumber: guest.phoneNumber?.trim(),
+      idNumber: guest.idNumber?.trim(),
+      loyaltyNumber: guest.loyaltyNumber?.trim(),
+      specialRequests: guest.specialRequests?.trim(),
+    }))
+
+    const primaryGuest = sanitizedGuests.find((g) => g.guestType === 'PRIMARY')
+    const primaryValid = primaryGuest
+      && primaryGuest.title
+      && primaryGuest.firstName
+      && primaryGuest.lastName
+      && primaryGuest.dateOfBirth
+      && (primaryGuest.email ?? '')
     
-    if (!isValid) {
+    if (!primaryValid || !primaryGuest) {
       alert('Please fill in all required information for the primary guest')
       return
     }
@@ -235,6 +296,21 @@ export function HotelBookingForm({ hotel, onSubmit, onCancel }: HotelBookingForm
       return `${year}-${month}-${day}`
     }
 
+    const additionalGuests = sanitizedGuests
+      .filter((guest) => guest.guestType === 'ADDITIONAL')
+      .filter((guest) => guest.title && guest.firstName && guest.lastName && guest.dateOfBirth)
+
+    const finalGuests: GuestDetails[] = [primaryGuest, ...additionalGuests]
+
+    if (finalGuests.length !== sanitizedGuests.length) {
+      setGuests(finalGuests)
+    }
+
+    if (finalGuests.length !== numberOfGuests) {
+      skipNextGuestToastRef.current = true
+      setNumberOfGuests(finalGuests.length)
+    }
+
     const bookingDetails: HotelBookingDetails = {
       hotelId: hotel.id, // Correctly assign hotelId
       hotelName: hotel.name,
@@ -252,13 +328,16 @@ export function HotelBookingForm({ hotel, onSubmit, onCancel }: HotelBookingForm
       checkOutDate: normalizeDate(checkOutDate),
       numberOfNights,
       numberOfRooms,
-      numberOfGuests,
-      guests,
+      numberOfGuests: finalGuests.length,
+      guests: finalGuests,
       pricePerNight: roomPrice,
       totalRoomPrice: totalPrice,
       bedType,
       amenities: hotel.amenities,
-      specialRequests
+      specialRequests: specialRequests.trim(),
+      hotelImage: hotel.image,
+      roomImage: hotel.roomImages?.[0] || hotel.image,
+      roomImages: hotel.roomImages ?? (hotel.images ? [...hotel.images] : undefined)
     }
 
     onSubmit(bookingDetails)
@@ -383,7 +462,7 @@ export function HotelBookingForm({ hotel, onSubmit, onCancel }: HotelBookingForm
                   <SelectValue placeholder="Chọn số khách" />
                 </SelectTrigger>
                 <SelectContent>
-                  {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map(num => (
+                  {Array.from({ length: MAX_GUESTS }, (_, index) => index + 1).map((num) => (
                     <SelectItem key={num} value={num.toString()}>
                       {num} {num === 1 ? 'Khách' : 'Khách'}
                     </SelectItem>
@@ -555,7 +634,7 @@ export function HotelBookingForm({ hotel, onSubmit, onCancel }: HotelBookingForm
               </div>
             ))}
 
-            {guests.length < 10 && (
+            {guests.length < MAX_GUESTS && (
               <Button 
                 type="button" 
                 variant="outline" 
@@ -585,7 +664,7 @@ export function HotelBookingForm({ hotel, onSubmit, onCancel }: HotelBookingForm
               Hủy
             </Button>
             <Button type="submit">
-              Tiếp tục đến trang xem xét
+              Tiếp tục
             </Button>
           </div>
         </form>

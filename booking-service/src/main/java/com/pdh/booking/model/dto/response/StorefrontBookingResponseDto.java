@@ -91,4 +91,14 @@ public class StorefrontBookingResponseDto {
      * Validation details (only present when validation is performed)
      */
     private Map<String, Object> validationDetails;
+
+    /**
+     * Timestamp when the reservation lock was acquired.
+     */
+    private String reservationLockedAt;
+
+    /**
+     * Timestamp when the reservation lock expires.
+     */
+    private String reservationExpiresAt;
 }

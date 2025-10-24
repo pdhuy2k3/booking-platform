@@ -146,6 +146,7 @@ export interface FlightFareDetails {
   originLongitude?: number
   destinationLatitude?: number
   destinationLongitude?: number
+  airlineLogo?: string
 }
 
 // Initial flight data response from /flights/storefront/flights

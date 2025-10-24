@@ -14,15 +14,14 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.messages.MessageType;
 import org.springframework.stereotype.Service;
 import reactor.core.publisher.Flux;
-import reactor.core.publisher.Mono;
-import reactor.core.scheduler.Schedulers;
 
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 
 @Service
 @Slf4j
@@ -42,71 +41,83 @@ public class LLMAiService implements AiService {
 
     @Override
     public StructuredChatPayload processStructured(String message, String conversationId, String userId) {
-        String actualUserId = resolveAuthenticatedUserId(userId);
-        String conversationKey = formatConversationKey(actualUserId, conversationId);
-        Instant now = Instant.now();
-
-        ChatMessage parent = chatMessageRepository
-                .findTopByConversationIdOrderByTimestampDesc(conversationKey)
-                .orElse(null);
-
-        ChatMessage userMessage = ChatMessage.builder()
-                .conversationId(conversationKey)
-                .role(org.springframework.ai.chat.messages.MessageType.USER)
-                .content(message)
-                .timestamp(now)
+        StructuredChatPayload defaultPayload = StructuredChatPayload.builder()
+                .message("Đã xử lý yêu cầu nhưng không có kết quả.")
+                .results(Collections.emptyList())
                 .build();
 
-        ChatMessage savedUserMessage;
-        if (parent == null) {
-            userMessage.setTitle(defaultTitle(message));
-            savedUserMessage = chatMessageRepository.save(userMessage);
-        } else {
-            userMessage.setParentMessage(parent);
-            savedUserMessage = chatMessageRepository.save(userMessage);
-        }
+        return streamStructured(message, conversationId, userId)
+                .last(defaultPayload)
+                .onErrorReturn(buildErrorResponse())
+                .block();
+    }
 
-        final ChatMessage effectiveParent = (parent == null) ? savedUserMessage : parent;
+    @Override
+    public Flux<StructuredChatPayload> streamStructured(String message, String conversationId, String userId) {
+        return Flux.defer(() -> {
+            String actualUserId = resolveAuthenticatedUserId(userId);
+            String conversationKey = formatConversationKey(actualUserId, conversationId);
+            Instant now = Instant.now();
 
-        try {
-            // Call the synchronous method in CoreAgent
-StructuredChatPayload payload = coreAgent.processStructured(message, conversationKey).block();
-            StructuredChatPayload validPayload = ensureValidPayload(payload);
-            
-            // Save the complete response to the database
-            String content = objectMapper.writeValueAsString(validPayload);
-            ChatMessage assistantMessage = ChatMessage.builder()
+            ChatMessage parent = chatMessageRepository
+                    .findTopByConversationIdOrderByTimestampDesc(conversationKey)
+                    .orElse(null);
+
+            ChatMessage userMessage = ChatMessage.builder()
                     .conversationId(conversationKey)
-                    .role(MessageType.ASSISTANT) 
-                    .content(content)
-                    .timestamp(Instant.now())
-                    .parentMessage(effectiveParent)
+                    .role(MessageType.USER)
+                    .content(message)
+                    .timestamp(now)
                     .build();
-            chatMessageRepository.save(assistantMessage);
-            
-            return validPayload;
 
-        } catch (Exception e) {
-            log.error("[CHAT-MESSAGE] Error processing message", e);
-            StructuredChatPayload errorResponse = buildErrorResponse();
-            
-            // Save the error response to the database
-            try {
-                String content = objectMapper.writeValueAsString(errorResponse);
-                ChatMessage assistantMessage = ChatMessage.builder()
-                        .conversationId(conversationKey)
-                        .role(MessageType.ASSISTANT) 
-                        .content(content)
-                        .timestamp(Instant.now())
-                        .parentMessage(effectiveParent)
-                        .build();
-                chatMessageRepository.save(assistantMessage);
-            } catch (Exception dbException) {
-                log.error("Failed to save error response to database", dbException);
+            ChatMessage savedUserMessage;
+            if (parent == null) {
+                userMessage.setTitle(defaultTitle(message));
+                savedUserMessage = chatMessageRepository.save(userMessage);
+            } else {
+                userMessage.setParentMessage(parent);
+                savedUserMessage = chatMessageRepository.save(userMessage);
             }
-            
-            return errorResponse;
-        }
+
+            final ChatMessage conversationRoot = (parent == null) ? savedUserMessage : parent;
+
+            AtomicReference<StructuredChatPayload> lastPayload = new AtomicReference<>();
+            AtomicBoolean assistantPersisted = new AtomicBoolean(false);
+
+            return coreAgent.streamStructured(message, conversationKey)
+                    .map(this::ensureValidPayload)
+                    .doOnNext(lastPayload::set)
+                    .doOnError(error -> {
+                        log.error("[CHAT-MESSAGE] Error streaming response", error);
+                        StructuredChatPayload errorPayload = buildErrorResponse();
+                        persistAssistantMessage(conversationKey, conversationRoot, errorPayload);
+                        assistantPersisted.set(true);
+                    })
+                    .doOnComplete(() -> {
+                        StructuredChatPayload finalPayload = lastPayload.get();
+                        if (finalPayload == null) {
+                            finalPayload = StructuredChatPayload.builder()
+                                    .message("Đã xử lý yêu cầu nhưng không có kết quả.")
+                                    .results(Collections.emptyList())
+                                    .build();
+                        }
+                        persistAssistantMessage(conversationKey, conversationRoot, finalPayload);
+                        assistantPersisted.set(true);
+                    })
+                    .doFinally(signalType -> {
+                        if (!assistantPersisted.get()) {
+                            StructuredChatPayload fallbackPayload = lastPayload.get();
+                            if (fallbackPayload == null) {
+                                fallbackPayload = StructuredChatPayload.builder()
+                                        .message("Cuộc trò chuyện đã kết thúc trước khi có phản hồi.")
+                                        .results(Collections.emptyList())
+                                        .build();
+                            }
+                            persistAssistantMessage(conversationKey, conversationRoot, fallbackPayload);
+                            assistantPersisted.set(true);
+                        }
+                    });
+        });
     }
 
     @Override
@@ -229,6 +240,23 @@ StructuredChatPayload payload = coreAgent.processStructured(message, conversatio
             return conversationKey.substring(separatorIndex + 1);
         }
         return conversationKey; // If no separator, return the whole string
+    }
+
+    private void persistAssistantMessage(String conversationKey, ChatMessage parentMessage, StructuredChatPayload payload) {
+        StructuredChatPayload safePayload = ensureValidPayload(payload);
+        try {
+            String content = objectMapper.writeValueAsString(safePayload);
+            ChatMessage assistantMessage = ChatMessage.builder()
+                    .conversationId(conversationKey)
+                    .role(MessageType.ASSISTANT)
+                    .content(content)
+                    .timestamp(Instant.now())
+                    .parentMessage(parentMessage)
+                    .build();
+            chatMessageRepository.save(assistantMessage);
+        } catch (JsonProcessingException e) {
+            log.error("Failed to serialize assistant response for persistence", e);
+        }
     }
 
     /**

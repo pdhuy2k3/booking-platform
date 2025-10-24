@@ -44,10 +44,11 @@ build/
 .vscode/
 .github/**/*.md
 .env*
-memory
-scripts
-templates
+./memory
+./scripts
+./templates
 .playwright-mcp
+.specify
 aiagent
 ### Node.js ###
 node_modules/

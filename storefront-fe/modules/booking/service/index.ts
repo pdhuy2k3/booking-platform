@@ -1,5 +1,11 @@
 import type { Booking, BookingItem, CreateBookingPayload, Traveler } from "@/lib/types"
-import { bookingApiService, type StorefrontBookingRequest, type StorefrontBookingResponse } from './booking-api'
+import {
+  bookingApiService,
+  type StorefrontBookingRequest,
+  type StorefrontBookingResponse,
+  type StorefrontFlightSelection,
+  type StorefrontHotelSelection,
+} from './booking-api'
 import type { 
   FlightBookingDetails, 
   HotelBookingDetails, 
@@ -28,6 +34,8 @@ export type {
   HotelBookingDetails,
   ComboBookingDetails,
   StorefrontBookingRequest,
+  StorefrontFlightSelection,
+  StorefrontHotelSelection,
   StorefrontBookingResponse,
   BookingStatusResponse,
   CreateBookingRequest,

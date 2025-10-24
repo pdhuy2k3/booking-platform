@@ -12,4 +12,6 @@ public interface AiService {
 
     // Synchronous structured method (without streaming)
     StructuredChatPayload processStructured(String message, String conversationId, String username);
+
+    reactor.core.publisher.Flux<StructuredChatPayload> streamStructured(String message, String conversationId, String username);
 }

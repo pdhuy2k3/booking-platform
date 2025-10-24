@@ -34,13 +34,35 @@ public final class AuthenticationUtils {
     public static String extractUsername() {
         Authentication authentication = getAuthentication();
 
-        if (authentication instanceof AnonymousAuthenticationToken) {
+        if (authentication == null || authentication instanceof AnonymousAuthenticationToken) {
             throw new AccessDeniedException(ApiConstant.ACCESS_DENIED);
         }
 
-        JwtAuthenticationToken contextHolder = (JwtAuthenticationToken) authentication;
+        Jwt jwt = null;
+        if (authentication instanceof JwtAuthenticationToken jwtToken) {
+            jwt = jwtToken.getToken();
+        } else if (authentication.getPrincipal() instanceof Jwt principalJwt) {
+            jwt = principalJwt;
+        }
 
-        return contextHolder.getToken().getClaimAsString("preferred_username");
+        if (jwt != null) {
+            String preferredUsername = jwt.getClaimAsString("preferred_username");
+            if (preferredUsername != null && !preferredUsername.isBlank()) {
+                return preferredUsername;
+            }
+
+            String subject = jwt.getSubject();
+            if (subject != null && !subject.isBlank()) {
+                return subject;
+            }
+        }
+
+        String name = authentication.getName();
+        if (name != null && !name.isBlank()) {
+            return name;
+        }
+
+        throw new AccessDeniedException("Unable to extract username from authentication context");
     }
     public static UUID getCurrentUserIdFromContext() {
         String userId = extractUserId();

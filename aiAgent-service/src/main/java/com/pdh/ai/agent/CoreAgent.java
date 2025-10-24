@@ -1,6 +1,7 @@
 package com.pdh.ai.agent;
 
 import java.util.List;
+import java.util.Objects;
 import java.util.stream.Collectors;
 
 import com.pdh.ai.agent.tools.CurrentDateTimeZoneTool;
@@ -20,12 +21,13 @@ import org.springframework.ai.chat.memory.ChatMemory;
 import org.springframework.ai.converter.BeanOutputConverter;
 import org.springframework.ai.mcp.SyncMcpToolCallbackProvider;
 import org.springframework.ai.mistralai.MistralAiChatModel;
-
+import org.springframework.ai.tool.ToolCallbackProvider;
 import org.springframework.core.Ordered;
 import org.springframework.stereotype.Component;
 
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
+import reactor.core.Disposable;
 import com.pdh.ai.service.JpaChatMemory;
 
 import com.pdh.ai.model.dto.StructuredChatPayload;
@@ -40,8 +42,7 @@ public class CoreAgent {
 
     // Messages
     private static final String ERROR_MESSAGE = "Xin lỗi, tôi gặp lỗi khi xử lý yêu cầu của bạn. Vui lòng thử lại.";
-    // private static final String MISSING_INFO_PREFIX = "Để tôi có thể giúp bạn tốt
-    // hơn, tôi cần thêm một số thông tin:\n\n";
+
     private static final String MODIFICATION_NOT_IMPLEMENTED = "Tính năng thay đổi đặt chỗ đang được phát triển. Vui lòng liên hệ bộ phận hỗ trợ để được trợ giúp.";
 
     private static final String SYSTEM_PROMPT = """
@@ -102,8 +103,7 @@ public class CoreAgent {
             - Call `create_booking` with: bookingType, serviceItemIds, totalAmount, currency, userId
             - Save returned sagaId and bookingId
             - Inform user: "Booking created."
-         
-            
+
             ## RESPONSE FORMAT
             Always return JSON with message and results array.
             
@@ -129,18 +129,26 @@ public class CoreAgent {
             
             ## ERROR HANDLING
             **Booking creation fails**: Show error, suggest alternatives
-            **Payment fails**: Record failure, show user-friendly error, suggest different payment method
             **Timeouts**: Use sagaId to check status, provide status check instructions
             
-            Help users plan trips with real data, inspiring visuals, and secure payment processing.
+            Help users plan trips with real data, inspiring visuals.
             """;
     private final ChatMemory chatMemory;
     private final MistralAiChatModel mistraModel;
     private final ChatClient chatClient;
 
+    private static final String NDJSON_INSTRUCTION_TEMPLATE = """
+            ALWAYS return each response as newline-delimited JSON (NDJSON).
+            Emit one complete JSON object per line that fully conforms to the JSON schema below.
+            Do NOT include markdown code fences, triple backticks, explanations, or any text outside of the JSON objects.
+            End every JSON object with a newline character.
+            JSON Schema:
+            %s
+            """;
 
+    private final BeanOutputConverter<StructuredChatPayload> beanOutputConverter = new BeanOutputConverter<>(StructuredChatPayload.class);
     public CoreAgent(
-            List<McpSyncClient> toolCallbackProvider,
+            ToolCallbackProvider toolCallbackProvider,
             JpaChatMemory chatMemory,
             InputValidationGuard inputValidationGuard,
             ScopeGuard scopeGuard,
@@ -154,59 +162,125 @@ public class CoreAgent {
         CustomMessageChatMemoryAdvisor memoryAdvisor = CustomMessageChatMemoryAdvisor.builder(chatMemory)
                 
                 .build();
+        String ndjsonInstruction = NDJSON_INSTRUCTION_TEMPLATE.formatted(beanOutputConverter.getJsonSchema());
+        String composedSystemPrompt = SYSTEM_PROMPT + "\n\n" + ndjsonInstruction;
+
         this.chatClient = ChatClient.builder(mistraModel)
-                .defaultSystem(SYSTEM_PROMPT)
-                .defaultToolCallbacks(new SyncMcpToolCallbackProvider(toolCallbackProvider))
+                .defaultToolCallbacks(toolCallbackProvider)
                 .defaultAdvisors(memoryAdvisor)
                 .defaultTools(new CurrentDateTimeZoneTool())
+                .defaultSystem(systemSpec -> systemSpec.text(composedSystemPrompt))
                 .build();
+               
 
     }
 
 
 
     /**
-     * Synchronous structured processing - returns single StructuredChatPayload.
-     * Uses ChatClient.entity() for direct structured output without streaming.
-     *
-     * @param message        User message to process
-     * @param conversationId Conversation ID for context
-     * @return Mono of complete StructuredChatPayload
+     * Synchronous helper that consumes the streaming pipeline and returns the final payload.
      */
     public Mono<StructuredChatPayload> processStructured(String message, String conversationId) {
-        logger.info("[SYNC-TOOL-TRACKER] Starting processSyncStructured - conversationId: {}", conversationId);
-        logger.info("[SYNC-TOOL-TRACKER] User message: {}", message);
+        logger.info("[SYNC-TOOL-TRACKER] Starting processStructured - conversationId: {}", conversationId);
+        return streamStructured(message, conversationId)
+                .last(StructuredChatPayload.builder()
+                        .message("Đã xử lý yêu cầu nhưng không có kết quả.")
+                        .results(List.of())
+                        .build())
+                .onErrorResume(e -> {
+                    logger.error("[SYNC-TOOL-TRACKER] Error in processStructured stream: {}", e.getMessage(), e);
+                    return Mono.just(StructuredChatPayload.builder()
+                            .message(ERROR_MESSAGE)
+                            .results(List.of())
+                            .build());
+                });
+    }
 
-        return Mono.fromCallable(() -> {
+    /**
+     * Streaming structured processing - emits NDJSON compliant payloads as soon as the LLM produces them.
+     */
+    public Flux<StructuredChatPayload> streamStructured(String message, String conversationId) {
+        logger.info("[STREAM-TOOL-TRACKER] Starting streamStructured - conversationId: {}", conversationId);
 
-            // Use .entity() for direct structured output instead of streaming
-            
-            StructuredChatPayload result = chatClient.prompt()
-                    
-                    .user(message)
-                    .advisors(advisorSpec -> advisorSpec.param(ChatMemory.CONVERSATION_ID, conversationId))
-                    .call()
-                    .entity(StructuredChatPayload.class);
+        return chatClient.prompt()
+                .user(message)
+                .advisors(advisorSpec -> advisorSpec.param(ChatMemory.CONVERSATION_ID, conversationId))
+                .stream()
+                .content()
+                .transform(this::splitOnNewline)
+                .handle((jsonLine, sink) -> {
+                    StructuredChatPayload payload = convertLineToPayload(jsonLine);
+                    if (payload != null) {
+                        sink.next(payload);
+                    }
+                });
+    }
 
-            logger.info("[SYNC-TOOL-TRACKER] Successfully got structured response: message={}, results={}",
-                    result != null ? result.getMessage() : "null",
-                    result != null && result.getResults() != null ? result.getResults().toString() : 0);
-
-            return result != null ? result : StructuredChatPayload.builder()
-                    .message("Đã xử lý yêu cầu nhưng không có kết quả.")
-                    .results(List.of())
-                    .build();
-
-        }).onErrorResume(e -> {
-        
-            logger.error("[SYNC-TOOL-TRACKER] Error in processSyncStructured: {}", e.getMessage(), e);
-            return Mono.just(StructuredChatPayload.builder()
-                    .message(ERROR_MESSAGE)
-                    .results(List.of())
-                    .build());
+    private Flux<String> splitOnNewline(Flux<String> tokenFlux) {
+        return Flux.create(sink -> {
+            StringBuilder buffer = new StringBuilder();
+            reactor.core.Disposable disposable = tokenFlux.subscribe(
+                    token -> {
+                        buffer.append(token);
+                        int index;
+                        while ((index = buffer.indexOf("\n")) >= 0) {
+                            String line = buffer.substring(0, index).trim();
+                            if (!line.isBlank()) {
+                                sink.next(line);
+                            }
+                            buffer.delete(0, index + 1);
+                        }
+                    },
+                    sink::error,
+                    () -> {
+                        if (buffer.length() > 0) {
+                            String remaining = buffer.toString().trim();
+                            if (!remaining.isBlank()) {
+                                sink.next(remaining);
+                            }
+                        }
+                        sink.complete();
+                    }
+            );
+            sink.onCancel(disposable::dispose);
+            sink.onDispose(disposable::dispose);
         });
     }
 
+    private StructuredChatPayload convertLineToPayload(String jsonLine) {
+        try {
+            String sanitized = sanitizeNdjson(jsonLine);
+            if (sanitized.isBlank()) {
+                return null;
+            }
+            StructuredChatPayload payload = beanOutputConverter.convert(sanitized);
+            if (payload.getResults() == null) {
+                payload.setResults(List.of());
+            }
+            return payload;
+        } catch (Exception ex) {
+            logger.warn("[STREAM-TOOL-TRACKER] Failed to parse NDJSON chunk: {}", ex.getMessage());
+            return null;
+        }
+    }
 
+    private String sanitizeNdjson(String raw) {
+        if (raw == null) {
+            return "";
+        }
+        String sanitized = raw.trim();
+        // Strip common markdown code fences if they slip through
+        if (sanitized.startsWith("```")) {
+            sanitized = sanitized.substring(3).trim();
+        }
+        if (sanitized.endsWith("```")) {
+            sanitized = sanitized.substring(0, sanitized.length() - 3).trim();
+        }
+        // Remove leading backticks that sometimes prefix NDJSON chunks
+        while (sanitized.startsWith("`")) {
+            sanitized = sanitized.substring(1).trim();
+        }
+        return sanitized;
+    }
 
 }

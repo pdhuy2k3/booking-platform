@@ -1,4 +1,4 @@
-package com.pdh.hotel.specification;
+package com.pdh.hotel.repository.specification;
 
 import com.pdh.hotel.model.Amenity;
 import com.pdh.hotel.model.Hotel;

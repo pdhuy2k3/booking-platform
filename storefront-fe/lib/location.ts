@@ -56,7 +56,7 @@ const COUNTRY_LANGUAGE_MAP: Record<string, string> = {
 
 // Country to timezone mapping (primary timezone)
 const COUNTRY_TIMEZONE_MAP: Record<string, string> = {
-  'VN': 'Asia/Ho_Chi_Minh',
+  'VN': 'Asia/Saigon',
   'TH': 'Asia/Bangkok',
   'SG': 'Asia/Singapore',
   'MY': 'Asia/Kuala_Lumpur',
@@ -132,7 +132,7 @@ async function reverseGeocode(latitude: number, longitude: number): Promise<Loca
       countryCode,
       region: data.address?.state || data.address?.province,
       city: data.address?.city || data.address?.town,
-      timezone: COUNTRY_TIMEZONE_MAP[countryCode] || 'Asia/Ho_Chi_Minh',
+      timezone: COUNTRY_TIMEZONE_MAP[countryCode] || 'Asia/Saigon',
       currency: COUNTRY_CURRENCY_MAP[countryCode] || 'VND',
       language: COUNTRY_LANGUAGE_MAP[countryCode] || 'vi',
       latitude,
@@ -167,7 +167,7 @@ export async function detectLocationFromIP(): Promise<LocationInfo | null> {
       countryCode,
       region: data.region,
       city: data.city,
-      timezone: data.timezone || COUNTRY_TIMEZONE_MAP[countryCode] || 'Asia/Ho_Chi_Minh',
+      timezone: data.timezone || COUNTRY_TIMEZONE_MAP[countryCode] || 'Asia/Saigon',
       currency: data.currency || COUNTRY_CURRENCY_MAP[countryCode] || 'VND',
       language: data.languages?.split(',')[0] || COUNTRY_LANGUAGE_MAP[countryCode] || 'vi',
       latitude: data.latitude,
@@ -207,7 +207,7 @@ export function detectLocationFromBrowserSettings(): LocationInfo {
   return {
     country: getCountryName(countryCode),
     countryCode,
-    timezone: timezone || COUNTRY_TIMEZONE_MAP[countryCode] || 'Asia/Ho_Chi_Minh',
+    timezone: timezone || COUNTRY_TIMEZONE_MAP[countryCode] || 'Asia/Saigon',
     currency: COUNTRY_CURRENCY_MAP[countryCode] || 'VND',
     language: langCode || 'vi',
   }

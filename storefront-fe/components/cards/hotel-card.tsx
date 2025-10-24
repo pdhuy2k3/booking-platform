@@ -6,7 +6,7 @@ import { MapPin, Star, Wifi, Coffee, Car } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { formatCurrency } from "@/lib/currency"
+import { useCurrencyFormatter } from "@/hooks/use-currency-formatter"
 
 interface HotelCardProps {
   hotel: {
@@ -44,6 +44,7 @@ export const HotelCard = ({
   compact = false,
   className = "",
 }: HotelCardProps) => {
+  const { formatCurrency } = useCurrencyFormatter();
   const [imageError, setImageError] = useState(false)
   const rawRating = hotel.starRating ?? hotel.rating ?? 0
   const displayRating = Math.max(0, Math.min(5, Number(rawRating) || 0))

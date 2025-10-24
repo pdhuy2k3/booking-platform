@@ -202,28 +202,46 @@ class MediaService {
   /**
    * Get media by type from database
    */
-  async getMediaByType(mediaType: string): Promise<SimpleMediaItem[]> {
+  async getMediaByType(mediaType: string): Promise<{
+    items: SimpleMediaItem[],
+    total: number,
+    totalPages: number,
+    hasNextPage: boolean,
+    hasPreviousPage: boolean
+  }> {
     const response = await apiClient.get(`/api/media/management/type/${mediaType}`) as { data: any };
     const mediaList = response.data.data || response.data || [];
     
-    return mediaList.map((item: any) => ({
-      id: item.id,
-      mediaId: item.id,
-      publicId: item.publicId,
-      url: item.url,
-      secureUrl: item.secureUrl,
-      format: item.format || 'jpg',
-      width: item.width,
-      height: item.height,
-      bytes: item.fileSize || 0,
-      folder: item.folder
-    }));
+    return {
+      items: mediaList.map((item: any) => ({
+        id: item.id,
+        mediaId: item.id,
+        publicId: item.publicId,
+        url: item.url,
+        secureUrl: item.secureUrl,
+        format: item.format || 'jpg',
+        width: item.width,
+        height: item.height,
+        bytes: item.fileSize || 0,
+        folder: item.folder
+      })),
+      total: mediaList.length,
+      totalPages: 1, // Single page for type-based query
+      hasNextPage: false,
+      hasPreviousPage: false
+    };
   }
 
   /**
    * Get all media with pagination
    */
-  async getAllMedia(page = 0, size = 20): Promise<{ items: SimpleMediaItem[], total: number, totalPages: number }> {
+  async getAllMedia(page = 0, size = 20): Promise<{
+    items: SimpleMediaItem[],
+    total: number,
+    totalPages: number,
+    hasNextPage: boolean,
+    hasPreviousPage: boolean
+  }> {
     try {
       const response = await apiClient.get('/api/media/management', {
         params: { page, size }
@@ -250,8 +268,10 @@ class MediaService {
           bytes: item.fileSize || 0,
           folder: item.folder
         })) || [],
-        total: data.totalElements || 0,
-        totalPages: data.totalPages || 0
+        total: data.totalElements || data.total_count || 0,
+        totalPages: data.totalPages || data.total_pages || 0,
+        hasNextPage: data.hasNextPage || data.has_next_page || false,
+        hasPreviousPage: data.hasPreviousPage || data.has_previous_page || false
       };
     } catch (error) {
       console.error('Database request failed, trying Cloudinary fallback...', error);
@@ -262,10 +282,17 @@ class MediaService {
   /**
    * Get all media from Cloudinary directly (fallback)
    */
-  async getAllMediaFromCloudinary(page = 0, size = 20, folder?: string): Promise<{ items: SimpleMediaItem[], total: number, totalPages: number }> {
+  async getAllMediaFromCloudinary(page = 0, size = 20, folder?: string): Promise<{
+    items: SimpleMediaItem[],
+    total: number,
+    totalPages: number,
+    hasNextPage: boolean,
+    hasPreviousPage: boolean
+  }> {
     try {
       const response = await apiClient.get('/api/media/management/cloudinary', {
         params: { 
+          folder: folder || undefined,
           page: page + 1, // Cloudinary uses 1-based pages
           limit: size 
         }
@@ -284,8 +311,10 @@ class MediaService {
           bytes: item.bytes,
           folder: item.folder
         })) || [],
-        total: data.total_count || 0,
-        totalPages: Math.ceil((data.total_count || 0) / size)
+        total: data.totalCount || data.total_count || 0,
+        totalPages: data.totalPages || data.total_pages || Math.ceil((data.totalCount || data.total_count || 0) / size),
+        hasNextPage: data.hasNextPage || data.has_next_page || false,
+        hasPreviousPage: data.hasPreviousPage || data.has_previous_page || false
       };
     } catch (error) {
       console.error('Error fetching from Cloudinary:', error);
@@ -306,7 +335,9 @@ class MediaService {
           folder: demoFolder
         }],
         total: 1,
-        totalPages: 1
+        totalPages: 1,
+        hasNextPage: false,
+        hasPreviousPage: false
       };
     }
   }
@@ -314,7 +345,13 @@ class MediaService {
   /**
    * Get media by folder (for folder-filtered browsing)
    */
-  async getMediaByFolder(folder: string, page = 1, limit = 20): Promise<{ items: SimpleMediaItem[], total: number, totalPages: number }> {
+  async getMediaByFolder(folder: string, page = 1, limit = 20): Promise<{
+    items: SimpleMediaItem[],
+    total: number,
+    totalPages: number,
+    hasNextPage: boolean,
+    hasPreviousPage: boolean
+  }> {
     try {
       const response = await apiClient.get('/api/media/browse', {
         params: { 
@@ -337,21 +374,61 @@ class MediaService {
           bytes: item.bytes,
           folder: item.folder
         })) || [],
-        total: data.total_count || 0,
-        totalPages: Math.ceil((data.total_count || 0) / limit)
+        total: data.totalCount || data.total_count || 0,
+        totalPages: data.totalPages || data.total_pages || Math.ceil((data.totalCount || data.total_count || 0) / limit),
+        hasNextPage: data.hasNextPage || data.has_next_page || false,
+        hasPreviousPage: data.hasPreviousPage || data.has_previous_page || false
       };
     } catch (error) {
       console.error('Error fetching media by folder:', error);
-      // Fallback to client-side filtering
-      const result = await this.getAllMedia(page - 1, limit); // Convert to 0-based page
-      const filteredItems = result.items.filter(item => 
-        item.folder === folder || item.publicId.startsWith(folder + '/')
-      );
-      return {
-        items: filteredItems,
-        total: filteredItems.length,
-        totalPages: Math.ceil(filteredItems.length / limit)
-      };
+      
+      // Try database-based endpoint as fallback
+      try {
+        const response = await apiClient.get('/api/media/management/folder/' + folder, {
+          params: { 
+            page: page, // Use 1-based page for consistency
+            limit: limit 
+          }
+        }) as { data: any };
+
+        const data = response.data.data || response.data;
+        
+        // Process database-based response
+        const items = (data.resources || data.content || []).map((item: any) => ({
+          id: item.id,
+          mediaId: item.id,
+          publicId: item.publicId || item.public_id,
+          url: item.url,
+          secureUrl: item.secureUrl || item.secure_url,
+          format: item.mediaType || item.format || 'image',
+          width: item.width,
+          height: item.height,
+          bytes: item.fileSize || item.bytes || 0,
+          folder: item.folder
+        }));
+        
+        return {
+          items: items,
+          total: data.totalElements || data.total_count || items.length,
+          totalPages: data.totalPages || Math.ceil((data.totalElements || data.total_count || items.length) / limit),
+          hasNextPage: data.hasNextPage !== undefined ? data.hasNextPage : data.number < data.totalPages - 1,
+          hasPreviousPage: data.hasPreviousPage !== undefined ? data.hasPreviousPage : data.number > 0
+        };
+      } catch (dbError) {
+        console.error('Database fallback also failed:', dbError);
+        // Fallback to client-side filtering
+        const result = await this.getAllMedia(page - 1, limit); // Convert to 0-based page
+        const filteredItems = result.items.filter(item => 
+          item.folder === folder || item.publicId.startsWith(folder + '/')
+        );
+        return {
+          items: filteredItems,
+          total: filteredItems.length,
+          totalPages: Math.ceil(filteredItems.length / limit),
+          hasNextPage: result.hasNextPage,
+          hasPreviousPage: result.hasPreviousPage
+        };
+      }
     }
   }
 
@@ -362,15 +439,31 @@ class MediaService {
     folder,
     search,
     page = 1,
-    limit = 20
+    limit = 20,
+    nextCursor = null
   }: {
     folder?: string;
     search?: string;
     page?: number;
     limit?: number;
-  }): Promise<{ items: SimpleMediaItem[], total: number, totalPages: number }> {
-    // Build query parameters
-    const params: any = { page, limit };
+    nextCursor?: string | null;
+  }): Promise<{
+    items: SimpleMediaItem[],
+    total: number,
+    totalPages: number,
+    hasNextPage: boolean,
+    hasPreviousPage: boolean;
+    nextCursor?: string | null;
+  }> {
+    // Build query parameters - use cursor if provided, otherwise use page
+    const params: any = { limit };
+    
+    if (nextCursor) {
+      params.next_cursor = nextCursor;
+    } else {
+      // Only use page if no cursor is provided (first request)
+      params.page = page;
+    }
     
     if (search) {
       params.search = search;
@@ -382,35 +475,101 @@ class MediaService {
     
     try {
       // Use single browse endpoint for all searches
-      const response = await apiClient.get<ApiResponse<{ items: SimpleMediaItem[], total: number, totalPages: number }>>('/api/media/browse', { params });
-      return response.data;
+      const response = await apiClient.get<ApiResponse<any>>('/api/media/browse', { params });
+      
+      // Handle the response based on the actual structure from backend
+      const data = response.data?.data || response.data;
+      
+      // Process the response according to your API structure
+      const items = (data.resources || []).map((item: any) => ({
+        id: item.id,
+        mediaId: item.mediaId || item.id,
+        publicId: item.public_id || item.publicId,
+        url: item.url,
+        secureUrl: item.secure_url || item.secureUrl,
+        format: item.format,
+        width: item.width,
+        height: item.height,
+        bytes: item.bytes,
+        folder: item.asset_folder || item.folder
+      }));
+      
+      return {
+        items: items,
+        total: data.totalCount || data.total_count || items.length,
+        totalPages: data.totalPages || data.total_pages || Math.ceil((data.totalCount || data.total_count || items.length) / limit),
+        hasNextPage: data.hasNextPage || !!data.nextCursor || false,
+        hasPreviousPage: data.hasPreviousPage || data.has_previous_page || false,
+        nextCursor: data.nextCursor || data.next_cursor || null
+      };
     } catch (error) {
       console.error('Error searching media:', error);
       
-      // Fallback to client-side filtering if backend search fails
-      let result;
-      if (folder) {
-        // Use folder-specific method
-        result = await this.getMediaByFolder(folder, page, limit);
-      } else {
-        // Use getAllMedia
-        result = await this.getAllMedia(page - 1, limit); // Convert to 0-based page
+      // Fallback to database-based pagination if Cloudinary browse fails
+      try {
+        // Use the management endpoint which uses database-based pagination
+        const response = await apiClient.get<ApiResponse<any>>('/api/media/management', { 
+          params: { 
+            page: page - 1, // Management endpoint uses 0-based page numbers
+            size: limit 
+          } 
+        });
+        
+        const data = response.data?.data || response.data;
+        
+        // Process database-based response
+        const items = (data.content || []).map((item: any) => ({
+          id: item.id,
+          mediaId: item.id,
+          publicId: item.publicId,
+          url: item.url,
+          secureUrl: item.secureUrl,
+          format: item.mediaType || 'jpg',
+          width: undefined, // Database may not have these
+          height: undefined,
+          bytes: item.fileSize || 0,
+          folder: item.folder
+        }));
+        
+        return {
+          items: items,
+          total: data.totalElements || items.length,
+          totalPages: data.totalPages || Math.ceil((data.totalElements || items.length) / limit),
+          hasNextPage: data.hasNextPage !== undefined ? data.hasNextPage : data.number < data.totalPages - 1,
+          hasPreviousPage: data.hasPreviousPage !== undefined ? data.hasPreviousPage : data.number > 0,
+          nextCursor: null // Database pagination doesn't use cursors
+        };
+      } catch (dbError) {
+        console.error('Database fallback also failed:', dbError);
+        
+        // Final fallback to client-side filtering
+        let result;
+        if (folder) {
+          // Use folder-specific method
+          result = await this.getMediaByFolder(folder, page, limit);
+        } else {
+          // Use getAllMedia
+          result = await this.getAllMedia(page - 1, limit); // Convert to 0-based page
+        }
+        
+        // Client-side filtering for search text
+        let filteredItems = result.items;
+        
+        if (search) {
+          filteredItems = filteredItems.filter(item => 
+            item.publicId.toLowerCase().includes(search.toLowerCase())
+          );
+        }
+        
+        return {
+          items: filteredItems,
+          total: filteredItems.length,
+          totalPages: Math.ceil(filteredItems.length / limit),
+          hasNextPage: false,
+          hasPreviousPage: false,
+          nextCursor: null
+        };
       }
-      
-      // Client-side filtering for search text
-      let filteredItems = result.items;
-      
-      if (search) {
-        filteredItems = filteredItems.filter(item => 
-          item.publicId.toLowerCase().includes(search.toLowerCase())
-        );
-      }
-      
-      return {
-        items: filteredItems,
-        total: filteredItems.length,
-        totalPages: Math.ceil(filteredItems.length / limit)
-      };
     }
   }
 

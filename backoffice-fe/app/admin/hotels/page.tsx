@@ -44,6 +44,7 @@ export default function AdminHotels() {
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState("")
   const [cityFilter, setCityFilter] = useState<string>("all")
+  const [currentPage, setCurrentPage] = useState(0)
 
   // Dialog states
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false)
@@ -60,7 +61,7 @@ export default function AdminHotels() {
 
   useEffect(() => {
     loadHotels()
-  }, [searchTerm, cityFilter])
+  }, [searchTerm, cityFilter, currentPage])
 
   const loadHotels = async () => {
     try {
@@ -68,7 +69,7 @@ export default function AdminHotels() {
       const data = await HotelService.getHotels({
         search: searchTerm || undefined,
         city: cityFilter === "all" ? undefined : cityFilter,
-        page: 0,
+        page: currentPage,
         size: 20,
       })
       setHotels(data)
@@ -187,6 +188,7 @@ export default function AdminHotels() {
         cityFilter={cityFilter}
         onSearchChange={setSearchTerm}
         onCityFilterChange={setCityFilter}
+        onPageChange={setCurrentPage}
         onViewHotel={handleViewHotel}
         onEditHotel={handleEditHotel}
         onDeleteHotel={handleDeleteHotel}

@@ -36,6 +36,8 @@ export const paymentService = {
         customerId: payload.customerId,
         confirmPayment: payload.confirmPayment,
         metadata: payload.metadata,
+        savePaymentMethod: payload.savePaymentMethod,
+        setAsDefault: payload.setAsDefault,
       })
 
       return {

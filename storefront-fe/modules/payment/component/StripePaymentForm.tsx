@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useCallback } from 'react'
 import { useStripe, useElements, PaymentElement } from '@stripe/react-stripe-js'
 import { useForm, useWatch } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
@@ -12,6 +12,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Loader2, CreditCard, CheckCircle, XCircle } from 'lucide-react'
 import { paymentService } from '../service'
+import { stripePaymentService } from '../service/stripe'
 import { paymentPollingService } from '../service/PaymentPollingService'
 import { StripePaymentFormData } from '../type/stripe'
 import { getStripeErrorMessage } from '../config/stripe'
@@ -83,6 +84,7 @@ export const StripePaymentForm: React.FC<StripePaymentFormProps> = ({
   const [paymentIntentId, setPaymentIntentId] = useState<string | null>(null)
   const [transactionId, setTransactionId] = useState<string | null>(null)
   const [isPolling, setIsPolling] = useState(false)
+  const [hasNotifiedBackend, setHasNotifiedBackend] = useState(false)
 
   const {
     register,
@@ -140,6 +142,34 @@ export const StripePaymentForm: React.FC<StripePaymentFormProps> = ({
     })
   }, [user, amountToCharge, currency, reset])
 
+  const confirmBackendPayment = useCallback(
+    async (intentId?: string | null, txnId?: string | null) => {
+      if (hasNotifiedBackend) {
+        return
+      }
+
+      const resolvedIntentId = intentId ?? paymentIntentId
+      const resolvedTransactionId = txnId ?? transactionId
+
+      if (!resolvedIntentId || !resolvedTransactionId) {
+        return
+      }
+
+      try {
+        await stripePaymentService.confirmPayment({
+          bookingId,
+          sagaId,
+          paymentIntentId: resolvedIntentId,
+          transactionId: resolvedTransactionId,
+        })
+        setHasNotifiedBackend(true)
+      } catch (error) {
+        console.error('Error confirming payment with backend:', error)
+      }
+    },
+    [bookingId, sagaId, paymentIntentId, transactionId, hasNotifiedBackend]
+  )
+
   const handlePaymentSubmit = async (data: PaymentFormData) => {
     if (!stripe || !elements) {
       if (!stripe || (!isUsingSavedMethod && !elements)) {
@@ -151,6 +181,7 @@ export const StripePaymentForm: React.FC<StripePaymentFormProps> = ({
     setIsProcessing(true)
     setPaymentStatus('processing')
     setErrorMessage(null)
+    setHasNotifiedBackend(false)
 
     try {
       if (!isUsingSavedMethod) {
@@ -183,12 +214,19 @@ export const StripePaymentForm: React.FC<StripePaymentFormProps> = ({
           metadataPayload.feeAmount = String(feeAmount)
         }
 
+        const methodTypeForRequest = savedPaymentMethod?.methodType ?? 'CREDIT_CARD'
+        const shouldSavePaymentMethod = !isUsingSavedMethod && Boolean(data.savePaymentMethod)
+        const shouldSetDefault = shouldSavePaymentMethod && Boolean(data.setAsDefault)
+        metadataPayload.requested_payment_method_type = methodTypeForRequest
+        metadataPayload.save_payment_method = String(shouldSavePaymentMethod)
+        metadataPayload.set_as_default = String(shouldSetDefault)
+
         const createdIntent = await paymentService.createIntent({
           bookingId,
           sagaId,
           amount: data.amount,
           currency: data.currency,
-          paymentMethodType: 'CREDIT_CARD',
+          paymentMethodType: methodTypeForRequest,
           customerEmail: data.customerEmail,
           customerName: data.customerName,
           description: description || '',
@@ -197,8 +235,8 @@ export const StripePaymentForm: React.FC<StripePaymentFormProps> = ({
           customerId: savedPaymentMethod?.stripeCustomerId || undefined,
           confirmPayment: isUsingSavedMethod,
           metadata: metadataPayload,
-          savePaymentMethod: data.savePaymentMethod,
-          setAsDefault: data.setAsDefault,
+          savePaymentMethod: shouldSavePaymentMethod,
+          setAsDefault: shouldSetDefault,
         })
 
         activeClientSecret = createdIntent.clientSecret ?? null
@@ -208,6 +246,7 @@ export const StripePaymentForm: React.FC<StripePaymentFormProps> = ({
         setClientSecret(activeClientSecret)
         setPaymentIntentId(activePaymentIntentId)
         setTransactionId(activeTransactionId)
+        setHasNotifiedBackend(false)
 
         if (!isUsingSavedMethod && elements && activeClientSecret) {
           const updateOptions: any = {
@@ -250,6 +289,7 @@ export const StripePaymentForm: React.FC<StripePaymentFormProps> = ({
         setPaymentStatus('failed')
         onError?.(error.message || 'Payment failed')
       } else if (paymentIntent?.status === 'succeeded') {
+        await confirmBackendPayment(activePaymentIntentId, activeTransactionId)
         setPaymentStatus('succeeded')
         if (onSuccess) {
           await Promise.resolve(onSuccess(paymentIntent))
@@ -291,6 +331,7 @@ export const StripePaymentForm: React.FC<StripePaymentFormProps> = ({
       onSuccess: (paymentIntent) => {
         setIsPolling(false)
         setPaymentStatus('succeeded')
+        setHasNotifiedBackend(true)
         if (onSuccess) {
           void Promise.resolve(onSuccess(paymentIntent))
         }

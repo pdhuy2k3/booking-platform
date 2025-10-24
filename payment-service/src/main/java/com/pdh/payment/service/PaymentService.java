@@ -2,15 +2,19 @@ package com.pdh.payment.service;
 
 import com.pdh.payment.dto.StripePaymentIntentRequest;
 import com.pdh.payment.dto.StripePaymentIntentResponse;
+import com.pdh.payment.dto.request.AddPaymentMethodRequest;
 import com.pdh.payment.model.Payment;
 import com.pdh.payment.model.PaymentMethod;
 import com.pdh.payment.model.PaymentTransaction;
 import com.pdh.payment.model.enums.PaymentProvider;
+import com.pdh.payment.model.enums.PaymentMethodType;
 import com.pdh.payment.model.enums.PaymentStatus;
 import com.pdh.payment.model.enums.PaymentTransactionType;
 import com.pdh.common.outbox.service.OutboxEventService;
 import com.pdh.payment.repository.PaymentRepository;
 import com.pdh.payment.repository.PaymentTransactionRepository;
+import com.pdh.payment.repository.PaymentMethodRepository;
+import com.pdh.payment.service.PaymentMethodService;
 import com.pdh.payment.service.strategy.impl.StripePaymentStrategy;
 import com.stripe.exception.StripeException;
 import com.stripe.model.PaymentIntent;
@@ -25,6 +29,7 @@ import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -38,6 +43,8 @@ public class PaymentService {
     private final PaymentContext paymentContext;
     private final PaymentRepository paymentRepository;
     private final PaymentTransactionRepository paymentTransactionRepository;
+    private final PaymentMethodRepository paymentMethodRepository;
+    private final PaymentMethodService paymentMethodService;
     private final StripePaymentStrategy stripePaymentStrategy;
 
     /**
@@ -260,10 +267,19 @@ public class PaymentService {
         }
 
         PaymentTransaction transaction = transactionOpt.get();
+        PaymentStatus previousStatus = transaction.getStatus();
+
         PaymentTransaction updatedTransaction = paymentContext.verifyPaymentStatus(transaction);
 
         // Save updated transaction
         PaymentTransaction savedTransaction = paymentTransactionRepository.save(updatedTransaction);
+
+        boolean becameSuccessful = savedTransaction.getStatus().isSuccessful()
+            && (previousStatus == null || !previousStatus.isSuccessful());
+
+        if (becameSuccessful) {
+            storeStripePaymentMethodIfNeeded(savedTransaction);
+        }
 
         // Update payment status when transaction succeeds
         if (savedTransaction.getStatus().isSuccessful()) {
@@ -275,7 +291,7 @@ public class PaymentService {
         }
 
         // Publish status update event if status changed
-        if (!transaction.getStatus().equals(savedTransaction.getStatus())) {
+        if (!Objects.equals(previousStatus, savedTransaction.getStatus())) {
             if (savedTransaction.getStatus().isSuccessful()) {
                 publishPaymentEvent(savedTransaction.getPayment(), savedTransaction, "PaymentProcessed");
             } else if (savedTransaction.getStatus() == PaymentStatus.FAILED) {
@@ -472,6 +488,185 @@ public class PaymentService {
             payment.getPaymentId().toString(),
             eventData
         );
+    }
+
+    private void storeStripePaymentMethodIfNeeded(PaymentTransaction transaction) {
+        try {
+            if (transaction == null || transaction.getProvider() != PaymentProvider.STRIPE) {
+                return;
+            }
+
+            Payment payment = transaction.getPayment();
+            if (payment == null || payment.getUserId() == null) {
+                return;
+            }
+
+            String gatewayTransactionId = transaction.getGatewayTransactionId();
+            if (gatewayTransactionId == null || gatewayTransactionId.isBlank()) {
+                return;
+            }
+
+            PaymentIntent paymentIntent = PaymentIntent.retrieve(gatewayTransactionId);
+            if (paymentIntent == null || paymentIntent.getMetadata() == null) {
+                return;
+            }
+
+            Map<String, String> metadata = paymentIntent.getMetadata();
+            boolean shouldSave = Boolean.parseBoolean(metadata.getOrDefault("save_payment_method", "false"));
+            if (!shouldSave) {
+                return;
+            }
+
+            String stripePaymentMethodId = paymentIntent.getPaymentMethod();
+            if (stripePaymentMethodId == null || stripePaymentMethodId.isBlank()) {
+                log.warn("Stripe payment intent {} missing payment_method for storing", gatewayTransactionId);
+                return;
+            }
+
+            Optional<PaymentMethod> existingByToken = paymentMethodRepository.findByTokenAndIsActiveTrue(stripePaymentMethodId);
+            if (existingByToken.isPresent()) {
+                PaymentMethod existing = existingByToken.get();
+                if (existing.getUserId().equals(payment.getUserId())) {
+                    boolean setAsDefault = Boolean.parseBoolean(metadata.getOrDefault("set_as_default", "false"));
+                    if (setAsDefault && !Boolean.TRUE.equals(existing.getIsDefault())) {
+                        paymentMethodService.setDefaultPaymentMethod(payment.getUserId(), existing.getMethodId());
+                    }
+                } else {
+                    log.warn("Stripe payment method {} already associated with another user ({}), skipping save",
+                        stripePaymentMethodId, existing.getUserId());
+                }
+                return;
+            }
+
+            com.stripe.model.PaymentMethod stripeMethod = com.stripe.model.PaymentMethod.retrieve(stripePaymentMethodId);
+            if (stripeMethod == null) {
+                return;
+            }
+
+            PaymentMethodType methodType = determinePaymentMethodType(stripeMethod, paymentIntent);
+            boolean setAsDefault = Boolean.parseBoolean(metadata.getOrDefault("set_as_default", "false"));
+
+            AddPaymentMethodRequest.AddPaymentMethodRequestBuilder builder = AddPaymentMethodRequest.builder()
+                .methodType(methodType)
+                .provider(PaymentProvider.STRIPE)
+                .displayName(buildDisplayName(stripeMethod, methodType))
+                .stripePaymentMethodId(stripePaymentMethodId)
+                .stripeCustomerId(paymentIntent.getCustomer())
+                .setAsDefault(setAsDefault);
+
+            com.stripe.model.PaymentMethod.Card card = stripeMethod.getCard();
+            if (card != null) {
+                if (card.getLast4() != null) {
+                    builder.cardLastFour(card.getLast4());
+                }
+                if (card.getBrand() != null) {
+                    builder.cardBrand(card.getBrand());
+                }
+                if (card.getExpMonth() != null) {
+                    builder.cardExpiryMonth(card.getExpMonth().intValue());
+                }
+                if (card.getExpYear() != null) {
+                    builder.cardExpiryYear(card.getExpYear().intValue());
+                }
+            }
+
+            com.stripe.model.PaymentMethod.BillingDetails billing = stripeMethod.getBillingDetails();
+            String cardHolderName = null;
+            String cardHolderEmail = null;
+            if (billing != null) {
+                if (billing.getName() != null) {
+                    cardHolderName = billing.getName();
+                }
+                if (billing.getEmail() != null) {
+                    cardHolderEmail = billing.getEmail();
+                }
+            }
+
+            if (cardHolderName == null && paymentIntent.getShipping() != null && paymentIntent.getShipping().getName() != null) {
+                cardHolderName = paymentIntent.getShipping().getName();
+            }
+
+            if (cardHolderName != null) {
+                builder.cardHolderName(cardHolderName);
+            }
+            if (cardHolderEmail != null) {
+                builder.cardHolderEmail(cardHolderEmail);
+            }
+
+            paymentMethodService.addPaymentMethod(payment.getUserId(), builder.build());
+            log.info("Saved Stripe payment method {} for user {}", stripePaymentMethodId, payment.getUserId());
+        } catch (StripeException e) {
+            log.error("Failed to store Stripe payment method for transaction {}", transaction.getTransactionId(), e);
+        } catch (Exception e) {
+            log.error("Unexpected error while storing payment method for transaction {}", transaction.getTransactionId(), e);
+        }
+    }
+
+    private PaymentMethodType determinePaymentMethodType(com.stripe.model.PaymentMethod stripeMethod, PaymentIntent paymentIntent) {
+        if (stripeMethod == null) {
+            return PaymentMethodType.CREDIT_CARD;
+        }
+
+        if (stripeMethod.getType() != null && !stripeMethod.getType().isBlank()) {
+            if ("card".equalsIgnoreCase(stripeMethod.getType())) {
+                com.stripe.model.PaymentMethod.Card card = stripeMethod.getCard();
+                if (card != null && card.getWallet() != null) {
+                    String walletType = card.getWallet().getType();
+                    if (walletType != null) {
+                        walletType = walletType.toLowerCase();
+                        if (walletType.contains("apple")) {
+                            return PaymentMethodType.APPLE_PAY;
+                        }
+                        if (walletType.contains("google")) {
+                            return PaymentMethodType.GOOGLE_PAY;
+                        }
+                        if (walletType.contains("samsung")) {
+                            return PaymentMethodType.SAMSUNG_PAY;
+                        }
+                    }
+                }
+                return PaymentMethodType.CREDIT_CARD;
+            }
+
+            try {
+                return PaymentMethodType.fromJson(stripeMethod.getType().toUpperCase());
+            } catch (Exception ignored) {
+                // Ignore and fall back
+            }
+        }
+
+        if (paymentIntent != null && paymentIntent.getMetadata() != null) {
+            String requestedType = paymentIntent.getMetadata().get("requested_payment_method_type");
+            if (requestedType != null) {
+                try {
+                    return PaymentMethodType.fromJson(requestedType);
+                } catch (Exception ignored) {
+                    // Ignore and fall back
+                }
+            }
+        }
+
+        return PaymentMethodType.CREDIT_CARD;
+    }
+
+    private String buildDisplayName(com.stripe.model.PaymentMethod stripeMethod, PaymentMethodType methodType) {
+        if (stripeMethod == null) {
+            return methodType.getDisplayName();
+        }
+
+        if (stripeMethod.getCard() != null) {
+            String brand = stripeMethod.getCard().getBrand();
+            String last4 = stripeMethod.getCard().getLast4();
+            if (brand != null && last4 != null) {
+                return brand.toUpperCase() + " •••• " + last4;
+            }
+        }
+
+        if (stripeMethod.getBillingDetails() != null && stripeMethod.getBillingDetails().getName() != null) {
+            return stripeMethod.getBillingDetails().getName();
+        }
+
+        return methodType.getDisplayName();
     }
 
     private void emitPaymentProcessedEvent(PaymentTransaction transaction) {

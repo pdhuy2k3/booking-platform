@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useRef } from "react"
+import { useState, useEffect, useRef, useCallback } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { ArrowRight, Search, Calendar, Users, Filter, Plane, Star, ChevronUp, ChevronDown } from "lucide-react"
 import { Button } from "@/components/ui/button"
@@ -92,6 +92,8 @@ export function FlightSearchTab({ onBookingStart }: FlightSearchTabProps = {}) {
     updateBookingData,
     setSelectedFlight,
     setStep,
+    selectedHotel,
+    setFlightDetails,
   } = useBooking()
   
   // Search form state
@@ -175,7 +177,7 @@ export function FlightSearchTab({ onBookingStart }: FlightSearchTabProps = {}) {
     return undefined
   }
 
-  const getDisplayTime = (iso?: string, fallback?: string) => {
+  const getDisplayTime = useCallback((iso?: string, fallback?: string) => {
     if (iso) {
       const parsed = new Date(iso)
       if (!Number.isNaN(parsed.getTime())) {
@@ -184,9 +186,9 @@ export function FlightSearchTab({ onBookingStart }: FlightSearchTabProps = {}) {
       }
     }
     return fallback || '--:--'
-  }
+  }, [formatTimeOnly])
 
-  const mapFlightToUi = (flight: ApiFlight, searchDate?: string): FlightSearchResult => {
+  const mapFlightToUi = useCallback((flight: ApiFlight, searchDate?: string): FlightSearchResult => {
     const departureDateTime = resolveDateTime(flight.departureDateTime, searchDate, flight.departureTime)
     const arrivalDateTime = resolveDateTime(flight.arrivalDateTime, searchDate, flight.arrivalTime)
 
@@ -226,7 +228,7 @@ export function FlightSearchTab({ onBookingStart }: FlightSearchTabProps = {}) {
         arrivalDateTime,
       },
     }
-  }
+  }, [getDisplayTime])
 
   const scrollToSearch = () => {
     searchSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
@@ -277,11 +279,7 @@ export function FlightSearchTab({ onBookingStart }: FlightSearchTabProps = {}) {
     const airlineLogo = flight?.logo || flightData.airlineLogo
     const normalizedSeatClass = (flightData.seatClass || flight?.seatClass || flight?.class || 'ECONOMY').toString().toUpperCase()
     const ticketPrice = Number(flightData.price ?? flight?.price ?? 0)
-
-    // Use a functional approach to ensure all state updates are processed together
-    resetBooking()
-    setBookingType('flight')
-    setSelectedFlight({
+    const flightPayload = {
       flightId: flightId,
       flightNumber: flightData.flightNumber,
       airline: flightData.airline,
@@ -300,13 +298,33 @@ export function FlightSearchTab({ onBookingStart }: FlightSearchTabProps = {}) {
       logo: airlineLogo,
       scheduleId: flightData.scheduleId,
       fareId: flightData.fareId,
-    })
-    updateBookingData({
-      bookingType: 'FLIGHT',
-      totalAmount: 0,
-      currency: flightData.currency || 'VND',
-      productDetails: undefined,
-    })
+    }
+    const hasHotelSelection = Boolean(selectedHotel)
+
+    if (hasHotelSelection) {
+      setBookingType('both')
+      setFlightDetails(null)
+      updateBookingData({
+        bookingType: 'COMBO',
+        totalAmount: 0,
+        currency: flightData.currency || 'VND',
+        flightSelection: undefined,
+      })
+    } else {
+      resetBooking()
+      setBookingType('flight')
+      setFlightDetails(null)
+      updateBookingData({
+        bookingType: 'FLIGHT',
+        totalAmount: 0,
+        currency: flightData.currency || 'VND',
+        flightSelection: undefined,
+        hotelSelection: undefined,
+        comboDiscount: undefined,
+      })
+    }
+
+    setSelectedFlight(flightPayload)
     setStep('passengers')
     
     // Ensure all context updates are flushed before proceeding
@@ -369,11 +387,11 @@ export function FlightSearchTab({ onBookingStart }: FlightSearchTabProps = {}) {
     handleCloseModal()
   }
 
-  async function loadInitialData() {
-    if (isLoadingInitialData.current || loading) {
+  const loadInitialData = useCallback(async () => {
+    if (isLoadingInitialData.current) {
       return
     }
-    
+
     isLoadingInitialData.current = true
     setLoading(true)
     setError(null)
@@ -400,7 +418,7 @@ export function FlightSearchTab({ onBookingStart }: FlightSearchTabProps = {}) {
       setLoading(false)
       isLoadingInitialData.current = false
     }
-  }
+  }, [limit, mapFlightToUi])
 
   async function handleSearch(nextPage?: number) {
     if (!origin || !destination || !departDate) {
@@ -468,7 +486,7 @@ export function FlightSearchTab({ onBookingStart }: FlightSearchTabProps = {}) {
     if (flightResults.length === 0 && !loading && !initialData) {
       void loadInitialData()
     }
-  }, [])
+  }, [flightResults.length, loading, initialData, loadInitialData])
 
   // Handle scroll for search form collapse
   useEffect(() => {

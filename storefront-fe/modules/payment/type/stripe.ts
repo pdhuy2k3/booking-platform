@@ -13,6 +13,8 @@ export interface StripePaymentIntentRequest {
   confirmPayment?: boolean
   description?: string
   paymentMethodType?: string
+  savePaymentMethod?: boolean
+  setAsDefault?: boolean
 }
 
 export interface StripeBillingAddress {

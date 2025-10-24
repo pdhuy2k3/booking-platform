@@ -1,9 +1,6 @@
 package com.pdh.booking.mapper;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.pdh.booking.model.dto.request.CreateBookingRequestDto;
-import com.pdh.booking.model.dto.request.StorefrontCreateBookingRequestDto;
 import com.pdh.booking.model.dto.response.BookingResponseDto;
 import com.pdh.booking.model.dto.response.StorefrontBookingResponseDto;
 import com.pdh.booking.model.Booking;
@@ -18,7 +15,6 @@ import org.springframework.stereotype.Component;
 import java.math.BigDecimal;
 import java.text.NumberFormat;
 import java.util.Locale;
-import java.util.UUID;
 
 /**
  * Mapper utility for converting between DTOs, ViewModels, and Entities
@@ -27,7 +23,6 @@ import java.util.UUID;
 @Component
 @RequiredArgsConstructor
 public class BookingDtoMapper {
-    private final ObjectMapper objectMapper;
     private final ProductDetailsService productDetailsService;
     private final NumberFormat currencyFormatter = NumberFormat.getCurrencyInstance(new Locale("vi", "VN"));
     
@@ -51,34 +46,6 @@ public class BookingDtoMapper {
             Object typedProductDetails = productDetailsService.convertToTypedDto(dto.getBookingType(), dto.getProductDetails());
             productDetailsService.validateProductDetails(dto.getBookingType(), typedProductDetails);
             String productDetailsJson = productDetailsService.convertToJson(dto.getBookingType(), typedProductDetails);
-            booking.setProductDetailsJson(productDetailsJson);
-        }
-
-        return booking;
-    }
-    
-    /**
-     * Convert StorefrontCreateBookingRequestDto to Booking entity
-     * Note: userId should be set separately from JWT authentication
-     */
-    public Booking toEntity(StorefrontCreateBookingRequestDto dto) throws JsonProcessingException {
-        if (dto == null) return null;
-
-        Booking booking = new Booking();
-        // userId will be set by the controller from JWT authentication
-        booking.setUserId(UUID.randomUUID());
-        booking.setBookingType(dto.getBookingType());
-        booking.setTotalAmount(BigDecimal.valueOf(dto.getTotalAmount())); // Convert double to BigDecimal
-        booking.setCurrency(dto.getCurrency());
-        booking.setNotes(dto.getNotes());
-        booking.setBookingSource(dto.getBookingSource());
-
-        // Handle product details based on booking type
-        if (dto.getProductDetails() != null) {
-            // Convert generic Object (from JSON) to typed DTO before validation
-//            Object typedProductDetails = productDetailsService.convertToTypedDto(dto.getBookingType(), dto.getProductDetails());
-//            productDetailsService.validateProductDetails(dto.getBookingType(), typedProductDetails);
-            String productDetailsJson = objectMapper.writeValueAsString(dto.getProductDetails());
             booking.setProductDetailsJson(productDetailsJson);
         }
 
@@ -119,6 +86,8 @@ public class BookingDtoMapper {
                 .bookingType(booking.getBookingType())
                 .createdAt(booking.getCreatedAt() != null ? booking.getCreatedAt().toString() : null)
                 .updatedAt(booking.getUpdatedAt() != null ? booking.getUpdatedAt().toString() : null)
+                .reservationLockedAt(booking.getReservationLockedAt() != null ? booking.getReservationLockedAt().toString() : null)
+                .reservationExpiresAt(booking.getReservationExpiresAt() != null ? booking.getReservationExpiresAt().toString() : null)
                 .build();
     }
     

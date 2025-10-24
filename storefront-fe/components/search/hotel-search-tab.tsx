@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState, useRef } from "react"
+import { useCallback, useEffect, useState, useRef } from "react"
 import { useRouter } from "next/navigation"
 import { HotelCardSkeleton } from "@/modules/hotel/component/HotelCardSkeleton"
 import { HotelCard } from "@/components/cards"
@@ -44,6 +44,8 @@ export function HotelSearchTab({ onBookingStart }: HotelSearchTabProps = {}) {
     setSelectedHotel,
     updateBookingData,
     setStep,
+    selectedFlight,
+    setHotelDetails,
   } = useBooking()
   
   // Filter states
@@ -163,9 +165,31 @@ export function HotelSearchTab({ onBookingStart }: HotelSearchTabProps = {}) {
       ? Math.max(1, Math.round((new Date(checkOutDate).getTime() - new Date(checkInDate).getTime()) / (1000 * 60 * 60 * 24)))
       : undefined
     const totalPrice = price * (roomCount ?? 1) * (nights ?? 1)
+    const hasFlightSelection = Boolean(selectedFlight)
 
-    resetBooking()
-    setBookingType('hotel')
+    if (hasFlightSelection) {
+      setBookingType('both')
+      setHotelDetails(null)
+      updateBookingData({
+        bookingType: 'COMBO',
+        totalAmount: 0,
+        currency: hotel.currency || 'VND',
+        hotelSelection: undefined,
+      })
+    } else {
+      resetBooking()
+      setBookingType('hotel')
+      setHotelDetails(null)
+      updateBookingData({
+        bookingType: 'HOTEL',
+        totalAmount: 0,
+        currency: hotel.currency || 'VND',
+        flightSelection: undefined,
+        hotelSelection: undefined,
+        comboDiscount: undefined,
+      })
+    }
+
     setSelectedHotel({
       id: hotelId,
       name: hotel.name,
@@ -185,17 +209,13 @@ export function HotelSearchTab({ onBookingStart }: HotelSearchTabProps = {}) {
       currency: hotel.currency || 'VND',
       amenities,
       image: room.image || hotel.primaryImage || hotel.images?.[0],
+      images: hotel.images,
+      roomImages: room.image ? [room.image] : hotel.images,
       checkInDate: checkInDate || undefined,
       checkOutDate: checkOutDate || undefined,
       guests: guestCount,
       rooms: roomCount,
       nights,
-    })
-    updateBookingData({
-      bookingType: 'HOTEL',
-      totalAmount: 0,
-      currency: hotel.currency || 'VND',
-      productDetails: undefined,
     })
     setStep('passengers')
     handleCloseModal()
@@ -208,11 +228,11 @@ export function HotelSearchTab({ onBookingStart }: HotelSearchTabProps = {}) {
     }
   }
 
-  async function loadInitialData() {
-    if (isLoadingInitialData.current || loading) {
+  const loadInitialData = useCallback(async () => {
+    if (isLoadingInitialData.current) {
       return
     }
-    
+
     isLoadingInitialData.current = true
     setLoading(true)
     setError(null)
@@ -248,7 +268,7 @@ export function HotelSearchTab({ onBookingStart }: HotelSearchTabProps = {}) {
       setLoading(false)
       isLoadingInitialData.current = false
     }
-  }
+  }, [limit])
 
   async function handleSearch(nextPage?: number) {
     if (!destination.trim() || !checkInDate || !checkOutDate) {
@@ -336,7 +356,7 @@ export function HotelSearchTab({ onBookingStart }: HotelSearchTabProps = {}) {
     if (results.length === 0 && !loading && !initialData) {
       void loadInitialData()
     }
-  }, [])
+  }, [results.length, loading, initialData, loadInitialData])
 
   // Handle scroll for search form collapse
   useEffect(() => {

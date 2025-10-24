@@ -66,22 +66,65 @@ export function MediaSelector({
   const [uploading, setUploading] = useState(false);
   const [isUploadingUrl, setIsUploadingUrl] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
-  const [totalPages, setTotalPages] = useState(1);
+  const [currentCursor, setCurrentCursor] = useState<string | null>(null);
+  const [totalPages, setTotalPages] = useState(0); // For cursor-based pagination, 0 indicates unknown total
+  const [hasNextPage, setHasNextPage] = useState(false);
+  const [hasPreviousPage, setHasPreviousPage] = useState(false);
   const pageSize = 12;
+  const [pageCursors, setPageCursors] = useState<{[key: number]: string | null}>({}); // Track cursor for each page
 
   const fetchMediaItems = async () => {
     try {
       setLoading(true);
       
+      // Determine which cursor to use for the request
+      let requestCursor: string | null = null;
+      if (currentPage > 1) {
+        // For page > 1, use the cursor stored for this navigation step
+        requestCursor = pageCursors[currentPage - 1] || null;
+      } else {
+        // For first page, use the current cursor (or null)
+        requestCursor = currentCursor;
+      }
+      
       const result = await mediaService.searchMedia({
         folder: effectiveFolder || undefined,
         search: searchQuery || undefined,
-        page: currentPage,
-        limit: pageSize
+        page: currentPage, // Still pass page for consistency
+        limit: pageSize,
+        nextCursor: requestCursor // Use the correct cursor for this request
       });
       
-      setMediaItems(result.items || []);
+      // Process the result to ensure correct format for SimpleMediaItem
+      const processedItems = (result.items || []).map(item => ({
+        id: item.id,
+        mediaId: item.mediaId,
+        publicId: item.publicId,
+        url: item.url,
+        secureUrl: item.secureUrl,
+        format: item.format,
+        width: item.width,
+        height: item.height,
+        bytes: item.bytes,
+        folder: item.folder
+      }));
+      
+      setMediaItems(processedItems);
       setTotalPages(result.totalPages || 1);
+      setHasNextPage(result.hasNextPage || false);
+      setHasPreviousPage(result.hasPreviousPage || false);
+      
+      // Update cursor for the next page navigation and track for navigation
+      if (result.nextCursor) {
+        setPageCursors(prev => ({
+          ...prev,
+          [currentPage]: result.nextCursor || null
+        }));
+        // Also update currentCursor for first page scenarios
+        if (currentPage === 1) {
+          setCurrentCursor(result.nextCursor);
+        }
+      }
     } catch (error) {
       console.error('Error fetching media:', error);
       // Show demo data for development - only hotel and flight related
@@ -99,11 +142,24 @@ export function MediaSelector({
       }));
       setMediaItems(demoData);
       setTotalPages(1);
+      setHasNextPage(false);
+      setHasPreviousPage(false);
+      setCurrentCursor(null);
     } finally {
       setLoading(false);
     }
   };
 
+  // Effect to reset pagination when search or folder changes
+  useEffect(() => {
+    if (isOpen) {
+      setCurrentPage(1);
+      setCurrentCursor(null);
+      setPageCursors({});
+    }
+  }, [isOpen, searchQuery, folder]);
+  
+  // Effect to fetch data
   useEffect(() => {
     if (isOpen) {
       fetchMediaItems();
@@ -690,24 +746,36 @@ export function MediaSelector({
             </div>
 
             {/* Pagination */}
-            {totalPages > 1 && (
+            {(hasNextPage || hasPreviousPage || currentPage > 1) && (
               <div className="flex justify-center items-center space-x-2 py-2">
                 <Button
                   variant="outline"
                   size="sm"
-                  onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                  onClick={async () => {
+                    // Go back to first page and reset cursor state
+                    setCurrentPage(1);
+                    setCurrentCursor(null);
+                    setPageCursors({});
+                    await fetchMediaItems();
+                  }}
                   disabled={currentPage === 1}
                 >
-                  Previous
+                  First
                 </Button>
                 <span className="text-sm text-gray-600">
-                  Page {currentPage} of {totalPages}
+                  Page {currentPage} {totalPages > 0 ? `of ${totalPages}` : '(cursor-based)'}
                 </span>
                 <Button
                   variant="outline"
                   size="sm"
-                  onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
-                  disabled={currentPage === totalPages}
+                  onClick={async () => {
+                    if (hasNextPage) {
+                      // Move to next page using cursor
+                      setCurrentPage(prev => prev + 1);
+                      await fetchMediaItems();
+                    }
+                  }}
+                  disabled={!hasNextPage}
                 >
                   Next
                 </Button>

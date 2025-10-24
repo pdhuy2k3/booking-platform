@@ -165,15 +165,15 @@ services:
       - booking-network
 
 
-  debezium-ui:
-    image: quay.io/debezium/debezium-ui:2.1.2.Final
-    ports:
-      - "8077:8080"
-    environment:
-      KAFKA_CONNECT_URIS: http://connect:8083
-    networks:
-      - booking-network
-  # Elasticsearch
+  # debezium-ui:
+  #   image: quay.io/debezium/debezium-ui:2.1.2.Final
+  #   ports:
+  #     - "8077:8080"
+  #   environment:
+  #     KAFKA_CONNECT_URIS: http://connect:8083
+  #   networks:
+  #     - booking-network
+  # # Elasticsearch
   elasticsearch:
     image: docker.elastic.co/elasticsearch/elasticsearch:8.19.5
     container_name: elasticsearch

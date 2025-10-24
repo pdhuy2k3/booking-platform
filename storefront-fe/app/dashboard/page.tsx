@@ -8,6 +8,8 @@ import { User, CreditCard, Calendar, MapPin, Settings, ShieldCheck } from "lucid
 import { useAuth } from "@/contexts/auth-context"
 import { ProtectedRoute } from "@/components/protected-route"
 import { AttributeManager } from "@/components/attribute-manager"
+import { RecommendPanel } from "@/components/recommend-panel"
+import { useRecommendPanel } from "@/contexts/recommend-panel-context"
 import { 
   ProfileInfo, 
   AddressForm, 
@@ -20,6 +22,7 @@ export default function DashboardPage() {
   const [isChangingPassword, setIsChangingPassword] = useState(false)
   const [activeTab, setActiveTab] = useState("profile")
   const { user, refreshUser } = useAuth()
+  const { results } = useRecommendPanel()
 
   // Handle hash-based navigation
   useEffect(() => {
@@ -61,8 +64,9 @@ export default function DashboardPage() {
 
   return (
     <ProtectedRoute>
-      <div className="h-screen w-full bg-gray-50 text-gray-900 px-3 py-4 sm:px-4 md:px-6 flex flex-col">
-        <div className="w-full space-y-6 md:space-y-8 flex flex-col flex-1 min-h-0">
+      <div className="flex h-full w-full">
+        <div className="flex flex-col flex-1 min-h-0 bg-gray-50 text-gray-900 px-3 py-4 sm:px-4 md:px-6">
+          <div className="w-full space-y-6 md:space-y-8 flex flex-col flex-1 min-h-0">
           {/* Header */}
           <div className="flex items-center justify-between">
             <div>
@@ -169,6 +173,10 @@ export default function DashboardPage() {
             onSuccess={refreshUser}
           />
         </div>
+        </div>
+        <aside className="hidden md:flex h-full border-l border-border flex-col overflow-hidden shrink-0 bg-background md:w-[320px]">
+          <RecommendPanel results={results} className="w-full" />
+        </aside>
       </div>
     </ProtectedRoute>
   )

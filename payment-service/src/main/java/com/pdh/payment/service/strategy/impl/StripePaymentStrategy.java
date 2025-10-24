@@ -527,6 +527,11 @@ public class StripePaymentStrategy implements PaymentStrategy {
                 }
             });
         }
+        metadata.put("save_payment_method", String.valueOf(Boolean.TRUE.equals(request.getSavePaymentMethod())));
+        metadata.put("set_as_default", String.valueOf(Boolean.TRUE.equals(request.getSetAsDefault())));
+        if (request.getPaymentMethodType() != null) {
+            metadata.put("requested_payment_method_type", request.getPaymentMethodType().name());
+        }
         paramsBuilder.putAllMetadata(metadata);
 
         // Handle customer information - ensure we have a customer ID if possible to prevent payment method reuse issues
@@ -583,6 +588,12 @@ public class StripePaymentStrategy implements PaymentStrategy {
                     paramsBuilder.putMetadata(key, value);
                 }
             });
+        }
+
+        paramsBuilder.putMetadata("save_payment_method", String.valueOf(Boolean.TRUE.equals(request.getSavePaymentMethod())));
+        paramsBuilder.putMetadata("set_as_default", String.valueOf(Boolean.TRUE.equals(request.getSetAsDefault())));
+        if (request.getPaymentMethodType() != null) {
+            paramsBuilder.putMetadata("requested_payment_method_type", request.getPaymentMethodType().name());
         }
 
         if (additionalData != null && additionalData.containsKey("customer_email")) {

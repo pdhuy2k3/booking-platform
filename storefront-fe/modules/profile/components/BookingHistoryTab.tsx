@@ -2,9 +2,9 @@
 
 import type { JSX } from "react"
 import { useCallback, useEffect, useMemo, useState } from "react"
+import Image from "next/image"
 import { bookingService, type BookingHistoryItemDto, type BookingHistoryResponseDto } from "@/modules/booking/service"
 import { flightService } from "@/modules/flight/service"
-import { hotelService } from "@/modules/hotel/service"
 import type { FlightFareDetails } from "@/modules/flight/type"
 import type { RoomDetails } from "@/modules/hotel/type"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -23,12 +23,16 @@ import {
   AlertTriangle,
 } from "lucide-react"
 import { useDateFormatter } from "@/hooks/use-date-formatter"
+import { useCurrencyFormatter } from "@/hooks/use-currency-formatter"
 import { useRouter } from "next/navigation"
 import { useToast } from "@/hooks/use-toast"
 import { useRecommendPanel } from "@/contexts/recommend-panel-context"
+import { mapboxService } from "@/modules/mapbox/services/mapboxClientService"
+import { env } from "@/env.mjs"
 
 const RESUME_STORAGE_KEY = "bookingResumePayload"
 const PROCESSING_STATUSES = new Set(["PENDING", "VALIDATION_PENDING", "PAYMENT_PENDING"])
+const DEFAULT_MAPBOX_STYLE = 'mapbox://styles/mapbox/streets-v12'
 
 const PAGE_SIZE = 10
 
@@ -58,23 +62,7 @@ const getBookingIcon = (type?: string) => {
   }
 }
 
-function formatCurrency(amount?: number | string | null, currency?: string | null) {
-  if (amount == null) return "—"
-  const numeric = typeof amount === "string" ? Number(amount) : amount
-  if (!Number.isFinite(numeric)) return amount?.toString() ?? "—"
-  const resolvedCurrency = currency ? currency.toUpperCase() : "VND"
-  try {
-    return new Intl.NumberFormat(undefined, {
-      style: "currency",
-      currency: resolvedCurrency,
-      currencyDisplay: "symbol",
-      maximumFractionDigits: 2,
-      minimumFractionDigits: 0,
-    }).format(numeric)
-  } catch {
-    return `${numeric.toFixed(2)} ${resolvedCurrency}`
-  }
-}
+
 
 const normalizeIsoDateTime = (value?: string | null) => {
   if (!value) return null
@@ -84,35 +72,29 @@ const normalizeIsoDateTime = (value?: string | null) => {
   return value
 }
 
-function formatDateTime(timestamp?: string | null) {
-  const normalized = normalizeIsoDateTime(timestamp)
-  if (!normalized) return "—"
-  const date = new Date(normalized)
-  if (Number.isNaN(date.getTime())) return timestamp || "—"
-  return date.toLocaleString(undefined, {
-    year: "numeric",
-    month: "short",
-    day: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  })
-}
-
-function formatDateOnly(timestamp?: string | null) {
-  const normalized = normalizeIsoDateTime(timestamp)
-  if (!normalized) return "—"
-  const date = new Date(normalized)
-  if (Number.isNaN(date.getTime())) return timestamp || "—"
-  return date.toLocaleDateString(undefined, {
-    year: "numeric",
-    month: "long",
-    day: "numeric",
-  })
-}
-
 const ensureSeatClass = (value?: string | null) => {
   if (!value) return "ECONOMY"
   return value.toUpperCase()
+}
+
+const resolveNumber = (value?: number | string | null): number | undefined => {
+  if (value == null) return undefined
+  const numeric = typeof value === 'string' ? Number(value) : value
+  return Number.isFinite(numeric) ? numeric : undefined
+}
+
+const buildStaticMapUrl = (lat?: number | string | null, lng?: number | string | null) => {
+  const latitude = resolveNumber(lat)
+  const longitude = resolveNumber(lng)
+  const token = env.NEXT_PUBLIC_MAPBOX_ACCESS_TOKEN
+
+  if (!token || latitude === undefined || longitude === undefined) {
+    return undefined
+  }
+
+  const style = 'mapbox/streets-v12'
+  const markerColor = '1967D2'
+  return `https://api.mapbox.com/styles/v1/${style}/static/pin-s+${markerColor}(${longitude},${latitude})/${longitude},${latitude},10,0/600x360@2x?access_token=${token}`
 }
 
 const parseProductDetails = (json?: string | null) => {
@@ -124,6 +106,17 @@ const parseProductDetails = (json?: string | null) => {
     return null
   }
   }
+
+  type BookingDetailState = {
+    flight?: FlightFareDetails
+    hotel?: RoomDetails
+    fallbackFlight?: any
+    fallbackHotel?: any
+  }
+
+export function BookingHistoryTab() {
+  const { formatDateTime, formatDateOnly } = useDateFormatter()
+  const { formatCurrency: formatCurrencyWithUserPreference } = useCurrencyFormatter()
 
   const renderStatusBadge = (status?: string | null) => {
     if (!status) return null
@@ -145,52 +138,113 @@ const parseProductDetails = (json?: string | null) => {
     const source = flight ?? fallback
     if (!source) return null
 
-    const departure = flight?.departureTime ?? source?.departureDateTime
-    const arrival = flight?.arrivalTime ?? source?.arrivalDateTime
+    const departureRaw = flight?.departureTime ?? source?.departureDateTime
+    const arrivalRaw = flight?.arrivalTime ?? source?.arrivalDateTime
+    const normalizedDeparture = normalizeIsoDateTime(departureRaw)
+    const normalizedArrival = normalizeIsoDateTime(arrivalRaw)
+    const departure = normalizedDeparture ?? departureRaw
+    const arrival = normalizedArrival ?? arrivalRaw
     const seatClass = flight?.seatClass ?? ensureSeatClass(source?.seatClass)
     const priceRaw = flight?.price ?? source?.pricePerPassenger ?? source?.totalFlightPrice
     const price = priceRaw != null ? Number(priceRaw) : undefined
-    const currency = flight?.currency ?? source?.currency ?? "VND"
+    const currency = flight?.currency ?? source?.currency ?? 'VND'
     const airline = flight?.airline ?? source?.airline
     const flightNumber = flight?.flightNumber ?? source?.flightNumber
-    
-    // Handle both FlightFareDetails and API response structure
     const origin = flight?.originAirport ?? source?.originAirport ?? source?.origin
     const destination = flight?.destinationAirport ?? source?.destinationAirport ?? source?.destination
+    const originLabel = source?.originAirportName ?? origin
+    const destinationLabel = source?.destinationAirportName ?? destination
     const availableSeatsRaw = flight?.availableSeats ?? source?.availableSeats
     const availableSeats = availableSeatsRaw != null ? Number(availableSeatsRaw) : null
+    const airlineLogo = flight?.airlineLogo ?? source?.airlineLogo ?? fallback?.logo ?? '/airplane-generic.png'
+
+    const originLatitude = resolveNumber(flight?.originLatitude ?? source?.originLatitude)
+    const originLongitude = resolveNumber(flight?.originLongitude ?? source?.originLongitude)
+    const destinationLatitude = resolveNumber(flight?.destinationLatitude ?? source?.destinationLatitude)
+    const destinationLongitude = resolveNumber(flight?.destinationLongitude ?? source?.destinationLongitude)
+
+    const originPreview = source?.originAirportImage ?? buildStaticMapUrl(originLatitude, originLongitude)
+    const destinationPreview = source?.destinationAirportImage ?? buildStaticMapUrl(destinationLatitude, destinationLongitude)
 
     return (
-      <div className="space-y-2 rounded-lg border border-gray-300/30 bg-gray-100 p-4">
-        <h4 className="font-semibold text-gray-700">Chi tiết chuyến bay</h4>
-        <div className="grid gap-2 text-sm text-gray-600 md:grid-cols-2">
-          <div>
-            <span className="text-xs uppercase text-gray-500">Chuyến bay</span>
-            <p className="font-medium">{flightNumber || 'N/A'}</p>
-            {airline && <p className="text-xs text-gray-500">{airline}</p>}
+      <div className="overflow-hidden rounded-lg border border-gray-200 bg-white/80 shadow-sm">
+        <div className="flex flex-col gap-4 p-4">
+          <div className="flex items-start justify-between gap-4">
+            <div className="flex items-center gap-3">
+              <div className="relative h-16 w-16 overflow-hidden rounded-full border border-gray-200 bg-white">
+                <Image
+                  src={airlineLogo || '/airplane-generic.png'}
+                  alt={airline || 'Airline'}
+                  fill
+                  className="object-contain p-2"
+                  unoptimized
+                />
+              </div>
+              <div>
+                <p className="text-xs uppercase text-gray-500">Chuyến bay</p>
+                <p className="text-lg font-semibold text-gray-900">{airline || 'Không xác định'}</p>
+                {flightNumber && <p className="text-sm text-gray-500">{flightNumber}</p>}
+              </div>
+            </div>
+            <div className="text-right">
+              <p className="text-xs uppercase text-gray-500">Giá vé</p>
+              <p className="text-base font-semibold text-gray-900">
+                {formatCurrencyWithUserPreference(price ?? priceRaw, currency)}
+              </p>
+              {availableSeats != null && Number.isFinite(availableSeats) && (
+                <p className="text-xs text-gray-500">Số ghế trống: {availableSeats}</p>
+              )}
+            </div>
           </div>
-          <div>
-            <span className="text-xs uppercase text-gray-500">Hành trình</span>
-            <p className="font-medium">{origin || '—'} → {destination || '—'}</p>
+
+          <div className="grid gap-4 md:grid-cols-2">
+            <div className="overflow-hidden rounded-lg border border-gray-200 bg-white">
+              {originPreview ? (
+                <div className="relative h-32 w-full">
+                  <Image src={originPreview} alt={`Bản đồ ${originLabel || 'khởi hành'}`} fill className="object-cover" unoptimized />
+                </div>
+              ) : (
+                <div className="flex h-32 w-full items-center justify-center bg-gray-100 text-gray-400">
+                  <MapPin className="h-8 w-8" />
+                </div>
+              )}
+              <div className="p-3">
+                <p className="text-xs uppercase text-gray-500">Khởi hành</p>
+                <p className="font-medium text-gray-900">{originLabel || '—'}</p>
+                <p className="text-sm text-gray-500">{formatDateTime(departure)}</p>
+              </div>
+            </div>
+            <div className="overflow-hidden rounded-lg border border-gray-200 bg-white">
+              {destinationPreview ? (
+                <div className="relative h-32 w-full">
+                  <Image src={destinationPreview} alt={`Bản đồ ${destinationLabel || 'điểm đến'}`} fill className="object-cover" unoptimized />
+                </div>
+              ) : (
+                <div className="flex h-32 w-full items-center justify-center bg-gray-100 text-gray-400">
+                  <MapPin className="h-8 w-8" />
+                </div>
+              )}
+              <div className="p-3">
+                <p className="text-xs uppercase text-gray-500">Điểm đến</p>
+                <p className="font-medium text-gray-900">{destinationLabel || '—'}</p>
+                <p className="text-sm text-gray-500">{formatDateTime(arrival)}</p>
+              </div>
+            </div>
           </div>
-          <div>
-            <span className="text-xs uppercase text-gray-500">Khởi hành</span>
-          <p>{formatDateTime(departure)}</p>
-          </div>
-          <div>
-            <span className="text-xs uppercase text-gray-500">Đến</span>
-          <p>{formatDateTime(arrival)}</p>
-          </div>
-          <div>
-            <span className="text-xs uppercase text-gray-500">Hạng ghế</span>
-            <p>{seatClass}</p>
-          </div>
-          <div>
-            <span className="text-xs uppercase text-gray-500">Giá vé</span>
-            <p>{formatCurrency(price ?? priceRaw, currency)}</p>
-            {availableSeats != null && Number.isFinite(availableSeats) && (
-              <p className="text-xs text-gray-500">Số ghế trống: {availableSeats}</p>
-            )}
+
+          <div className="grid gap-3 text-sm text-gray-600 md:grid-cols-3">
+            <div>
+              <span className="text-xs uppercase text-gray-500">Hành trình</span>
+              <p className="font-medium text-gray-900">{origin || '—'} → {destination || '—'}</p>
+            </div>
+            <div>
+              <span className="text-xs uppercase text-gray-500">Hạng ghế</span>
+              <p className="font-medium text-gray-900">{seatClass}</p>
+            </div>
+            <div>
+              <span className="text-xs uppercase text-gray-500">Ngày bay</span>
+              <p className="font-medium text-gray-900">{formatDateOnly(departure)}</p>
+            </div>
           </div>
         </div>
       </div>
@@ -201,53 +255,109 @@ const parseProductDetails = (json?: string | null) => {
     const source = hotel ?? fallback
     if (!source) return null
 
-    const title = hotel?.roomType?.name ?? source?.roomName ?? source?.roomType
+    const roomTitle = hotel?.roomType?.name ?? source?.roomName ?? source?.roomType
     const description = hotel?.description ?? source?.description
     const priceRaw = hotel?.price ?? source?.pricePerNight ?? source?.totalRoomPrice
     const price = priceRaw != null ? Number(priceRaw) : undefined
-    const currency = source?.currency ?? "VND"
+    const currency = source?.currency ?? 'VND'
     const capacity = hotel?.maxOccupancy ?? source?.numberOfGuests
     const bedType = hotel?.bedType ?? source?.bedType
     const roomNumber = hotel?.roomNumber ?? source?.roomId
+    const hotelName = source?.hotelName ?? fallback?.hotelName
+    const address = source?.hotelAddress ?? [source?.city, source?.country].filter(Boolean).join(', ')
+
+    const primaryHotelImage = source?.hotelImage
+      ?? hotel?.primaryImage?.url
+      ?? (Array.isArray(hotel?.media) ? hotel.media.find((item) => item?.url)?.url : undefined)
+      ?? source?.image
+      ?? (Array.isArray(source?.images) ? source.images.find(Boolean) : undefined)
+
+    const roomImageCandidates: string[] = []
+    if (hotel?.primaryImage?.url) {
+      roomImageCandidates.push(hotel.primaryImage.url)
+    }
+    if (Array.isArray(hotel?.media)) {
+      hotel.media.forEach((item) => {
+        if (item?.url) {
+          roomImageCandidates.push(item.url)
+        }
+      })
+    }
+    if (Array.isArray(source?.roomImages)) {
+      source.roomImages.forEach((img: string) => {
+        if (img) {
+          roomImageCandidates.push(img)
+        }
+      })
+    }
+    if (source?.roomImage) {
+      roomImageCandidates.push(source.roomImage)
+    }
+
+    const roomImages = Array.from(new Set(roomImageCandidates.filter(Boolean)))
+    const primaryRoomImage = roomImages[0] ?? primaryHotelImage
 
     return (
-      <div className="space-y-2 rounded-lg border border-gray-300/30 bg-gray-100 p-4">
-        <h4 className="font-semibold text-gray-700">Chi tiết phòng</h4>
-        <div className="grid gap-2 text-sm text-gray-600 md:grid-cols-2">
-          <div>
-            <span className="text-xs uppercase text-gray-500">Phòng</span>
-            <p className="font-medium">{title || 'Phòng'}</p>
-            {roomNumber && <p className="text-xs text-gray-500">Mã phòng: {roomNumber}</p>}
+      <div className="overflow-hidden rounded-lg border border-gray-200 bg-white/80 shadow-sm">
+        {primaryHotelImage && (
+          <div className="relative h-40 w-full">
+            <Image src={primaryHotelImage} alt={hotelName || 'Khách sạn'} fill className="object-cover" unoptimized />
           </div>
-          <div>
-            <span className="text-xs uppercase text-gray-500">Giá</span>
-            <p>{formatCurrency(price ?? priceRaw, currency)}</p>
+        )}
+        <div className="flex flex-col gap-4 p-4">
+          <div className="flex flex-col gap-1">
+            <p className="text-xs uppercase text-gray-500">Khách sạn</p>
+            <p className="text-lg font-semibold text-gray-900">{hotelName || 'Thông tin khách sạn'}</p>
+            {address && <p className="text-sm text-gray-500">{address}</p>}
           </div>
-          <div>
-            <span className="text-xs uppercase text-gray-500">Sức chứa</span>
-            <p>{capacity ? `${capacity} khách` : '—'}</p>
+
+          {primaryRoomImage && (
+            <div>
+              <p className="text-xs uppercase text-gray-500">Phòng đã đặt</p>
+              <div className="relative mt-2 h-32 w-full overflow-hidden rounded-lg border border-gray-200">
+                <Image src={primaryRoomImage} alt={roomTitle || 'Phòng'} fill className="object-cover" unoptimized />
+              </div>
+            </div>
+          )}
+
+          {roomImages.length > 1 && (
+            <div className="flex gap-2 overflow-x-auto">
+              {roomImages.slice(0, 5).map((imageUrl, index) => (
+                <div key={`${imageUrl}-${index}`} className="relative h-20 w-28 shrink-0 overflow-hidden rounded-md border border-gray-200">
+                  <Image src={imageUrl} alt={`Ảnh phòng ${index + 1}`} fill className="object-cover" unoptimized />
+                </div>
+              ))}
+            </div>
+          )}
+
+          <div className="grid gap-3 text-sm text-gray-600 md:grid-cols-2">
+            <div>
+              <span className="text-xs uppercase text-gray-500">Phòng</span>
+              <p className="font-medium text-gray-900">{roomTitle || 'Phòng'}</p>
+              {roomNumber && <p className="text-xs text-gray-500">Mã phòng: {roomNumber}</p>}
+            </div>
+            <div>
+              <span className="text-xs uppercase text-gray-500">Giá</span>
+              <p className="font-medium text-gray-900">{formatCurrencyWithUserPreference(price ?? priceRaw, currency)}</p>
+            </div>
+            <div>
+              <span className="text-xs uppercase text-gray-500">Sức chứa</span>
+              <p className="font-medium text-gray-900">{capacity ? `${capacity} khách` : '—'}</p>
+            </div>
+            <div>
+              <span className="text-xs uppercase text-gray-500">Loại giường</span>
+              <p className="font-medium text-gray-900">{bedType || '—'}</p>
+            </div>
           </div>
-          <div>
-            <span className="text-xs uppercase text-gray-500">Loại giường</span>
-            <p>{bedType || '—'}</p>
-          </div>
+
+          {description && <p className="text-sm text-gray-600/80">{description}</p>}
         </div>
-        {description && <p className="text-sm text-gray-600/80">{description}</p>}
       </div>
     )
   }
 
   const renderFallbackFlightDetails = (fallback: any) => renderFlightDetails(undefined, fallback)
   const renderFallbackHotelDetails = (fallback: any) => renderHotelDetails(undefined, fallback)
-
-type BookingDetailState = {
-  flight?: FlightFareDetails
-  hotel?: RoomDetails
-  fallbackFlight?: any
-  fallbackHotel?: any
-}
-
-export function BookingHistoryTab() {
   const [items, setItems] = useState<BookingHistoryItemDto[]>([])
   const [page, setPage] = useState(0)
   const [hasNext, setHasNext] = useState(false)
@@ -259,7 +369,7 @@ export function BookingHistoryTab() {
   const [detailMap, setDetailMap] = useState<Record<string, BookingDetailState>>({})
   const router = useRouter()
   const { toast } = useToast()
-  const { showLocation, showJourney, setMapStyle } = useRecommendPanel()
+  const { showLocation, showLocations, showJourney, setMapStyle, mapStyle } = useRecommendPanel()
   const [now, setNow] = useState(() => Date.now())
 
   useEffect(() => {
@@ -279,7 +389,14 @@ export function BookingHistoryTab() {
     return `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`
   }, [now])
 
+  const ensureDefaultMapStyle = useCallback(() => {
+    if (mapStyle !== DEFAULT_MAPBOX_STYLE) {
+      setMapStyle(DEFAULT_MAPBOX_STYLE)
+    }
+  }, [mapStyle, setMapStyle])
+
   const handleShowFlightLocation = useCallback((booking: BookingHistoryItemDto, target: 'origin' | 'destination') => {
+    ensureDefaultMapStyle()
     const latValue = target === 'origin' ? booking.originLatitude : booking.destinationLatitude
     const lngValue = target === 'origin' ? booking.originLongitude : booking.destinationLongitude
 
@@ -302,9 +419,10 @@ export function BookingHistoryTab() {
       description: booking.productSummary ?? undefined,
       type: 'airport'
     });
-  }, [showLocation, toast])
+  }, [showLocation, toast, ensureDefaultMapStyle])
 
   const handleShowHotelLocation = useCallback((booking: BookingHistoryItemDto) => {
+    ensureDefaultMapStyle()
     const latValue = booking.hotelLatitude
     const lngValue = booking.hotelLongitude
     const lat = typeof latValue === 'string' ? Number(latValue) : latValue
@@ -319,7 +437,6 @@ export function BookingHistoryTab() {
       return;
     }
 
-    setMapStyle('mapbox://styles/phamduyhuy/cmgnvqn9e00tl01s69xu41j43');
     showLocation({
       lat: lat as number,
       lng: lng as number,
@@ -327,7 +444,7 @@ export function BookingHistoryTab() {
       description: booking.productSummary ?? undefined,
       type: 'hotel'
     });
-  }, [showLocation, toast, setMapStyle]);
+  }, [showLocation, toast, ensureDefaultMapStyle]);
 
   const handleShowFlightJourney = useCallback((booking: BookingHistoryItemDto) => {
     const originLat = typeof booking.originLatitude === 'string' ? Number(booking.originLatitude) : booking.originLatitude;
@@ -344,31 +461,53 @@ export function BookingHistoryTab() {
       return;
     }
 
-    setMapStyle('mapbox://styles/phamduyhuy/cmgnvl0ec00ud01se98ju3a80');
+    ensureDefaultMapStyle()
+    const originLabel = booking.originAirportCode || booking.originCity || '';
+    const destinationLabel = booking.destinationAirportCode || booking.destinationCity || '';
+    const markerLabel = booking.bookingReference
+      ?? (originLabel && destinationLabel ? `${originLabel} → ${destinationLabel}` : 'Hành trình');
+
+    const pathCoordinates = mapboxService.generateFlightPath(
+      { latitude: originLat, longitude: originLng },
+      { latitude: destLat, longitude: destLng }
+    );
+
+    const resolvedCoordinates = pathCoordinates.length > 1
+      ? pathCoordinates
+      : [[originLng, originLat], [destLng, destLat]] as [number, number][];
+
     showJourney({
       id: booking.bookingId,
       origin: { latitude: originLat, longitude: originLng },
       destination: { latitude: destLat, longitude: destLng },
-      color: '#ef4444' // Red color for flights
+      color: '#ef4444',
+      travelMode: 'flight',
+      animate: true,
+      markerLabel,
+      pathCoordinates: resolvedCoordinates,
+      durationMs: Math.max(8000, resolvedCoordinates.length * 22)
     });
 
-    // Explicitly show markers for origin and destination
-    showLocation({
-      lat: originLat,
-      lng: originLng,
-      title: `Khởi hành: ${booking.originAirportCode}`,
-      description: booking.productSummary ?? undefined,
-      type: 'airport'
-    });
-    showLocation({
-      lat: destLat,
-      lng: destLng,
-      title: `Đến: ${booking.destinationAirportCode}`,
-      description: booking.productSummary ?? undefined,
-      type: 'airport'
-    });
+    showLocations([
+      {
+        id: `${booking.bookingId}-origin`,
+        lat: originLat,
+        lng: originLng,
+        title: originLabel ? `Khởi hành: ${originLabel}` : `Khởi hành • ${booking.bookingReference}`,
+        description: booking.productSummary ?? undefined,
+        type: 'airport'
+      },
+      {
+        id: `${booking.bookingId}-destination`,
+        lat: destLat,
+        lng: destLng,
+        title: destinationLabel ? `Đến: ${destinationLabel}` : `Đến • ${booking.bookingReference}`,
+        description: booking.productSummary ?? undefined,
+        type: 'airport'
+      }
+    ], { preserveJourneys: true });
 
-  }, [showJourney, showLocation, toast, setMapStyle]);
+  }, [showJourney, showLocations, toast, ensureDefaultMapStyle]);
 
   const handleContinueBooking = useCallback((booking: BookingHistoryItemDto) => {
     try {
@@ -480,12 +619,7 @@ export function BookingHistoryTab() {
         }
       }
 
-      if (booking.bookingType === 'HOTEL' || booking.bookingType === 'COMBO') {
-        const hotelInfo = booking.bookingType === 'COMBO' ? product?.hotelDetails : product
-        if (hotelInfo?.roomId) {
-          detail.hotel = await hotelService.getRoomDetails(hotelInfo.roomId)
-        }
-      }
+      // For hotel bookings we rely on the stored booking payload. Additional API calls can be added here when richer endpoints exist.
 
       setDetailMap((prev) => ({ ...prev, [bookingId]: detail }))
     } catch (err: any) {
@@ -591,7 +725,7 @@ export function BookingHistoryTab() {
                         </div>
                         <div className="flex flex-col items-start gap-1 text-sm md:items-end">
                           <span className="text-gray-900 font-semibold text-base">
-                            {formatCurrency(booking.totalAmount, booking.currency)}
+                            {formatCurrencyWithUserPreference(booking.totalAmount, booking.currency)}
                           </span>
                           <div className="flex gap-1">
                             <Button

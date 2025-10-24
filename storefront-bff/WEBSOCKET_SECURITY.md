@@ -4,11 +4,13 @@
 
 When using a Backend-for-Frontend (BFF) pattern with server-side sessions (like Spring Cloud Gateway with Spring Session), we face a challenge with WebSockets. The standard `TokenRelay` gateway filter does not work for the WebSocket upgrade handshake, and we want to avoid exposing JWT/access tokens to the client-side JavaScript for security reasons.
 
+We also run behind a Cloudflare Tunnel free plan. Any HTTP request that takes longer than 100 seconds is terminated with a `504 Gateway Timeout`, which breaks long-running AI responses that stream tokens for >100 seconds. A dedicated WebSocket channel lets us bypass the per-request timeout while keeping security guarantees.
+
 This document outlines the standard, secure pattern to authenticate WebSocket connections by leveraging the server-side session cookie.
 
 ## 2. Solution Overview
 
-The client's browser will automatically send its session cookie with the initial WebSocket handshake request. We can use this to securely propagate the user's identity to the downstream WebSocket service.
+The client's browser will automatically send its session cookie with the initial WebSocket handshake request. We can use this to securely propagate the user's identity to the downstream WebSocket service and then keep the socket open for token streaming that exceeds Cloudflare's 100-second HTTP cap.
 
 The flow is as follows:
 1.  **Client:** Initiates a WebSocket connection to the BFF without any special tokens. The browser attaches the session cookie automatically.
@@ -20,7 +22,12 @@ The flow is as follows:
     *   A **handshake interceptor** on this service reads the `Authorization` header.
     *   It validates the JWT and, if valid, allows the WebSocket connection to be established. If invalid, it rejects the connection.
 
-This architecture keeps tokens secure on the server-side and provides a seamless authentication experience.
+This architecture keeps tokens secure on the server-side, avoids the Cloudflare timeout window by streaming over WebSockets, and provides a seamless authentication experience.
+
+### Why WebSockets Instead of HTTP Streaming?
+- Cloudflare closes HTTP requests at 100 seconds even if the backend flushes partial data; WebSockets stay open as long as traffic flows.
+- We can send incremental AI tokens or progress pings, which the frontend renders immediately and doubles as a keepalive signal.
+- When no tokens are ready, the backend can send lightweight heartbeat frames to prevent idle closures by intermediaries.
 
 ## 3. Implementation Steps
 
@@ -100,6 +107,10 @@ spring:
             # Apply our new custom filter instead of the standard TokenRelay
             - WebSocketTokenRelay
 ```
+
+#### Step 1.3: Enforce Idle Timeouts and Heartbeats
+
+Configure `storefront-bff`'s WebFlux/WebSocket settings to send periodic pings (e.g., every 25 seconds) if the downstream handler is silent. This prevents Cloudflare and browsers from tearing down the tunnel. Likewise, configure a sane idle timeout (e.g., 5 minutes) so abandoned sockets are cleaned up.
 
 ### Part 2: `aiAgent-service` (Downstream Service)
 
@@ -196,19 +207,58 @@ public class WebSocketConfig implements WebSocketConfigurer {
 }
 ```
 
-### Part 3: Frontend Client (No Change Needed)
+#### Step 2.3: Stream AI Tokens & Heartbeats
+- Implement your AI handler so that it pushes partial tokens/messages down the socket as soon as they are available.
+- When the AI model is busy for more than ~10 seconds, send a heartbeat (e.g., JSON `{type: "keepalive"}`) to keep the tunnel alive.
+- Close the socket with an application-level status code when the response is complete or if an error occurs; the BFF can translate it to an HTTP status for observability.
 
-The best part of this solution is its simplicity on the client-side. Your frontend code does not need to handle tokens at all.
+### Part 3: Message Envelope & Observability
+
+Define a simple JSON message schema shared between frontend and backend:
+```json
+{ "type": "token", "content": "partial text" }
+{ "type": "metadata", "event": "started", "requestId": "..." }
+{ "type": "keepalive" }
+{ "type": "error", "message": "..." }
+```
+- Include `requestId` so the BFF can correlate WebSocket events with upstream HTTP telemetry.
+- Add rate limiting / concurrency caps in the BFF to avoid denial-of-service.
+
+Log WebSocket lifecycle events (`handshake`, `authenticated`, `closed`, `idle-timeout`) so we can detect Cloudflare disconnects versus application failures.
+
+### Part 4: Frontend Client (Token Streaming)
+
+The frontend connects without any manual tokens—the browser forwards the session cookie automatically. Update the client to handle streaming tokens and reconnect behaviour:
 
 ```javascript
-// The client connects without any token, as the browser handles the session cookie
 const socket = new WebSocket('wss://bookingsmart.huypd.dev/api/ai/ws/');
 
 socket.onopen = () => {
-  console.log('WebSocket connection established.');
-  // Now you can send messages
-  socket.send('Hello, AI!');
+  socket.send(JSON.stringify({ type: 'prompt', prompt: userPrompt, requestId }));
 };
 
-// ... other event handlers
+socket.onmessage = (event) => {
+  const payload = JSON.parse(event.data);
+  switch (payload.type) {
+    case 'token':
+      appendToken(payload.content);
+      break;
+    case 'metadata':
+      handleMetadata(payload);
+      break;
+    case 'keepalive':
+      // no-op
+      break;
+    case 'error':
+      displayError(payload.message);
+      break;
+  }
+};
+
+socket.onclose = (event) => {
+  notifyUserIfUnexpected(event);
+  attemptReconnectIfNeeded();
+};
 ```
+
+Ensure the UI drains the stream incrementally to give users feedback before the AI run finishes. This pattern keeps us within Cloudflare's limits while maintaining security and observability.

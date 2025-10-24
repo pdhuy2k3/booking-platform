@@ -12,6 +12,7 @@ export type ChatResponseType = 'PROCESSING' | 'RESPONSE' | 'ERROR';
 export interface ChatMessageResponse {
   type: ChatResponseType;
   userId: string; // Populated by backend from JWT
+  requestId?: string;
   conversationId: string;
   userMessage: string;
   aiResponse?: string;
@@ -22,6 +23,8 @@ export interface ChatMessageResponse {
   processingTimeMs?: number;
   nextRequestSuggestions?: string[];
   next_request_suggestions?: string[]; // Support both naming conventions
+  requiresConfirmation?: boolean;
+  confirmationContext?: ConfirmationContext;
 }
 
 // Legacy REST API types (kept for backward compatibility)
@@ -35,6 +38,7 @@ export interface ChatResponse {
   userMessage: string;
   aiResponse: string;
   conversationId: string;
+  requestId?: string;
   userId?: string; // Optional - populated by backend from JWT token
   timestamp: string;
   error?: string;

@@ -4,11 +4,12 @@ import { useEffect, useCallback, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { cn } from "@/lib/utils";
-import { MessageCircle, Search, Info, LogOut, UserRound, User, BarChart3, History } from "lucide-react";
+import { MessageCircle, Search, Info, LogOut, UserRound, User, BarChart3, History, CalendarRange } from "lucide-react";
 import Image from "next/image";
 import { useAuth } from "@/contexts/auth-context";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { SimpleThemeToggle } from "@/components/theme-toggle";
+import { BookingModal } from "@/components/booking-modal";
 
 export function Sidebar() {
   const router = useRouter();
@@ -27,26 +28,12 @@ export function Sidebar() {
   const activeConversationId = searchParams.get("conversationId");
 
   useEffect(() => {
-    if (!isLoading && isAuthenticated) {
-      // Always refresh conversations when component mounts or user authenticates
-      if (chatConversations.length === 0) {
-        refreshChatConversations().catch((error) => {
-          console.error("Unable to refresh conversations:", error);
-        });
-      } else {
-        // Check if we're in a new chat scenario and the conversation may not be in the list yet
-        const isNewChat = searchParams.get("new") === "1";
-        const hasActiveConversationInList = chatConversations.some(conv => conv.id === activeConversationId);
-        
-        if (isNewChat || (activeConversationId && !hasActiveConversationInList)) {
-          // Refresh to make sure we have the latest conversation list
-          refreshChatConversations().catch((error) => {
-            console.error("Unable to refresh conversations:", error);
-          });
-        }
-      }
+    if (!isLoading && isAuthenticated && chatConversations.length === 0) {
+      refreshChatConversations().catch((error) => {
+        console.error("Unable to refresh conversations:", error);
+      });
     }
-  }, [isLoading, isAuthenticated, chatConversations.length, refreshChatConversations, searchParams, activeConversationId, chatConversations]);
+  }, [isLoading, isAuthenticated, chatConversations.length, refreshChatConversations]);
 
   const handleNavigateTab = useCallback(
     (tab: "chat" | "search", options?: { conversationId?: string; newChat?: boolean }) => {
@@ -72,6 +59,8 @@ export function Sidebar() {
     },
     [router, searchParams],
   );
+
+  const [isBookingModalOpen, setBookingModalOpen] = useState(false);
 
   const navItems = [
     { label: "Chat", icon: MessageCircle, tab: "chat" as const },
@@ -108,7 +97,7 @@ export function Sidebar() {
         </Link>
       </div>
 
-      <nav className={cn("flex flex-col gap-2 items-stretch")}>
+      <nav className={cn("flex flex-col gap-2 items-stretch")}> 
         {navItems.map((item) => {
           const Icon = item.icon;
           const isActive = activeTab === item.tab;
@@ -130,6 +119,17 @@ export function Sidebar() {
           );
         })}
       </nav>
+
+      <button
+        type="button"
+        onClick={() => setBookingModalOpen(true)}
+        className={cn(
+          "flex h-10 items-center rounded-full border border-dashed border-primary/60 bg-primary/5 px-3 text-sm font-medium text-primary transition-colors hover:bg-primary/10" 
+        )}
+      >
+        <CalendarRange className="mr-2 h-4 w-4" />
+        Xem đặt chỗ
+      </button>
 
       <div className={cn("flex-1 w-full overflow-y-auto mt-2 space-y-2 px-1")}>
         {isAuthenticated && (
@@ -170,7 +170,7 @@ export function Sidebar() {
         )}
       </div>
 
-      <div className={cn("flex flex-col gap-2 items-stretch")}>
+      <div className={cn("flex flex-col gap-2 items-stretch")}> 
         {isLoading ? (
           <div className="h-10 w-10 animate-pulse rounded-full bg-secondary" />
         ) : isAuthenticated && user ? (
@@ -273,6 +273,8 @@ export function Sidebar() {
         </div>
 
       </div>
+
+      <BookingModal open={isBookingModalOpen} onOpenChange={setBookingModalOpen} />
     </nav>
   );
 }

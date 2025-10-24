@@ -7,6 +7,7 @@ import { cn } from "@/lib/utils"
 import { ChatInterface } from "@/components/chat-interface"
 import { SearchInterface } from "@/components/search-interface"
 import { BookingModal } from "@/components/booking-modal"
+import { RecommendPanel } from "@/components/recommend-panel"
 import { useBooking } from "@/contexts/booking-context"
 import { useRecommendPanel } from "@/contexts/recommend-panel-context"
 import HotelDetailsModal from "@/modules/hotel/component/HotelDetailsModal"
@@ -21,7 +22,7 @@ function HomePageContent() {
   const [newChatSignal, setNewChatSignal] = useState(0)
   const [isBookingModalOpen, setIsBookingModalOpen] = useState(false)
   const [selectedHotelForDetails, setSelectedHotelForDetails] = useState<{ hotelId: string | null; checkInDate?: string; checkOutDate?: string; guestCount?: number; roomCount?: number }>({ hotelId: null })
-  const { setResults: setRecommendResults, clearResults: clearRecommendResults, showLocation } = useRecommendPanel()
+  const { results, setResults: setRecommendResults, clearResults: clearRecommendResults, showLocation } = useRecommendPanel()
   
   const {
     resetBooking, 
@@ -30,7 +31,11 @@ function HomePageContent() {
     setSelectedHotel, 
     updateBookingData, 
     setStep,
-    resumeBooking 
+    resumeBooking,
+    selectedFlight,
+    selectedHotel,
+    setFlightDetails,
+    setHotelDetails,
   } = useBooking()
 
   // Handle URL parameters
@@ -104,13 +109,33 @@ function HomePageContent() {
   }
 
   const handleFlightBook = (flight: any) => {
-    // Reset previous booking
-    resetBooking()
-    
-    // Set booking type to flight
-    setBookingType('flight')
+    const hasHotelSelected = Boolean(selectedHotel)
+    const currency = flight.currency || 'VND'
+
+    if (hasHotelSelected) {
+      setBookingType('both')
+      setFlightDetails(null)
+      updateBookingData({
+        bookingType: 'COMBO',
+        totalAmount: 0,
+        currency,
+        flightSelection: undefined,
+      })
+    } else {
+      resetBooking()
+      setBookingType('flight')
+      setFlightDetails(null)
+      updateBookingData({
+        bookingType: 'FLIGHT',
+        totalAmount: 0,
+        currency,
+        flightSelection: undefined,
+        hotelSelection: undefined,
+        comboDiscount: undefined,
+      })
+    }
+
     console.log('✈️ Booking flight:', flight)
-    // Set selected flight with all required fields
     setSelectedFlight({
       flightId: flight.flightId || flight.id,
       flightNumber: flight.flightNumber,
@@ -125,15 +150,12 @@ function HomePageContent() {
       arrivalTime: flight.arrivalTime,
       duration: flight.duration,
       price: flight.price,
-      currency: flight.currency,
+      currency,
       seatClass: flight.seatClass,
       logo: flight.logo?? flight.raw?.airlineLogo ?? flight.imageUrl ?? null,
       scheduleId: flight.scheduleId,
       fareId: flight.fareId,
     })
-    
-    // Update booking data
-    updateBookingData({ bookingType: 'FLIGHT' })
     
     // Set step to passengers
     setStep('passengers')
@@ -143,10 +165,8 @@ function HomePageContent() {
   }
 
   const handleHotelBook = (hotel: any, room?: any) => {
-    // If room is not provided, this means we're coming from AI response
-    // In this case, we should open the hotel details modal to select a room
     if (!room) {
-      setSelectedHotelForDetails({ 
+      setSelectedHotelForDetails({
         hotelId: hotel.id || hotel.hotelId,
         checkInDate: hotel.checkInDate,
         checkOutDate: hotel.checkOutDate,
@@ -156,15 +176,34 @@ function HomePageContent() {
       return
     }
 
-    // Reset previous booking
-    resetBooking()
+    const hasFlightSelected = Boolean(selectedFlight)
+    const currency = hotel.currency || 'VND'
+
+    if (hasFlightSelected) {
+      setBookingType('both')
+      setHotelDetails(null)
+      updateBookingData({
+        bookingType: 'COMBO',
+        totalAmount: 0,
+        currency,
+        hotelSelection: undefined,
+      })
+    } else {
+      resetBooking()
+      setBookingType('hotel')
+      setHotelDetails(null)
+      updateBookingData({
+        bookingType: 'HOTEL',
+        totalAmount: 0,
+        currency,
+        flightSelection: undefined,
+        hotelSelection: undefined,
+        comboDiscount: undefined,
+      })
+    }
     
-    // Set booking type to hotel
-    setBookingType('hotel')
-    
-    // Set selected hotel with room details
     setSelectedHotel({
-      id: selectedHotelForDetails.hotelId,
+      id: selectedHotelForDetails.hotelId || hotel.id || hotel.hotelId,
       name: hotel.name,
       address: hotel.address,
       city: hotel.city,
@@ -172,13 +211,12 @@ function HomePageContent() {
       hotelLatitude: hotel.hotelLatitude ?? hotel.latitude ?? hotel.location?.latitude,
       hotelLongitude: hotel.hotelLongitude ?? hotel.longitude ?? hotel.location?.longitude,
       rating: hotel.rating,
-
-    roomType: room.type,
-    roomName: room.name,
-    price: room.price,
-    pricePerNight: room.price,
-    totalPrice: room.price * (hotel.rooms ?? 1) * (hotel.nights ?? 1),
-    currency: hotel.currency || 'VND',
+      roomType: room.type,
+      roomName: room.name,
+      price: room.price,
+      pricePerNight: room.price,
+      totalPrice: room.price * (hotel.rooms ?? 1) * (hotel.nights ?? 1),
+      currency,
       amenities: room.amenities,
       image: hotel.image,
       checkInDate: hotel.checkInDate,
@@ -187,14 +225,8 @@ function HomePageContent() {
       rooms: hotel.rooms,
       nights: hotel.nights,
     })
-    
-    // Update booking data
-    updateBookingData({ bookingType: 'HOTEL' })
-    
-    // Set step to passengers
+
     setStep('passengers')
-    
-    // Open booking modal
     setIsBookingModalOpen(true)
   }
 
@@ -224,53 +256,54 @@ function HomePageContent() {
 
   return (
     <>
-      <main 
-        className="flex-1 flex flex-col h-full min-w-0 overflow-hidden"
-      >
-        {/* Main Tab Navigation */}
-        <div className="flex items-center justify-center p-4 border-b border-border shrink-0">
-          <div className="flex bg-muted rounded-full p-1">
-            {tabs.map((tab) => {
-              const Icon = tab.icon
-              return (
-                <button
-                  key={tab.id}
-                  onClick={() => handleTabChange(tab.id)}
-                  className={cn(
-                    "flex items-center gap-2 px-4 md:px-6 py-2 rounded-full text-sm font-medium transition-all duration-200",
-                    activeTab === tab.id
-                      ? "bg-background text-foreground shadow-sm"
-                      : "text-muted-foreground hover:text-foreground"
-                  )}
-                >
-                  <Icon className="h-4 w-4" />
-                  <span className="hidden sm:inline">{tab.label}</span>
-                </button>
-              )
-            })}
+      <div className="flex flex-1 min-h-0 min-w-0 h-full">
+        <main className="flex-1 flex flex-col h-full min-w-0 overflow-hidden">
+          {/* Main Tab Navigation */}
+          <div className="flex items-center justify-center p-4 border-b border-border shrink-0">
+            <div className="flex bg-muted rounded-full p-1">
+              {tabs.map((tab) => {
+                const Icon = tab.icon
+                return (
+                  <button
+                    key={tab.id}
+                    onClick={() => handleTabChange(tab.id)}
+                    className={cn(
+                      "flex items-center gap-2 px-4 md:px-6 py-2 rounded-full text-sm font-medium transition-all duration-200",
+                      activeTab === tab.id
+                        ? "bg-background text-foreground shadow-sm"
+                        : "text-muted-foreground hover:text-foreground"
+                    )}
+                  >
+                    <Icon className="h-4 w-4" />
+                    <span className="hidden sm:inline">{tab.label}</span>
+                  </button>
+                )
+              })}
+            </div>
           </div>
-        </div>
 
-        {/* Tab Content */}
-        <div className="flex-1 overflow-hidden">
-          {activeTab === "chat" && (
-            <ChatInterface
-              onSearchResults={handleSearchResults}
-              onStartBooking={() => {}}
-              onChatStart={() => {}}
-              conversationId={conversationId}
-              onConversationChange={handleConversationChange}
-              newChatTrigger={newChatSignal}
-              onFlightBook={handleFlightBook}
-              onHotelBook={handleHotelBook}
-              onLocationClick={handleLocationClick}
-            />
-          )}
-          {activeTab === "search" && (
-            <SearchInterface />
-          )}
-        </div>
-      </main>
+          {/* Tab Content */}
+          <div className="flex-1 overflow-hidden">
+            {activeTab === "chat" && (
+              <ChatInterface
+                onSearchResults={handleSearchResults}
+                onStartBooking={() => {}}
+                onChatStart={() => {}}
+                conversationId={conversationId}
+                onConversationChange={handleConversationChange}
+                newChatTrigger={newChatSignal}
+                onFlightBook={handleFlightBook}
+                onHotelBook={handleHotelBook}
+                onLocationClick={handleLocationClick}
+              />
+            )}
+            {activeTab === "search" && <SearchInterface />}
+          </div>
+        </main>
+        <aside className="hidden md:flex h-full border-l border-border flex-col overflow-hidden shrink-0 bg-background md:w-[320px]">
+          <RecommendPanel results={results} className="w-full" />
+        </aside>
+      </div>
 
       {/* Booking Modal */}
       <BookingModal 

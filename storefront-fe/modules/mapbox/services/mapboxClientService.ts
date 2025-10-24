@@ -9,6 +9,43 @@ import type {
   MapboxSearchResponse,
 } from '../types';
 
+type CoordinatePair = [number, number];
+
+const isFiniteNumber = (value: unknown): value is number => typeof value === 'number' && Number.isFinite(value);
+
+const computeControlPoint = (origin: CoordinatePair, destination: CoordinatePair): CoordinatePair => {
+  const [originLng, originLat] = origin;
+  const [destinationLng, destinationLat] = destination;
+  const midLng = (originLng + destinationLng) / 2;
+  const midLat = (originLat + destinationLat) / 2;
+  const deltaLng = destinationLng - originLng;
+  const deltaLat = destinationLat - originLat;
+  const distance = Math.sqrt(deltaLng * deltaLng + deltaLat * deltaLat) || 1;
+  const offsetMagnitude = distance * 0.35;
+  const offsetLng = (-deltaLat / distance) * offsetMagnitude;
+  const offsetLat = (deltaLng / distance) * offsetMagnitude;
+  return [midLng + offsetLng, midLat + offsetLat];
+};
+
+const generateArc = (origin: CoordinatePair, destination: CoordinatePair, steps = 420): CoordinatePair[] => {
+  if (!isFiniteNumber(origin[0]) || !isFiniteNumber(origin[1]) || !isFiniteNumber(destination[0]) || !isFiniteNumber(destination[1])) {
+    return [];
+  }
+
+  const controlPoint = computeControlPoint(origin, destination);
+  const coordinates: CoordinatePair[] = [];
+
+  for (let index = 0; index <= steps; index += 1) {
+    const t = index / steps;
+    const oneMinusT = 1 - t;
+    const lng = oneMinusT * oneMinusT * origin[0] + 2 * oneMinusT * t * controlPoint[0] + t * t * destination[0];
+    const lat = oneMinusT * oneMinusT * origin[1] + 2 * oneMinusT * t * controlPoint[1] + t * t * destination[1];
+    coordinates.push([lng, lat]);
+  }
+
+  return coordinates;
+};
+
 class MapboxClientService {
   private searchService: MapboxSearchService;
 
@@ -64,6 +101,16 @@ class MapboxClientService {
       console.error('Error retrieving destination:', error);
       return null;
     }
+  }
+
+  generateFlightPath(
+    origin: { latitude: number; longitude: number },
+    destination: { latitude: number; longitude: number },
+    steps = 420
+  ): CoordinatePair[] {
+    const originPair: CoordinatePair = [origin.longitude, origin.latitude];
+    const destinationPair: CoordinatePair = [destination.longitude, destination.latitude];
+    return generateArc(originPair, destinationPair, steps);
   }
 }
 

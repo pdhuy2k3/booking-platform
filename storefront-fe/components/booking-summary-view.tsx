@@ -13,8 +13,8 @@ import { useAuth } from '@/contexts/auth-context'
 import { toast } from '@/hooks/use-toast'
 import { ToastAction } from '@/components/ui/toast'
 import { format } from 'date-fns'
-import { formatCurrency, formatPrice } from '@/lib/currency'
-import { Plane, Building2, Clock, MapPin, Users, Calendar as CalendarIcon, RefreshCcw, ArrowRight } from 'lucide-react'
+import { formatCurrency } from '@/lib/currency'
+import { Plane, Building2, Clock, MapPin, Users, Calendar as CalendarIcon, RefreshCcw, ArrowRight, PlusCircle } from 'lucide-react'
 
 const parseDateValue = (value?: string) => {
   if (!value) return null
@@ -62,6 +62,8 @@ export function BookingSummaryView() {
     setBookingType,
     updateBookingData,
     resetBooking,
+    setSelectedFlight,
+    setSelectedHotel,
   } = useBooking()
   const [showFlow, setShowFlow] = useState(step !== 'selection')
   const [initialized, setInitialized] = useState(false)
@@ -143,7 +145,11 @@ export function BookingSummaryView() {
   }, [showFlow])
 
   const ensureBookingType = () => {
-    if (!derivedType) return
+    if (!derivedType) {
+      setBookingType(null);
+      updateBookingData({ bookingType: undefined });
+      return;
+    }
     if (!bookingType || bookingType !== derivedType) {
       setBookingType(derivedType)
     }
@@ -151,6 +157,11 @@ export function BookingSummaryView() {
     if (bookingData.bookingType !== upper) {
       updateBookingData({ bookingType: upper as 'FLIGHT' | 'HOTEL' | 'COMBO' })
     }
+  }
+
+  const switchToCombo = () => {
+    setBookingType('both')
+    updateBookingData({ bookingType: 'COMBO' })
   }
 
   const handleProceed = () => {
@@ -194,7 +205,23 @@ export function BookingSummaryView() {
   }
 
   const totalEstimated = useMemo(() => {
-    const currency = selectedFlight?.currency || selectedHotel?.currency || 'VND'
+    const currency = bookingData.currency || selectedFlight?.currency || selectedHotel?.currency || 'VND'
+
+    if (typeof bookingData.totalAmount === 'number' && bookingData.totalAmount > 0) {
+      return formatCurrency(bookingData.totalAmount, currency)
+    }
+
+    if (derivedType === 'both' && bookingData.flightSelection?.totalFlightPrice != null && hotelPricing) {
+      return formatCurrency(bookingData.flightSelection.totalFlightPrice + hotelPricing.total, currency)
+    }
+
+    if (derivedType === 'flight' && bookingData.flightSelection?.totalFlightPrice != null) {
+      return formatCurrency(bookingData.flightSelection.totalFlightPrice, currency)
+    }
+
+    if (derivedType === 'hotel' && hotelPricing) {
+      return formatCurrency(hotelPricing.total, currency)
+    }
 
     if (derivedType === 'both' && selectedFlight && hotelPricing) {
       return formatCurrency((selectedFlight.price || 0) + hotelPricing.total, currency)
@@ -205,11 +232,11 @@ export function BookingSummaryView() {
     }
 
     if (derivedType === 'hotel' && hotelPricing) {
-      return formatCurrency(hotelPricing.total, selectedHotel?.currency || 'VND')
+      return formatCurrency(hotelPricing.total, currency)
     }
 
     return null
-  }, [derivedType, selectedFlight, selectedHotel, hotelPricing])
+  }, [bookingData.totalAmount, bookingData.currency, bookingData.flightSelection?.totalFlightPrice, derivedType, selectedFlight, selectedHotel, hotelPricing])
 
   const renderFlightCard = () => {
     if (!selectedFlight) return null
@@ -229,6 +256,22 @@ export function BookingSummaryView() {
             <Button variant="ghost" size="icon" onClick={() => router.push('/?tab=search&searchTab=flights')}>
               <RefreshCcw className="h-4 w-4" />
               <span className="sr-only">Đổi chuyến bay</span>
+            </Button>
+            <Button 
+              variant="outline" 
+              size="icon" 
+              onClick={() => {
+                updateBookingData({ flightSelection: null });
+                setSelectedFlight(null);
+              }}
+              className="text-destructive hover:text-destructive"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4">
+                <path d="m3 6 3-3h12l3 3v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
+                <path d="M3 6v16a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6" />
+                <path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+              </svg>
+              <span className="sr-only">Xóa chuyến bay</span>
             </Button>
           </div>
         </CardHeader>
@@ -257,7 +300,12 @@ export function BookingSummaryView() {
             </div>
             <div className="text-right">
               <p className="text-xs uppercase text-muted-foreground">Giá ước tính</p>
-              <p className="text-lg font-semibold">{formatCurrency(selectedFlight.price || 0, selectedFlight.currency || 'VND')}</p>
+              <p className="text-lg font-semibold">
+                {formatCurrency(
+                  bookingData.flightSelection?.totalFlightPrice ?? selectedFlight.price ?? 0,
+                  bookingData.currency || selectedFlight.currency || 'VND'
+                )}
+              </p>
             </div>
           </div>
 
@@ -315,6 +363,22 @@ export function BookingSummaryView() {
               <RefreshCcw className="h-4 w-4" />
               <span className="sr-only">Đổi khách sạn</span>
             </Button>
+            <Button 
+              variant="outline" 
+              size="icon" 
+              onClick={() => {
+                updateBookingData({ hotelSelection: null });
+                setSelectedHotel(null);
+              }}
+              className="text-destructive hover:text-destructive"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4">
+                <path d="m3 6 3-3h12l3 3v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
+                <path d="M3 6v16a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6" />
+                <path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+              </svg>
+              <span className="sr-only">Xóa khách sạn</span>
+            </Button>
           </div>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -330,11 +394,13 @@ export function BookingSummaryView() {
             <div className="text-right">
               <p className="text-xs uppercase text-muted-foreground">Giá mỗi đêm</p>
               <p className="text-lg font-semibold">
-                {formatPrice(
+                {formatCurrency(
+                  bookingData.hotelSelection?.pricePerNight ??
                   pricing?.pricePerNight ??
                   selectedHotel.pricePerNight ??
                   selectedHotel.price ??
-                  0
+                  0,
+                  bookingData.currency || selectedHotel.currency || 'VND'
                 )}
               </p>
               {pricing && (
@@ -343,7 +409,10 @@ export function BookingSummaryView() {
                     {pricing.rooms} phòng · {pricing.nights} đêm
                   </p>
                   <p className="mt-2 text-sm font-semibold text-primary">
-                    Tổng: {formatPrice(pricing.total)}
+                    Tổng: {formatCurrency(
+                      bookingData.hotelSelection?.totalRoomPrice ?? pricing.total,
+                      bookingData.currency || selectedHotel.currency || 'VND'
+                    )}
                   </p>
                 </>
               )}
@@ -374,7 +443,12 @@ export function BookingSummaryView() {
             <div className="grid gap-4 md:grid-cols-3">
               <div className="rounded-lg border bg-muted/30 p-4">
                 <p className="text-xs uppercase tracking-wide text-muted-foreground">Giá mỗi đêm</p>
-                <p className="mt-1 font-semibold">{formatPrice(pricing.pricePerNight)}</p>
+                <p className="mt-1 font-semibold">
+                  {formatCurrency(
+                    bookingData.hotelSelection?.pricePerNight ?? pricing.pricePerNight,
+                    bookingData.currency || selectedHotel.currency || 'VND'
+                  )}
+                </p>
               </div>
               <div className="rounded-lg border bg-muted/30 p-4">
                 <p className="text-xs uppercase tracking-wide text-muted-foreground">Số đêm</p>
@@ -386,7 +460,12 @@ export function BookingSummaryView() {
               </div>
               <div className="rounded-lg border bg-primary/10 p-4 text-right md:text-left">
                 <p className="text-xs uppercase tracking-wide text-muted-foreground">Tổng giá</p>
-                <p className="mt-1 text-lg font-semibold text-primary">{formatPrice(pricing.total)}</p>
+                <p className="mt-1 text-lg font-semibold text-primary">
+                  {formatCurrency(
+                    bookingData.hotelSelection?.totalRoomPrice ?? pricing.total,
+                    bookingData.currency || selectedHotel.currency || 'VND'
+                  )}
+                </p>
               </div>
             </div>
           )}
@@ -400,6 +479,64 @@ export function BookingSummaryView() {
               ))}
             </div>
           ) : null}
+        </CardContent>
+      </Card>
+    )
+  }
+
+  const renderAddHotelPrompt = () => {
+    if (!selectedFlight || selectedHotel) return null
+    return (
+      <Card className="border-dashed border-primary/40 bg-primary/5">
+        <CardContent className="flex flex-col gap-3 py-6 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-start gap-3">
+            <div className="mt-1 flex h-10 w-10 items-center justify-center rounded-full bg-primary/10 text-primary">
+              <PlusCircle className="h-5 w-5" />
+            </div>
+            <div>
+              <p className="text-sm font-semibold">Thêm khách sạn cho hành trình của bạn</p>
+              <p className="text-sm text-muted-foreground">
+                Đặt phòng khách sạn để hoàn thiện chuyến đi và nhận ưu đãi combo.
+              </p>
+            </div>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <Button onClick={() => router.push('/?tab=search&searchTab=hotels')}>
+              Tìm khách sạn
+            </Button>
+            <Button variant="ghost" onClick={switchToCombo}>
+              Đổi sang gói combo
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+    )
+  }
+
+  const renderAddFlightPrompt = () => {
+    if (!selectedHotel || selectedFlight) return null
+    return (
+      <Card className="border-dashed border-primary/40 bg-primary/5">
+        <CardContent className="flex flex-col gap-3 py-6 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-start gap-3">
+            <div className="mt-1 flex h-10 w-10 items-center justify-center rounded-full bg-primary/10 text-primary">
+              <PlusCircle className="h-5 w-5" />
+            </div>
+            <div>
+              <p className="text-sm font-semibold">Thêm chuyến bay cho lịch trình</p>
+              <p className="text-sm text-muted-foreground">
+                Kết hợp chuyến bay với khách sạn để tối ưu chi phí và thời gian di chuyển.
+              </p>
+            </div>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <Button onClick={() => router.push('/?tab=search&searchTab=flights')}>
+              Tìm chuyến bay
+            </Button>
+            <Button variant="ghost" onClick={switchToCombo}>
+              Đổi sang gói combo
+            </Button>
+          </div>
         </CardContent>
       </Card>
     )
@@ -448,7 +585,9 @@ export function BookingSummaryView() {
         {selectedFlight || selectedHotel ? (
           <div className="space-y-4 flex-1 min-h-0 overflow-y-auto pb-4">
             {renderFlightCard()}
+            {renderAddHotelPrompt()}
             {renderHotelCard()}
+            {renderAddFlightPrompt()}
             {totalEstimated && (
               <Card>
                 <CardContent className="flex flex-col gap-4 p-6 sm:flex-row sm:items-center sm:justify-between">
